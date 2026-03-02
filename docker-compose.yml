@@ -1,0 +1,20 @@
+services:
+  # 1. Backend (NestJS + Prisma)
+  backend:
+    build:
+      context: ./backend
+    container_name: cafe_smart_backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/.env  # Conecta las variables de entorno donde estará Supabase
+
+  # 2. Frontend (React + Vite)
+  frontend:
+    build:
+      context: ./frontend
+    container_name: cafe_smart_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
