@@ -25,6 +25,7 @@ Digitalizar la gestión operativa del comercio de café, permitiendo a los usuar
 
 Cafe Smart utiliza una arquitectura **Monolito Modular**, donde cada módulo del sistema representa una parte del proceso de negocio.
 
+```
 Electron Desktop App
 │
 ├── Frontend (React + Vite)
@@ -34,9 +35,9 @@ Electron Desktop App
 ├── ORM (Prisma)
 │
 └── Base de datos (PostgreSQL / SQLite)
+```
 
- 
-# Flujo principal del sistema:
+## Flujo principal del sistema:
 
 Compra → Evaluación → Inventario → Secado → Medición de humedad → Factor de rendimiento → Venta → Reportes
 
@@ -62,23 +63,26 @@ Compra → Evaluación → Inventario → Secado → Medición de humedad → Fa
 ---
 
 # 📦 Estructura del Proyecto
+
+```
 cafesmartv1
 │
 ├── frontend
-│ ├── src
-│ ├── public
-│ ├── vite.config.ts
-│ └── package.json
+│   ├── src
+│   ├── public
+│   ├── vite.config.ts
+│   └── package.json
 │
 ├── backend
-│ ├── src
-│ ├── prisma
-│ ├── Dockerfile
-│ └── package.json
+│   ├── src
+│   ├── prisma
+│   ├── Dockerfile
+│   └── package.json
 │
 ├── docker-compose.yml
 ├── README.md
 └── .gitignore
+```
 
 
 ---
@@ -102,21 +106,28 @@ No es necesario instalar Node.js ni gestores de paquetes localmente.
 ```bash
 git clone https://github.com/CAFE-SMART/cafesmartv1.git
 cd cafesmartv1
+```
 
-3️⃣ Configurar variables de entorno
+## 3️⃣ Configurar variables de entorno
 
 Crear el archivo:
 
-backend/.env
+`backend/.env`
 
 Agregar:
 
+```env
 DATABASE_URL="postgresql://postgres:[password]@db.ielltlinimqcnwlkvrbs.supabase.co:5432/postgres"
+```
 
 Solicita las credenciales al administrador del sistema.
 
-4️⃣ Levantar la infraestructura
+---
+
+## 4️⃣ Levantar la infraestructura
 
 Desde la raíz del proyecto ejecutar:
 
+```bash
 docker-compose up --build -d
+```
