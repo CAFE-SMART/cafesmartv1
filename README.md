@@ -1,6 +1,6 @@
 # ☕ Cafe Smart
 
-Sistema de escritorio para la gestión de **compraventas y cooperativas de café**, diseñado para registrar operaciones del negocio cafetero como compras, inventario, secado, cálculo de rendimiento, ventas y reportes financieros.
+Sistema móvil y de escritorio para la gestión de **compraventas y cooperativas de café**, diseñado para registrar operaciones del negocio cafetero como compras, inventario, secado, cálculo de rendimiento, ventas y reportes financieros. Preparado para funcionar **Offline-First**.
 
 El sistema está construido bajo una **arquitectura de Monolito Modular**, permitiendo organizar las funcionalidades del negocio en módulos independientes pero dentro de una misma aplicación.
 
@@ -26,7 +26,7 @@ Digitalizar la gestión operativa del comercio de café, permitiendo a los usuar
 Cafe Smart utiliza una arquitectura **Monolito Modular**, donde cada módulo del sistema representa una parte del proceso de negocio.
 
 ```
-Electron Desktop App
+Capacitor Mobile / Web App
 │
 ├── Frontend (React + Vite)
 │
@@ -34,7 +34,7 @@ Electron Desktop App
 │
 ├── ORM (Prisma)
 │
-└── Base de datos (PostgreSQL / SQLite)
+└── Base de datos (PostgreSQL / SQLite Local)
 ```
 
 ## Flujo principal del sistema:
@@ -53,12 +53,12 @@ Compra → Evaluación → Inventario → Secado → Medición de humedad → Fa
 | ORM | Prisma |
 | Base de datos | PostgreSQL |
 | Autenticación | JWT + bcrypt |
-| Runtime Desktop | Electron |
+| Runtime | Capacitor (Android / Web) |
 | DevOps | Docker |
 | Testing | Jest + Supertest + Postman |
 | Dashboard | Recharts / Chart.js |
 | Base de datos local | SQLite |
-| Sincronización | Socket.io |
+| Sincronización | Offline-First Async |
 
 ---
 
@@ -68,9 +68,9 @@ Compra → Evaluación → Inventario → Secado → Medición de humedad → Fa
 cafesmartv1
 │
 ├── frontend
+│   ├── android          <-- Proyecto móvil nativo (Capacitor)
 │   ├── src
-│   ├── public
-│   ├── vite.config.ts
+│   ├── capacitor.config.ts
 │   └── package.json
 │
 ├── backend
@@ -89,15 +89,13 @@ cafesmartv1
 
 # 🚀 Cómo ejecutar el proyecto (Modo Desarrollo)
 
-## 1️⃣ Requisito
+## 1️⃣ Requisitos
 
 Instalar:
 
-- Docker Desktop
-
-https://www.docker.com/products/docker-desktop/
-
-No es necesario instalar Node.js ni gestores de paquetes localmente.
+- **Docker Desktop** (Para levantar la base de datos y backend fácilmente)
+- **Node.js** (Necesario localmente para trabajar el Frontend y Capacitor)
+- **Android Studio** (Opcional, pero necesario si quieres ver y emular el celular virtual)
 
 ---
 
@@ -124,8 +122,37 @@ Solicita las credenciales al administrador del sistema.
 
 ---
 
-## 4️⃣ Levantar la infraestructura
+## 4️⃣ Levantar la infraestructura Web / Backend
 
+Desde la raíz del proyecto ejecutar:
+
+```bash
+docker-compose up --build -d
+```
+Esto levantará tu API (Nube) y tu base de datos principal de forma transparente.
+
+---
+
+## 5️⃣ Emular la App en Celular (Frontend con Capacitor)
+
+Para correr la app en modo programador y luego verla en el celular:
+
+1. Ingresa a la carpeta frontend e instala dependencias usando **pnpm**:
+   ```bash
+   cd frontend
+   pnpm install
+   ```
+2. Para verla rápido en el navegador como cualquier web:
+   ```bash
+   pnpm dev
+   ```
+3. **Para verla en el celular (Emulador de Android):**
+   Siempre que hagas un cambio importante que quieras ver en el teléfono, corres:
+   ```bash
+   pnpm build        # 1. Empaqueta el código React
+   npx cap sync      # 2. Le pasa el código a la app de Android
+   npx cap open android  # 3. Abre Android Studio para darle Play
+   ```
 Desde la raíz del proyecto ejecutar:
 
 ```bash
