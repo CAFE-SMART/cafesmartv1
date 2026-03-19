@@ -1,3 +1,17 @@
+// ========================================================
+// ⚙️ ARCHIVO: tsconfig.json (Las Reglas del Lenguaje TypeScript)
+// ========================================================
+// ¿Para qué sirve?: Configura cómo TypeScript revisa tu código.
+// TypeScript es JavaScript con "reglas extras" para detectar errores
+// antes de que el usuario los vea. Este archivo define esas reglas.
+//
+// ¿Debo editarlo?: ⛔ CASI NO. Ya viene bien configurado.
+// Solo lo tocarías si necesitas agregar un alias de ruta (ej: "@" para 
+// importar desde src/) o cambiar la versión de JS destino.
+//
+// El alias "@" que configuramos en vite.config.ts también debe declararse
+// aquí en "paths" para que el editor de código no marque errores.
+// ========================================================
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -10,7 +24,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src"]
 }
