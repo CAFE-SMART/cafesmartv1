@@ -142,24 +142,35 @@ Para que el servidor y la base de datos funcionen correctamente, debemos instala
    ```
 
 ---
+=======
+## 4️⃣ Levantar la infraestructura Web / Backend
 
-## 5️⃣ Ejecutar el Frontend y Emular en Celular
+Desde la raíz del proyecto ejecutar:
 
-Para trabajar en la interfaz y verla en el navegador o celular:
+```bash
+docker-compose up --build -d
+```
+Esto levantará tu API (Nube) y tu base de datos principal de forma transparente.
+
+---
+
+## 5️⃣ Emular la App en Celular (Frontend con Capacitor)
+
+Para correr la app en modo programador y luego verla en el celular:
 
 1. Ingresa a la carpeta frontend e instala dependencias usando **pnpm**:
    ```bash
    cd frontend
    pnpm install
    ```
-2. **Para verla en el navegador (Web):**
+2. Para verla rápido en el navegador como cualquier web:
    ```bash
    pnpm dev
    ```
-3. **Para verla en el celular (Emulador de Android - Capacitor):**
-   Cada vez que hagas cambios visuales y quieras verlos en el teléfono:
+3. **Para verla en el celular (Emulador de Android):**
+   Siempre que hagas un cambio importante que quieras ver en el teléfono, corres:
    ```bash
-   pnpm build            # 1. Empaqueta el código React (crea carpeta dist)
-   npx cap sync          # 2. Sincroniza el código con el proyecto Android
-   npx cap open android  # 3. Abre Android Studio para ejecutar el emulador
+   pnpm build        # 1. Empaqueta el código React
+   npx cap sync      # 2. Le pasa el código a la app de Android
+   npx cap open android  # 3. Abre Android Studio para darle Play
    ```
