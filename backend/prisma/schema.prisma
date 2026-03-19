@@ -1,3 +1,5 @@
+// prisma es un ORM que permite interactuar con la base de datos
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,9 +9,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// esta es una prueba del modelo, borrarlo pronto!
-model Usuario {
-  id     Int    @id @default(autoincrement())
-  correo String @unique
-  nombre String
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(OPERADOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN       // Administrador de la cooperativa
+  OPERADOR    // El que recibe el café (Offline/Local)
 }
