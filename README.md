@@ -122,6 +122,27 @@ Solicita las credenciales al administrador del sistema.
 
 ---
 
+## 4️⃣ Levantar el Backend y la Base de Datos
+
+Para que el servidor y la base de datos funcionen correctamente, debemos instalar las librerías locales y levantar la infraestructura:
+
+1. Ingresa a la carpeta backend e instala dependencias usando **pnpm**:
+   ```bash
+   cd backend
+   pnpm install
+   ```
+2. Genera el cliente de Base de Datos (Prisma):
+   ```bash
+   npx prisma generate
+   ```
+3. Levanta la infraestructura (Base de Datos y API en la Nube):
+   ```bash
+   cd ..
+   docker-compose up --build -d
+   ```
+
+---
+=======
 ## 4️⃣ Levantar la infraestructura Web / Backend
 
 Desde la raíz del proyecto ejecutar:
@@ -153,8 +174,3 @@ Para correr la app en modo programador y luego verla en el celular:
    npx cap sync      # 2. Le pasa el código a la app de Android
    npx cap open android  # 3. Abre Android Studio para darle Play
    ```
-Desde la raíz del proyecto ejecutar:
-
-```bash
-docker-compose up --build -d
-```

@@ -1,3 +1,51 @@
+# Dependencias
 node_modules/
+.pnpm-store/
+
+# Construcción
 dist/
+build/
+.next/
+
+# Entorno y Secretos
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.sample
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor (VS Code / JetBrains)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS específicos
+.DS_Store
+Thumbs.db
+
+# NestJS / TypeScript
+/backend/dist/
+/backend/node_modules/
+
+# Vite / React
+/frontend/dist/
+/frontend/node_modules/
+
+# Capacitor (archivos que no deben ir en git)
+/frontend/android/app/build/
+/frontend/android/app/release/
+/frontend/android/app/src/main/assets/public/
+/frontend/android/.gradle/
+/frontend/android/local.properties
+/frontend/android/captures/
