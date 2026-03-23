@@ -1,25 +1,66 @@
-// prisma es un ORM que permite interactuar con la base de datos
+// ============================================================
+// schema.prisma — CAFE SMART
+// ============================================================
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
+// ------------------------------------------------------------
+// ENUM: Tipo de organización
+// Se añade OTRO para mayor flexibilidad.
+// ------------------------------------------------------------
+enum TipoOrganizacion {
+  COOPERATIVA
+  COMPRAVENTA
+  OTRO // Para exportadoras, trilladoras, etc.
+}
+
+enum RolUsuario {
+  ADMIN
+  OPERADOR
+}
+
+// ------------------------------------------------------------
+// MODEL: Organization
+// Mapeado exactamente al diseño de base de datos.
+// ------------------------------------------------------------
+model Organization {
+  id              Int              @id @default(autoincrement()) @map("id_organizacion")
+  nombre          String           @map("nombre")
+  tipo            TipoOrganizacion @map("id_tipo_organizacion")
+  otroTipoDetalle String?          @map("otro_tipo_detalle") // Para guardar el nombre si elige "OTRO"
+  activo          Boolean          @default(true) @map("estado")
+  creadoEn        DateTime         @default(now()) @map("fecha_registro")
+
+  usuarios User[]
+
+  @@map("organizacion") // Nombre exacto de la tabla en tu diseño
+}
+
+// ------------------------------------------------------------
+// MODEL: User
+// Mapeado exactamente al diseño de base de datos.
+// ------------------------------------------------------------
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(OPERADOR)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+  id       Int        @id @default(autoincrement()) @map("id_usuario")
+  nombre   String     @map("nombre")
+  correo   String     @unique @map("correo")
+  password String?   @map("password") // Opcional para los usuarios de Google
+  googleId String?   @unique @map("google_id") // Para vincular la cuenta de Google
+  telefono String    @map("telefono")
+  rol      RolUsuario @default(ADMIN) @map("id_rol")
+  activo   Boolean    @default(true) @map("estado")
+  creadoEn DateTime   @default(now()) @map("fecha_creacion")
 
-enum Role {
-  ADMIN       // Administrador de la cooperativa
-  OPERADOR    // El que recibe el café (Offline/Local)
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+  organizacionId Int          @map("id_organizacion")
+
+  @@map("usuario") // Nombre exacto de la tabla en tu diseño
 }
