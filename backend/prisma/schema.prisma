@@ -1,6 +1,7 @@
 // ============================================================
 // schema.prisma — CAFE SMART
 // ============================================================
+// prisma es un ORM que permite interactuar con la base de datos
 
 generator client {
   provider = "prisma-client-js"
@@ -63,4 +64,19 @@ model User {
   organizacionId Int          @map("id_organizacion")
 
   @@map("usuario") // Nombre exacto de la tabla en tu diseño
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(OPERADOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN       // Administrador de la cooperativa
+  OPERADOR    // El que recibe el café (Offline/Local)
 }
