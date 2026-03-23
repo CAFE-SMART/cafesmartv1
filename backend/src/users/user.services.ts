@@ -1,47 +1,47 @@
-/*
- * ========================================================
- * 🧠 ARCHIVO: user.services.ts (El Asistente de Usuarios)
- * ========================================================
- * ¿Para qué sirve?: Contiene la lógica de acceso a la tabla "User" en la
- * base de datos. Cualquier parte del backend que necesite buscar, crear
- * o modificar un usuario, llama a este servicio.
- *
- * Funciones que vivirán aquí:
- *   - findByEmail(email)  →  Buscar un usuario por su correo (para el login)
- *   - create(data)        →  Crear un usuario nuevo (para el registro)
- *
- * ¿Debo editarlo?: ✅ SÍ. La compañera de Backend debe implementar
- * las funciones de crear y buscar usuarios usando Prisma.
- *
- * ⚠️ Este servicio NO encripta contraseñas. Eso lo hace el AuthService.
- * Este servicio solo guarda y lee de la base de datos tal cual.
- */
-
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma, RolUsuario } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
-type CreateUserInput = {
-	name: string;
-	email: string;
-	password: string;
+type CrearUsuarioData = {
+  nombre: string;
+  correo: string;
+  password: string | null;
+  googleId?: string | null;
+  telefono: string;
+  rol: RolUsuario;
+  organizacionId: number;
 };
 
 @Injectable()
 export class UsersService {
-	constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-	findByEmail(email: string) {
-		return this.prisma.user.findUnique({
-			where: { email },
-		});
-	}
+  async findByEmail(correo: string) {
+    return this.prisma.user.findUnique({
+      where: { correo },
+    });
+  }
 
-	async create(data: CreateUserInput) {
-		const user = await this.prisma.user.create({
-			data,
-		});
-
-		const { password, ...safeUser } = user;
-		return safeUser;
-	}
+  async create(data: CrearUsuarioData, tx?: Prisma.TransactionClient) {
+    const prismaClient = tx ? tx : this.prisma;
+    return prismaClient.user.create({
+      data: {
+        nombre: data.nombre,
+        correo: data.correo,
+        password: data.password,
+        googleId: data.googleId,
+        telefono: data.telefono,
+        rol: data.rol,
+        organizacionId: data.organizacionId,
+      },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        telefono: true,
+        rol: true,
+        organizacionId: true,
+      },
+    });
+  }
 }

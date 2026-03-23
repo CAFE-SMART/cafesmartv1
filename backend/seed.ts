@@ -1,18 +1,29 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { PrismaClient, TipoOrganizacion, RolUsuario } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
   const hashedPassword = await bcrypt.hash('admin123', 10);
+  
+  const org = await prisma.organization.create({
+    data: {
+      nombre: 'Organización Principal',
+      tipo: TipoOrganizacion.OTRO,
+      otroTipoDetalle: 'Central',
+    }
+  });
+
   await prisma.user.upsert({
-    where: { email: 'admin@cafesmart.com' },
+    where: { correo: 'admin@cafesmart.com' },
     update: {},
     create: {
-      email: 'admin@cafesmart.com',
-      name: 'Admin Test',
+      correo: 'admin@cafesmart.com',
+      nombre: 'Admin Test',
       password: hashedPassword,
-      role: 'ADMIN',
+      telefono: '0000000000',
+      rol: RolUsuario.ADMIN,
+      organizacionId: org.id,
     },
   });
   console.log('Usuario de prueba creado: admin@cafesmart.com / admin123');
