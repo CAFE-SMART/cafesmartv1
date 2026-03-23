@@ -1,20 +1,22 @@
-/*
- * ========================================================
- * 🗺️ ARCHIVO: AppRoutes.tsx (El Mapa de Pantallas de la App)
- * ========================================================
- * ¿Para qué sirve?: Aquí se define qué pantalla (componente de pages/)
- * se muestra cuando el usuario va a una URL específica.
- *
- * Rutas del Sprint 2:
- *   /login         →  Pantalla de inicio de sesión
- *   /register      →  Pantalla de registro de usuario
- *   /inventario    →  Pantalla de visualización de lotes
- *   /compras       →  Pantalla de registro de compra de café
- *   /ventas        →  Pantalla de registro de venta
- *
- * ¿Debo editarlo?: ✅ SÍ. Cada vez que creen una pantalla nueva en pages/,
- * deben agregar aquí una línea nueva de ruta:
- *   <Route path="/nueva-ruta" element={<MiNuevaPantalla />} />
- *
- * ⚠️ Recuerda instalar react-router-dom con: pnpm add react-router-dom
- */
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Login from '@/pages/Login';
+import Inventario from '@/pages/Inventario';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+
+function AppRoutes() {
+	return (
+		<Routes>
+			<Route path="/login" element={<Login />} />
+			
+			{/* Rutas Protegidas */}
+			<Route element={<ProtectedRoute />}>
+				<Route path="/inventario" element={<Inventario />} />
+			</Route>
+
+			<Route path="/register" element={<Navigate to="/login" replace />} />
+			<Route path="*" element={<Navigate to="/login" replace />} />
+		</Routes>
+	);
+}
+
+export default AppRoutes;

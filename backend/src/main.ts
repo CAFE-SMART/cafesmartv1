@@ -9,6 +9,7 @@
  * a menos que quieran agregar prefijos globales a las rutas de las API o Swagger.
  */
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -16,6 +17,7 @@ async function bootstrap() {
   
   // CORS para una conexion sin errores entre el Frontend y el Backend
   app.enableCors();
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
   
   // Escuchar en puerto 0.0.0.0
   await app.listen(3000, '0.0.0.0');

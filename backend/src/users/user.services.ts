@@ -16,3 +16,32 @@
  * ⚠️ Este servicio NO encripta contraseñas. Eso lo hace el AuthService.
  * Este servicio solo guarda y lee de la base de datos tal cual.
  */
+
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+
+type CreateUserInput = {
+	name: string;
+	email: string;
+	password: string;
+};
+
+@Injectable()
+export class UsersService {
+	constructor(private readonly prisma: PrismaService) {}
+
+	findByEmail(email: string) {
+		return this.prisma.user.findUnique({
+			where: { email },
+		});
+	}
+
+	async create(data: CreateUserInput) {
+		const user = await this.prisma.user.create({
+			data,
+		});
+
+		const { password, ...safeUser } = user;
+		return safeUser;
+	}
+}
