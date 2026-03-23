@@ -1,189 +1,230 @@
-# ☕ Cafe Smart
+# Cafe Smart
 
-Sistema móvil y de escritorio para la gestión de **compraventas y cooperativas de café**, diseñado para registrar operaciones del negocio cafetero como compras, inventario, secado, cálculo de rendimiento, ventas y reportes financieros. Preparado para funcionar **Offline-First**.
+Sistema web y movil para la gestion de compraventas y cooperativas de cafe. El proyecto esta organizado como un monorepo simple con dos aplicaciones separadas:
 
-El sistema está construido bajo una **arquitectura de Monolito Modular**, permitiendo organizar las funcionalidades del negocio en módulos independientes pero dentro de una misma aplicación.
+- `frontend/`: React + Vite + Capacitor
+- `backend/`: NestJS + Prisma
 
----
+En esta rama ya quedaron incorporados:
 
-# 🎯 Objetivo del Proyecto
+- Registro tradicional en backend
+- Registro con Google en backend
+- Soporte para usuarios con `password` nullable y `googleId`
+- Rutas base del frontend (`/login` y `/register`)
+- Configuracion de Vite compatible con ESM
+- Proyecto Android con `appId` `com.cafesmart.app`
 
-Digitalizar la gestión operativa del comercio de café, permitiendo a los usuarios:
+## Estructura del proyecto
 
-- Registrar compras de café por lote
-- Evaluar calidad del café
-- Gestionar inventario
-- Registrar procesos de secado
-- Registrar factor
-- Registrar ventas
-- Controlar gastos operativos
-- Visualizar reportes y métricas del negocio
-
----
-
-# 🧱 Arquitectura del Sistema
-
-Cafe Smart utiliza una arquitectura **Monolito Modular**, donde cada módulo del sistema representa una parte del proceso de negocio.
-
-```
-Capacitor Mobile / Web App
-│
-├── Frontend (React + Vite)
-│
-├── Backend API (NestJS)
-│
-├── ORM (Prisma)
-│
-└── Base de datos (PostgreSQL / SQLite Local)
+```text
+cafesmartv1/
+|-- backend/
+|   |-- prisma/
+|   |-- src/
+|   `-- package.json
+|-- frontend/
+|   |-- android/
+|   |-- src/
+|   `-- package.json
+|-- docker-compose.yml
+`-- README.md
 ```
 
-## Flujo principal del sistema:
+## Requisitos
 
-Compra → Evaluación → Inventario → Secado → Medición de humedad → Factor de rendimiento → Venta → Reportes
+Instala esto antes de empezar:
 
+- Node.js 22 o superior
+- pnpm
+- Docker Desktop
+- Android Studio
 
----
+Comandos sugeridos para verificar:
 
-# 🧰 Stack Tecnológico
-
-| Capa | Tecnología |
-|-----|-------------|
-| Frontend | React + Vite + TypeScript |
-| Backend | Node.js + NestJS |
-| ORM | Prisma |
-| Base de datos | PostgreSQL |
-| Autenticación | JWT + bcrypt |
-| Runtime | Capacitor (Android / Web) |
-| DevOps | Docker |
-| Testing | Jest + Supertest + Postman |
-| Dashboard | Recharts / Chart.js |
-| Base de datos local | SQLite |
-| Sincronización | Offline-First Async |
-
----
-
-# 📦 Estructura del Proyecto
-
-```
-cafesmartv1
-│
-├── frontend
-│   ├── android          <-- Proyecto móvil nativo (Capacitor)
-│   ├── src
-│   ├── capacitor.config.ts
-│   └── package.json
-│
-├── backend
-│   ├── src
-│   ├── prisma
-│   ├── Dockerfile
-│   └── package.json
-│
-├── docker-compose.yml
-├── README.md
-└── .gitignore
+```bash
+node -v
+pnpm -v
+docker -v
 ```
 
+Si no tienes `pnpm`, instalalo asi:
 
----
+```bash
+npm install -g pnpm
+```
 
-# 🚀 Cómo ejecutar el proyecto (Modo Desarrollo)
-
-## 1️⃣ Requisitos
-
-Instalar:
-
-- **Docker Desktop** (Para levantar la base de datos y backend fácilmente)
-- **Node.js** (Necesario localmente para trabajar el Frontend y Capacitor)
-- **Android Studio** (Opcional, pero necesario si quieres ver y emular el celular virtual)
-
----
-
-## 2️⃣ Clonar el repositorio
+## Clonar el repositorio
 
 ```bash
 git clone https://github.com/CAFE-SMART/cafesmartv1.git
 cd cafesmartv1
 ```
 
-## 3️⃣ Configurar variables de entorno
+## Importante sobre dependencias
 
-Crear el archivo:
+Este proyecto no usa dependencias en la raiz.
 
-`backend/.env`
+- Instala backend dentro de `backend/`
+- Instala frontend dentro de `frontend/`
 
-Agregar:
+No ejecutes `pnpm install` en la carpeta raiz.
+
+## Configurar variables de entorno del backend
+
+Crea el archivo `backend/.env`.
+
+Ejemplo:
 
 ```env
-DATABASE_URL="postgresql://postgres:[password]@db.ielltlinimqcnwlkvrbs.supabase.co:5432/postgres"
+DATABASE_URL="postgresql://USUARIO:CLAVE@HOST:5432/postgres"
+DIRECT_URL="postgresql://USUARIO:CLAVE@HOST:5432/postgres"
+PORT=3000
 ```
 
-Solicita las credenciales al administrador del sistema.
+Notas:
 
----
+- `DATABASE_URL` es obligatoria para Prisma.
+- `DIRECT_URL` tambien es requerida por `backend/prisma/schema.prisma`.
+- Si usan Supabase, pidan estas credenciales al responsable del proyecto.
 
-## 4️⃣ Levantar el Backend y la Base de Datos
+## Instalacion del backend
 
-Para que el servidor y la base de datos funcionen correctamente, debemos instalar las librerías locales y levantar la infraestructura:
+```bash
+cd backend
+pnpm install
+pnpm prisma generate
+```
 
-1. Ingresa a la carpeta backend e instala dependencias usando **pnpm**:
-   ```bash
-   cd backend
-   pnpm install
-   ```
-2. Genera el cliente de Base de Datos (Prisma):
-   ```bash
-   npx prisma generate
-   ```
-3. Levanta la infraestructura (Base de Datos y API en la Nube):
-   ```bash
-   cd ..
-   docker-compose up --build -d
-   ```
+Si luego llegan cambios en `prisma/schema.prisma`, vuelve a ejecutar:
 
----
-## 4️⃣ Levantar la infraestructura Web / Backend
+```bash
+pnpm prisma generate
+```
 
----
+## Ejecutar el backend
 
-## 5️⃣ Ejecutar el Frontend y Emular en Celular
+Modo desarrollo:
 
-Para trabajar en la interfaz y verla en el navegador o celular:
+```bash
+cd backend
+pnpm start:dev
+```
+
+Build de verificacion:
+
+```bash
+cd backend
+pnpm build
+```
+
+El backend corre por defecto en:
+
+```text
+http://localhost:3000
+```
+
+## Instalacion del frontend
+
+```bash
+cd frontend
+pnpm install
+```
+
+## Ejecutar el frontend en web
+
+```bash
+cd frontend
+pnpm dev
+```
+
+Build de verificacion:
+
+```bash
+cd frontend
+pnpm build
+```
+
+El frontend en desarrollo normalmente queda en:
+
+```text
+http://localhost:5173
+```
+
+## Rutas disponibles en este momento
+
+Actualmente el frontend ya tiene estas rutas base:
+
+- `/login`
+- `/register`
+
+## Ejecutar en Android con Capacitor
+
+Desde `frontend/`:
+
+```bash
+pnpm build
+npx cap sync
+npx cap open android
+```
+
+Notas:
+
+- El `appId` actual es `com.cafesmart.app`.
+- Cada vez que cambies algo del frontend y quieras verlo en Android, vuelve a correr `pnpm build` y `npx cap sync`.
+
+## Levantar con Docker
+
+Tambien puedes levantar los contenedores definidos actualmente:
+
 ```bash
 docker-compose up --build -d
 ```
-Esto levantará tu API (Nube) y tu base de datos principal de forma transparente.
 
----
+Servicios expuestos:
 
-## 5️⃣ Emular la App en Celular (Frontend con Capacitor)
+- Frontend: `http://localhost`
+- Backend: `http://localhost:3000`
 
-Para correr la app en modo programador y luego verla en el celular:
+## Flujo recomendado para nuevos compañeros
 
-1. Ingresa a la carpeta frontend e instala dependencias usando **pnpm**:
-   ```bash
-   cd frontend
-   pnpm install
-   ```
-2. **Para verla en el navegador (Web):**
-   ```bash
-   pnpm dev
-   ```
-3. **Para verla en el celular (Emulador de Android - Capacitor):**
-   Cada vez que hagas cambios visuales y quieras verlos en el teléfono:
-   ```bash
-   pnpm build            # 1. Empaqueta el código React (crea carpeta dist)
-   npx cap sync          # 2. Sincroniza el código con el proyecto Android
-   npx cap open android  # 3. Abre Android Studio para ejecutar el emulador
+1. Clonar el repositorio.
+2. Crear `backend/.env` con las credenciales correctas.
+3. Instalar backend con `pnpm install`.
+4. Ejecutar `pnpm prisma generate` en backend.
+5. Instalar frontend con `pnpm install`.
+6. Levantar backend con `pnpm start:dev`.
+7. Levantar frontend con `pnpm dev`.
 
-2. Para verla rápido en el navegador como cualquier web:
-   ```bash
-   pnpm dev
-   ```
-3. **Para verla en el celular (Emulador de Android):**
-   Siempre que hagas un cambio importante que quieras ver en el teléfono, corres:
-   ```bash
-   pnpm build        # 1. Empaqueta el código React
-   npx cap sync      # 2. Le pasa el código a la app de Android
-   npx cap open android  # 3. Abre Android Studio para darle Play
-   ```
+## Comandos utiles
+
+Backend:
+
+```bash
+cd backend
+pnpm install
+pnpm prisma generate
+pnpm start:dev
+pnpm build
+```
+
+Frontend:
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+pnpm build
+npx cap sync
+npx cap open android
+```
+
+## Estado actual de la rama
+
+Antes de hacer merge, esta rama ya corrige estos puntos:
+
+- Tipado seguro para usuarios Google en backend
+- Creacion de `googleId` sin colisiones triviales
+- Test Android alineado con `com.cafesmart.app`
+- `AppRoutes` movido dentro de `src/`
+- Dependencia `react-router-dom` agregada en frontend
+- Eliminacion de dependencias accidentales en la raiz del repo

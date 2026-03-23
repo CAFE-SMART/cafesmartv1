@@ -19,6 +19,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { RolUsuario } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/user.services';
@@ -37,20 +38,15 @@ export class AuthService {
   // Registra una nueva organización y su primer usuario admin.
   // ----------------------------------------------------------
   async register(dto: RegisterDto) {
-    // PASO 1: Verificar que el correo no esté en uso
     const usuarioExistente = await this.usersService.findByEmail(dto.correo);
     if (usuarioExistente) {
-      // Error amigable: el usuario ya existe
       throw new ConflictException(
         'Ya existe una cuenta registrada con ese correo electrónico.',
       );
     }
 
     try {
-      // PASO 2: Ejecutar todo dentro de una transacción
-      // Si cualquier paso falla, Prisma revierte todo automáticamente.
       const resultado = await this.prisma.$transaction(async (tx) => {
-        // PASO 2a: Crear la organización primero
         const organizacion = await tx.organization.create({
           data: {
             nombre: dto.nombreOrganizacion,
@@ -59,13 +55,8 @@ export class AuthService {
           },
         });
 
-
-        // PASO 2b: Hashear la contraseña (nunca se guarda en texto plano)
-        // El número 10 indica la "dificultad" del hash (estándar seguro)
         const passwordHasheado = await bcrypt.hash(dto.password, 10);
 
-        // PASO 2c: Crear el usuario administrador vinculado a la organización
-        // El rol ADMIN se asigna automáticamente — el usuario NO lo elige.
         const usuario = await this.usersService.create(
           {
             nombre: dto.nombre,
@@ -75,13 +66,12 @@ export class AuthService {
             rol: RolUsuario.ADMIN,
             organizacionId: organizacion.id,
           },
-          tx, // pasamos el cliente de transacción
+          tx,
         );
 
         return { organizacion, usuario };
       });
 
-      // PASO 3: Retornar respuesta limpia y amigable
       return {
         mensaje: 'Cuenta creada exitosamente. ¡Bienvenido a Café Smart!',
         organizacion: {
@@ -97,10 +87,8 @@ export class AuthService {
         },
       };
     } catch (error) {
-      // Si el error ya es un error de NestJS (ConflictException, etc.), lo relanzamos
       if (error.status) throw error;
 
-      // Cualquier otro error inesperado → mensaje genérico (no técnico)
       throw new InternalServerErrorException(
         'Ocurrió un error al crear la cuenta. Por favor intenta de nuevo.',
       );
@@ -114,9 +102,7 @@ export class AuthService {
   // validar el `googleToken` de forma segura.
   // ----------------------------------------------------------
   async registerGoogle(dto: RegisterGoogleDto) {
-    // 1. Aquí validaríamos el googleToken de verdad y sacaríamos 
-    // su google_id único. Por ahora, crearemos uno ficticio.
-    const mockGoogleId = `google_user_${Math.floor(Math.random() * 1000000)}`;
+    const mockGoogleId = `google_user_${randomUUID()}`;
 
     const usuarioExistente = await this.usersService.findByEmail(dto.correo);
     if (usuarioExistente) {
@@ -127,7 +113,6 @@ export class AuthService {
 
     try {
       const resultado = await this.prisma.$transaction(async (tx) => {
-        // Creamos la organización igual que antes
         const organizacion = await tx.organization.create({
           data: {
             nombre: dto.nombreOrganizacion,
@@ -136,27 +121,18 @@ export class AuthService {
           },
         });
 
-        // NOTA: ¡No hacemos hash con bcrypt porque NO hay contraseña!
-        // Le mandamos undefined o null a password y el googleId.
         const usuario = await this.usersService.create(
           {
             nombre: dto.nombre,
             correo: dto.correo,
-            password: null as any, // Ya que Prism no deja mandar null directamente si el DTO de users no lo permite, forzamos si es necesario, pero Prisma sí lo permite en la DB.
+            password: null,
+            googleId: mockGoogleId,
             telefono: dto.telefono,
             rol: RolUsuario.ADMIN,
             organizacionId: organizacion.id,
           },
-          tx, 
+          tx,
         );
-
-        // Como `this.usersService.create` no tiene soporte directo para `googleId` en su DTO original tal vez,
-        // vamos a actualizarlo justo después para guardar el googleId 
-        // (o podrías modificar usersService.create si prefieres).
-        await tx.user.update({
-          where: { id: usuario.id },
-          data: { googleId: mockGoogleId }
-        });
 
         return { organizacion, usuario };
       });
@@ -181,22 +157,3 @@ export class AuthService {
     }
   }
 }
-
-/*
- * ========================================================
- * 🧠 ARCHIVO: auth.service.ts (El Cerebro de la Autenticación)
- * ========================================================
- * ¿Para qué sirve?: Contiene TODA la lógica relacionada con autenticación.
- * El Controller solo "atiende la puerta", pero este archivo es el que 
- * toma las decisiones.
- *
- * Lógica que vivirá aquí:
- *   - Recibir datos del registro → encriptar la contraseña con bcrypt → guardar usuario
- *   - Recibir datos del login → comparar contraseña con bcrypt → si es correcta, generar token JWT
- *   - Si algo falla → lanzar un error con mensaje legible (no técnico)
- *
- * ¿Debo editarlo?: ✅ SÍ. Es el archivo más importante del módulo de auth.
- * Aquí es donde se programa la lógica de negocio de la autenticación.
- *
- * ⚠️ IMPORTANTE: Nunca guardes la contraseña en texto plano. Siempre usa bcrypt.
- */

@@ -9,7 +9,7 @@
  * deben venir aquí y agregar la ruta (<Route path="/inventario" element={<Inventario />} />).
  */
 import React from 'react';
-import AppRoutes from '../routes/AppRoutes';
+import AppRoutes from './routes/AppRoutes';
 
 function App() {
   return (
