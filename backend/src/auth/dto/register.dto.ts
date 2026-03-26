@@ -18,11 +18,12 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
+  Matches,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
 
 export class RegisterDto {
@@ -55,9 +56,13 @@ export class RegisterDto {
   // Teléfono de contacto
   @IsString({ message: 'El teléfono debe ser texto.' })
   @IsNotEmpty({ message: 'El teléfono es obligatorio.' })
+  @Matches(/^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/, {
+    message: 'El teléfono debe ser colombiano. Ejemplo: +57 300 123 4567',
+  })
   telefono: string;
 
   // Correo electrónico (debe ser único en el sistema)
+  @Transform(({ value }) => String(value).trim().toLowerCase())
   @IsEmail({}, { message: 'El correo electrónico no tiene un formato válido.' })
   @IsNotEmpty({ message: 'El correo electrónico es obligatorio.' })
   correo: string;
@@ -65,6 +70,12 @@ export class RegisterDto {
   // Contraseña: mínimo 6 caracteres
   @IsString({ message: 'La contraseña debe ser texto.' })
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres.' })
+  @Matches(/(?=.*[a-z])/, {
+    message: 'La contraseña debe incluir al menos una letra minúscula.',
+  })
+  @Matches(/(?=.*[A-Z])/, {
+    message: 'La contraseña debe incluir al menos una letra mayúscula.',
+  })
   @IsNotEmpty({ message: 'La contraseña es obligatoria.' })
   password: string;
 }

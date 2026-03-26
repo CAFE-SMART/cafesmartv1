@@ -1,16 +1,13 @@
 import {
-  ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
-  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
-import { RolUsuario } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { UsersService } from '../users/user.services';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
+import { UsersService } from '../users/user.services';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 
@@ -19,16 +16,98 @@ export class AuthService {
   private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   constructor(
-    private prisma: PrismaService,
-    private usersService: UsersService,
+    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
   ) {}
 
-  // ----------------------------------------------------------
-  // LOGIN NORMAL
-  // ----------------------------------------------------------
-  async login(email: string, passwordString: string) {
-    const user = await this.usersService.findByEmail(email);
+  private getGoogleAudiences(): string | string[] {
+    const list = (process.env.GOOGLE_CLIENT_IDS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (list.length > 0) {
+      return list;
+    }
+
+    const single = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (!single) {
+      throw new UnauthorizedException({
+        message: 'Configuracion de Google incompleta en el servidor',
+      });
+    }
+
+    return single;
+  }
+
+  async register(dto: RegisterDto) {
+    const normalizedEmail = dto.correo.trim().toLowerCase();
+    const existingUser = await this.usersService.findByEmail(normalizedEmail);
+    if (existingUser) {
+      throw new HttpException(
+        {
+          message: 'El correo ya esta registrado',
+          field: 'email',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    const user = await this.usersService.createAdminWithOrganization({
+      nombreOrganizacion: dto.nombreOrganizacion,
+      tipoOrganizacion: dto.tipoOrganizacion,
+      otroTipoDetalle: dto.otroTipoDetalle,
+      nombre: dto.nombre,
+      correo: normalizedEmail,
+      telefono: dto.telefono,
+      password: hashedPassword,
+    });
+
+    return this.buildAuthResponse(user, 'Registro exitoso');
+  }
+
+  async registerGoogle(dto: RegisterGoogleDto) {
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken: dto.googleToken,
+      audience: this.getGoogleAudiences(),
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload?.email || payload.email_verified !== true) {
+      throw new UnauthorizedException({ message: 'Token de Google invalido' });
+    }
+
+    const googleEmail = payload.email.trim().toLowerCase();
+    const existingUser = await this.usersService.findByEmail(googleEmail);
+    if (existingUser) {
+      throw new HttpException(
+        {
+          message: 'El correo ya esta registrado',
+          field: 'email',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const user = await this.usersService.createAdminWithOrganization({
+      nombreOrganizacion: dto.nombreOrganizacion,
+      tipoOrganizacion: dto.tipoOrganizacion,
+      otroTipoDetalle: dto.otroTipoDetalle,
+      nombre: dto.nombre,
+      correo: googleEmail,
+      telefono: dto.telefono,
+      password: hashedPassword,
+      googleId: payload.sub ?? null,
+    });
+
+    return this.buildAuthResponse(user, 'Registro con Google exitoso');
+  }
+
+  async login(email: string, password: string) {
+    const user = await this.usersService.findByEmail(email.trim().toLowerCase());
 
     if (!user) {
       throw new UnauthorizedException({
@@ -39,39 +118,36 @@ export class AuthService {
 
     if (!user.password) {
       throw new UnauthorizedException({
-        message: 'Esta cuenta usa inicio de sesión con Google.',
-        field: 'password',
+        message: 'Esta cuenta usa inicio de sesion con Google',
+        field: 'email',
       });
     }
 
-    const valid = await bcrypt.compare(passwordString, user.password);
+    const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       throw new UnauthorizedException({
-        message: 'Contraseña incorrecta',
+        message: 'Contrasena incorrecta',
         field: 'password',
       });
     }
 
-    return this.buildLoginResponse(user, 'Login exitoso');
+    return this.buildAuthResponse(user, 'Login exitoso');
   }
 
-  // ----------------------------------------------------------
-  // LOGIN GOOGLE
-  // ----------------------------------------------------------
   async loginWithGoogle(googleData: { idToken: string }) {
     const ticket = await this.googleClient.verifyIdToken({
       idToken: googleData.idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: this.getGoogleAudiences(),
     });
+
     const payload = ticket.getPayload();
-    if (!payload || !payload.email) {
+    if (!payload?.email || payload.email_verified !== true) {
       throw new UnauthorizedException({
-        message: 'Token de Google inválido',
-        field: 'idToken',
+        message: 'Token de Google invalido',
       });
     }
 
-    const user = await this.usersService.findByEmail(payload.email);
+    const user = await this.usersService.findByEmail(payload.email.trim().toLowerCase());
 
     if (!user) {
       throw new UnauthorizedException({
@@ -80,142 +156,28 @@ export class AuthService {
       });
     }
 
-    return this.buildLoginResponse(user, 'Login con Google exitoso');
-  }
-
-  // ----------------------------------------------------------
-  // REGISTRO NORMAL
-  // ----------------------------------------------------------
-  async register(dto: RegisterDto) {
-    const usuarioExistente = await this.usersService.findByEmail(dto.correo);
-    if (usuarioExistente) {
-      throw new ConflictException(
-        'Ya existe una cuenta registrada con ese correo electrónico.',
-      );
-    }
-
-    try {
-      const resultado = await this.prisma.$transaction(async (tx) => {
-        const organizacion = await tx.organization.create({
-          data: {
-            nombre: dto.nombreOrganizacion,
-            tipo: dto.tipoOrganizacion,
-            otroTipoDetalle: dto.otroTipoDetalle,
-          },
-        });
-
-        const passwordHasheado = await bcrypt.hash(dto.password, 10);
-
-        const usuario = await this.usersService.create(
-          {
-            nombre: dto.nombre,
-            correo: dto.correo,
-            password: passwordHasheado,
-            telefono: dto.telefono,
-            rol: RolUsuario.ADMIN,
-            organizacionId: organizacion.id,
-          },
-          tx,
-        );
-
-        return { organizacion, usuario };
+    if (!user.googleId || user.googleId !== payload.sub) {
+      throw new UnauthorizedException({
+        message: 'Esta cuenta no esta vinculada con Google',
+        field: 'email',
       });
-
-      return {
-        mensaje: 'Cuenta creada exitosamente. ¡Bienvenido a Café Smart!',
-        organizacion: {
-          id: resultado.organizacion.id,
-          nombre: resultado.organizacion.nombre,
-          tipo: resultado.organizacion.tipo,
-        },
-        usuario: {
-          id: resultado.usuario.id,
-          nombre: resultado.usuario.nombre,
-          correo: resultado.usuario.correo,
-          rol: resultado.usuario.rol,
-        },
-      };
-    } catch (error) {
-      if (error.status) throw error;
-
-      throw new InternalServerErrorException(
-        'Ocurrió un error al crear la cuenta. Por favor intenta de nuevo.',
-      );
     }
+
+    return this.buildAuthResponse(user, 'Login con Google exitoso');
   }
 
-  // ----------------------------------------------------------
-  // REGISTRO GOOGLE
-  // ----------------------------------------------------------
-  async registerGoogle(dto: RegisterGoogleDto) {
-    const mockGoogleId = `google_user_${randomUUID()}`;
-
-    const usuarioExistente = await this.usersService.findByEmail(dto.correo);
-    if (usuarioExistente) {
-      throw new ConflictException(
-        'Ya existe una cuenta registrada con este correo.',
-      );
-    }
-
-    try {
-      const resultado = await this.prisma.$transaction(async (tx) => {
-        const organizacion = await tx.organization.create({
-          data: {
-            nombre: dto.nombreOrganizacion,
-            tipo: dto.tipoOrganizacion,
-            otroTipoDetalle: dto.otroTipoDetalle,
-          },
-        });
-
-        const usuario = await this.usersService.create(
-          {
-            nombre: dto.nombre,
-            correo: dto.correo,
-            password: null,
-            googleId: mockGoogleId,
-            telefono: dto.telefono,
-            rol: RolUsuario.ADMIN,
-            organizacionId: organizacion.id,
-          },
-          tx,
-        );
-
-        return { organizacion, usuario };
-      });
-
-      return {
-        mensaje: 'Cuenta de Google registrada exitosamente. ¡Bienvenido!',
-        organizacion: {
-          id: resultado.organizacion.id,
-          nombre: resultado.organizacion.nombre,
-        },
-        usuario: {
-          id: resultado.usuario.id,
-          nombre: resultado.usuario.nombre,
-          correo: resultado.usuario.correo,
-        },
-      };
-    } catch (error) {
-      if (error.status) throw error;
-      throw new InternalServerErrorException(
-        'Ocurrió un error registrando la cuenta de Google.',
-      );
-    }
-  }
-
-  // ----------------------------------------------------------
-  // HELPER PARA CONSTRUIR LA RESPUESTA DE LOGIN
-  // ----------------------------------------------------------
-  private buildLoginResponse(user: any, message: string) {
-    const payload = { sub: user.id, email: user.correo }; 
+  private buildAuthResponse(user: any, message: string) {
+    const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
 
     return {
       message,
       access_token: token,
+      hasCompany: Boolean(user.organizacionId),
       user: {
         id: user.id,
-        email: user.correo, 
+        email: user.correo,
+        name: user.nombre,
       },
     };
   }

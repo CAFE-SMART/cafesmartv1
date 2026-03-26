@@ -1,41 +1,176 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, LogOut } from 'lucide-react';
-import { authService } from '../services/authService';
+import { Link, useNavigate } from 'react-router-dom';
+import { Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import { authService, type AuthError } from '../services/authService';
+import { useUser } from '../context/UserContext';
+
+type GoogleJwtPayload = {
+  email?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+};
+
+type GoogleNameParts = {
+  nombre: string;
+  apellidos: string;
+};
+
+function splitGoogleName(payload: GoogleJwtPayload): GoogleNameParts {
+  const given = payload.given_name?.trim() || '';
+  const family = payload.family_name?.trim() || '';
+
+  if (given || family) {
+    return {
+      nombre: given,
+      apellidos: family,
+    };
+  }
+
+  const fullName = payload.name?.trim() || '';
+  if (!fullName) {
+    return { nombre: '', apellidos: '' };
+  }
+
+  const parts = fullName.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return { nombre: parts[0], apellidos: '' };
+  }
+
+  return {
+    nombre: parts[0],
+    apellidos: parts.slice(1).join(' '),
+  };
+}
+
+function decodeGoogleJwt(idToken: string): GoogleJwtPayload {
+  try {
+    const payload = idToken.split('.')[1];
+    if (!payload) {
+      return {};
+    }
+
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = atob(normalized);
+    return JSON.parse(decoded) as GoogleJwtPayload;
+  } catch {
+    return {};
+  }
+}
 
 export default function Login() {
+  const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
+  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   
   const navigate = useNavigate();
+  const { setSession } = useUser();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
     setLoading(true);
 
     try {
       const data = await authService.login(email, password);
-      // Guardar el token
-      localStorage.setItem('token', data.access_token);
-      
-      // Si el backend es adaptado para Google, se llamaría otra api
-      navigate('/inventario');
-    } catch (err: any) {
-      setError(err.message);
+      await setSession({
+        user: {
+          id: data.user.id,
+          correo: data.user.email,
+          nombre: data.user.name,
+        },
+        token: data.access_token,
+        hasCompany: data.hasCompany,
+      });
+
+      navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
+    } catch (err) {
+      const authError = err as AuthError;
+      const field = (authError.field || '').toLowerCase();
+      const message = authError.message || 'No se pudo iniciar sesion. Intenta nuevamente.';
+
+      if (field === 'email' || field === 'correo') {
+        setEmailFieldError(message);
+        setError(null);
+      } else if (field === 'password' || field === 'contrasena') {
+        setPasswordFieldError(message);
+        setError(null);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Aquí podrías redireccionar al auth de google si tu backend lo soporta vía redirect
-    // window.location.href = 'http://localhost:3000/auth/google';
-    alert("Login de Google pendiente de habilitar.");
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setError(null);
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
+    setGoogleLoading(true);
+
+    const idToken = credentialResponse?.credential;
+    if (!idToken) {
+      setError('No se pudo iniciar sesion con Google. Intenta nuevamente.');
+      setGoogleLoading(false);
+      return;
+    }
+
+    try {
+      // Intenta login primero
+      const data = await authService.loginWithGoogle(idToken);
+      await setSession({
+        user: {
+          id: data.user.id,
+          correo: data.user.email,
+          nombre: data.user.name,
+        },
+        token: data.access_token,
+        hasCompany: data.hasCompany,
+      });
+
+      navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
+    } catch (err) {
+      const loginError = err as AuthError;
+
+      // Si no existe la cuenta, enviamos el token y prefill al flujo crear empresa.
+      if (loginError.action === 'register') {
+        const googleData = decodeGoogleJwt(idToken);
+        const nameParts = splitGoogleName(googleData);
+        navigate('/crear-empresa', {
+          state: {
+            googleToken: idToken,
+            googlePrefill: {
+              correo: googleData.email || '',
+              nombre: nameParts.nombre,
+              apellidos: nameParts.apellidos,
+            },
+          },
+        });
+        return;
+      }
+
+      setError(loginError.message || 'No se pudo iniciar sesion con Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('No se pudo iniciar sesion con Google.');
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
+    setGoogleLoading(false);
   };
 
   return (
@@ -87,12 +222,20 @@ export default function Login() {
                 <input 
                   type="email" 
                   required
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400"
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
+                    emailFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                  }`}
                   placeholder="ejemplo@correo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailFieldError(null);
+                  }}
                 />
               </div>
+              {emailFieldError && (
+                <p className="mt-2 text-xs font-medium text-red-600">{emailFieldError}</p>
+              )}
             </div>
             
             {/* Contraseña */}
@@ -110,10 +253,15 @@ export default function Login() {
                 <input 
                   type={showPassword ? "text" : "password"}
                   required
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider"
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
+                    passwordFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                  }`}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordFieldError(null);
+                  }}
                 />
                 <button 
                   type="button" 
@@ -127,6 +275,9 @@ export default function Login() {
                   )}
                 </button>
               </div>
+              {passwordFieldError && (
+                <p className="mt-2 text-xs font-medium text-red-600">{passwordFieldError}</p>
+              )}
             </div>
 
             {/* Recordar Cuenta */}
@@ -154,32 +305,56 @@ export default function Login() {
           </form>
 
           {/* Separador */}
-          <div className="mt-8 mb-6 flex items-center">
-            <div className="flex-1 border-t border-gray-200"></div>
-            <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">O CONTINÚA CON</span>
-            <div className="flex-1 border-t border-gray-200"></div>
-          </div>
+          {isGoogleAuthEnabled && (
+            <div className="mt-8 mb-6 flex items-center">
+              <div className="flex-1 border-t border-gray-200"></div>
+              <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">O CONTINÚA CON</span>
+              <div className="flex-1 border-t border-gray-200"></div>
+            </div>
+          )}
 
-          {/* Botón Google */}
-          <button 
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full py-3.5 px-4 rounded-xl text-slate-700 font-bold transition-all flex items-center justify-center gap-3 border border-gray-200 bg-white hover:bg-gray-50"
-          >
-            {/* Logo de Google SVG estático */}
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              <path d="M1 1h22v22H1z" fill="none"/>
-            </svg>
-            Continuar con Google
-          </button>
+          {/* Área de Google Login con Loader */}
+          {isGoogleAuthEnabled && googleLoading && (
+            <div className="mb-6 flex flex-col items-center justify-center py-8">
+              <div className="relative w-16 h-16 mb-4">
+                <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
+              </div>
+              <p className="text-center text-sm font-semibold text-gray-700 mb-2">
+                Procesando inicio de sesion...
+              </p>
+              <p className="text-center text-xs text-gray-500">
+                Espera un momento mientras validamos tu cuenta.
+              </p>
+            </div>
+          )}
+
+          {isGoogleAuthEnabled && !googleLoading && (
+            <div className="w-full flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                text="signin_with"
+                theme="outline"
+                size="large"
+                width="100%"
+              />
+            </div>
+          )}
+
+          {!isGoogleAuthEnabled && (
+            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-800">
+              El acceso con Google no esta disponible porque falta configurar
+              <strong> VITE_GOOGLE_CLIENT_ID </strong>
+              en el frontend.
+            </div>
+          )}
 
           {/* Registro Link */}
           <p className="mt-8 text-center text-sm text-slate-600">
-            ¿No tienes una cuenta? <a href="/register" className="font-bold text-[#1e3a8a] hover:underline">Regístrate gratis</a>
+            ¿No tienes una cuenta?{' '}
+            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
+              Regístrate gratis
+            </Link>
           </p>
 
         </div>
