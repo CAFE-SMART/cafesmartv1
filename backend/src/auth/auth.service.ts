@@ -166,7 +166,7 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Login con Google exitoso');
   }
 
-  private buildAuthResponse(user: any, message: string) {
+  private buildAuthResponse(user: { id: number; correo: string; nombre: string; organizacionId: number | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
 
@@ -182,3 +182,5 @@ export class AuthService {
     };
   }
 }
+
+

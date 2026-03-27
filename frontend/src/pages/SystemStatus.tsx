@@ -109,8 +109,8 @@ export default function SystemStatus() {
       await setSession({
         user: {
           id: response.user.id,
-          correo: response.user.email,
-          nombre: response.user.name,
+          email: response.user.email,
+          name: response.user.name,
         },
         token: response.access_token,
         hasCompany: response.hasCompany,

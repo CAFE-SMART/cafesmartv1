@@ -15,8 +15,8 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
-import { LoginDto } from './auth.login.dto';
-import { GoogleLoginDto } from './auth.google-login.dto';
+import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { UsersService } from 'src/users/user.services';
 

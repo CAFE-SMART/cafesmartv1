@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 
@@ -86,8 +86,8 @@ export default function Login() {
       await setSession({
         user: {
           id: data.user.id,
-          correo: data.user.email,
-          nombre: data.user.name,
+          email: data.user.email,
+          name: data.user.name,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
@@ -113,7 +113,7 @@ export default function Login() {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
@@ -132,8 +132,8 @@ export default function Login() {
       await setSession({
         user: {
           id: data.user.id,
-          correo: data.user.email,
-          nombre: data.user.name,
+          email: data.user.email,
+          name: data.user.name,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,

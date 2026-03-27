@@ -17,6 +17,11 @@
  * ⚠️ No hagas lógica visual aquí (no alertas, no redirecciones).
  * Solo manda la petición y devuelve la respuesta. La pantalla decide qué hacer con ella.
  */
+import {
+  buildOfflineAuthError,
+  mapFriendlyAuthMessage,
+} from '../utils/authMessages';
+
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
 const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
 
@@ -45,35 +50,6 @@ type RawApiError = {
   action?: string;
 };
 
-function normalizeMessage(message: string | string[] | undefined, fallback: string) {
-  if (Array.isArray(message)) {
-    return message.join(', ');
-  }
-  return message || fallback;
-}
-
-function getFriendlyMessage(endpoint: string, data: RawApiError, fallbackError: string) {
-  const field = (data.field ?? '').toLowerCase();
-
-  if (endpoint === '/login') {
-    if (field === 'email' || field === 'correo') {
-      return 'Correo incorrecto. Verificalo e intenta nuevamente.';
-    }
-    if (field === 'password' || field === 'contrasena') {
-      return 'Contrasena incorrecta. Intenta nuevamente.';
-    }
-  }
-
-  if (endpoint === '/login/google' || endpoint === '/register/google') {
-    if (data.action === 'register') {
-      return 'No encontramos tu cuenta. Vamos a crearla.';
-    }
-    return 'No se pudo iniciar sesion con Google. Intenta nuevamente.';
-  }
-
-  return normalizeMessage(data.message, fallbackError);
-}
-
 function isNetworkFetchError(error: unknown) {
   if (!(error instanceof Error)) {
     return false;
@@ -99,7 +75,7 @@ async function postAuth<TResponse>(endpoint: string, body: Record<string, unknow
 
     if (!response.ok) {
       const authError: AuthError = {
-        message: getFriendlyMessage(endpoint, data, fallbackError),
+        message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
         field: data.field ?? null,
         action: data.action ?? null,
         code: 'HTTP',
@@ -111,12 +87,7 @@ async function postAuth<TResponse>(endpoint: string, body: Record<string, unknow
     return data;
   } catch (error) {
     if (isNetworkFetchError(error)) {
-      throw {
-        message: 'No se pudo conectar con el servidor. Verifica tu conexion e intenta nuevamente.',
-        field: null,
-        action: null,
-        code: 'OFFLINE',
-      } as AuthError;
+      throw buildOfflineAuthError();
     }
 
     const knownError = error as Partial<AuthError>;

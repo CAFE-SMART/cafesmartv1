@@ -8,8 +8,16 @@ import {
 
 type User = {
   id: number | string;
-  correo: string;
-  nombre: string;
+  email: string;
+  name: string;
+};
+
+type StoredUserShape = {
+  id: number | string;
+  email?: string;
+  name?: string;
+  correo?: string;
+  nombre?: string;
 };
 
 type UserSessionInput = {
@@ -48,27 +56,6 @@ function getTokenExpirationMs(token: string): number | null {
   }
 }
 
-function getJwtExpMs(token: string): number | null {
-  try {
-    const payloadRaw = token.split('.')[1];
-    if (!payloadRaw) {
-      return null;
-    }
-
-    const normalized = payloadRaw.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = atob(normalized);
-    const payload = JSON.parse(decoded) as { exp?: number };
-
-    if (!payload.exp) {
-      return null;
-    }
-
-    return payload.exp * 1000;
-  } catch {
-    return null;
-  }
-}
-
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -87,18 +74,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       if (!active) {
         return;
-      }
-
-      if (storedToken) {
-        const expMs = getJwtExpMs(storedToken);
-        if (expMs && Date.now() >= expMs) {
-          await clearAuthStorage();
-          setUser(null);
-          setToken(null);
-          setHasCompany(false);
-          setHydrated(true);
-          return;
-        }
       }
 
       const expirationMs = storedToken ? getTokenExpirationMs(storedToken) : null;
@@ -123,7 +98,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        setUser(JSON.parse(storedUserRaw) as User);
+        const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
+        setUser({
+          id: parsed.id,
+          email: parsed.email ?? parsed.correo ?? '',
+          name: parsed.name ?? parsed.nombre ?? '',
+        });
       } catch {
         setUser(null);
       }
@@ -182,31 +162,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     await clearAuthStorage();
   };
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    const expMs = getJwtExpMs(token);
-    if (!expMs) {
-      return;
-    }
-
-    const msLeft = expMs - Date.now();
-    if (msLeft <= 0) {
-      void logout();
-      return;
-    }
-
-    const timerId = window.setTimeout(() => {
-      void logout();
-    }, msLeft);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [token]);
 
   const value = useMemo(
     () => ({ user, token, hasCompany, hydrated, setSession, logout }),

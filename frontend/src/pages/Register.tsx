@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -12,86 +12,13 @@ import {
   HelpCircle,
   MessageCircle,
 } from 'lucide-react';
-import { authService } from '../services/authService';
-
-/* ------------------------------------------------------------------ */
-/*  Tipos                                                              */
-/* ------------------------------------------------------------------ */
-type RegisterLocationState = {
-  googleToken?: string;
-  googlePrefill?: {
-    correo?: string;
-    nombre?: string;
-    apellidos?: string;
-  };
-};
-
-type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
-type TipoOrgSelection = TipoOrg | '';
-
-type StepOneErrors = {
-  nombreOrganizacion?: string;
-  tipoOrganizacion?: string;
-  otroTipoDetalle?: string;
-};
-
-type StepTwoErrors = {
-  nombre?: string;
-  apellidos?: string;
-  telefono?: string;
-  correo?: string;
-  password?: string;
-  confirmPassword?: string;
-};
-
-function hasAtLeastTwoSurnames(value: string) {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return parts.length >= 2;
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const COLOMBIA_PHONE_REGEX = /^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/;
-
-function isValidPhone(value: string) {
-  const raw = value.trim();
-  if (!raw) {
-    return false;
-  }
-
-  return COLOMBIA_PHONE_REGEX.test(raw);
-}
-
-function getPasswordChecks(value: string) {
-  return {
-    minLength: value.length >= 6,
-    hasLower: /[a-z]/.test(value),
-    hasUpper: /[A-Z]/.test(value),
-    hasNumber: /\d/.test(value),
-  };
-}
-
-function getPasswordStrength(value: string) {
-  const checks = getPasswordChecks(value);
-  const score = Object.values(checks).filter(Boolean).length;
-
-  if (!value) {
-    return { score: 0, label: 'Sin evaluar' };
-  }
-  if (score <= 1) {
-    return { score, label: 'Muy debil' };
-  }
-  if (score === 2) {
-    return { score, label: 'Debil' };
-  }
-  if (score === 3) {
-    return { score, label: 'Media' };
-  }
-  return { score, label: 'Fuerte' };
-}
+import { RegisterProgress } from '../components/register/RegisterProgress';
+import { useRegisterForm } from '../hooks/useRegisterForm';
+import {
+  getPasswordStrength,
+  type RegisterLocationState,
+  type TipoOrg,
+} from '../utils/registerValidators';
 
 /* ------------------------------------------------------------------ */
 /*  Componente principal                                               */
@@ -102,168 +29,39 @@ export default function Register() {
 
   const routeState = (location.state ?? {}) as RegisterLocationState;
   const hasGoogleFlow = Boolean(routeState.googleToken);
-
-  /* ---------- estado del wizard ---------- */
-  const [step, setStep] = useState(1);
-
-  /* ---------- Paso 1: Organización ---------- */
-  const [nombreOrganizacion, setNombreOrganizacion] = useState('');
-  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>('');
-  const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
-  const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
-
-  /* ---------- Paso 2: Administrador ---------- */
-  const [nombre, setNombre] = useState(routeState.googlePrefill?.nombre || '');
-  const [apellidos, setApellidos] = useState(routeState.googlePrefill?.apellidos || '');
-  const [telefono, setTelefono] = useState('');
-  const [correo, setCorreo] = useState(routeState.googlePrefill?.correo || '');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>({});
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-
-  const [error, setError] = useState<string | null>(null);
-
-  /* Mantiene nombre/correo sincronizados cuando el flujo viene de Google */
-  useEffect(() => {
-    if (hasGoogleFlow && routeState.googlePrefill) {
-      setNombre(routeState.googlePrefill.nombre || '');
-      setApellidos(routeState.googlePrefill.apellidos || '');
-      setCorreo(routeState.googlePrefill.correo || '');
-    }
-  }, [hasGoogleFlow, routeState.googlePrefill]);
-
-  const validateEmailAvailability = async (correoValue: string) => {
-    if (!EMAIL_REGEX.test(correoValue.trim())) {
-      return null;
-    }
-
-    setIsCheckingEmail(true);
-    try {
-      const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
-      return exists ? 'Este correo ya está registrado. Usa otro o inicia sesión.' : null;
-    } catch {
-      return null;
-    } finally {
-      setIsCheckingEmail(false);
-    }
-  };
-
-  /* ---------- navegación entre pasos ---------- */
-  const goToStep2 = () => {
-    setError(null);
-    const nextErrors: StepOneErrors = {};
-
-    if (!nombreOrganizacion.trim()) {
-      nextErrors.nombreOrganizacion = 'El nombre de la empresa es obligatorio.';
-    }
-    if (!tipoOrganizacion) {
-      nextErrors.tipoOrganizacion = 'Debes seleccionar el tipo de negocio.';
-    }
-    if (tipoOrganizacion === 'OTRO' && !otroTipoDetalle.trim()) {
-      nextErrors.otroTipoDetalle = 'Por favor especifica el tipo de organización.';
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setStepOneErrors(nextErrors);
-      setError('Corrige los campos marcados para continuar.');
-      return;
-    }
-
-    setStepOneErrors({});
-    setStep(2);
-  };
-
-  const goBackToStep1 = () => {
-    setError(null);
-    setStep(1);
-  };
-
-  /* ---------- envío final ---------- */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const nextErrors: StepTwoErrors = {};
-
-    if (!nombreOrganizacion.trim()) {
-      setError('El nombre del negocio es obligatorio.');
-      setStepOneErrors({ nombreOrganizacion: 'El nombre de la empresa es obligatorio.' });
-      setStep(1);
-      return;
-    }
-
-    if (!tipoOrganizacion) {
-      setError('Debes seleccionar el tipo de negocio.');
-      setStepOneErrors({ tipoOrganizacion: 'Debes seleccionar el tipo de negocio.' });
-      setStep(1);
-      return;
-    }
-
-    if (!nombre.trim()) {
-      nextErrors.nombre = 'El nombre del administrador es obligatorio.';
-    }
-    if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Los apellidos del administrador son obligatorios.';
-    } else if (!hasAtLeastTwoSurnames(apellidos)) {
-      nextErrors.apellidos = 'Ingresa los dos apellidos. Ejemplo: Perez Gomez';
-    }
-    if (!telefono.trim()) {
-      nextErrors.telefono = 'El telefono es obligatorio.';
-    } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Ingresa un telefono colombiano valido. Ejemplo: +57 300 123 4567';
-    }
-
-    if (!correo.trim()) {
-      nextErrors.correo = 'El correo electronico es obligatorio.';
-    } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Ingresa un correo valido. Ejemplo: admin@empresa.com';
-    } else {
-      const emailExistsError = await validateEmailAvailability(correo);
-      if (emailExistsError) {
-        nextErrors.correo = emailExistsError;
-      }
-    }
-
-    const checks = getPasswordChecks(password);
-    if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
-      nextErrors.password =
-        'La contrasena debe tener minimo 6 caracteres, una minuscula y una mayuscula.';
-    }
-
-    if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma nuevamente tu contrasena.';
-    } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Las contrasenas no coinciden.';
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setStepTwoErrors(nextErrors);
-      setError('Corrige los campos marcados para continuar.');
-      return;
-    }
-
-    setStepTwoErrors({});
-
-    if (hasGoogleFlow && !routeState.googleToken) {
-      setError('No detectamos tu sesión de Google. Vuelve a iniciar con Google.');
-      return;
-    }
-
-    navigate('/estado-sistema', {
-      state: {
-        hasGoogleFlow,
-        googleToken: routeState.googleToken,
-        nombreOrganizacion,
-        tipoOrganizacion: tipoOrganizacion as TipoOrg,
-        otroTipoDetalle: tipoOrganizacion === 'OTRO' ? otroTipoDetalle : undefined,
-        nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono,
-        correo,
-        password,
-      },
-    });
-  };
+  const {
+    step,
+    nombreOrganizacion,
+    setNombreOrganizacion,
+    tipoOrganizacion,
+    setTipoOrganizacion,
+    otroTipoDetalle,
+    setOtroTipoDetalle,
+    stepOneErrors,
+    setStepOneErrors,
+    nombre,
+    setNombre,
+    apellidos,
+    setApellidos,
+    telefono,
+    setTelefono,
+    correo,
+    setCorreo,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    showPassword,
+    setShowPassword,
+    stepTwoErrors,
+    setStepTwoErrors,
+    isCheckingEmail,
+    error,
+    goToStep2,
+    goBackToStep1,
+    handleSubmit,
+    validateEmailAvailability,
+  } = useRegisterForm({ hasGoogleFlow, routeState, navigate });
 
   /* ------------------------------------------------------------------ */
   /*  Definición de tipos de organización (cards visuales)               */
@@ -328,18 +126,7 @@ export default function Register() {
       <main className="flex-1 flex flex-col items-center px-4 pb-8">
         <div className="w-full max-w-[480px]">
           {/* ---------- Progress ---------- */}
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold tracking-wider text-gray-500 uppercase">
-              Paso {step} de 2
-            </span>
-            <span className="text-sm font-bold text-[#1e3a8a]">{progressPercent}%</span>
-          </div>
-          <div className="w-full h-2 bg-gray-200 rounded-full mb-8 overflow-hidden">
-            <div
-              className="h-full bg-[#1e3a8a] rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+          <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
 
           {/* ---------- Error ---------- */}
           {error && (
