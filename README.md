@@ -150,6 +150,20 @@ cd frontend && pnpm build
 - /estado-sistema
 - /inventario (protegida)
 
+## Dependencias Clave Implementadas
+
+En este ciclo de desarrollo se incluyeron las siguientes dependencias esenciales:
+
+**Frontend**:
+- `@react-oauth/google`: Permite renderizar y gestionar el flujo seguro del botón de "Iniciar sesión con Google".
+- `lucide-react`: Librería ligera que nos provee los iconos modernos (ej. los escudos y las gráficas en el estado del sistema).
+- `@capacitor/...`: Conjunto de herramientas para compilar y empaquetar el frontend web `React` nativamente hacia `Android` (APK).
+
+**Backend**:
+- `@nestjs/jwt` y `bcrypt`: Se usan para encriptar las contraseñas de manera segura y gestionar los tokens de sesión firmados.
+- `google-auth-library`: Librería oficial de Google para el servidor, sirve para *desencriptar y validar* los tokens de seguridad de Google desde el lado del Backend (garantizando autenticación verídica).
+- `@prisma/client`: Nuestro ORM para interactuar con la base de datos de PostgreSQL (Supabase) evitando escribir consultas de SQL a mano.
+
 ## Auth estandarizado (actual)
 
 Se unifico el contrato para login, register, loginGoogle y registerGoogle.
@@ -275,5 +289,7 @@ Para emulador Android usar URL backend con 10.0.2.2 si aplica.
 
 - Se removio capa legacy de sesion en frontend (sessionPersistence).
 - Se elimino contrato viejo de auth que devolvia estructuras distintas.
-- Se consolidaron respuestas de auth en un solo helper de backend.
+- Se consolido respuestas de auth en un solo helper de backend.
 - Se alineo frontend al contrato nuevo y se limpiaron mapeos viejos.
+- Se corrigio el estandar de nombres de NestJS (`user.services.ts` a `users.service.ts`).
+- Se modernizo el diseno de Estado del Sistema a un CSS Grid mas compacto y profesional.
