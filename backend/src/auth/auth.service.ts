@@ -4,24 +4,24 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
-import { UsersService } from '../users/user.services';
+import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 
 @Injectable()
 export class AuthService {
-  private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   private getGoogleAudiences(): string | string[] {
-    const list = (process.env.GOOGLE_CLIENT_IDS ?? '')
+    const list = (this.configService.get<string>('GOOGLE_CLIENT_IDS') ?? '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
@@ -30,7 +30,7 @@ export class AuthService {
       return list;
     }
 
-    const single = process.env.GOOGLE_CLIENT_ID?.trim();
+    const single = this.configService.get<string>('GOOGLE_CLIENT_ID')?.trim();
     if (!single) {
       throw new UnauthorizedException({
         message: 'Configuracion de Google incompleta en el servidor',
@@ -38,6 +38,10 @@ export class AuthService {
     }
 
     return single;
+  }
+
+  private getGoogleClient() {
+    return new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
   }
 
   async register(dto: RegisterDto) {
@@ -55,21 +59,27 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.usersService.createAdminWithOrganization({
-      nombreOrganizacion: dto.nombreOrganizacion,
-      tipoOrganizacion: dto.tipoOrganizacion,
-      otroTipoDetalle: dto.otroTipoDetalle,
-      nombre: dto.nombre,
-      correo: normalizedEmail,
-      telefono: dto.telefono,
-      password: hashedPassword,
-    });
+    let user;
+    try {
+      user = await this.usersService.createAdminWithOrganization({
+        nombreOrganizacion: dto.nombreOrganizacion,
+        tipoOrganizacion: dto.tipoOrganizacion,
+        otroTipoDetalle: dto.otroTipoDetalle,
+        nombre: dto.nombre,
+        correo: normalizedEmail,
+        telefono: dto.telefono,
+        password: hashedPassword,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error);
+      throw error;
+    }
 
     return this.buildAuthResponse(user, 'Registro exitoso');
   }
 
   async registerGoogle(dto: RegisterGoogleDto) {
-    const ticket = await this.googleClient.verifyIdToken({
+    const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: dto.googleToken,
       audience: this.getGoogleAudiences(),
     });
@@ -92,16 +102,22 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = await this.usersService.createAdminWithOrganization({
-      nombreOrganizacion: dto.nombreOrganizacion,
-      tipoOrganizacion: dto.tipoOrganizacion,
-      otroTipoDetalle: dto.otroTipoDetalle,
-      nombre: dto.nombre,
-      correo: googleEmail,
-      telefono: dto.telefono,
-      password: hashedPassword,
-      googleId: payload.sub ?? null,
-    });
+    let user;
+    try {
+      user = await this.usersService.createAdminWithOrganization({
+        nombreOrganizacion: dto.nombreOrganizacion,
+        tipoOrganizacion: dto.tipoOrganizacion,
+        otroTipoDetalle: dto.otroTipoDetalle,
+        nombre: dto.nombre,
+        correo: googleEmail,
+        telefono: dto.telefono,
+        password: hashedPassword,
+        googleId: payload.sub ?? null,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error);
+      throw error;
+    }
 
     return this.buildAuthResponse(user, 'Registro con Google exitoso');
   }
@@ -135,7 +151,7 @@ export class AuthService {
   }
 
   async loginWithGoogle(googleData: { idToken: string }) {
-    const ticket = await this.googleClient.verifyIdToken({
+    const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: googleData.idToken,
       audience: this.getGoogleAudiences(),
     });
@@ -164,6 +180,44 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(user, 'Login con Google exitoso');
+  }
+
+  private throwIfUniqueConstraint(error: unknown): never | void {
+    if (
+      !error ||
+      typeof error !== 'object' ||
+      !('code' in error) ||
+      (error as { code?: string }).code !== 'P2002'
+    ) {
+      return;
+    }
+
+    const metaTarget = (error as { meta?: { target?: string[] | string } }).meta?.target;
+    const targets = Array.isArray(metaTarget)
+      ? metaTarget.map((item) => String(item))
+      : metaTarget
+        ? [String(metaTarget)]
+        : [];
+
+    if (targets.some((target) => target.includes('correo'))) {
+      throw new HttpException(
+        {
+          message: 'El correo ya esta registrado',
+          field: 'email',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if (targets.some((target) => target.includes('google'))) {
+      throw new HttpException(
+        {
+          message: 'Esta cuenta de Google ya esta vinculada',
+          field: 'email',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
   }
 
   private buildAuthResponse(user: { id: number; correo: string; nombre: string; organizacionId: number | null }, message: string) {

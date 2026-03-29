@@ -10,7 +10,7 @@
 // ============================================================
 
 import { Controller } from '@nestjs/common';
-import { UsersService } from './user.services';
+import { UsersService } from './users.service';
 
 @Controller('users') // prefijo base: /users
 export class UsersController {

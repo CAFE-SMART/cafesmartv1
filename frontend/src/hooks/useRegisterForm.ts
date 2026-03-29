@@ -4,7 +4,7 @@ import { authService } from '../services/authService';
 import {
   EMAIL_REGEX,
   getPasswordChecks,
-  hasAtLeastTwoSurnames,
+  hasAtLeastOneSurname,
   isValidPhone,
   type RegisterLocationState,
   type StepOneErrors,
@@ -118,8 +118,8 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     if (!apellidos.trim()) {
       nextErrors.apellidos = 'Los apellidos del administrador son obligatorios.';
-    } else if (!hasAtLeastTwoSurnames(apellidos)) {
-      nextErrors.apellidos = 'Ingresa los dos apellidos. Ejemplo: Perez Gomez';
+    } else if (!hasAtLeastOneSurname(apellidos)) {
+      nextErrors.apellidos = 'Ingresa al menos un apellido valido.';
     }
 
     if (!telefono.trim()) {

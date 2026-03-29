@@ -1,26 +1,25 @@
 // ============================================================
-// auth.controller.ts — Las Rutas de Autenticación
+// auth.controller.ts - Las rutas de autenticacion
 // ============================================================
-// El controlador es el "portero": recibe la petición HTTP,
+// El controlador recibe la peticion HTTP,
 // la valida con el DTO y la delega al AuthService.
 //
-// REGLA: El controlador NO tiene lógica de negocio.
+// REGLA: El controlador NO tiene logica de negocio.
 // Solo recibe, valida y responde.
-//
-// Rutas definidas aquí:
-//   POST /auth/register  →  Registrar organización + usuario admin
 // ============================================================
 
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
-import { UsersService } from 'src/users/user.services';
+import { UsersService } from 'src/users/users.service';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 
 @Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,

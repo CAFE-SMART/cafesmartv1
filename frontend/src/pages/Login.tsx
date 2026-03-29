@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, Loader, X } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
+import { parseJwtPayload } from '../utils/jwt';
 
 type GoogleJwtPayload = {
   email?: string;
@@ -45,18 +46,7 @@ function splitGoogleName(payload: GoogleJwtPayload): GoogleNameParts {
 }
 
 function decodeGoogleJwt(idToken: string): GoogleJwtPayload {
-  try {
-    const payload = idToken.split('.')[1];
-    if (!payload) {
-      return {};
-    }
-
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = atob(normalized);
-    return JSON.parse(decoded) as GoogleJwtPayload;
-  } catch {
-    return {};
-  }
+  return parseJwtPayload<GoogleJwtPayload>(idToken) ?? {};
 }
 
 export default function Login() {
@@ -70,9 +60,17 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  
+
   const navigate = useNavigate();
   const { setSession } = useUser();
+
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setError(null);
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +89,7 @@ export default function Login() {
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
+        persist: rememberMe,
       });
 
       navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
@@ -127,7 +126,6 @@ export default function Login() {
     }
 
     try {
-      // Intenta login primero
       const data = await authService.loginWithGoogle(idToken);
       await setSession({
         user: {
@@ -137,13 +135,13 @@ export default function Login() {
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
+        persist: rememberMe,
       });
 
       navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
     } catch (err) {
       const loginError = err as AuthError;
 
-      // Si no existe la cuenta, enviamos el token y prefill al flujo crear empresa.
       if (loginError.action === 'register') {
         const googleData = decodeGoogleJwt(idToken);
         const nameParts = splitGoogleName(googleData);
@@ -175,35 +173,42 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      
-      {/* Header */}
       <header className="flex justify-between items-center p-6 bg-gray-50">
         <div className="flex items-center gap-3">
           <div className="bg-[#1e3a8a] text-white p-2 rounded-lg">
-            {/* Logo de tacita o icono representativo */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
               <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-[#0f172a]">Café Smart</h1>
+          <h1 className="text-xl font-bold text-[#0f172a]">Cafe Smart</h1>
         </div>
-        
-        <button className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-          Salir <LogOut size={16} />
+
+        <button
+          type="button"
+          onClick={resetForm}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          Limpiar <X size={16} />
         </button>
       </header>
-      
-      {/* Contenedor central */}
+
       <main className="flex-1 flex flex-col items-center justify-center p-4">
-        
-        {/* Tarjeta de Login */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-[480px]">
-          <h2 className="text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
+          <h2 className="text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesion</h2>
           <p className="text-center text-gray-500 mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-            Bienvenido de nuevo a la gestión inteligente de Café Smart
+            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
           </p>
-          
+
           {error && (
             <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm text-center">
               {error}
@@ -211,16 +216,16 @@ export default function Login() {
           )}
 
           <form onSubmit={handleLogin} className="space-y-6">
-            
-            {/* Correo Electrónico */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Correo electrónico</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Correo electronico
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   required
                   className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                     emailFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
@@ -237,34 +242,39 @@ export default function Login() {
                 <p className="mt-2 text-xs font-medium text-red-600">{emailFieldError}</p>
               )}
             </div>
-            
-            {/* Contraseña */}
+
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-slate-700">Contraseña</label>
-                <a href="#" className="text-sm font-semibold text-[#1e3a8a] hover:underline">
-                  ¿Olvidaste tu contraseña?
-                </a>
+                <label className="block text-sm font-bold text-slate-700">Contrasena</label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setError('La recuperacion de contrasena aun no esta disponible.')
+                  }
+                  className="text-sm font-semibold text-[#1e3a8a] hover:underline"
+                >
+                  Olvidaste tu contrasena?
+                </button>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
-                <input 
-                  type={showPassword ? "text" : "password"}
+                <input
+                  type={showPassword ? 'text' : 'password'}
                   required
                   className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                     passwordFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
                   }`}
-                  placeholder="••••••••"
+                  placeholder="********"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
                     setPasswordFieldError(null);
                   }}
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -280,7 +290,6 @@ export default function Login() {
               )}
             </div>
 
-            {/* Recordar Cuenta */}
             <div className="flex items-center gap-3">
               <input
                 id="remember_me"
@@ -289,31 +298,39 @@ export default function Login() {
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
               />
-              <label htmlFor="remember_me" className="text-sm text-slate-600 cursor-pointer select-none">
-                Recordar mi cuenta en este<br />dispositivo
+              <label
+                htmlFor="remember_me"
+                className="text-sm text-slate-600 cursor-pointer select-none"
+              >
+                Recordar mi cuenta en este
+                <br />
+                dispositivo
               </label>
             </div>
 
-            {/* Botón Principal */}
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
-              className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 ${loading ? 'bg-[#1e3a8a]/70 cursor-wait' : 'bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg'}`}
+              className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 ${
+                loading
+                  ? 'bg-[#1e3a8a]/70 cursor-wait'
+                  : 'bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg'
+              }`}
             >
               {loading ? 'Entrando...' : 'Entrar'} <LogIn size={18} />
             </button>
           </form>
 
-          {/* Separador */}
           {isGoogleAuthEnabled && (
             <div className="mt-8 mb-6 flex items-center">
               <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">O CONTINÚA CON</span>
+              <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">
+                O CONTINUA CON
+              </span>
               <div className="flex-1 border-t border-gray-200"></div>
             </div>
           )}
 
-          {/* Área de Google Login con Loader */}
           {isGoogleAuthEnabled && googleLoading && (
             <div className="mb-6 flex flex-col items-center justify-center py-8">
               <div className="relative w-16 h-16 mb-4">
@@ -349,21 +366,18 @@ export default function Login() {
             </div>
           )}
 
-          {/* Registro Link */}
           <p className="mt-8 text-center text-sm text-slate-600">
-            ¿No tienes una cuenta?{' '}
+            No tienes una cuenta?{' '}
             <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
-              Regístrate gratis
+              Registrate gratis
             </Link>
           </p>
-
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="p-6 text-center">
         <p className="text-xs text-slate-400 font-medium tracking-wide">
-          © 2024 Café Smart Inc. Todos los derechos reservados.
+          Copyright 2024 Cafe Smart Inc. Todos los derechos reservados.
         </p>
       </footer>
     </div>

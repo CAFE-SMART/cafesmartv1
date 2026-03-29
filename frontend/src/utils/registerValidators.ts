@@ -28,14 +28,16 @@ export type StepTwoErrors = {
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COLOMBIA_PHONE_REGEX = /^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/;
 
-export function hasAtLeastTwoSurnames(value: string) {
+export function hasAtLeastOneSurname(value: string) {
   const parts = value
     .trim()
     .split(/\s+/)
     .filter(Boolean);
 
-  return parts.length >= 2;
+  return parts.length >= 1;
 }
+
+export const hasAtLeastTwoSurnames = hasAtLeastOneSurname;
 
 export function isValidPhone(value: string) {
   const raw = value.trim();

@@ -20,9 +20,6 @@ import {
   type TipoOrg,
 } from '../utils/registerValidators';
 
-/* ------------------------------------------------------------------ */
-/*  Componente principal                                               */
-/* ------------------------------------------------------------------ */
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,14 +60,11 @@ export default function Register() {
     validateEmailAvailability,
   } = useRegisterForm({ hasGoogleFlow, routeState, navigate });
 
-  /* ------------------------------------------------------------------ */
-  /*  Definición de tipos de organización (cards visuales)               */
-  /* ------------------------------------------------------------------ */
   const tiposOrg: { value: TipoOrg; label: string; desc: string; icon: React.ReactNode }[] = [
     {
       value: 'COOPERATIVA',
       label: 'Cooperativa',
-      desc: 'Gestión de múltiples productores.',
+      desc: 'Gestion de multiples productores.',
       icon: <Users size={22} />,
     },
     {
@@ -82,7 +76,7 @@ export default function Register() {
     {
       value: 'OTRO',
       label: 'Personalizado',
-      desc: 'Configurable según sus necesidades.',
+      desc: 'Configurable segun sus necesidades.',
       icon: <Settings size={22} />,
     },
   ];
@@ -93,9 +87,6 @@ export default function Register() {
     OTRO: 'bg-rose-100 text-rose-700',
   };
 
-  /* ------------------------------------------------------------------ */
-  /*  Progress bar                                                       */
-  /* ------------------------------------------------------------------ */
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
   const hasStartedConfirming = confirmPassword.length > 0;
@@ -103,7 +94,6 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      {/* =====================  HEADER  ===================== */}
       <header className="flex justify-between items-center p-5 bg-gray-50">
         <button
           type="button"
@@ -122,13 +112,10 @@ export default function Register() {
         </button>
       </header>
 
-      {/* =====================  MAIN  ===================== */}
       <main className="flex-1 flex flex-col items-center px-4 pb-8">
         <div className="w-full max-w-[480px]">
-          {/* ---------- Progress ---------- */}
           <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
 
-          {/* ---------- Error ---------- */}
           {error && (
             <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm flex items-start gap-2">
               <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
@@ -136,19 +123,15 @@ export default function Register() {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/*  PASO 1 — Información del Negocio                            */}
-          {/* ============================================================ */}
           {step === 1 && (
             <section>
               <h2 className="text-2xl font-bold text-[#0f172a] mb-1">
-                Información del Negocio
+                Informacion del Negocio
               </h2>
               <p className="text-gray-500 mb-8 text-sm">
                 Comencemos configurando la identidad de su establecimiento cafetero.
               </p>
 
-              {/* Nombre del negocio */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-slate-700 mb-2">
                   Nombre del negocio
@@ -162,15 +145,18 @@ export default function Register() {
                   }}
                   placeholder="Ej: Cooperativa El Cafetal"
                   className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                    stepOneErrors.nombreOrganizacion ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                    stepOneErrors.nombreOrganizacion
+                      ? 'border-red-300 bg-red-50/40'
+                      : 'border-gray-200'
                   }`}
                 />
                 {stepOneErrors.nombreOrganizacion && (
-                  <p className="mt-2 text-xs font-medium text-red-600">{stepOneErrors.nombreOrganizacion}</p>
+                  <p className="mt-2 text-xs font-medium text-red-600">
+                    {stepOneErrors.nombreOrganizacion}
+                  </p>
                 )}
               </div>
 
-              {/* Tipo de negocio — cards */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-slate-700 mb-3">
                   Tipo de negocio
@@ -195,20 +181,17 @@ export default function Register() {
                           }
                         `}
                       >
-                        {/* Icon */}
                         <div
                           className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${colorByType[t.value]}`}
                         >
                           {t.icon}
                         </div>
 
-                        {/* Text */}
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-[#0f172a] text-sm">{t.label}</p>
                           <p className="text-xs text-gray-500">{t.desc}</p>
                         </div>
 
-                        {/* Radio */}
                         <div
                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                             selected ? 'border-[#1e3a8a] bg-[#0f172a]' : 'border-gray-300'
@@ -221,11 +204,12 @@ export default function Register() {
                   })}
                 </div>
                 {stepOneErrors.tipoOrganizacion && (
-                  <p className="mt-2 text-xs font-medium text-red-600">{stepOneErrors.tipoOrganizacion}</p>
+                  <p className="mt-2 text-xs font-medium text-red-600">
+                    {stepOneErrors.tipoOrganizacion}
+                  </p>
                 )}
               </div>
 
-              {/* Detalle para "Otro" */}
               {tipoOrganizacion === 'OTRO' && (
                 <div className="mb-6">
                   <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -244,12 +228,13 @@ export default function Register() {
                     }`}
                   />
                   {stepOneErrors.otroTipoDetalle && (
-                    <p className="mt-2 text-xs font-medium text-red-600">{stepOneErrors.otroTipoDetalle}</p>
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {stepOneErrors.otroTipoDetalle}
+                    </p>
                   )}
                 </div>
               )}
 
-              {/* Botón Siguiente */}
               <button
                 type="button"
                 onClick={goToStep2}
@@ -260,9 +245,6 @@ export default function Register() {
             </section>
           )}
 
-          {/* ============================================================ */}
-          {/*  PASO 2 — Datos del Administrador                            */}
-          {/* ============================================================ */}
           {step === 2 && (
             <section>
               <div className="flex justify-between items-start mb-1">
@@ -274,16 +256,24 @@ export default function Register() {
                 </span>
               </div>
 
-              {/* Info banner */}
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center gap-3 mb-6 mt-4">
                 <div className="bg-[#1e3a8a] text-white p-1.5 rounded-lg flex-shrink-0">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
                     <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
                   </svg>
                 </div>
                 <p className="text-sm text-blue-900 font-medium">
-                  Este usuario será el administrador del sistema
+                  Este usuario sera el administrador del sistema
                 </p>
               </div>
 
@@ -293,16 +283,18 @@ export default function Register() {
                     Registro con Google activo.
                   </p>
                   <p className="text-xs text-blue-700 mt-1">
-                    Completamos nombre y correo desde Google cuando estan disponibles. Puedes editarlos si lo necesitas.
+                    Completamos nombre y correo desde Google cuando estan disponibles.
+                    Puedes editarlos si lo necesitas.
                   </p>
                   <p className="text-xs text-blue-700 mt-1">
-                    Por seguridad, Google no comparte tu contrasena con la app. Crea una contrasena local para que luego puedas iniciar sesion con correo y contrasena cuando quieras.
+                    Por seguridad, Google no comparte tu contrasena con la app. Crea una
+                    contrasena local para que luego puedas iniciar sesion con correo y
+                    contrasena cuando quieras.
                   </p>
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Nombre y apellido */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -324,7 +316,9 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.nombre && (
-                      <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.nombre}</p>
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {stepTwoErrors.nombre}
+                      </p>
                     )}
                   </div>
 
@@ -348,15 +342,16 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.apellidos && (
-                      <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.apellidos}</p>
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {stepTwoErrors.apellidos}
+                      </p>
                     )}
                   </div>
                 </div>
 
-                {/* Teléfono */}
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Teléfono
+                    Telefono
                   </label>
                   <input
                     type="tel"
@@ -372,14 +367,15 @@ export default function Register() {
                     required
                   />
                   {stepTwoErrors.telefono && (
-                    <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.telefono}</p>
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {stepTwoErrors.telefono}
+                    </p>
                   )}
                 </div>
 
-                {/* Correo electrónico */}
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Correo electrónico
+                    Correo electronico
                   </label>
                   <input
                     type="email"
@@ -403,16 +399,20 @@ export default function Register() {
                     required
                   />
                   {isCheckingEmail && !stepTwoErrors.correo && (
-                    <p className="mt-2 text-xs font-medium text-slate-500">Validando correo...</p>
+                    <p className="mt-2 text-xs font-medium text-slate-500">
+                      Validando correo...
+                    </p>
                   )}
                   {stepTwoErrors.correo && (
-                    <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.correo}</p>
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {stepTwoErrors.correo}
+                    </p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Contraseña
+                    Contrasena
                   </label>
                   <div className="relative">
                     <input
@@ -422,7 +422,7 @@ export default function Register() {
                         setPassword(e.target.value);
                         setStepTwoErrors((prev) => ({ ...prev, password: undefined }));
                       }}
-                      placeholder="••••••••••••"
+                      placeholder="************"
                       className={`block w-full px-4 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                         stepTwoErrors.password ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
                       }`}
@@ -442,7 +442,9 @@ export default function Register() {
                     </button>
                   </div>
                   {stepTwoErrors.password && (
-                    <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.password}</p>
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {stepTwoErrors.password}
+                    </p>
                   )}
                   <div className="mt-3 space-y-2">
                     <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
@@ -463,7 +465,8 @@ export default function Register() {
                       Seguridad: <strong>{passwordStrength.label}</strong>
                     </p>
                     <p className="text-xs text-slate-500">
-                      Requisitos: minimo 6 caracteres, una minuscula, una mayuscula y un numero recomendado.
+                      Requisitos: minimo 6 caracteres, una minuscula, una mayuscula y un
+                      numero recomendado.
                     </p>
                     {hasGoogleFlow && (
                       <p className="text-xs text-blue-700">
@@ -475,7 +478,7 @@ export default function Register() {
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Confirma tu contraseña
+                    Confirma tu contrasena
                   </label>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -484,15 +487,19 @@ export default function Register() {
                       setConfirmPassword(e.target.value);
                       setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
                     }}
-                    placeholder="Vuelve a escribir tu contraseña"
+                    placeholder="Vuelve a escribir tu contrasena"
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                      stepTwoErrors.confirmPassword ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                      stepTwoErrors.confirmPassword
+                        ? 'border-red-300 bg-red-50/40'
+                        : 'border-gray-200'
                     }`}
                     required
                     minLength={6}
                   />
                   {stepTwoErrors.confirmPassword && (
-                    <p className="mt-2 text-xs font-medium text-red-600">{stepTwoErrors.confirmPassword}</p>
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {stepTwoErrors.confirmPassword}
+                    </p>
                   )}
                   {!stepTwoErrors.confirmPassword && hasStartedConfirming && (
                     <p
@@ -500,12 +507,13 @@ export default function Register() {
                         passwordsMatch ? 'text-emerald-600' : 'text-red-600'
                       }`}
                     >
-                      {passwordsMatch ? 'Las contrasenas coinciden.' : 'Las contrasenas no coinciden.'}
+                      {passwordsMatch
+                        ? 'Las contrasenas coinciden.'
+                        : 'Las contrasenas no coinciden.'}
                     </p>
                   )}
                 </div>
 
-                {/* Botón Crear cuenta */}
                 <button
                   type="submit"
                   className="w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg"
@@ -533,10 +541,9 @@ export default function Register() {
         </div>
       </main>
 
-      {/* =====================  FOOTER  ===================== */}
       <footer className="p-4 flex items-center justify-center gap-6 text-sm text-gray-500">
         <p className="text-xs text-slate-400 font-medium">
-          ¿Necesitas ayuda con el registro?
+          Necesitas ayuda con el registro?
         </p>
       </footer>
       <div className="pb-6 flex items-center justify-center gap-8">

@@ -5,6 +5,7 @@ import {
   getAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
+import { parseJwtPayload } from '../utils/jwt';
 
 type User = {
   id: number | string;
@@ -24,6 +25,7 @@ type UserSessionInput = {
   user: User;
   token: string;
   hasCompany: boolean;
+  persist?: boolean;
 };
 
 type UserState = {
@@ -38,22 +40,12 @@ type UserState = {
 const UserContext = createContext<UserState | null>(null);
 
 function getTokenExpirationMs(token: string): number | null {
-  try {
-    const payloadPart = token.split('.')[1];
-    if (!payloadPart) {
-      return null;
-    }
-
-    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(normalized)) as { exp?: number };
-    if (!payload.exp) {
-      return null;
-    }
-
-    return payload.exp * 1000;
-  } catch {
+  const payload = parseJwtPayload<{ exp?: number }>(token);
+  if (!payload?.exp) {
     return null;
   }
+
+  return payload.exp * 1000;
 }
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
@@ -147,6 +139,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setToken(data.token);
     setHasCompany(data.hasCompany);
+
+    if (data.persist === false) {
+      await clearAuthStorage();
+      return;
+    }
 
     await Promise.all([
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
