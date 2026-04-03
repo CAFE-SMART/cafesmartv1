@@ -56,7 +56,7 @@ export default function SystemStatus() {
     }
 
     if (token && hasCompany && !processState) {
-      navigate('/inventario', { replace: true });
+      navigate('/inicio', { replace: true });
     }
   }, [hasCompany, hydrated, navigate, processState, token]);
 
@@ -70,7 +70,7 @@ export default function SystemStatus() {
 
       if (!processState) {
         if (token && hasCompany) {
-          navigate('/inventario', { replace: true });
+          navigate('/inicio', { replace: true });
         } else {
           navigate('/crear-empresa', { replace: true });
         }
@@ -125,7 +125,7 @@ export default function SystemStatus() {
         setStatus('success');
 
         redirectTimerRef.current = window.setTimeout(() => {
-          navigate('/inventario', { replace: true });
+          navigate('/inicio', { replace: true });
         }, 1000);
       } catch (err) {
         const authError = err as AuthError;
@@ -202,7 +202,7 @@ export default function SystemStatus() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/inventario')}
+              onClick={() => navigate('/inicio')}
               className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b2a85] px-4 py-3 text-lg font-semibold text-white"
             >
               Ir al inicio <ArrowRight size={18} />

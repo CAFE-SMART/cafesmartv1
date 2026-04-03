@@ -89,4 +89,20 @@ export class UsersService {
       });
     });
   }
+
+  async linkGoogleAccount(userId: number, googleId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { googleId },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        telefono: true,
+        rol: true,
+        organizacionId: true,
+        googleId: true,
+      },
+    });
+  }
 }

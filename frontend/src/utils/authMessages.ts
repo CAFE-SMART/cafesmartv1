@@ -44,7 +44,7 @@ export function mapFriendlyAuthMessage(
       return AUTH_MESSAGES.googleNeedsRegister;
     }
 
-    return AUTH_MESSAGES.googleGeneric;
+    return normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
   }
 
   return normalizeMessage(data.message, fallbackError);

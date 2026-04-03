@@ -90,15 +90,29 @@ export class AuthService {
     }
 
     const googleEmail = payload.email.trim().toLowerCase();
+    const googleSubject = payload.sub?.trim();
+    if (!googleSubject) {
+      throw new UnauthorizedException({ message: 'Token de Google invalido' });
+    }
+
     const existingUser = await this.usersService.findByEmail(googleEmail);
     if (existingUser) {
-      throw new HttpException(
-        {
-          message: 'El correo ya esta registrado',
-          field: 'email',
-        },
-        HttpStatus.CONFLICT,
-      );
+      if (existingUser.googleId && existingUser.googleId !== googleSubject) {
+        throw new HttpException(
+          {
+            message: 'Este correo ya esta vinculado con otra cuenta de Google',
+            field: 'email',
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      const linkedUser =
+        existingUser.googleId === googleSubject
+          ? existingUser
+          : await this.usersService.linkGoogleAccount(existingUser.id, googleSubject);
+
+      return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -112,7 +126,7 @@ export class AuthService {
         correo: googleEmail,
         telefono: dto.telefono,
         password: hashedPassword,
-        googleId: payload.sub ?? null,
+        googleId: googleSubject,
       });
     } catch (error) {
       this.throwIfUniqueConstraint(error);
@@ -163,6 +177,13 @@ export class AuthService {
       });
     }
 
+    const googleSubject = payload.sub?.trim();
+    if (!googleSubject) {
+      throw new UnauthorizedException({
+        message: 'Token de Google invalido',
+      });
+    }
+
     const user = await this.usersService.findByEmail(payload.email.trim().toLowerCase());
 
     if (!user) {
@@ -172,14 +193,19 @@ export class AuthService {
       });
     }
 
-    if (!user.googleId || user.googleId !== payload.sub) {
+    if (user.googleId && user.googleId !== googleSubject) {
       throw new UnauthorizedException({
-        message: 'Esta cuenta no esta vinculada con Google',
+        message: 'Esta cuenta ya esta vinculada con otra cuenta de Google',
         field: 'email',
       });
     }
 
-    return this.buildAuthResponse(user, 'Login con Google exitoso');
+    const linkedUser =
+      user.googleId === googleSubject
+        ? user
+        : await this.usersService.linkGoogleAccount(user.id, googleSubject);
+
+    return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
   }
 
   private throwIfUniqueConstraint(error: unknown): never | void {

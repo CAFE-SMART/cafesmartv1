@@ -49,6 +49,10 @@ function decodeGoogleJwt(idToken: string): GoogleJwtPayload {
   return parseJwtPayload<GoogleJwtPayload>(idToken) ?? {};
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 export default function Login() {
   const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const [email, setEmail] = useState('');
@@ -59,7 +63,7 @@ export default function Login() {
   const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const navigate = useNavigate();
   const { setSession } = useUser();
@@ -77,6 +81,26 @@ export default function Login() {
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
+
+    let hasValidationError = false;
+
+    if (!email.trim()) {
+      setEmailFieldError('El correo es obligatorio.');
+      hasValidationError = true;
+    } else if (!isValidEmail(email)) {
+      setEmailFieldError('Ingresa un correo valido.');
+      hasValidationError = true;
+    }
+
+    if (!password.trim()) {
+      setPasswordFieldError('La contrasena es obligatoria.');
+      hasValidationError = true;
+    }
+
+    if (hasValidationError) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -92,13 +116,27 @@ export default function Login() {
         persist: rememberMe,
       });
 
-      navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
+      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
       const message = authError.message || 'No se pudo iniciar sesion. Intenta nuevamente.';
+      const details = authError.details ?? {};
 
-      if (field === 'email' || field === 'correo') {
+      const emailDetail = details.email?.[0] || details.correo?.[0];
+      const passwordDetail = details.password?.[0] || details.contrasena?.[0];
+
+      if (emailDetail) {
+        setEmailFieldError(emailDetail);
+      }
+
+      if (passwordDetail) {
+        setPasswordFieldError(passwordDetail);
+      }
+
+      if (emailDetail || passwordDetail) {
+        setError(null);
+      } else if (field === 'email' || field === 'correo') {
         setEmailFieldError(message);
         setError(null);
       } else if (field === 'password' || field === 'contrasena') {
@@ -138,7 +176,7 @@ export default function Login() {
         persist: rememberMe,
       });
 
-      navigate(data.hasCompany ? '/inventario' : '/crear-empresa');
+      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const loginError = err as AuthError;
 
@@ -210,7 +248,7 @@ export default function Login() {
           </p>
 
           {error && (
-            <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm text-center">
+          <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm text-center">
               {error}
             </div>
           )}

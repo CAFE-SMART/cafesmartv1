@@ -8,6 +8,7 @@ const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
 export type AuthError = {
   message: string;
   field: string | null;
+  details?: Record<string, string[]>;
   action?: string | null;
   code: 'OFFLINE' | 'HTTP' | 'UNKNOWN';
   status?: number;
@@ -27,6 +28,7 @@ export type AuthResponse = {
 type RawApiError = {
   message?: string | string[];
   field?: string;
+  details?: Record<string, string[]>;
   action?: string;
 };
 
@@ -77,6 +79,7 @@ async function postAuth<TResponse>(
       const authError: AuthError = {
         message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
         field: data.field ?? null,
+        details: data.details,
         action: data.action ?? null,
         code: 'HTTP',
         status: response.status,
@@ -112,6 +115,7 @@ async function postAuth<TResponse>(
     throw {
       message: knownError.message || 'Error al conectar con el servidor',
       field: knownError.field ?? null,
+      details: knownError.details,
       action: knownError.action ?? null,
       code: knownError.code ?? 'UNKNOWN',
       status: knownError.status,
