@@ -26,11 +26,10 @@ export default function Inicio() {
           <div className="mb-4 inline-flex rounded-2xl bg-emerald-50 p-3 text-emerald-700">
             <ShieldCheck size={26} />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Panel inicial de acceso</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Resumen de bienvenida</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Tu cuenta ya esta activa y lista para entrar al flujo principal del sistema.
-            En esta rama dejamos solo la base estable de autenticacion para que puedas
-            subir login y registro sin mezclar el prototipo del dashboard completo.
+            Tu cuenta ya esta activa y lista para ingresar al sistema. Desde aqui puedes
+            confirmar el estado general del acceso y continuar al panel principal.
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -47,7 +46,7 @@ export default function Inicio() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <BarChart3 className="mb-3 text-[#0b2a85]" size={18} />
               <p className="text-sm font-semibold text-slate-900">Dashboard</p>
-              <p className="mt-1 text-xs text-slate-500">La vista completa sigue en otra rama.</p>
+              <p className="mt-1 text-xs text-slate-500">Listo para continuar al panel principal.</p>
             </div>
           </div>
 
