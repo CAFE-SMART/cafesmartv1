@@ -1,58 +1,59 @@
-// ============================================================
-// main.ts — El Motor del Backend
-// ============================================================
-// Es lo primero que se ejecuta cuando levantamos el servidor.
-// Enciende NestJS, activa validaciones globales y habilita CORS.
-// ============================================================
-
+import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+
+function flattenValidationErrors(
+  errors: ValidationError[],
+  parentPath = '',
+): Array<{ field: string; message: string }> {
+  return errors.flatMap((error) => {
+    const currentPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+    const ownMessages = Object.values(error.constraints ?? {}).map((message) => ({
+      field: currentPath,
+      message,
+    }));
+    const nestedMessages = flattenValidationErrors(error.children ?? [], currentPath);
+    return [...ownMessages, ...nestedMessages];
+  });
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const port = Number(configService.get('PORT') ?? 3000);
 
-  // CORS: permite que el frontend se conecte al backend sin errores
   app.enableCors();
 
-  // ValidationPipe global: activa las validaciones de todos los DTOs.
-  // whitelist: true → descarta cualquier campo extra que no esté en el DTO
-  // forbidNonWhitelisted: true → retorna error 400 si vienen campos no permitidos
-  // transform: true → convierte los datos al tipo correcto (ej: string → enum)
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors: ValidationError[]) => {
+        const issues = flattenValidationErrors(errors);
+        const firstIssue = issues[0];
+        const details = issues.reduce<Record<string, string[]>>((acc, issue) => {
+          if (!acc[issue.field]) {
+            acc[issue.field] = [];
+          }
+
+          acc[issue.field].push(issue.message);
+          return acc;
+        }, {});
+
+        return new BadRequestException({
+          message: firstIssue?.message ?? 'Datos invalidos.',
+          field: firstIssue?.field ?? null,
+          details,
+          error: 'Bad Request',
+        });
+      },
     }),
   );
 
-  await app.listen(3000, '0.0.0.0');
-  console.log('🚀 Backend CAFE SMART corriendo en el puerto 3000');
+  await app.listen(port, '0.0.0.0');
+  console.log(`Backend Cafe Smart corriendo en el puerto ${port}`);
 }
-bootstrap();
 
-/*
- * ========================================================
- * 🚀 ARCHIVO: main.ts (El Motor del Backend)
- * ========================================================
- * ¿Para qué sirve?: Es lo primero que se ejecuta cuando levantamos el servidor (NestJS).
- * Enciende el servidor, habilita la conexión segura (CORS) y le dice en qué puerto escuchar.
- * 
- * ¿Debo editarlo?: ⛔ NO. Este archivo se configura una vez y rara vez se vuelve a tocar,
- * a menos que quieran agregar prefijos globales a las rutas de las API o Swagger.
- */
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  // CORS para una conexion sin errores entre el Frontend y el Backend
-  app.enableCors();
-  
-  // Escuchar en puerto 0.0.0.0
-  await app.listen(3000, '0.0.0.0');
-  console.log('🚀 Backend CAFE SMART corriendo en el puerto 3000');
-}
-bootstrap();
+void bootstrap();

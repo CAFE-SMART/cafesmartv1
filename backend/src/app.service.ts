@@ -8,14 +8,14 @@
  *
  * ¿Debo editarlo?: ⛔ NO. No tiene lógica de negocio. Solo existe para
  * confirmar que el servidor enciende. La lógica real va en los servicios
- * de cada módulo (auth.service, user.services, etc.).
+ * de cada modulo (auth.service, users.service, etc.).
  */
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AppService {
   getHello(): string {
-    return 'Hello World!';
+    return 'Cafe Smart API running';
   }
 }
 

@@ -53,8 +53,8 @@ model User {
   id       Int        @id @default(autoincrement()) @map("id_usuario")
   nombre   String     @map("nombre")
   correo   String     @unique @map("correo")
-  password String?   @map("password") // Opcional para los usuarios de Google
-  googleId String?   @unique @map("google_id") // Para vincular la cuenta de Google
+  password String?    @map("password") // Opcional para los usuarios de Google
+  googleId String?    @unique @map("google_id") // Para vincular la cuenta de Google
   telefono String    @map("telefono")
   rol      RolUsuario @default(ADMIN) @map("id_rol")
   activo   Boolean    @default(true) @map("estado")
@@ -64,19 +64,4 @@ model User {
   organizacionId Int          @map("id_organizacion")
 
   @@map("usuario") // Nombre exacto de la tabla en tu diseño
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(OPERADOR)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum Role {
-  ADMIN       // Administrador de la cooperativa
-  OPERADOR    // El que recibe el café (Offline/Local)
 }

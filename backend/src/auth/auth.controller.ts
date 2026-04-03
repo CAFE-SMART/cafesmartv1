@@ -1,61 +1,59 @@
 // ============================================================
-// auth.controller.ts — Las Rutas de Autenticación
+// auth.controller.ts - Las rutas de autenticacion
 // ============================================================
-// El controlador es el "portero": recibe la petición HTTP,
+// El controlador recibe la peticion HTTP,
 // la valida con el DTO y la delega al AuthService.
 //
-// REGLA: El controlador NO tiene lógica de negocio.
+// REGLA: El controlador NO tiene logica de negocio.
 // Solo recibe, valida y responde.
-//
-// Rutas definidas aquí:
-//   POST /auth/register  →  Registrar organización + usuario admin
 // ============================================================
 
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
+import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { CheckEmailDto } from './dto/check-email.dto';
+import { UsersService } from 'src/users/users.service';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 
-@Controller('auth') // prefijo base: /auth
+@Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) {}
 
-  // ----------------------------------------------------------
-  // POST /auth/register
-  // Recibe los datos del formulario, los valida con RegisterDto
-  // y le pasa el control a AuthService para crear la cuenta.
-  // ----------------------------------------------------------
   @Post('register')
-  @HttpCode(HttpStatus.CREATED) // responde con código 201
-  async register(@Body() dto: RegisterDto) {
-    // El decorador @Body() extrae el cuerpo del JSON de la petición.
-    // NestJS valida automáticamente que el DTO sea correcto gracias
-    // al ValidationPipe activado en main.ts.
+  @HttpCode(HttpStatus.CREATED)
+  register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
-  // ----------------------------------------------------------
-  // POST /auth/register/google
-  // ----------------------------------------------------------
   @Post('register/google')
   @HttpCode(HttpStatus.CREATED)
-  async registerGoogle(@Body() dto: RegisterGoogleDto) {
+  registerGoogle(@Body() dto: RegisterGoogleDto) {
     return this.authService.registerGoogle(dto);
   }
-}
 
-/*
- * ========================================================
- * 🚪 ARCHIVO: auth.controller.ts (El Portero del Sistema)
- * ========================================================
- * ¿Para qué sirve?: Define las rutas HTTP que permiten a los usuarios
- * registrarse e iniciar sesión. Recibe las peticiones del Frontend
- * y se las delega al AuthService para procesarlas.
- *
- * Rutas que vivirán aquí:
- *   POST /auth/register  →  Registrar un usuario nuevo
- *   POST /auth/login     →  Iniciar sesión y obtener un token JWT
- *
- * ¿Debo editarlo?: ✅ SÍ. Un compañero de Backend debe crear las funciones
- * register() y login() aquí dentro, decoradas con @Post('register') y @Post('login').
- */
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto.email, loginDto.password);
+  }
+
+  @Post('login/google')
+  @HttpCode(HttpStatus.OK)
+  loginWithGoogle(@Body() googleLoginDto: GoogleLoginDto) {
+    return this.authService.loginWithGoogle(googleLoginDto);
+  }
+
+  @Post('check-email')
+  @HttpCode(HttpStatus.OK)
+  async checkEmail(@Body() dto: CheckEmailDto) {
+    const user = await this.usersService.findByEmail(dto.correo.trim().toLowerCase());
+    return { exists: Boolean(user) };
+  }
+}
