@@ -15,7 +15,7 @@ import { RegisterGoogleDto } from './dto/register-google.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 
 @Controller('auth')

@@ -1,7 +1,6 @@
 // ============================================================
-// schema.prisma — CAFE SMART
+// schema.prisma -- CAFE SMART
 // ============================================================
-// prisma es un ORM que permite interactuar con la base de datos
 
 generator client {
   provider = "prisma-client-js"
@@ -13,14 +12,10 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ------------------------------------------------------------
-// ENUM: Tipo de organización
-// Se añade OTRO para mayor flexibilidad.
-// ------------------------------------------------------------
 enum TipoOrganizacion {
   COOPERATIVA
   COMPRAVENTA
-  OTRO // Para exportadoras, trilladoras, etc.
+  OTRO
 }
 
 enum RolUsuario {
@@ -28,40 +23,189 @@ enum RolUsuario {
   OPERADOR
 }
 
-// ------------------------------------------------------------
-// MODEL: Organization
-// Mapeado exactamente al diseño de base de datos.
-// ------------------------------------------------------------
-model Organization {
-  id              Int              @id @default(autoincrement()) @map("id_organizacion")
-  nombre          String           @map("nombre")
-  tipo            TipoOrganizacion @map("id_tipo_organizacion")
-  otroTipoDetalle String?          @map("otro_tipo_detalle") // Para guardar el nombre si elige "OTRO"
-  activo          Boolean          @default(true) @map("estado")
-  creadoEn        DateTime         @default(now()) @map("fecha_registro")
-
-  usuarios User[]
-
-  @@map("organizacion") // Nombre exacto de la tabla en tu diseño
+enum TipoMovimientoInventario {
+  COMPRA
+  VENTA
+  SECADO
+  MEZCLA
 }
 
-// ------------------------------------------------------------
-// MODEL: User
-// Mapeado exactamente al diseño de base de datos.
-// ------------------------------------------------------------
+enum TipoReferenciaInventario {
+  COMPRA
+  VENTA
+  SECADO
+  MEZCLA
+}
+
+model TipoCafe {
+  id            String                @id @default(uuid()) @map("id_tipo_cafe")
+  nombre        String                @unique @map("nombre")
+  creadoEn      DateTime              @default(now()) @map("created_at")
+  actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
+
+  sublotes      Sublote[]
+  inventarios   Inventario[]
+  movimientos   InventarioMovimiento[]
+
+  @@map("tipo_cafe")
+}
+
+model Calidad {
+  id            String                @id @default(uuid()) @map("id_calidad")
+  nombre        String                @unique @map("nombre")
+  creadoEn      DateTime              @default(now()) @map("created_at")
+  actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
+
+  sublotes      Sublote[]
+  inventarios   Inventario[]
+  movimientos   InventarioMovimiento[]
+
+  @@map("calidad")
+}
+
+model Organization {
+  id              String                @id @default(uuid()) @map("id_organizacion")
+  nombre          String                @map("nombre")
+  tipo            TipoOrganizacion      @map("id_tipo_organizacion")
+  otroTipoDetalle String?               @map("otro_tipo_detalle")
+  activo          Boolean               @default(true) @map("estado")
+  creadoEn        DateTime              @default(now()) @map("fecha_registro")
+
+  usuarios        User[]
+  compras         Compra[]
+  parametros      ParametroOrganizacion[]
+  inventarios     Inventario[]
+  movimientos     InventarioMovimiento[]
+
+  @@map("organizacion")
+}
+
 model User {
-  id       Int        @id @default(autoincrement()) @map("id_usuario")
+  id       String     @id @default(uuid()) @map("id_usuario")
   nombre   String     @map("nombre")
   correo   String     @unique @map("correo")
-  password String?    @map("password") // Opcional para los usuarios de Google
-  googleId String?    @unique @map("google_id") // Para vincular la cuenta de Google
-  telefono String    @map("telefono")
+  password String?    @map("password")
+  googleId String?    @unique @map("google_id")
+  telefono String     @map("telefono")
   rol      RolUsuario @default(ADMIN) @map("id_rol")
   activo   Boolean    @default(true) @map("estado")
   creadoEn DateTime   @default(now()) @map("fecha_creacion")
 
   organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  organizacionId Int          @map("id_organizacion")
+  organizacionId String       @map("id_organizacion")
 
-  @@map("usuario") // Nombre exacto de la tabla en tu diseño
+  compras     Compra[]
+  movimientos InventarioMovimiento[]
+
+  @@map("usuario")
+}
+
+model Compra {
+  id          String    @id @default(uuid()) @map("id_compra")
+  fecha       DateTime  @map("fecha")
+  totalCompra Decimal   @map("total_compra") @db.Decimal(12, 2)
+  deviceId    String    @map("device_id")
+  localId     String    @map("local_id")
+  deletedAt   DateTime? @map("deleted_at")
+  creadoEn    DateTime  @default(now()) @map("creado_en")
+
+  usuarioId      String       @map("id_usuario")
+  usuario        User         @relation(fields: [usuarioId], references: [id])
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  sublotes Sublote[]
+
+  @@unique([deviceId, localId])
+  @@map("compra")
+}
+
+model Sublote {
+  id          String    @id @default(uuid()) @map("id_sublote")
+  pesoInicial Decimal   @map("peso_inicial") @db.Decimal(10, 2)
+  pesoActual  Decimal   @map("peso_actual") @db.Decimal(10, 2)
+  precioKg    Decimal   @map("precio_kg") @db.Decimal(10, 2)
+  idLote      String?   @map("id_lote")
+  deviceId    String    @map("device_id")
+  localId     String    @map("local_id")
+  deletedAt   DateTime? @map("deleted_at")
+  creadoEn    DateTime  @default(now()) @map("creado_en")
+
+  compraId String @map("id_compra")
+  compra   Compra @relation(fields: [compraId], references: [id])
+
+  tipoCafeId String   @map("id_tipo_cafe")
+  tipoCafe   TipoCafe @relation(fields: [tipoCafeId], references: [id])
+
+  calidadId String  @map("id_calidad")
+  calidad   Calidad @relation(fields: [calidadId], references: [id])
+
+  @@unique([deviceId, localId])
+  @@map("sublote")
+}
+
+model Inventario {
+  id        String   @id @default(uuid()) @map("id_inventario")
+  pesoTotal Decimal  @map("peso_total") @db.Decimal(12, 2)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  tipoCafeId String   @map("id_tipo_cafe")
+  tipoCafe   TipoCafe @relation(fields: [tipoCafeId], references: [id])
+
+  calidadId String  @map("id_calidad")
+  calidad   Calidad @relation(fields: [calidadId], references: [id])
+
+  @@unique([organizacionId, tipoCafeId, calidadId])
+  @@map("inventario")
+}
+
+model InventarioMovimiento {
+  id             String                  @id @default(uuid()) @map("id_inventario_movimiento")
+  cantidad       Decimal                 @map("cantidad") @db.Decimal(12, 2)
+  tipoMovimiento TipoMovimientoInventario @map("tipo_movimiento")
+  referenciaTipo TipoReferenciaInventario @map("referencia_tipo")
+  referenciaId   String                  @map("referencia_id")
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  organizacionId String                  @map("id_organizacion")
+  organizacion   Organization            @relation(fields: [organizacionId], references: [id])
+
+  usuarioId      String                  @map("id_usuario")
+  usuario        User                    @relation(fields: [usuarioId], references: [id])
+
+  tipoCafeId     String                  @map("id_tipo_cafe")
+  tipoCafe       TipoCafe                @relation(fields: [tipoCafeId], references: [id])
+
+  calidadId      String                  @map("id_calidad")
+  calidad        Calidad                 @relation(fields: [calidadId], references: [id])
+
+  @@index([organizacionId, createdAt])
+  @@index([organizacionId, tipoCafeId, calidadId, createdAt])
+  @@index([referenciaId])
+  @@index([organizacionId, referenciaId])
+  @@map("inventario_movimiento")
+}
+
+model ParametroOrganizacion {
+  id     String @id @default(uuid()) @map("id_parametro")
+  nombre String @map("nombre")
+  valor  String @map("valor")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  @@unique([organizacionId, nombre])
+  @@map("parametro_organizacion")
+}
+
+model Parametro {
+  id     String @id @default(uuid()) @map("id_parametro")
+  nombre String @unique @map("nombre")
+  valor  String @map("valor")
+
+  @@map("parametro")
 }

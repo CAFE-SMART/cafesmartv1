@@ -9,7 +9,7 @@ type CrearUsuarioData = {
   googleId?: string | null;
   telefono: string;
   rol: RolUsuario;
-  organizacionId: number;
+  organizacionId: string;
 };
 
 type CreateAdminWithOrganizationInput = {
