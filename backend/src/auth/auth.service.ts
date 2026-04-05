@@ -246,7 +246,7 @@ export class AuthService {
     }
   }
 
-  private buildAuthResponse(user: { id: number; correo: string; nombre: string; organizacionId: number | null }, message: string) {
+  private buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
 
