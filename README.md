@@ -13,12 +13,16 @@ Este repositorio contiene dos aplicaciones:
 cafesmartv1/
 |-- backend/
 |   |-- prisma/
+|   |   |-- schema.prisma
+|   |   `-- seed.ts
 |   |-- src/
 |   `-- package.json
 |-- frontend/
 |   |-- android/
 |   |-- src/
 |   `-- package.json
+|-- pnpm-workspace.yaml
+|-- package.json (root)
 |-- docker-compose.yml
 `-- README.md
 ```
@@ -36,7 +40,23 @@ node -v
 pnpm -v
 ```
 
-## Instalacion
+### Opción 1: pnpm Workspaces (Recomendado)
+
+Instalar todo desde la raíz:
+
+```bash
+pnpm install
+```
+
+Levantar servicios desde la raíz:
+
+```bash
+pnpm dev:backend   # Inicia backend en modo dev
+pnpm dev:frontend  # Inicia frontend en modo dev
+pnpm seed          # Ejecuta el seeding de la base de datos
+```
+
+### Opción 2: Instalación Manual
 
 Backend:
 
@@ -83,33 +103,30 @@ Importante:
 - Si el backend muestra error Prisma `P1000`, normalmente la clave real de Supabase no fue reemplazada bien en `DATABASE_URL` y `DIRECT_URL`.
 - Si el backend muestra error Prisma `P1001`, suele ser un problema de conectividad con Supabase. El backend ahora hace reintentos breves antes de fallar.
 
-## Supabase para desarrollo local
+### Supabase (Producción o Nube)
 
-Si tu red local no soporta IPv6, no conviene usar la conexion directa:
+Si usas Supabase, la configuración en `backend/.env` debe usar su Session Pooler o conexión directa.
 
-```env
-postgresql://postgres:CLAVE@db.PROYECTO.supabase.co:5432/postgres
-```
+### PostgreSQL Local (Alternativa rápida)
 
-Para este backend NestJS persistente se recomienda usar el Session pooler de Supabase en puerto 5432:
+Si prefieres desarrollar localmente sin depender de Supabase, puedes usar el servicio incluido en `docker-compose.yml`:
 
-```env
-DATABASE_URL="postgresql://postgres.PROYECTO:CLAVE@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
-DIRECT_URL="postgresql://postgres.PROYECTO:CLAVE@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
-```
-
-La cadena exacta se copia desde:
-
-- Supabase
-- Proyecto
-- Connect
-- Session pooler
+1. Levanta la DB: `docker-compose up -d db`
+2. Configura tu `backend/.env`:
+   ```env
+   DATABASE_URL="postgresql://user_cafe:password_cafe@localhost:5432/cafe_smart_db"
+   DIRECT_URL="postgresql://user_cafe:password_cafe@localhost:5432/cafe_smart_db"
+   ```
+3. Ejecuta migraciones y seed:
+   ```bash
+   pnpm --filter cafe-smart-backend prisma migrate dev
+   pnpm seed
+   ```
 
 Nota:
-
 - El frontend Android/web no debe conectarse directo a Postgres.
 - La app habla con el backend.
-- El backend es quien se conecta a Supabase.
+- El backend es quien se conecta a la base de datos.
 
 ## Ejecutar
 
