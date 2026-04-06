@@ -1,5 +1,21 @@
+version: '3.8'
+
 services:
-  # 1. Backend (NestJS + Prisma)
+  # 1. Base de datos (PostgreSQL) para desarrollo local
+  db:
+    image: postgres:16-alpine
+    container_name: cafe_smart_db
+    restart: always
+    environment:
+      POSTGRES_USER: user_cafe
+      POSTGRES_PASSWORD: password_cafe
+      POSTGRES_DB: cafe_smart_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Backend (NestJS + Prisma)
   backend:
     build:
       context: ./backend
@@ -7,9 +23,11 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ./backend/.env  # Conecta las variables de entorno donde estará Supabase
+      - ./backend/.env
+    depends_on:
+      - db
 
-  # 2. Frontend (React + Vite)
+  # 3. Frontend (React + Vite)
   frontend:
     build:
       context: ./frontend
@@ -18,3 +36,6 @@ services:
       - "80:80"
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
