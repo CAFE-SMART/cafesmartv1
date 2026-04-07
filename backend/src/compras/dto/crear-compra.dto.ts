@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUUID,
   Max,
@@ -43,9 +44,9 @@ export class CreateSubloteDto {
 }
 
 export class CreateCompraDto {
+  @IsOptional()
   @IsDateString({}, { message: 'La fecha debe ser ISO 8601' })
-  @IsNotEmpty({ message: 'La fecha es obligatoria' })
-  fecha: string;
+  fecha?: string;
 
   @IsString({ message: 'deviceId de la compra debe ser un string' })
   @IsNotEmpty({ message: 'deviceId de la compra es obligatorio' })
