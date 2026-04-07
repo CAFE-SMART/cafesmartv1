@@ -43,22 +43,34 @@ function StatusIcon({ tone }: { tone: keyof typeof toneClasses }) {
   return <Cloud size={18} />;
 }
 
-export function CloudStatusBadge() {
+export function CloudStatusBadge({
+  className = '',
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+} = {}) {
   const { tone, title, detail, refreshHealth } = useCloudStatus();
 
   return (
     <button
       type="button"
       onClick={() => void refreshHealth()}
-      className={`inline-flex max-w-[260px] items-center gap-3 rounded-2xl border px-3 py-2 text-left shadow-sm transition-colors ${toneClasses[tone]}`}
+      className={`inline-flex items-center gap-3 rounded-2xl border text-left shadow-sm transition-colors ${
+        compact ? 'w-full max-w-[230px] px-2.5 py-2' : 'max-w-[260px] px-3 py-2'
+      } ${toneClasses[tone]} ${className}`}
       title={detail}
     >
       <span className="flex-shrink-0">
         <StatusIcon tone={tone} />
       </span>
       <span className="min-w-0">
-        <span className="block text-xs font-bold uppercase tracking-wide">{title}</span>
-        <span className="block truncate text-[11px] opacity-90">{detail}</span>
+        <span className="block text-[11px] font-bold uppercase tracking-wide">{title}</span>
+        {!compact ? (
+          <span className="block truncate text-[11px] opacity-90">{detail}</span>
+        ) : (
+          <span className="block truncate text-[9px] opacity-90">{detail}</span>
+        )}
       </span>
     </button>
   );

@@ -1,17 +1,20 @@
-import React from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
   AlertCircle,
   Eye,
   EyeOff,
+  Loader,
   Users,
   Store,
   Settings,
   HelpCircle,
   MessageCircle,
 } from 'lucide-react';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
@@ -19,13 +22,29 @@ import {
   type RegisterLocationState,
   type TipoOrg,
 } from '../utils/registerValidators';
+import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const initialRouteState = useMemo(
+    () => ((location.state ?? null) as RegisterLocationState | null),
+    [location.state],
+  );
+  const [googleRouteState, setGoogleRouteState] = useState<RegisterLocationState>(
+    () => initialRouteState ?? {},
+  );
 
-  const routeState = (location.state ?? {}) as RegisterLocationState;
-  const hasGoogleFlow = Boolean(routeState.googleToken);
+  useEffect(() => {
+    if (initialRouteState?.googleToken) {
+      setGoogleRouteState(initialRouteState);
+    }
+  }, [initialRouteState]);
+
+  const hasGoogleFlow = Boolean(googleRouteState.googleToken);
+  const googlePrefill = googleRouteState.googlePrefill;
   const {
     step,
     nombreOrganizacion,
@@ -58,7 +77,7 @@ export default function Register() {
     goBackToStep1,
     handleSubmit,
     validateEmailAvailability,
-  } = useRegisterForm({ hasGoogleFlow, routeState, navigate });
+  } = useRegisterForm({ hasGoogleFlow, routeState: googleRouteState, navigate });
 
   const tiposOrg: { value: TipoOrg; label: string; desc: string; icon: React.ReactNode }[] = [
     {
@@ -92,28 +111,70 @@ export default function Register() {
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
 
+  const handleGoogleRegisterSuccess = (credentialResponse: CredentialResponse) => {
+    const idToken = credentialResponse?.credential;
+
+    if (!idToken) {
+      setGoogleLoading(false);
+      return;
+    }
+
+    setGoogleRouteState({
+      googleToken: idToken,
+      googlePrefill: getGooglePrefillFromIdToken(idToken),
+    });
+    setGoogleLoading(false);
+  };
+
+  const handleGoogleRegisterError = () => {
+    setGoogleLoading(false);
+  };
+
+  const goToLogin = () => {
+    setGoogleLoading(false);
+    setGoogleRouteState({});
+    navigate('/login', { replace: true });
+  };
+
+  const handleHeaderBack = () => {
+    if (step === 1) {
+      goToLogin();
+      return;
+    }
+
+    goBackToStep1();
+  };
+
+  const handleHelpClick = () => {
+    window.alert('Si necesitas ayuda con el registro, comunicate con la persona encargada del sistema.');
+  };
+
+  const handleContactClick = () => {
+    window.alert('Si el problema continua, comunicate con la persona encargada o con soporte interno.');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      <header className="flex justify-between items-center p-5 bg-gray-50">
+      <header className="flex flex-col gap-3 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <button
           type="button"
-          onClick={step === 1 ? () => navigate('/login') : goBackToStep1}
-          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          onClick={handleHeaderBack}
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
         >
-          <ArrowLeft size={18} /> Crear cuenta
+          <ArrowLeft size={18} /> {step === 1 ? 'Volver al ingreso' : 'Volver al negocio'}
         </button>
 
         <button
           type="button"
-          onClick={() => navigate('/login')}
-          className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+          onClick={goToLogin}
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
         >
-          Cancelar
+          Cancelar registro
         </button>
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 pb-8">
-        <div className="w-full max-w-[480px]">
+        <div className="w-full max-w-[520px]">
           <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
 
           {error && (
@@ -247,7 +308,7 @@ export default function Register() {
 
           {step === 2 && (
             <section>
-              <div className="flex justify-between items-start mb-1">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <h2 className="text-2xl font-bold text-[#0f172a]">
                   Datos del Administrador
                 </h2>
@@ -277,29 +338,16 @@ export default function Register() {
                 </p>
               </div>
 
-              {hasGoogleFlow && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                  <p className="text-sm font-semibold text-blue-900">
-                    Registro con Google activo.
-                  </p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    Completamos nombre y correo desde Google cuando estan disponibles.
-                    Puedes editarlos si lo necesitas.
-                  </p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    Por seguridad, Google no comparte tu contrasena con la app. Crea una
-                    contrasena local para que luego puedas iniciar sesion con correo y
-                    contrasena cuando quieras.
-                  </p>
-                </div>
-              )}
-
               <form onSubmit={handleSubmit} className="space-y-5">
+                {hasGoogleFlow && (
+                  <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                    Google completo nombre, apellidos y correo. Solo revisalos y termina el registro.
+                  </p>
+                )}
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Nombre
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Nombre</label>
                     <input
                       type="text"
                       value={nombre}
@@ -323,9 +371,7 @@ export default function Register() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Apellidos
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Apellidos</label>
                     <input
                       type="text"
                       value={apellidos}
@@ -374,9 +420,7 @@ export default function Register() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Correo electronico
-                  </label>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Correo electronico</label>
                   <input
                     type="email"
                     value={correo}
@@ -412,7 +456,7 @@ export default function Register() {
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Contrasena
+                    Contraseña
                   </label>
                   <div className="relative">
                     <input
@@ -465,20 +509,15 @@ export default function Register() {
                       Seguridad: <strong>{passwordStrength.label}</strong>
                     </p>
                     <p className="text-xs text-slate-500">
-                      Requisitos: minimo 6 caracteres, una minuscula, una mayuscula y un
-                      numero recomendado.
+                      Requisitos: mínimo 6 caracteres, una minúscula, una mayúscula y un
+                      número recomendado.
                     </p>
-                    {hasGoogleFlow && (
-                      <p className="text-xs text-blue-700">
-                        Esta contrasena sera tu acceso alterno con correo y contrasena.
-                      </p>
-                    )}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Confirma tu contrasena
+                    Confirma tu contraseña
                   </label>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -487,7 +526,7 @@ export default function Register() {
                       setConfirmPassword(e.target.value);
                       setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
                     }}
-                    placeholder="Vuelve a escribir tu contrasena"
+                    placeholder="Vuelve a escribir tu contraseña"
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                       stepTwoErrors.confirmPassword
                         ? 'border-red-300 bg-red-50/40'
@@ -508,55 +547,97 @@ export default function Register() {
                       }`}
                     >
                       {passwordsMatch
-                        ? 'Las contrasenas coinciden.'
-                        : 'Las contrasenas no coinciden.'}
+                        ? 'Las contraseñas coinciden.'
+                        : 'Las contraseñas no coinciden.'}
+                    </p>
+                  )}
+                  {hasGoogleFlow && (
+                    <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                      Google no comparte tu contraseña con esta aplicación. Escribe aquí
+                      la misma que recuerdas de Google o crea una nueva para iniciar
+                      sesión en Cafe Smart.
                     </p>
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg"
-                >
-                  Crear cuenta
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                <div className="space-y-4">
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg"
                   >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4-4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <line x1="19" y1="8" x2="19" y2="14" />
-                    <line x1="22" y1="11" x2="16" y2="11" />
-                  </svg>
-                </button>
+                    Crear cuenta
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <line x1="19" y1="8" x2="19" y2="14" />
+                      <line x1="22" y1="11" x2="16" y2="11" />
+                    </svg>
+                  </button>
+
+                  {!hasGoogleFlow && isGoogleAuthEnabled && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
+                      <p className="mb-3 text-xs font-medium text-slate-600">
+                        Si prefieres, tambien puedes continuar con Google desde aqui.
+                      </p>
+
+                      {googleLoading ? (
+                        <div className="flex flex-col items-center justify-center py-2">
+                          <Loader className="h-8 w-8 animate-spin text-[#1e3a8a]" />
+                          <p className="mt-2 text-sm font-medium text-slate-700">
+                            Conectando con Google...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <GoogleLogin
+                            onSuccess={(response) => {
+                              setGoogleLoading(true);
+                              handleGoogleRegisterSuccess(response);
+                            }}
+                            onError={handleGoogleRegisterError}
+                            text="continue_with"
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </form>
             </section>
           )}
         </div>
       </main>
 
-      <footer className="p-4 flex items-center justify-center gap-6 text-sm text-gray-500">
+      <footer className="p-4 flex items-center justify-center gap-4 text-sm text-gray-500 sm:gap-6">
         <p className="text-xs text-slate-400 font-medium">
           Necesitas ayuda con el registro?
         </p>
       </footer>
-      <div className="pb-6 flex items-center justify-center gap-8">
+      <div className="flex items-center justify-center gap-8 pb-8">
         <button
           type="button"
-          className="flex flex-col items-center gap-1 text-gray-500 hover:text-[#1e3a8a] transition-colors"
+          onClick={handleHelpClick}
+          className="flex flex-col items-center gap-1 text-gray-500 transition-colors hover:text-[#1e3a8a]"
         >
           <HelpCircle size={20} />
           <span className="text-xs font-medium">Ayuda</span>
         </button>
         <button
           type="button"
-          className="flex flex-col items-center gap-1 text-gray-500 hover:text-[#1e3a8a] transition-colors"
+          onClick={handleContactClick}
+          className="flex flex-col items-center gap-1 text-gray-500 transition-colors hover:text-[#1e3a8a]"
         >
           <MessageCircle size={20} />
           <span className="text-xs font-medium">Contacto</span>
@@ -565,3 +646,9 @@ export default function Register() {
     </div>
   );
 }
+
+
+
+
+
+

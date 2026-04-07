@@ -126,6 +126,7 @@ model Sublote {
   pesoInicial Decimal   @map("peso_inicial") @db.Decimal(10, 2)
   pesoActual  Decimal   @map("peso_actual") @db.Decimal(10, 2)
   precioKg    Decimal   @map("precio_kg") @db.Decimal(10, 2)
+  humedad     Decimal?  @map("humedad") @db.Decimal(5, 2)
   idLote      String?   @map("id_lote")
   deviceId    String    @map("device_id")
   localId     String    @map("local_id")

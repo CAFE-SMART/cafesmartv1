@@ -41,6 +41,15 @@ function normalizarADosDecimales(valor: number): number {
   return desdeCentiUnidades(aCentiUnidades(valor));
 }
 
+function resolverFechaCompra(fecha?: string): string {
+  const texto = fecha?.trim();
+  if (texto) {
+    return texto;
+  }
+
+  return new Date().toISOString();
+}
+
 function procesarSublote(sublote: SubloteInput): SubloteProcesado {
   const pesoInicialCenti = aCentiUnidades(sublote.pesoInicial);
   const precioKgCenti = aCentiUnidades(sublote.precioKg);
@@ -72,7 +81,7 @@ function construirCompra(
   );
 
   return {
-    fecha: input.fecha,
+    fecha: resolverFechaCompra(input.fecha),
     totalKg: desdeCentiUnidades(totalKgCenti),
     totalCompra: desdeCentiUnidades(totalCompraCenti),
     deviceId: input.deviceId,

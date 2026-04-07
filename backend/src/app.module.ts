@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ComprasModule } from './compras/compras.module';
 import { ParametrosModule } from './parametros/parametros.module';
+import { LotesModule } from './lotes/lotes.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ParametrosModule } from './parametros/parametros.module';
     AuthModule,
     ComprasModule,
     ParametrosModule,
+    LotesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
