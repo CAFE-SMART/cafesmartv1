@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
+  Clock3,
   Package2,
   RefreshCcw,
   Save,
 } from 'lucide-react';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
-import { formatDateLabel } from '../utils/date';
+import { formatDateLabel, getDaysInBodega } from '../utils/date';
 import {
   guardarHumedadesSublotes,
   obtenerDetalleLote,
@@ -87,6 +88,11 @@ function estadoPorHumedad(value: number | null): EstadoHumedad {
 
 function parseDecimal(text: string) {
   return Number(text.replace(',', '.'));
+}
+
+function getDaysForSublote(sublote: { fechaIngreso: string; diasEnBodega: number }) {
+  const computed = getDaysInBodega(sublote.fechaIngreso);
+  return Math.max(computed, sublote.diasEnBodega || 0);
 }
 
 export default function Sublotes() {
@@ -266,6 +272,14 @@ export default function Sublotes() {
     return getAverageFactorForLot(detalle.lote.id);
   }, [detalle, factorVersion, isSecoBuenoLot]);
 
+  const diasLote = useMemo(() => {
+    if (!detalle) return 0;
+    if (detalle.sublotes.length === 0) {
+      return getDaysInBodega(detalle.lote.fechaPrimerIngreso || detalle.lote.fecha);
+    }
+    return Math.max(...detalle.sublotes.map((sublote) => getDaysForSublote(sublote)));
+  }, [detalle]);
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] pb-28 text-slate-900">
       <header className="sticky top-0 z-20 border-b border-white/80 bg-[rgba(247,245,255,0.92)] px-4 py-4 backdrop-blur">
@@ -307,6 +321,8 @@ export default function Sublotes() {
                   {estadoLote.label}
                   <span className="text-slate-400">·</span>
                   {loading || !detalle ? '...' : formatKg(detalle.lote.pesoActual)}
+                  <span className="text-slate-400">·</span>
+                  {loading || !detalle ? '...' : `${diasLote} días en bodega`}
                 </p>
                 <p className="mt-1 text-xs text-[#5b6f9d]">
                   {loading || !detalle || detalle.sublotes.length === 0
@@ -372,6 +388,7 @@ export default function Sublotes() {
             {detalle?.sublotes.map((sublote) => {
               const estado = estadoPorHumedad(sublote.humedad);
               const factorActual = getFactorForSublote(sublote.id);
+              const diasSublote = getDaysForSublote(sublote);
               const humedadSavedKey = `${sublote.id}:humedad`;
               const factorSavedKey = `${sublote.id}:factor`;
               const humedadBusyKey = `${sublote.id}:humedad:busy`;
@@ -396,16 +413,24 @@ export default function Sublotes() {
                       <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-xs font-black text-[#102d92]">
                         {formatKg(sublote.pesoActual)}
                       </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#eef2ff] px-2.5 py-1 text-xs font-black text-[#102d92]">
+                        <Clock3 size={12} />
+                        {diasSublote} días
+                      </span>
                     </div>
 
                     <p className="mt-2 text-sm text-slate-500">
                       Ingreso: {formatDateLabel(sublote.fechaIngreso)} · {sublote.tipoCafe} · {sublote.calidad}
                     </p>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2.5">
+                    <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                       <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Peso</p>
                         <p className="mt-1 text-base font-black text-slate-900">{formatKg(sublote.pesoActual)}</p>
+                      </div>
+                      <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Días</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{diasSublote}</p>
                       </div>
                       <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Humedad</p>

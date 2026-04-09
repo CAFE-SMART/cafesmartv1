@@ -14,6 +14,28 @@ function buildDateFromValue(value: string) {
   return new Date(value);
 }
 
+export function getDaysInBodega(value: string, reference = new Date()) {
+  const target = buildDateFromValue(value);
+
+  if (Number.isNaN(target.getTime())) {
+    return 0;
+  }
+
+  const today = new Date(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate(),
+  );
+  const targetDay = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate(),
+  );
+
+  const diffMs = today.getTime() - targetDay.getTime();
+  return Math.max(0, Math.floor(diffMs / 86400000));
+}
+
 export function formatDateLabel(value: string) {
   const date = buildDateFromValue(value);
 
