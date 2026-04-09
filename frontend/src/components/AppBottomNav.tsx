@@ -28,7 +28,7 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
                 key={item.id}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[20px] px-2 py-2.5 text-[11px] font-black transition-all ${
+                className={`flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[20px] px-2 py-2.5 text-[11px] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 ${
                   isActive
                     ? 'bg-[#102d92] text-white shadow-[0_18px_34px_rgba(16,45,146,0.28)]'
                     : 'text-slate-500 hover:bg-[#f4f6fb]'

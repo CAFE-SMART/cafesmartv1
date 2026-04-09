@@ -13,6 +13,7 @@ import {
   Settings,
   HelpCircle,
   MessageCircle,
+  X,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { RegisterProgress } from '../components/register/RegisterProgress';
@@ -27,8 +28,11 @@ import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+  const isGoogleAuthEnabled = Boolean(
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
+  );
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [supportPanel, setSupportPanel] = useState<'help' | 'contact' | null>(null);
   const initialRouteState = useMemo(
     () => ((location.state ?? null) as RegisterLocationState | null),
     [location.state],
@@ -79,6 +83,10 @@ export default function Register() {
     validateEmailAvailability,
   } = useRegisterForm({ hasGoogleFlow, routeState: googleRouteState, navigate });
 
+  useEffect(() => {
+    setSupportPanel(null);
+  }, [step]);
+
   const tiposOrg: { value: TipoOrg; label: string; desc: string; icon: React.ReactNode }[] = [
     {
       value: 'COOPERATIVA',
@@ -105,6 +113,39 @@ export default function Register() {
     COMPRAVENTA: 'bg-amber-100 text-amber-700',
     OTRO: 'bg-rose-100 text-rose-700',
   };
+
+  const supportContent = useMemo(() => {
+    if (step === 1) {
+      return {
+        badge: 'Ayuda del registro',
+        title: 'Configuración inicial',
+        description:
+          'En este paso solo defines el negocio. Luego completas los datos del administrador.',
+        quickTip: 'Escribe el nombre del negocio y elige el tipo correspondiente.',
+        secondTip:
+          'Si no aplica cooperativa o compraventa, usa la opción personalizada.',
+        contactTitle: '¿Se trabó el inicio?',
+        contactDescription:
+          'Si tienes dudas con esta pantalla, contacta soporte y sigue con tu registro.',
+      };
+    }
+
+    return {
+      badge: 'Ayuda del registro',
+      title: 'Datos de acceso',
+      description:
+        'Este paso corresponde al administrador y no cambia la configuración del negocio.',
+      quickTip:
+        'Completa nombre, apellidos, teléfono, correo y contraseña para terminar el registro.',
+      secondTip:
+        hasGoogleFlow
+          ? 'Si llegaste con Google, revisa los datos autocompletados y solo corrige lo necesario.'
+          : 'Revisa que el correo esté bien escrito y que las contraseñas coincidan antes de guardar.',
+      contactTitle: '¿Algo falla con tu cuenta?',
+      contactDescription:
+        'Si hay problema con correo, contraseña o validación, soporte puede ayudarte sin salir de esta pantalla.',
+    };
+  }, [hasGoogleFlow, step]);
 
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
@@ -146,11 +187,11 @@ export default function Register() {
   };
 
   const handleHelpClick = () => {
-    window.alert('Si necesitas ayuda con el registro, comunicate con la persona encargada del sistema.');
+    setSupportPanel((currentPanel) => (currentPanel === 'help' ? null : 'help'));
   };
 
   const handleContactClick = () => {
-    window.alert('Si el problema continua, comunicate con la persona encargada o con soporte interno.');
+    setSupportPanel((currentPanel) => (currentPanel === 'contact' ? null : 'contact'));
   };
 
   return (
@@ -173,7 +214,7 @@ export default function Register() {
         </button>
       </header>
 
-      <main className="flex-1 flex flex-col items-center px-4 pb-8">
+      <main className="flex-1 flex flex-col items-center px-4 pb-36 sm:pb-28">
         <div className="w-full max-w-[520px]">
           <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
 
@@ -620,28 +661,89 @@ export default function Register() {
         </div>
       </main>
 
-      <footer className="p-4 flex items-center justify-center gap-4 text-sm text-gray-500 sm:gap-6">
-        <p className="text-xs text-slate-400 font-medium">
-          Necesitas ayuda con el registro?
-        </p>
-      </footer>
-      <div className="flex items-center justify-center gap-8 pb-8">
-        <button
-          type="button"
-          onClick={handleHelpClick}
-          className="flex flex-col items-center gap-1 text-gray-500 transition-colors hover:text-[#1e3a8a]"
-        >
-          <HelpCircle size={20} />
-          <span className="text-xs font-medium">Ayuda</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleContactClick}
-          className="flex flex-col items-center gap-1 text-gray-500 transition-colors hover:text-[#1e3a8a]"
-        >
-          <MessageCircle size={20} />
-          <span className="text-xs font-medium">Contacto</span>
-        </button>
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6 sm:justify-end sm:px-6">
+        <div className="pointer-events-auto relative flex items-end gap-3">
+          {supportPanel && (
+            <div className="fixed left-4 right-4 bottom-20 z-50 max-h-[62vh] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-[min(92vw,23rem)] sm:max-h-none">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.18em] text-[#102d92]">
+                    {supportContent.badge}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                    {supportPanel === 'help' ? supportContent.title : supportContent.contactTitle}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSupportPanel(null)}
+                  className="rounded-full bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900"
+                  aria-label="Cerrar ayuda"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {supportPanel === 'help' ? (
+                <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-600">
+                  <p className="leading-6">{supportContent.description}</p>
+                  <p className="rounded-2xl bg-slate-50 px-4 py-3 leading-6">{supportContent.quickTip}</p>
+                  <p className="rounded-2xl border border-slate-100 bg-white px-4 py-3 leading-6 shadow-sm">{supportContent.secondTip}</p>
+                </div>
+              ) : (
+                <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-600">
+                  <p className="leading-6">{supportContent.contactDescription}</p>
+                  <div className="grid gap-3">
+                    <a
+                      href="mailto:soporte@cafesmart.com"
+                      className="rounded-2xl border border-slate-100 bg-white px-4 py-3 text-center font-bold text-[#102d92] shadow-sm"
+                    >
+                      Enviar correo
+                    </a>
+                    <a
+                      href="tel:+573000000000"
+                      className="rounded-2xl border border-slate-100 bg-white px-4 py-3 text-center font-bold text-[#102d92] shadow-sm"
+                    >
+                      Llamar soporte
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col items-end gap-2">
+            <p className="px-1 text-xs font-medium text-slate-500">
+              Ayuda rápida del registro
+            </p>
+            <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-2 py-2 shadow-[0_18px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={handleHelpClick}
+              className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
+                supportPanel === 'help'
+                  ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'
+                  : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
+              }`}
+              aria-label="Abrir ayuda"
+            >
+              <HelpCircle size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={handleContactClick}
+              className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
+                supportPanel === 'contact'
+                  ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'
+                  : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
+              }`}
+              aria-label="Abrir contacto"
+            >
+              <MessageCircle size={20} />
+            </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

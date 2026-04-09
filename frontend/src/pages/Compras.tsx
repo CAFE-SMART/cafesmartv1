@@ -104,6 +104,7 @@ const PRODUCTORES_RECIENTES: ProductorOption[] = [
     detalle: 'Finca San José',
   },
 ];
+const LIMITE_PRODUCTORES_RECIENTES = 5;
 
 function generarId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -286,11 +287,11 @@ export default function Compras() {
     return compras.filter((compra) => compra.fecha.slice(0, 10) === hoy).length;
   }, [compras]);
   const productoresRecientes = useMemo(() => {
-    const base = [...productoresLocales, ...PRODUCTORES_RECIENTES];
+    const base = productoresLocales.length > 0 ? [...productoresLocales] : [...PRODUCTORES_RECIENTES];
     const termino = normalizeSearchText(busquedaAplicada.trim());
 
     if (!termino) {
-      return base.slice(0, 5);
+      return base.slice(0, LIMITE_PRODUCTORES_RECIENTES);
     }
 
     return base.filter((productor) =>
@@ -595,7 +596,7 @@ export default function Compras() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
       <header className="border-b border-white/80 bg-[rgba(247,245,255,0.86)] px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[520px] flex-col gap-3">
+        <div className="mx-auto w-full max-w-[520px]">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#173ea6] text-sm font-black text-white">
               {inicialesUsuario}
@@ -668,15 +669,15 @@ export default function Compras() {
               Nuevo Productor
             </button>
 
-            <button type="button" onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)} className="w-full rounded-[20px] bg-[#173ea6] px-4 py-3.5 text-left text-white shadow-[0_18px_40px_rgba(16,45,146,0.22)]">
+            <button type="button" onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)} className="w-full rounded-[20px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3.5 text-left text-[#102d92] shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[1.08rem] font-black leading-tight">Productor General</p>
-                  <p className="mt-2 max-w-[230px] text-[0.84rem] leading-5 text-blue-100">{PRODUCTOR_GENERAL.detalle}</p>
+                  <p className="mt-2 max-w-[260px] text-[0.9rem] leading-6 text-slate-600">{PRODUCTOR_GENERAL.detalle}</p>
                 </div>
-                <div className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-blue-100">Rápido</div>
+                <div className="rounded-full bg-[#dce8ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">Rápido</div>
               </div>
-              <div className="mt-4 inline-flex items-center gap-2 text-sm font-black text-white">
+              <div className="mt-4 inline-flex items-center gap-2 text-sm font-black text-[#102d92]">
                 Seleccionar rápido
                 <ArrowRight size={16} />
               </div>
@@ -730,7 +731,7 @@ export default function Compras() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Total productores</p>
-                  <p className="mt-3 text-[2rem] font-black leading-none text-[#102d92]">{productoresLocales.length + PRODUCTORES_RECIENTES.length + 1}</p>
+                  <p className="mt-3 text-[2rem] font-black leading-none text-[#102d92]">{productoresLocales.length + 1}</p>
                 </div>
                 <div>
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Compras hoy</p>
@@ -857,8 +858,8 @@ export default function Compras() {
                     <input type="number" min="0.1" step="0.01" value={sublote.precioKg} onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)} className="mt-4 w-full rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4 text-[1.85rem] font-black text-[#173ea6] outline-none focus:border-[#102d92]" placeholder="14500" />
                   </div>
 
-                  <div className="mt-5 rounded-[22px] bg-[#173ea6] p-5 text-white">
-                    <p className="text-sm font-black uppercase tracking-[0.18em] text-blue-100">Subtotal del producto</p>
+                  <div className="mt-5 rounded-[22px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92]">
+                    <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Subtotal del producto</p>
                     <p className="mt-3 text-[2rem] font-black leading-none">{formatoMoneda(subtotal)}</p>
                   </div>
                 </article>
@@ -870,13 +871,13 @@ export default function Compras() {
               Agregar Producto
             </button>
 
-            <article className="rounded-[24px] bg-[#173ea6] p-5 text-white shadow-[0_22px_50px_rgba(16,45,146,0.24)]">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-blue-100">Resumen de peso</p>
-              <p className="mt-4 text-[2.25rem] font-black leading-none">{resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</p>
-              <p className="mt-2 text-lg font-semibold text-blue-100">kg Totales</p>
-              <div className="mt-6 border-t border-white/15 pt-5">
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-blue-100">Total estimado</p>
-                <p className="mt-3 text-[1.95rem] font-black leading-none">{formatoMoneda(resumen.totalCompra)}</p>
+            <article className="rounded-[24px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92] shadow-sm">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Resumen de peso</p>
+              <p className="mt-4 text-[2.1rem] font-black leading-none">{resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</p>
+              <p className="mt-2 text-lg font-semibold text-[#5b6f9d]">kg totales</p>
+              <div className="mt-6 border-t border-[#d6e2ff] pt-5">
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Total estimado</p>
+                <p className="mt-3 text-[1.9rem] font-black leading-none">{formatoMoneda(resumen.totalCompra)}</p>
               </div>
             </article>
 

@@ -19,6 +19,7 @@ import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
 import { getBodegaConfig } from '../utils/bodegaConfig';
 import { getAverageFactorForLot } from '../utils/factorStorage';
+import { getDaysInBodega } from '../utils/date';
 
 const QUALITY_SECTIONS = [
   {
@@ -70,7 +71,19 @@ function formatFactor(value: number | null) {
   }).format(value);
 }
 
+function getLotDays(lot: LoteResumen) {
+  const oldest = getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha);
+  const newest = getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha);
+
+  return {
+    max: Math.max(oldest, newest),
+    min: Math.min(oldest, newest),
+  };
+}
+
 function lotState(lot: LoteResumen) {
+  const days = getLotDays(lot).max;
+
   if (lot.humedadPromedio === null || lot.sublotesConHumedad === 0) {
     return {
       label: 'PENDIENTE',
@@ -78,14 +91,14 @@ function lotState(lot: LoteResumen) {
     };
   }
 
-  if (lot.humedadPromedio > 13.5 || lot.diasEnBodegaMax > 25) {
+  if (lot.humedadPromedio > 13.5 || days > 25) {
     return {
       label: 'CRÍTICO',
       badge: 'bg-[#ffe3e7] text-[#b42333]',
     };
   }
 
-  if (lot.humedadPromedio > 12 || lot.diasEnBodegaMax > 15) {
+  if (lot.humedadPromedio > 12 || days > 15) {
     return {
       label: 'ATENCIÓN',
       badge: 'bg-[#fff3cf] text-[#8c5a00]',
@@ -184,9 +197,6 @@ function CapacityRing({
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Puedes ajustar la capacidad en Ajustes.
-          </p>
           {onConfigure ? (
             <button
               type="button"
@@ -234,8 +244,9 @@ function LotCard({
   onOpen: () => void;
   factorPromedio: number | null;
 }) {
-  const state = lotState(lot);
   const showFactor = keyOf(lot.tipoCafe) === 'SECO' && keyOf(lot.calidad) === 'BUENO';
+  const state = lotState(lot);
+  const lotDays = getLotDays(lot).max;
 
   return (
     <article className="relative overflow-hidden rounded-[24px] border border-[#e4e8f2] bg-[#f8f8ff] p-4 shadow-sm">
@@ -256,7 +267,7 @@ function LotCard({
             </span>
             <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
               <Clock3 size={12} />
-              Días {lot.diasEnBodegaMax}
+              Días {lotDays}
             </p>
           </div>
         </div>
@@ -301,7 +312,7 @@ function LotCard({
               {showFactor ? 'Factor' : 'Días bodega'}
             </p>
             <p className="mt-1 text-lg font-black leading-none text-slate-900">
-              {showFactor ? formatFactor(factorPromedio) : `${lot.diasEnBodegaMax} días`}
+              {showFactor ? formatFactor(factorPromedio) : `${lotDays} días`}
             </p>
           </div>
         </div>
@@ -414,12 +425,15 @@ export default function Inventario() {
   const orderedLots = useMemo(() => {
     const copy = [...filteredLots];
     copy.sort((a, b) => {
+      const daysA = getLotDays(a);
+      const daysB = getLotDays(b);
+
       if (sortKey === 'OLDEST') {
-        if (b.diasEnBodegaMax !== a.diasEnBodegaMax) return b.diasEnBodegaMax - a.diasEnBodegaMax;
+        if (daysB.max !== daysA.max) return daysB.max - daysA.max;
         return b.pesoActual - a.pesoActual;
       }
 
-      if (a.diasEnBodegaMin !== b.diasEnBodegaMin) return a.diasEnBodegaMin - b.diasEnBodegaMin;
+      if (daysA.min !== daysB.min) return daysA.min - daysB.min;
       return a.pesoActual - b.pesoActual;
     });
     return copy;

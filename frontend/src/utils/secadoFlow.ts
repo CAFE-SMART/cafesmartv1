@@ -89,8 +89,21 @@ function writeStorage(sessions: SecadoSession[]) {
 function daysSince(value: string) {
   const now = new Date();
   const date = new Date(value);
-  const diff = now.getTime() - date.getTime();
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+
+  if (Number.isNaN(date.getTime())) return 0;
+
+  const currentDayUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const targetDayUtc = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+  );
+
+  return Math.max(0, Math.floor((currentDayUtc - targetDayUtc) / 86400000));
 }
 
 function weightedHumidity(

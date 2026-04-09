@@ -94,6 +94,12 @@ export class LotesService {
             fecha: true,
           },
         },
+        lote: {
+          select: {
+            id: true,
+            codigo: true,
+          },
+        },
         tipoCafe: {
           select: {
             id: true,
@@ -113,7 +119,8 @@ export class LotesService {
     const lotesAgrupados = new Map<string, LoteAcumulado>();
 
     for (const sublote of sublotes) {
-      const clave = `${sublote.tipoCafeId}::${sublote.calidadId}`;
+      const claveCompuesta = `${sublote.tipoCafeId}::${sublote.calidadId}`;
+      const clave = sublote.idLote ?? claveCompuesta;
       const pesoInicial = Number(sublote.pesoInicial);
       const pesoActual = Number(sublote.pesoActual);
       const precioKg = Number(sublote.precioKg);
@@ -123,8 +130,10 @@ export class LotesService {
       const actual = lotesAgrupados.get(clave);
       if (!actual) {
         lotesAgrupados.set(clave, {
-          id: clave,
-          codigo: `${sublote.tipoCafe.nombre} ${sublote.calidad.nombre}`,
+          id: sublote.idLote ?? claveCompuesta,
+          codigo:
+            sublote.lote?.codigo ??
+            `${sublote.tipoCafe.nombre} ${sublote.calidad.nombre}`,
           tipoCafeId: sublote.tipoCafeId,
           tipoCafe: sublote.tipoCafe.nombre,
           calidadId: sublote.calidadId,
@@ -221,6 +230,12 @@ export class LotesService {
             fecha: true,
           },
         },
+        lote: {
+          select: {
+            id: true,
+            codigo: true,
+          },
+        },
         tipoCafe: {
           select: {
             id: true,
@@ -294,8 +309,10 @@ export class LotesService {
 
     return {
       lote: {
-        id: `${tipoCafeId}::${calidadId}`,
-        codigo: `${primerSublote.tipoCafe.nombre} ${primerSublote.calidad.nombre}`,
+        id: primerSublote.idLote ?? `${tipoCafeId}::${calidadId}`,
+        codigo:
+          primerSublote.lote?.codigo ??
+          `${primerSublote.tipoCafe.nombre} ${primerSublote.calidad.nombre}`,
         tipoCafeId,
         tipoCafe: primerSublote.tipoCafe.nombre,
         calidadId,
@@ -388,8 +405,17 @@ export class LotesService {
 
   private calcularDiasEnBodega(fechaIngreso: Date): number {
     const hoy = new Date();
-    const diferenciaMs = hoy.getTime() - fechaIngreso.getTime();
-    return Math.max(0, Math.floor(diferenciaMs / 86400000));
+    const hoyUtc = Date.UTC(
+      hoy.getUTCFullYear(),
+      hoy.getUTCMonth(),
+      hoy.getUTCDate(),
+    );
+    const ingresoUtc = Date.UTC(
+      fechaIngreso.getUTCFullYear(),
+      fechaIngreso.getUTCMonth(),
+      fechaIngreso.getUTCDate(),
+    );
+    return Math.max(0, Math.floor((hoyUtc - ingresoUtc) / 86400000));
   }
 
   private normalizarNumeroNullable(
