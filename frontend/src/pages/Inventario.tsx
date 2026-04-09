@@ -3,10 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeAlert,
+  Clock3,
   Coffee,
+  Droplets,
   Leaf,
   Package2,
   RefreshCcw,
+  Scale,
   SunMedium,
   Warehouse,
 } from 'lucide-react';
@@ -137,43 +140,67 @@ function CapacityRing({
   totalKg,
   capacityKg,
   breakdown,
+  onConfigure,
 }: {
   totalKg: number;
   capacityKg: number;
   breakdown: Array<{ key: string; name: string; totalKg: number; color: string }>;
+  onConfigure?: () => void;
 }) {
   const safeCapacity = Math.max(1, capacityKg);
-  const percentage = Math.min(100, Math.round((totalKg / safeCapacity) * 100));
+  const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
+  const displayPercentage =
+    rawPercentage === 0
+      ? '0'
+      : rawPercentage < 1
+        ? rawPercentage.toFixed(1)
+        : rawPercentage.toFixed(0);
+  const ringPercentage = totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
   const circumference = 2 * Math.PI * 58;
-  const offset = circumference - (percentage / 100) * circumference;
+  const offset = circumference - (ringPercentage / 100) * circumference;
 
   return (
-    <section className="rounded-[28px] border border-[#e6e8f3] bg-white p-5 shadow-sm">
+    <section className="rounded-[24px] border border-[#e6e8f3] bg-white p-3.5 shadow-sm">
       <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">
         Resumen de stock total
       </p>
-      <div className="mt-4 flex items-end gap-2">
-        <p className="text-[2.7rem] font-black leading-none text-[#102d92]">
+      <div className="mt-2 flex items-end gap-2">
+        <p className="text-[2.2rem] font-black leading-none text-[#102d92]">
           {formatNumber(totalKg)}
         </p>
-        <span className="pb-2 text-[1.5rem] font-semibold text-slate-400">
+        <span className="pb-1 text-[1.2rem] font-semibold text-slate-400">
           / {formatNumber(safeCapacity)} kg
         </span>
       </div>
-      <p className="mt-2 text-base text-slate-600">Capacidad: {percentage}% ocupada</p>
+      <p className="mt-1 text-sm text-slate-600">Capacidad usada: {displayPercentage}%</p>
 
-      <div className="mt-5 flex flex-wrap gap-4">
-        {breakdown.map((item) => (
-          <div key={item.key} className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-            <span>{item.name}</span>
+      <div className="mt-2 flex items-center justify-between gap-2.5">
+        <div className="flex-1">
+          <div className="flex flex-wrap gap-3">
+            {breakdown.map((item) => (
+              <div key={item.key} className="flex items-center gap-2 text-xs text-slate-700">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                <span>{item.name}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Puedes ajustar la capacidad en Ajustes.
+          </p>
+          {onConfigure ? (
+            <button
+              type="button"
+              onClick={onConfigure}
+              className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#d6e2ff] bg-[#eef3ff] px-3 py-1.5 text-xs font-black text-[#102d92]"
+            >
+              <Warehouse size={13} />
+              Configurar bodega
+            </button>
+          ) : null}
+        </div>
 
-      <div className="mt-6 flex justify-center">
-        <div className="relative flex h-44 w-44 items-center justify-center">
-          <svg viewBox="0 0 140 140" className="h-44 w-44 -rotate-90">
+        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
+          <svg viewBox="0 0 140 140" className="h-24 w-24 -rotate-90">
             <circle cx="70" cy="70" r="58" stroke="#edf1fa" strokeWidth="12" fill="none" />
             <circle
               cx="70"
@@ -187,8 +214,8 @@ function CapacityRing({
               strokeDashoffset={offset}
             />
           </svg>
-          <div className="absolute flex h-24 w-24 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
-            <Coffee size={28} />
+          <div className="absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+            <Coffee size={16} />
           </div>
         </div>
       </div>
@@ -211,15 +238,15 @@ function LotCard({
   const showFactor = keyOf(lot.tipoCafe) === 'SECO' && keyOf(lot.calidad) === 'BUENO';
 
   return (
-    <article className="relative overflow-hidden rounded-[28px] border border-[#e4e8f2] bg-[#f8f8ff] p-5 shadow-sm">
+    <article className="relative overflow-hidden rounded-[24px] border border-[#e4e8f2] bg-[#f8f8ff] p-4 shadow-sm">
       <div className={`absolute left-0 top-0 h-full w-2 ${stripe}`} />
-      <div className="pl-2">
+      <div className="pl-2.5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-[1.55rem] font-black leading-tight text-[#102d92]">
+            <h3 className="text-[1.35rem] font-black leading-tight text-[#102d92]">
               Café {lot.tipoCafe}
             </h3>
-            <p className="mt-2 text-base text-slate-600">{lot.sublotes} sublotes registrados</p>
+            <p className="mt-1 text-sm text-slate-600">{lot.sublotes} sublotes registrados</p>
           </div>
           <div className="text-right">
             <span
@@ -227,43 +254,54 @@ function LotCard({
             >
               {state.label}
             </span>
-            <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-              DÍAS {lot.diasEnBodegaMax}
+            <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+              <Clock3 size={12} />
+              Días {lot.diasEnBodegaMax}
             </p>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
               Peso total
             </p>
-            <p className="mt-2 text-[1.75rem] font-black leading-none text-slate-900">
+            <p className="mt-1 text-[1.45rem] font-black leading-none text-slate-900">
               {formatNumber(lot.pesoActual)} kg
             </p>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+            <p className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+              <Droplets size={12} />
               Humedad prom
             </p>
-            <p className="mt-2 text-[1.75rem] font-black leading-none text-slate-900">
+            <p className="mt-1 text-[1.45rem] font-black leading-none text-slate-900">
               {formatHumidity(lot.humedadPromedio)}
             </p>
+            <button
+              type="button"
+              onClick={onOpen}
+              className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#e8eeff] px-2.5 py-1 text-[11px] font-black text-[#102d92]"
+            >
+              <Droplets size={12} />
+              Editar
+            </button>
           </div>
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
               {showFactor ? 'Factor prom' : 'Humedad cargada'}
             </p>
-            <p className="mt-2 text-xl font-black leading-none text-slate-900">
+            <p className="mt-1 text-lg font-black leading-none text-slate-900">
               {showFactor ? formatFactor(factorPromedio) : lot.sublotesConHumedad}
             </p>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-              Días bodega
+            <p className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+              {showFactor ? <Scale size={12} /> : <Clock3 size={12} />}
+              {showFactor ? 'Factor' : 'Días bodega'}
             </p>
-            <p className="mt-2 text-xl font-black leading-none text-slate-900">
-              {lot.diasEnBodegaMax} días
+            <p className="mt-1 text-lg font-black leading-none text-slate-900">
+              {showFactor ? formatFactor(factorPromedio) : `${lot.diasEnBodegaMax} días`}
             </p>
           </div>
         </div>
@@ -271,10 +309,10 @@ function LotCard({
         <button
           type="button"
           onClick={onOpen}
-          className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[18px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 py-3 text-base font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.16)]"
         >
           Ver sublotes
-          <ArrowRight size={18} />
+          <ArrowRight size={16} />
         </button>
       </div>
     </article>
@@ -452,6 +490,7 @@ export default function Inventario() {
           totalKg={totalKg}
           capacityKg={bodegaConfig.capacidadKg}
           breakdown={typeBreakdown}
+          onConfigure={() => navigate('/ajustes')}
         />
 
         {availableTypes.length > 0 ? (

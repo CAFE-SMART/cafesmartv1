@@ -1,16 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
-  Clock3,
-  Droplets,
-  Info,
   Package2,
   RefreshCcw,
   Save,
-  Scale,
 } from 'lucide-react';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { formatDateLabel } from '../utils/date';
@@ -20,20 +15,29 @@ import {
   type LoteDetalle,
 } from '../services/lotesService';
 import { applySecadoToDetalle } from '../utils/secadoFlow';
-import { getAverageFactorForLot, getFactorForSublote, saveFactorsForLot } from '../utils/factorStorage';
+import {
+  getAverageFactorForLot,
+  getFactorForSublote,
+  saveFactorsForLot,
+} from '../utils/factorStorage';
 
-function kg(value: number) {
+type EstadoHumedad = {
+  label: string;
+  badgeClass: string;
+  dotClass: string;
+};
+
+type SavedFlags = Record<string, boolean>;
+type BusyFlags = Record<string, boolean>;
+
+function formatKg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: value % 1 === 0 ? 0 : 1,
     maximumFractionDigits: 1,
   }).format(value)} kg`;
 }
 
-function date(value: string) {
-  return formatDateLabel(value);
-}
-
-function humidity(value: number | null) {
+function formatHumedad(value: number | null) {
   if (value === null) return 'Sin dato';
   return `${new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 1,
@@ -41,7 +45,7 @@ function humidity(value: number | null) {
   }).format(value)}%`;
 }
 
-function factorLabel(value: number | null) {
+function formatFactor(value: number | null) {
   if (value === null) return 'Sin dato';
   return new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 2,
@@ -49,82 +53,61 @@ function factorLabel(value: number | null) {
   }).format(value);
 }
 
-function dayLabel(value: number) {
-  return `${value} dia${value === 1 ? '' : 's'}`;
-}
-
-function storageRange(min: number, max: number) {
-  if (min === max) return `${dayLabel(max)} en bodega`;
-  return `Entre ${dayLabel(min)} y ${dayLabel(max)}`;
-}
-
-function sublotState(value: number | null) {
+function estadoPorHumedad(value: number | null): EstadoHumedad {
   if (value === null) {
     return {
-      label: 'Pendiente',
-      badge: 'bg-amber-100 text-amber-900',
-      stripe: 'bg-amber-300',
-      panel: 'bg-amber-50 text-amber-900',
-      note: 'Falta registrar la humedad real de este sublote.',
-      icon: <Info size={18} />,
+      label: 'Sin dato',
+      badgeClass: 'bg-slate-100 text-slate-700',
+      dotClass: 'bg-slate-400',
     };
   }
 
-  if (value < 10.5) {
+  if (value < 10) {
     return {
-      label: 'Seco',
-      badge: 'bg-sky-100 text-sky-900',
-      stripe: 'bg-sky-400',
-      panel: 'bg-sky-50 text-sky-900',
-      note: 'Puede afectar el rendimiento si sigue bajando.',
-      icon: <AlertTriangle size={18} />,
+      label: 'Bajo',
+      badgeClass: 'bg-rose-100 text-rose-700',
+      dotClass: 'bg-rose-500',
     };
   }
 
-  if (value <= 12) {
+  if (value > 12) {
     return {
-      label: 'Óptimo',
-      badge: 'bg-emerald-100 text-emerald-800',
-      stripe: 'bg-emerald-300',
-      panel: 'bg-emerald-50 text-emerald-900',
-      note: 'Humedad dentro del rango esperado.',
-      icon: <CheckCircle2 size={18} />,
-    };
-  }
-
-  if (value <= 13.5) {
-    return {
-      label: 'Atención',
-      badge: 'bg-amber-100 text-amber-900',
-      stripe: 'bg-amber-300',
-      panel: 'bg-amber-50 text-amber-900',
-      note: 'Conviene revisar este sublote pronto.',
-      icon: <AlertTriangle size={18} />,
+      label: 'Regular',
+      badgeClass: 'bg-amber-100 text-amber-800',
+      dotClass: 'bg-amber-500',
     };
   }
 
   return {
-    label: 'Crítico',
-    badge: 'bg-rose-100 text-rose-800',
-    stripe: 'bg-rose-400',
-    panel: 'bg-rose-50 text-rose-900',
-    note: 'La humedad está alta y puede afectar bodega o secado.',
-    icon: <AlertTriangle size={18} />,
+    label: 'Óptimo',
+    badgeClass: 'bg-emerald-100 text-emerald-700',
+    dotClass: 'bg-emerald-500',
   };
+}
+
+function parseDecimal(text: string) {
+  return Number(text.replace(',', '.'));
 }
 
 export default function Sublotes() {
   const navigate = useNavigate();
   const { tipoCafeId, calidadId } = useParams<{ tipoCafeId: string; calidadId: string }>();
+
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [humedades, setHumedades] = useState<Record<string, string>>({});
   const [factores, setFactores] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [saved, setSaved] = useState<SavedFlags>({});
+  const [busy, setBusy] = useState<BusyFlags>({});
+  const [factorVersion, setFactorVersion] = useState(0);
 
-  const cargar = async () => {
+  const isSecoBuenoLot =
+    (detalle?.lote.tipoCafe ?? '').trim().toUpperCase() === 'SECO' &&
+    (detalle?.lote.calidad ?? '').trim().toUpperCase() === 'BUENO';
+
+  const cargar = useCallback(async () => {
     if (!tipoCafeId || !calidadId) {
       setError('No se encontró el lote solicitado.');
       setLoading(false);
@@ -136,7 +119,6 @@ export default function Sublotes() {
 
     try {
       let data: LoteDetalle | null = null;
-
       try {
         data = await obtenerDetalleLote(tipoCafeId, calidadId);
       } catch {
@@ -144,7 +126,6 @@ export default function Sublotes() {
       }
 
       const visual = applySecadoToDetalle(data, tipoCafeId, calidadId);
-
       if (!visual) {
         throw new Error('No se pudo cargar el lote.');
       }
@@ -154,7 +135,7 @@ export default function Sublotes() {
         Object.fromEntries(
           visual.sublotes.map((sublote) => [
             sublote.id,
-            sublote.humedad === null ? '' : sublote.humedad.toString(),
+            sublote.humedad === null ? '' : String(sublote.humedad),
           ]),
         ),
       );
@@ -162,368 +143,298 @@ export default function Sublotes() {
         Object.fromEntries(
           visual.sublotes.map((sublote) => {
             const factor = getFactorForSublote(sublote.id);
-            return [sublote.id, factor === null ? '' : factor.toString()];
+            return [sublote.id, factor === null ? '' : String(factor)];
           }),
         ),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el lote.');
+      setDetalle(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [calidadId, tipoCafeId]);
 
   useEffect(() => {
     void cargar();
-  }, [calidadId, tipoCafeId]);
+  }, [cargar]);
 
-  const isSecoBuenoLot =
-    (detalle?.lote.tipoCafe ?? '').trim().toUpperCase() === 'SECO' &&
-    (detalle?.lote.calidad ?? '').trim().toUpperCase() === 'BUENO';
+  const markSaved = (key: string) => {
+    setSaved((current) => ({ ...current, [key]: true }));
+    window.setTimeout(() => {
+      setSaved((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }, 2200);
+  };
 
-  const pendingChanges = useMemo(() => {
-    if (!detalle) return 0;
+  const setBusyKey = (key: string, value: boolean) => {
+    setBusy((current) => ({ ...current, [key]: value }));
+  };
 
-    return detalle.sublotes.filter((sublote) => {
-      const humidityChanged = !sublote.id.startsWith('secado-')
-        ? (sublote.humedad === null ? '' : sublote.humedad.toString()) !==
-          (humedades[sublote.id] ?? '').trim()
-        : false;
+  const updateHumedad = (subloteId: string, value: string) => {
+    setHumedades((current) => ({ ...current, [subloteId]: value }));
+  };
 
-      const factorChanged = isSecoBuenoLot
-        ? (getFactorForSublote(sublote.id)?.toString() ?? '') !==
-          (factores[sublote.id] ?? '').trim()
-        : false;
+  const updateFactor = (subloteId: string, value: string) => {
+    setFactores((current) => ({ ...current, [subloteId]: value }));
+  };
 
-      return humidityChanged || factorChanged;
-    }).length;
-  }, [detalle, factores, humedades, isSecoBuenoLot]);
+  const guardarHumedad = async (subloteId: string) => {
+    if (!detalle) return;
 
-  const summary = useMemo(() => {
-    if (!detalle) return { pending: 0, low: 0, high: 0, optimal: 0 };
+    const sublote = detalle.sublotes.find((item) => item.id === subloteId);
+    if (!sublote) return;
 
-    return detalle.sublotes.reduce(
-      (acc, sublote) => {
-        if (sublote.humedad === null) acc.pending += 1;
-        else if (sublote.humedad < 10.5) acc.low += 1;
-        else if (sublote.humedad > 13.5) acc.high += 1;
-        else if (sublote.humedad <= 12) acc.optimal += 1;
-        return acc;
-      },
-      { pending: 0, low: 0, high: 0, optimal: 0 },
-    );
-  }, [detalle]);
+    const busyKey = `${subloteId}:humedad:busy`;
+    setBusyKey(busyKey, true);
+    setError(null);
 
-  const secadoHint = useMemo(() => {
-    if (!detalle || detalle.sublotes.length === 0) {
-      return isSecoBuenoLot
-        ? 'Registra humedad y factor por sublote para tener una lectura clara del lote.'
-        : 'Registra humedad por sublote para tener una lectura clara del lote.';
+    try {
+      if (sublote.id.startsWith('secado-')) {
+        throw new Error('Este sublote de secado no se edita en backend.');
+      }
+
+      const text = (humedades[sublote.id] ?? '').trim();
+      const payload = !text
+        ? { id: sublote.id, humedad: null as number | null }
+        : (() => {
+            const value = parseDecimal(text);
+            if (!Number.isFinite(value) || value < 0 || value > 100) {
+              throw new Error(`La humedad de ${sublote.etiqueta} debe estar entre 0 y 100.`);
+            }
+            return { id: sublote.id, humedad: Number(value.toFixed(1)) };
+          })();
+
+      await guardarHumedadesSublotes([payload]);
+      await cargar();
+      markSaved(`${sublote.id}:humedad`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la humedad.');
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  };
+
+  const guardarFactor = async (subloteId: string) => {
+    if (!detalle) return;
+
+    if (!isSecoBuenoLot) {
+      setError('El factor aplica solo para café seco de calidad bueno.');
+      return;
     }
 
-    if (summary.high > 0) {
-      return 'Hay sublotes con humedad alta. Prioriza control de bodega y revisa secado.';
-    }
+    const sublote = detalle.sublotes.find((item) => item.id === subloteId);
+    if (!sublote) return;
 
-    if (summary.low > 0) {
-      return 'Hay sublotes por debajo de 10.5%. Vigila el rendimiento antes de secado.';
-    }
+    const busyKey = `${subloteId}:factor:busy`;
+    setBusyKey(busyKey, true);
+    setError(null);
 
-    if (summary.pending > 0) {
-      return isSecoBuenoLot
-        ? 'Completa humedad y factor en los sublotes para cerrar bien el lote.'
-        : 'Completa la humedad pendiente para cerrar bien el lote.';
-    }
+    try {
+      const text = (factores[sublote.id] ?? '').trim();
+      if (!text) {
+        saveFactorsForLot(detalle.lote.id, [{ subloteId: sublote.id, factor: null }]);
+      } else {
+        const value = parseDecimal(text);
+        if (!Number.isFinite(value) || value < 0 || value > 10) {
+          throw new Error(`El factor de ${sublote.etiqueta} debe estar entre 0 y 10.`);
+        }
+        saveFactorsForLot(detalle.lote.id, [
+          { subloteId: sublote.id, factor: Number(value.toFixed(2)) },
+        ]);
+      }
 
-    return isSecoBuenoLot
-      ? 'El lote tiene humedad estable y un factor promedio listo para seguimiento.'
-      : 'El lote tiene humedad más estable para seguimiento y secado.';
-  }, [detalle, isSecoBuenoLot, summary.high, summary.low, summary.pending]);
+      setFactorVersion((current) => current + 1);
+      markSaved(`${sublote.id}:factor`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el factor.');
+    } finally {
+      setBusyKey(busyKey, false);
+    }
+  };
+
+  const estadoLote = useMemo(
+    () => estadoPorHumedad(detalle?.lote.humedadPromedio ?? null),
+    [detalle?.lote.humedadPromedio],
+  );
 
   const factorPromedioLote = useMemo(() => {
     if (!detalle || !isSecoBuenoLot) return null;
-
-    const lotEntries = detalle.sublotes
-      .map((sublote) => {
-        const text = (factores[sublote.id] ?? '').trim();
-        if (!text) return null;
-
-        const value = Number(text.replace(',', '.'));
-        return Number.isFinite(value) ? value : null;
-      })
-      .filter((value): value is number => value !== null);
-
-    if (lotEntries.length === 0) {
-      return getAverageFactorForLot(detalle.lote.id);
-    }
-
-    return Number(
-      (lotEntries.reduce((sum, value) => sum + value, 0) / lotEntries.length).toFixed(2),
-    );
-  }, [detalle, factores, isSecoBuenoLot]);
-
-  const updateHumidity = (id: string, value: string) => {
-    setHumedades((current) => ({ ...current, [id]: value.replace(',', '.') }));
-  };
-
-  const updateFactor = (id: string, value: string) => {
-    setFactores((current) => ({ ...current, [id]: value.replace(',', '.') }));
-  };
-
-  const guardarTodo = async () => {
-    if (!detalle) return;
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const payload = detalle.sublotes
-        .filter((sublote) => !sublote.id.startsWith('secado-'))
-        .map((sublote) => {
-        const text = (humedades[sublote.id] ?? '').trim();
-        if (!text) return { id: sublote.id, humedad: null };
-
-        const value = Number(text);
-        if (!Number.isFinite(value) || value < 0 || value > 100) {
-          throw new Error(`La humedad de ${sublote.etiqueta} debe estar entre 0 y 100.`);
-        }
-
-        return { id: sublote.id, humedad: Number(value.toFixed(1)) };
-        });
-
-      const factorPayload = isSecoBuenoLot
-        ? detalle.sublotes.map((sublote) => {
-            const text = (factores[sublote.id] ?? '').trim();
-            if (!text) return { subloteId: sublote.id, factor: null as number | null };
-
-            const value = Number(text);
-            if (!Number.isFinite(value) || value < 0 || value > 10) {
-              throw new Error(`El factor de ${sublote.etiqueta} debe estar entre 0 y 10.`);
-            }
-
-            return { subloteId: sublote.id, factor: Number(value.toFixed(2)) };
-          })
-        : [];
-
-      if (factorPayload.length > 0) {
-        saveFactorsForLot(detalle.lote.id, factorPayload);
-      }
-
-      if (payload.length === 0) {
-        await cargar();
-        setSuccess(
-          factorPayload.length > 0
-            ? 'Se guardaron los factores del lote seco bueno.'
-            : 'Este lote proviene del secado visual. No hay humedades reales por guardar en backend.',
-        );
-        return;
-      }
-
-      const response = await guardarHumedadesSublotes(payload);
-      await cargar();
-      setSuccess(
-        factorPayload.length > 0
-          ? `Se guardaron ${response.totalActualizados} humedades y los factores del lote.`
-          : `Se guardaron ${response.totalActualizados} humedad${response.totalActualizados === 1 ? '' : 'es'} correctamente.`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron guardar las humedades.');
-    } finally {
-      setSaving(false);
-    }
-  };
+    return getAverageFactorForLot(detalle.lote.id);
+  }, [detalle, factorVersion, isSecoBuenoLot]);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] pb-32 text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-white/80 bg-[rgba(247,245,255,0.86)] px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] pb-28 text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-white/80 bg-[rgba(247,245,255,0.92)] px-4 py-4 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[520px] items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate('/inventario')} className="inline-flex h-12 w-12 items-center justify-center rounded-[20px] border border-[#dbe1f0] bg-white text-slate-700 shadow-sm">
+            <button
+              type="button"
+              onClick={() => navigate('/inventario')}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-[#dbe1f0] bg-white text-slate-700 shadow-sm"
+              aria-label="Volver al inventario"
+            >
               <ArrowLeft size={18} />
             </button>
             <div className="flex items-center gap-3">
-              <div className="rounded-[22px] bg-[#eef2ff] p-3 text-[#102d92] shadow-inner">
-                <Package2 size={22} />
+              <div className="rounded-[16px] bg-[#eef2ff] p-2.5 text-[#102d92]">
+                <Package2 size={18} />
               </div>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Café Smart</p>
-                <h1 className="text-[1.9rem] font-black tracking-tight text-[#111827]">Sublotes</h1>
+                <h1 className="text-[1.45rem] font-black tracking-tight text-[#111827]">Sublotes</h1>
               </div>
             </div>
           </div>
-          <CloudStatusBadge />
+          <CloudStatusBadge compact className="max-w-[240px]" />
         </div>
       </header>
 
-      <main className="px-4 py-6 md:px-6">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-          <section className="relative overflow-hidden rounded-[34px] bg-[#102d92] p-6 text-white shadow-[0_30px_80px_rgba(16,45,146,0.26)]">
-            <div className="absolute right-0 top-0 h-44 w-44 translate-x-8 -translate-y-10 rounded-full bg-white/10 blur-3xl" />
-            <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+      <main className="px-4 py-5">
+        <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+          <section className="rounded-[22px] border border-[#dce4fb] bg-[#eef3ff] p-4 text-[#102d92] shadow-sm">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-100">Detalle real del lote</p>
-                <h2 className="mt-4 text-[2.7rem] font-black leading-[1.02]">
-                  {loading || !detalle ? 'Cargando lote...' : `${detalle.lote.tipoCafe} - ${detalle.lote.calidad}`}
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Resumen del lote</p>
+                <h2 className="mt-1.5 text-[1.45rem] font-black leading-tight">
+                  {loading || !detalle ? 'Cargando...' : `${detalle.lote.tipoCafe} - ${detalle.lote.calidad}`}
                 </h2>
-                <p className="mt-4 max-w-2xl text-base leading-8 text-blue-100">
-                  La humedad la registra el usuario en cada sublote. El lote solo resume esa información para inventario.
+                <p className="mt-2 inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+                  <span className={`h-2.5 w-2.5 rounded-full ${estadoLote.dotClass}`} />
+                  {estadoLote.label}
+                  <span className="text-slate-400">·</span>
+                  {loading || !detalle ? '...' : formatKg(detalle.lote.pesoActual)}
                 </p>
-
-                <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Sublotes</p>
-                    <p className="mt-2 text-[2rem] font-black text-white">{loading || !detalle ? '...' : detalle.sublotes.length}</p>
-                  </div>
-                  <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Peso actual</p>
-                    <p className="mt-2 text-[2rem] font-black text-white">{loading || !detalle ? '...' : kg(detalle.lote.pesoActual)}</p>
-                  </div>
-                  <div className="rounded-[24px] bg-white/10 px-4 py-4 backdrop-blur">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Humedad prom.</p>
-                    <p className="mt-2 text-[2rem] font-black text-white">{loading || !detalle ? '...' : humidity(detalle.lote.humedadPromedio)}</p>
-                  </div>
-                </div>
+                <p className="mt-1 text-xs text-[#5b6f9d]">
+                  {loading || !detalle || detalle.sublotes.length === 0
+                    ? '...'
+                    : `Ingreso: ${formatDateLabel(detalle.sublotes[0].fechaIngreso)} · ${detalle.lote.tipoCafe} · ${detalle.lote.calidad}`}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => void cargar()}
+                className="inline-flex items-center gap-2 rounded-full border border-[#cbd9fb] bg-white px-3 py-2 text-xs font-black text-[#102d92]"
+              >
+                <RefreshCcw size={14} />
+                Recargar
+              </button>
+            </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-white/10 p-5 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Estado del lote</p>
-                  <button type="button" onClick={() => void cargar()} className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white">
-                    <RefreshCcw size={14} />
-                    Recargar
-                  </button>
-                </div>
-                <p className="mt-4 text-lg font-black text-white">
-                  {loading || !detalle ? '...' : storageRange(detalle.lote.diasEnBodegaMin, detalle.lote.diasEnBodegaMax)}
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <div className="rounded-[12px] bg-white px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Sublotes</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{detalle?.sublotes.length ?? 0}</p>
+              </div>
+              <div className="rounded-[12px] bg-white px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Peso</p>
+                <p className="mt-1 text-lg font-black text-slate-900">
+                  {detalle ? formatKg(detalle.lote.pesoActual) : '...'}
                 </p>
-                <p className="mt-2 text-sm leading-7 text-blue-100">{secadoHint}</p>
-
-                {!loading && detalle ? (
-                  <div className="mt-6 grid gap-3">
-                    <div className="rounded-[22px] bg-white/8 px-4 py-4">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Humedad pendiente</p>
-                      <p className="mt-2 text-2xl font-black text-white">{summary.pending}</p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[22px] bg-white/8 px-4 py-4">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Críticos</p>
-                        <p className="mt-2 text-2xl font-black text-white">{summary.high}</p>
-                      </div>
-                      <div className="rounded-[22px] bg-white/8 px-4 py-4">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Óptimos</p>
-                        <p className="mt-2 text-2xl font-black text-white">{summary.optimal}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+              </div>
+              <div className="rounded-[12px] bg-white px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Humedad</p>
+                <p className="mt-1 text-lg font-black text-slate-900">
+                  {detalle ? formatHumedad(detalle.lote.humedadPromedio) : '...'}
+                </p>
+              </div>
+              <div className="rounded-[12px] bg-white px-3 py-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Factor</p>
+                <p className="mt-1 text-lg font-black text-slate-900">
+                  {isSecoBuenoLot ? formatFactor(factorPromedioLote) : 'Sin dato'}
+                </p>
               </div>
             </div>
           </section>
 
-          {!loading && detalle ? (
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[28px] border border-[#e5e9f6] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-                <div className="mb-4 inline-flex rounded-2xl bg-[#eef2ff] p-3 text-[#102d92]"><Scale size={18} /></div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Peso actual</p>
-                <p className="mt-3 text-2xl font-black text-slate-900">{kg(detalle.lote.pesoActual)}</p>
-              </div>
-              <div className="rounded-[28px] border border-[#e5e9f6] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-                <div className="mb-4 inline-flex rounded-2xl bg-[#ecfbf8] p-3 text-[#0f6b6d]"><Droplets size={18} /></div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Humedad promedio</p>
-                <p className="mt-3 text-2xl font-black text-slate-900">{humidity(detalle.lote.humedadPromedio)}</p>
-              </div>
-              {isSecoBuenoLot ? (
-                <div className="rounded-[28px] border border-[#e5e9f6] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-                  <div className="mb-4 inline-flex rounded-2xl bg-[#eef2ff] p-3 text-[#102d92]"><Scale size={18} /></div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Factor promedio</p>
-                  <p className="mt-3 text-2xl font-black text-slate-900">{factorLabel(factorPromedioLote)}</p>
-                </div>
-              ) : null}
-              <div className="rounded-[28px] border border-[#e5e9f6] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-                <div className="mb-4 inline-flex rounded-2xl bg-[#fff4e9] p-3 text-[#b25a1a]"><Clock3 size={18} /></div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Antigüedad</p>
-                <p className="mt-3 text-lg font-black text-slate-900">{storageRange(detalle.lote.diasEnBodegaMin, detalle.lote.diasEnBodegaMax)}</p>
-              </div>
-              <div className="rounded-[28px] border border-[#e5e9f6] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-                <div className="mb-4 inline-flex rounded-2xl bg-[#fff0f4] p-3 text-[#a31d3e]"><Package2 size={18} /></div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Primer ingreso</p>
-                <p className="mt-3 text-lg font-black text-slate-900">{date(detalle.lote.fechaPrimerIngreso)}</p>
-              </div>
-            </section>
+          {error ? (
+            <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
           ) : null}
 
-          <section className="rounded-[30px] border border-[#dbe4ff] bg-[linear-gradient(135deg,#eef3ff_0%,#f5f7ff_100%)] px-5 py-5 shadow-[0_18px_35px_rgba(15,23,42,0.05)]">
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl bg-[#102d92] p-3 text-white"><Info size={18} /></div>
-              <div>
-                <p className="text-lg font-black text-[#102d92]">Seguimiento de humedad</p>
-                <p className="mt-2 text-sm leading-7 text-slate-600">{secadoHint}</p>
-              </div>
-            </div>
-          </section>
-
-          {error ? <div className="rounded-[26px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{error}</div> : null}
-          {success ? <div className="rounded-[26px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">{success}</div> : null}
+          {loading ? (
+            <section className="rounded-[22px] border border-[#e5e9f6] bg-white px-5 py-10 text-center shadow-sm">
+              <p className="text-base font-semibold text-slate-500">Cargando sublotes...</p>
+            </section>
+          ) : null}
 
           {!loading && !detalle ? (
-            <section className="rounded-[32px] border border-dashed border-[#d8dceb] bg-white px-5 py-12 text-center shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"><Package2 size={24} /></div>
-              <h3 className="mt-5 text-2xl font-black text-slate-900">No se pudo cargar el lote</h3>
-              <p className="mt-3 text-base leading-7 text-slate-500">Regresa al inventario o vuelve a cargar el detalle.</p>
+            <section className="rounded-[22px] border border-dashed border-[#d8dceb] bg-white px-5 py-10 text-center shadow-sm">
+              <p className="text-base font-semibold text-slate-600">No se pudo cargar el lote.</p>
             </section>
           ) : null}
-
-          {loading ? <section className="rounded-[32px] border border-[#e5e9f6] bg-white px-5 py-12 text-center shadow-[0_18px_40px_rgba(15,23,42,0.04)]"><p className="text-lg font-semibold text-slate-500">Cargando sublotes...</p></section> : null}
 
           <section className="grid gap-4">
             {detalle?.sublotes.map((sublote) => {
-              const state = sublotState(sublote.humedad);
+              const estado = estadoPorHumedad(sublote.humedad);
+              const factorActual = getFactorForSublote(sublote.id);
+              const humedadSavedKey = `${sublote.id}:humedad`;
+              const factorSavedKey = `${sublote.id}:factor`;
+              const humedadBusyKey = `${sublote.id}:humedad:busy`;
+              const factorBusyKey = `${sublote.id}:factor:busy`;
 
               return (
-                <article key={sublote.id} className="relative overflow-hidden rounded-[30px] border border-[#e5e9f6] bg-white p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-                  <div className={`absolute left-0 top-0 h-full w-2 ${state.stripe}`} />
+                <article
+                  key={sublote.id}
+                  className="relative overflow-hidden rounded-[22px] border border-[#e5e9f6] bg-white p-4 shadow-sm"
+                >
+                  <div className={`absolute left-0 top-0 h-full w-1.5 ${estado.dotClass}`} />
 
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="text-[2rem] font-black leading-none text-[#102d92]">{sublote.etiqueta}</h3>
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${state.badge}`}>{state.label}</span>
-                        <span className="rounded-full bg-[#f4f6fb] px-3 py-1 text-xs font-bold text-slate-600">{kg(sublote.pesoActual)}</span>
-                        <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-bold text-[#102d92]">{dayLabel(sublote.diasEnBodega)}</span>
+                  <div className="pl-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-[1.3rem] font-black leading-none text-[#102d92]">{sublote.etiqueta}</h3>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black ${estado.badgeClass}`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${estado.dotClass}`} />
+                        {estado.label}
+                      </span>
+                      <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-xs font-black text-[#102d92]">
+                        {formatKg(sublote.pesoActual)}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm text-slate-500">
+                      Ingreso: {formatDateLabel(sublote.fechaIngreso)} · {sublote.tipoCafe} · {sublote.calidad}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2.5">
+                      <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Peso</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{formatKg(sublote.pesoActual)}</p>
                       </div>
-                      <p className="mt-4 text-sm leading-7 text-slate-500">Ingreso {date(sublote.fechaIngreso)} · {sublote.tipoCafe} / {sublote.calidad}</p>
-                    </div>
-
-                    <div className={`inline-flex rounded-2xl p-3 ${state.panel}`}>{state.icon}</div>
-                  </div>
-
-                  <div className="mt-6 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-[24px] bg-[#f8f9ff] px-4 py-4">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Peso disponible</p>
-                      <p className="mt-3 text-xl font-black text-slate-900">{kg(sublote.pesoActual)}</p>
-                    </div>
-                    <div className="rounded-[24px] bg-[#f8f9ff] px-4 py-4">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Humedad actual</p>
-                      <p className="mt-3 text-xl font-black text-slate-900">{humidity(sublote.humedad)}</p>
-                    </div>
-                    {isSecoBuenoLot ? (
-                      <div className="rounded-[24px] bg-[#f8f9ff] px-4 py-4">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Factor actual</p>
-                        <p className="mt-3 text-xl font-black text-slate-900">{factorLabel(getFactorForSublote(sublote.id))}</p>
+                      <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Humedad</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{formatHumedad(sublote.humedad)}</p>
                       </div>
-                    ) : null}
-                    <div className={`rounded-[24px] px-4 py-4 ${state.panel}`}>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] opacity-70">Estado de humedad</p>
-                      <p className="mt-3 text-sm font-bold leading-7">{state.note}</p>
+                      <div className="rounded-[14px] bg-[#f8f9ff] px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Factor</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{formatFactor(factorActual)}</p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-                    <div className="rounded-[24px] border border-[#dfe5f2] bg-[#fbfbff] px-4 py-4">
-                      <label htmlFor={`humedad-${sublote.id}`} className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                        Humedad del sublote (%)
-                      </label>
+                    <div className="mt-4 rounded-[16px] border border-[#dfe5f2] bg-[#fbfbff] px-3.5 py-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`humedad-${sublote.id}`}
+                          className="text-xs font-black uppercase tracking-[0.14em] text-slate-400"
+                        >
+                          Humedad del sublote (%)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void guardarHumedad(sublote.id)}
+                          disabled={Boolean(busy[humedadBusyKey]) || loading}
+                          className="inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-[10px] border border-[#d3def8] bg-[#eef3ff] px-2.5 py-1.5 text-[11px] font-black text-[#102d92] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Save size={12} />
+                          Guardar humedad
+                        </button>
+                      </div>
                       <input
                         id={`humedad-${sublote.id}`}
                         type="number"
@@ -532,35 +443,61 @@ export default function Sublotes() {
                         min="0"
                         max="100"
                         value={humedades[sublote.id] ?? ''}
-                        onChange={(event) => updateHumidity(sublote.id, event.target.value)}
-                        className="w-full rounded-[22px] border border-[#dfe5f2] bg-white px-4 py-4 text-base font-semibold text-slate-900 outline-none transition placeholder:text-base placeholder:font-semibold placeholder:text-slate-400 focus:border-[#102d92]"
-                        placeholder="Ingresa la humedad Ej. 11"
+                        onChange={(event) => updateHumedad(sublote.id, event.target.value)}
+                        className="mt-2 w-full rounded-[12px] border border-[#dfe5f2] bg-white px-3 py-2.5 text-base font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                        placeholder="Ingresa la humedad (Ej: 11)"
                       />
-                      {isSecoBuenoLot ? (
-                        <div className="mt-4">
-                          <label htmlFor={`factor-${sublote.id}`} className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                            Factor del sublote
-                          </label>
-                          <input
-                            id={`factor-${sublote.id}`}
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            min="0"
-                            max="10"
-                            value={factores[sublote.id] ?? ''}
-                            onChange={(event) => updateFactor(sublote.id, event.target.value)}
-                            className="w-full rounded-[22px] border border-[#dfe5f2] bg-white px-4 py-4 text-base font-semibold text-slate-900 outline-none transition placeholder:text-base placeholder:font-semibold placeholder:text-slate-400 focus:border-[#102d92]"
-                            placeholder="Ingresa el factor Ej. 1.85"
-                          />
-                        </div>
+                      {saved[humedadSavedKey] ? (
+                        <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-black text-emerald-700">
+                          <CheckCircle2 size={13} />
+                          Guardado
+                        </p>
                       ) : null}
                     </div>
 
-                    <div className="rounded-[24px] bg-[#f6f7fd] px-4 py-4">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Recomendación</p>
-                      <p className="mt-3 text-base font-bold leading-8 text-slate-700">
-                        Mantener mediciones claras por sublote ayuda a que el lote agrupado refleje mejor la bodega.
+                    <div className="mt-3 rounded-[16px] border border-[#dfe5f2] bg-[#fbfbff] px-3.5 py-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`factor-${sublote.id}`}
+                          className="text-xs font-black uppercase tracking-[0.14em] text-slate-400"
+                        >
+                          Factor del sublote
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void guardarFactor(sublote.id)}
+                          disabled={Boolean(busy[factorBusyKey]) || loading || !isSecoBuenoLot}
+                          className="inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-[10px] border border-[#d3def8] bg-[#eef3ff] px-2.5 py-1.5 text-[11px] font-black text-[#102d92] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Save size={12} />
+                          Guardar factor
+                        </button>
+                      </div>
+                      <input
+                        id={`factor-${sublote.id}`}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        max="10"
+                        value={factores[sublote.id] ?? ''}
+                        onChange={(event) => updateFactor(sublote.id, event.target.value)}
+                        disabled={!isSecoBuenoLot}
+                        className="mt-2 w-full rounded-[12px] border border-[#dfe5f2] bg-white px-3 py-2.5 text-base font-semibold text-slate-900 outline-none focus:border-[#102d92] disabled:bg-slate-100 disabled:text-slate-500"
+                        placeholder={isSecoBuenoLot ? 'Ingresa el factor (Ej: 0.95)' : 'No aplica en este lote'}
+                      />
+                      {saved[factorSavedKey] ? (
+                        <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-black text-emerald-700">
+                          <CheckCircle2 size={13} />
+                          Guardado
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 rounded-[16px] bg-[#f6f7fd] px-3.5 py-3">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Recomendación</p>
+                      <p className="mt-1.5 text-sm font-semibold leading-6 text-slate-700">
+                        Ajusta la humedad antes de almacenar para evitar pérdidas o castigos en el precio.
                       </p>
                     </div>
                   </div>
@@ -571,34 +508,16 @@ export default function Sublotes() {
         </div>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/70 bg-[rgba(255,255,255,0.88)] px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="rounded-[24px] bg-[#f4f6fb] px-4 py-4">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Cambios pendientes</p>
-            <p className="mt-2 text-lg font-black text-slate-900">
-              {pendingChanges > 0 ? `${pendingChanges} por guardar` : 'Sin cambios pendientes'}
-            </p>
-          </div>
-
-          <div className="grid w-full gap-3 md:w-auto md:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => navigate('/inventario')}
-              className="inline-flex min-h-[56px] items-center justify-center gap-3 rounded-[24px] border border-[#dbe1ef] bg-white px-6 py-4 text-sm font-black text-slate-700"
-            >
-              <ArrowLeft size={18} />
-              Regresar
-            </button>
-            <button
-              type="button"
-              onClick={() => void guardarTodo()}
-              disabled={saving || loading || !detalle}
-              className="inline-flex min-h-[56px] items-center justify-center gap-3 rounded-[24px] bg-[#102d92] px-6 py-4 text-sm font-black text-white shadow-[0_22px_50px_rgba(16,45,146,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <Save size={18} />
-              {saving ? 'Guardando...' : isSecoBuenoLot ? 'Guardar humedad y factor' : 'Guardar humedades'}
-            </button>
-          </div>
+      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/70 bg-[rgba(255,255,255,0.9)] px-4 py-3 backdrop-blur">
+        <div className="mx-auto w-full max-w-[520px]">
+          <button
+            type="button"
+            onClick={() => navigate('/inventario')}
+            className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#dbe1ef] bg-white px-5 py-2.5 text-sm font-black text-slate-700"
+          >
+            <ArrowLeft size={16} />
+            Volver
+          </button>
         </div>
       </footer>
     </div>

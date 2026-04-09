@@ -44,8 +44,11 @@ export function saveFactorsForLot(
   lotKey: string,
   factors: Array<{ subloteId: string; factor: number | null }>,
 ) {
-  const current = readEntries().filter((entry) => entry.lotKey !== lotKey);
-  const next = [...current];
+  const current = readEntries();
+  const touched = new Set(factors.map((item) => item.subloteId));
+  const next = current.filter(
+    (entry) => !(entry.lotKey === lotKey && touched.has(entry.subloteId)),
+  );
 
   for (const item of factors) {
     if (item.factor === null || !Number.isFinite(item.factor)) continue;
