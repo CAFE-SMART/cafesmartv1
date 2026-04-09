@@ -24,7 +24,7 @@ import { authService, type AuthError, type AuthResponse } from '../services/auth
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
 type ProcessStatus = 'creating' | 'success' | 'error';
-type ActivePanel = 'help' | 'contact';
+type ActivePanel = 'help' | 'contact' | null;
 
 type RegisterProcessState = {
   hasGoogleFlow: boolean;
@@ -153,13 +153,12 @@ export default function SystemStatus() {
     'No pudimos procesar tu solicitud. Revisa tu internet.',
   );
   const [errorTitle, setErrorTitle] = useState('Error de conexion. Intentalo de nuevo.');
-  const [activePanel, setActivePanel] = useState<ActivePanel>('help');
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [openHelpId, setOpenHelpId] = useState<string>(helpItems[0].id);
   const [contactName, setContactName] = useState(processState?.nombre ?? '');
   const [contactEmail, setContactEmail] = useState(processState?.correo ?? '');
   const [contactMessage, setContactMessage] = useState('');
   const registrationStartedRef = useRef(false);
-  const redirectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (processState?.nombre) {
@@ -178,6 +177,10 @@ export default function SystemStatus() {
       navigate('/inicio', { replace: true });
     }
   }, [hasCompany, hydrated, navigate, processState, token]);
+
+  useEffect(() => {
+    setActivePanel(null);
+  }, [status]);
 
   const executeRegistration = useCallback(
     async (force = false) => {
@@ -246,10 +249,6 @@ export default function SystemStatus() {
         });
 
         setStatus('success');
-
-        redirectTimerRef.current = window.setTimeout(() => {
-          navigate('/inicio', { replace: true });
-        }, 1100);
       } catch (err) {
         const authError = err as AuthError;
         const field = (authError.field ?? '').toLowerCase();
@@ -273,12 +272,6 @@ export default function SystemStatus() {
 
   useEffect(() => {
     void executeRegistration();
-
-    return () => {
-      if (redirectTimerRef.current !== null) {
-        window.clearTimeout(redirectTimerRef.current);
-      }
-    };
   }, [executeRegistration]);
 
   const handleContactSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -315,7 +308,20 @@ export default function SystemStatus() {
       </header>
 
       <main className="mx-auto flex w-full max-w-[760px] flex-col gap-6 px-4 py-6 pb-10">
-        <section className="overflow-hidden rounded-[34px] border border-white/70 bg-white/80 p-6 text-center shadow-[0_28px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+        <section
+          className={`overflow-hidden rounded-[34px] border p-6 text-center shadow-[0_28px_60px_rgba(15,23,42,0.08)] backdrop-blur ${
+            status === 'success'
+              ? 'relative border-[#eadfce] bg-[linear-gradient(160deg,#faf4e8_0%,#f3efe7_45%,#f6f4f0_100%)]'
+              : 'border-white/70 bg-white/80'
+          }`}
+        >
+          {status === 'success' ? (
+            <>
+              <div className="pointer-events-none absolute -right-24 -top-16 h-60 w-60 rounded-full bg-[radial-gradient(circle,#c8a97e_0%,rgba(200,169,126,0)_70%)] opacity-30" />
+              <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,#d9c2a2_0%,rgba(217,194,162,0)_70%)] opacity-30" />
+            </>
+          ) : null}
+
           <StatusCircle status={status} />
 
           {status === 'creating' ? (
@@ -332,27 +338,20 @@ export default function SystemStatus() {
           {status === 'success' ? (
             <>
               <h2 className="mt-6 text-[2.15rem] font-black leading-tight tracking-tight text-[#121826]">
-                Cuenta creada correctamente
+                Bienvenido a Cafe Smart ☕
               </h2>
               <p className="mx-auto mt-4 max-w-[420px] text-lg leading-8 text-slate-600">
-                Tu perfil ya esta activo. Ahora puedes gestionar tus cosechas y tus
-                transacciones con seguridad.
+                Empieza a gestionar tu cafe con control total: compras, inventario y ventas en un solo lugar.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <p className="mt-4 text-sm font-bold text-emerald-700">✔ Cuenta activa</p>
+              <div className="mt-8">
                 <button
                   type="button"
                   onClick={() => navigate('/inicio', { replace: true })}
                   className="inline-flex flex-1 items-center justify-center gap-3 rounded-[24px] bg-[#102d92] px-6 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.22)]"
                 >
-                  Ir al Inicio
+                  Comenzar ahora
                   <ArrowRight size={22} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/login', { replace: true })}
-                  className="inline-flex flex-1 items-center justify-center rounded-[24px] border border-slate-200 bg-white px-6 py-4 text-lg font-black text-slate-700"
-                >
-                  Cerrar
                 </button>
               </div>
             </>
@@ -395,157 +394,227 @@ export default function SystemStatus() {
           />
         </div>
 
-        <section className="rounded-[34px] border border-white/80 bg-white/88 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.1)] backdrop-blur">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setActivePanel('help')}
-              className={`flex flex-1 items-center justify-center gap-3 rounded-full px-5 py-4 text-base font-bold transition-all ${
-                activePanel === 'help'
-                  ? 'bg-[#102d92] text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)]'
-                  : 'bg-[#f3f5fb] text-slate-500'
-              }`}
-            >
-              <BookOpenText size={20} />
-              Ayuda
-            </button>
-            <button
-              type="button"
-              onClick={() => setActivePanel('contact')}
-              className={`flex flex-1 items-center justify-center gap-3 rounded-full px-5 py-4 text-base font-bold transition-all ${
-                activePanel === 'contact'
-                  ? 'bg-[#102d92] text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)]'
-                  : 'bg-[#f3f5fb] text-slate-500'
-              }`}
-            >
-              <Headphones size={20} />
-              Contacto
-            </button>
-          </div>
+        {status === 'success' ? (
+          <section className="rounded-[34px] border border-white/80 bg-white/88 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.1)] backdrop-blur">
+            <div className="text-center">
+              <div className="mx-auto mb-4 inline-flex rounded-full bg-[#dde1ff] p-4 text-[#102d92]">
+                <HelpCircle size={28} />
+              </div>
+              <h3 className="text-[1.9rem] font-black tracking-tight text-[#102d92]">
+                Preguntas frecuentes
+              </h3>
+              <p className="mt-1 text-base text-slate-500">
+                Toca un icono para abrir la ventana, no se queda fija en pantalla.
+              </p>
+            </div>
 
-          <div className="mt-5 rounded-[30px] border border-slate-100 bg-[#f8f8fc] p-5">
-            {activePanel === 'help' ? (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 inline-flex rounded-full bg-[#dde1ff] p-4 text-[#102d92]">
-                    <HelpCircle size={28} />
-                  </div>
-                  <h3 className="text-[1.9rem] font-black tracking-tight text-[#102d92]">
-                    Centro de Ayuda
-                  </h3>
-                  <p className="mt-1 text-base text-slate-500">Preguntas rapidas del registro</p>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => setActivePanel('help')}
+                className={`flex flex-col items-center gap-2 rounded-[22px] border px-4 py-4 text-center transition-all ${
+                  activePanel === 'help'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)]'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${activePanel === 'help' ? 'bg-white/12' : 'bg-[#eef1ff] text-[#102d92]'}`}>
+                  <BookOpenText size={22} />
                 </div>
+                <span className="text-sm font-black">Ayuda</span>
+              </button>
 
-                {helpItems.map((item) => {
-                  const isOpen = openHelpId === item.id;
+              <button
+                type="button"
+                onClick={() => setActivePanel('contact')}
+                className={`flex flex-col items-center gap-2 rounded-[22px] border px-4 py-4 text-center transition-all ${
+                  activePanel === 'contact'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)]'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${activePanel === 'contact' ? 'bg-white/12' : 'bg-[#eef1ff] text-[#102d92]'}`}>
+                  <Headphones size={22} />
+                </div>
+                <span className="text-sm font-black">Contacto</span>
+              </button>
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setOpenHelpId(isOpen ? '' : item.id)}
-                      className="w-full rounded-[24px] border border-slate-100 bg-white px-5 py-4 text-left shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-lg font-black text-[#102d92]">{item.question}</p>
+              <div className="flex flex-col items-center gap-2 rounded-[22px] border border-slate-200 bg-white px-4 py-4 text-center text-slate-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef1ff] text-[#102d92]">
+                  <Shield size={22} />
+                </div>
+                <span className="text-sm font-black">Seguro</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-2 rounded-[22px] border border-slate-200 bg-white px-4 py-4 text-center text-slate-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef1ff] text-[#102d92]">
+                  <BarChart3 size={22} />
+                </div>
+                <span className="text-sm font-black">Panel</span>
+              </div>
+            </div>
+          </section>
+        ) : null}
+      </main>
+
+      {status === 'success' && activePanel ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6 sm:justify-end sm:px-6">
+          <div className="pointer-events-auto relative flex items-end gap-3">
+            <div className="fixed left-4 right-4 bottom-20 z-50 max-h-[68vh] overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-[min(92vw,24rem)] sm:max-h-none">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.18em] text-[#102d92]">
+                    {activePanel === 'help' ? 'Ayuda rápida' : 'Contacto rápido'}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                    {activePanel === 'help' ? 'Preguntas frecuentes' : 'Habla con soporte'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActivePanel(null)}
+                  className="rounded-full bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900"
+                  aria-label="Cerrar ayuda"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {activePanel === 'help' ? (
+                <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-600">
+                  {helpItems.map((item) => {
+                    const isOpen = openHelpId === item.id;
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setOpenHelpId(isOpen ? '' : item.id)}
+                        className="w-full rounded-[24px] border border-slate-100 bg-white px-5 py-4 text-left shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-lg font-black text-[#102d92]">{item.question}</p>
+                            {isOpen ? (
+                              <p className="mt-3 text-sm leading-7 text-slate-600">{item.answer}</p>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-500">
+                                Toca para ver la respuesta rápida.
+                              </p>
+                            )}
+                          </div>
                           {isOpen ? (
-                            <p className="mt-3 text-sm leading-7 text-slate-600">{item.answer}</p>
+                            <ChevronDown size={20} className="mt-1 text-slate-400" />
                           ) : (
-                            <p className="mt-2 text-sm text-slate-500">
-                              Toca para ver la respuesta rapida.
-                            </p>
+                            <ChevronRight size={20} className="mt-1 text-slate-400" />
                           )}
                         </div>
-                        {isOpen ? (
-                          <ChevronDown size={20} className="mt-1 text-slate-400" />
-                        ) : (
-                          <ChevronRight size={20} className="mt-1 text-slate-400" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-5">
-                <div>
-                  <h3 className="text-[1.9rem] font-black tracking-tight text-[#102d92]">
-                    Contactanos
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Si algo falla en el registro, deja aqui tu mensaje.
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-5 overflow-y-auto px-5 py-4 text-sm text-slate-600">
+                  <p>
+                    Si algo falla en el registro, deja aquí tu mensaje sin perder la pantalla actual.
                   </p>
+
+                  <form onSubmit={handleContactSubmit} className="space-y-4">
+                    <input
+                      type="text"
+                      value={contactName}
+                      onChange={(event) => setContactName(event.target.value)}
+                      placeholder="Nombre completo"
+                      className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
+                    />
+                    <input
+                      type="email"
+                      value={contactEmail}
+                      onChange={(event) => setContactEmail(event.target.value)}
+                      placeholder="Correo electronico"
+                      className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
+                    />
+                    <textarea
+                      value={contactMessage}
+                      onChange={(event) => setContactMessage(event.target.value)}
+                      placeholder="Escribe tu mensaje..."
+                      rows={3}
+                      className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white"
+                    >
+                      Enviar mensaje
+                    </button>
+                  </form>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <a
+                      href="mailto:soporte@cafesmart.com"
+                      className="flex items-center justify-between rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="rounded-2xl bg-[#eef1ff] p-3 text-[#102d92]">
+                          <Mail size={22} />
+                        </div>
+                        <div>
+                          <p className="text-base font-black text-[#102d92]">Correo</p>
+                          <p className="text-sm text-slate-500">soporte@cafesmart.com</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-slate-400" />
+                    </a>
+
+                    <a
+                      href="tel:+573000000000"
+                      className="flex items-center justify-between rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="rounded-2xl bg-[#eef1ff] p-3 text-[#102d92]">
+                          <Phone size={22} />
+                        </div>
+                        <div>
+                          <p className="text-base font-black text-[#102d92]">Linea de atencion</p>
+                          <p className="text-sm text-slate-500">+57 300 000 0000</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-slate-400" />
+                    </a>
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <form onSubmit={handleContactSubmit} className="space-y-4">
-                  <input
-                    type="text"
-                    value={contactName}
-                    onChange={(event) => setContactName(event.target.value)}
-                    placeholder="Nombre completo"
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
-                  />
-                  <input
-                    type="email"
-                    value={contactEmail}
-                    onChange={(event) => setContactEmail(event.target.value)}
-                    placeholder="Correo electronico"
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
-                  />
-                  <textarea
-                    value={contactMessage}
-                    onChange={(event) => setContactMessage(event.target.value)}
-                    placeholder="Escribe tu mensaje..."
-                    rows={3}
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-base text-slate-800 outline-none focus:border-[#102d92]"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white"
-                  >
-                    Enviar mensaje
-                  </button>
-                </form>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <a
-                    href="mailto:soporte@cafesmart.com"
-                    className="flex items-center justify-between rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-2xl bg-[#eef1ff] p-3 text-[#102d92]">
-                        <Mail size={22} />
-                      </div>
-                      <div>
-                        <p className="text-base font-black text-[#102d92]">Correo</p>
-                        <p className="text-sm text-slate-500">soporte@cafesmart.com</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={20} className="text-slate-400" />
-                  </a>
-
-                  <a
-                    href="tel:+573000000000"
-                    className="flex items-center justify-between rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-2xl bg-[#eef1ff] p-3 text-[#102d92]">
-                        <Phone size={22} />
-                      </div>
-                      <div>
-                        <p className="text-base font-black text-[#102d92]">Linea de atencion</p>
-                        <p className="text-sm text-slate-500">+57 300 000 0000</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={20} className="text-slate-400" />
-                  </a>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-2 py-2 shadow-[0_18px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+              <button
+                type="button"
+                onClick={() => setActivePanel('help')}
+                className={`flex h-11 w-11 items-center justify-center rounded-full transition-all sm:h-12 sm:w-12 ${
+                  activePanel === 'help'
+                    ? 'bg-[#102d92] text-white shadow-[0_12px_24px_rgba(16,45,146,0.24)]'
+                    : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
+                }`}
+                aria-label="Abrir ayuda"
+              >
+                <BookOpenText size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePanel('contact')}
+                className={`flex h-11 w-11 items-center justify-center rounded-full transition-all sm:h-12 sm:w-12 ${
+                  activePanel === 'contact'
+                    ? 'bg-[#102d92] text-white shadow-[0_12px_24px_rgba(16,45,146,0.24)]'
+                    : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
+                }`}
+                aria-label="Abrir contacto"
+              >
+                <Headphones size={20} />
+              </button>
+            </div>
           </div>
-        </section>
-      </main>
+        </div>
+      ) : null}
     </div>
   );
 }
