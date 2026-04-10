@@ -2,21 +2,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  Headset,
+  Check,
   HelpCircle,
   LoaderCircle,
-  RefreshCw,
-  Shield,
+  Phone,
+  User,
 } from 'lucide-react';
-import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+type ProcessStatus = 'creating' | 'success' | 'error';
+type SuccessStage = 'confirm' | 'welcome';
 
 type RegisterProcessState = {
   hasGoogleFlow: boolean;
@@ -30,7 +28,84 @@ type RegisterProcessState = {
   password: string;
 };
 
-type ProcessStatus = 'creating' | 'success' | 'error';
+const CONFIRMATION_DURATION_MS = 2800;
+
+function StageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fcf8f1_0%,#f7f5ff_62%,#f5f6fb_100%)] px-4 py-6">
+      <div className="pointer-events-none absolute -right-24 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(circle,#cbb08a_0%,rgba(203,176,138,0)_72%)] opacity-25 blur-sm" />
+      <div className="pointer-events-none absolute -left-16 top-1/3 h-52 w-52 rounded-full bg-[radial-gradient(circle,#b28f67_0%,rgba(178,143,103,0)_72%)] opacity-12 blur-sm" />
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] flex-col items-center justify-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmSuccessView() {
+  return (
+    <StageShell>
+      <section className="w-full max-w-[420px] rounded-3xl border border-white/80 bg-white/90 px-6 py-8 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <Check size={30} strokeWidth={3} />
+        </div>
+        <h1 className="mt-4 text-[1.45rem] font-black tracking-tight text-[#14213d]">
+          Cuenta creada satisfactoriamente
+        </h1>
+      </section>
+    </StageShell>
+  );
+}
+
+function WelcomeView({ onStart }: { onStart: () => void }) {
+  return (
+    <StageShell>
+      <div className="w-full max-w-[420px]">
+        <div className="mb-3 flex justify-end">
+          <div className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm">
+            <User size={14} />
+            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+          </div>
+        </div>
+
+        <section className="rounded-3xl border border-white/80 bg-white/90 px-6 py-6 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm">
+          <h1 className="text-[1.55rem] font-black leading-tight tracking-tight text-[#102d92]">
+            Bienvenido a Cafe Smart ☕
+          </h1>
+          <p className="mt-2.5 text-sm leading-6 text-slate-600">
+            Gestiona tus compras, inventario y ventas de café en un solo lugar.
+          </p>
+
+          <button
+            type="button"
+            onClick={onStart}
+            className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-[#102d92] px-5 py-3 text-base font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.22)]"
+          >
+            Comenzar ahora
+            <ArrowRight size={17} />
+          </button>
+        </section>
+
+        <section className="mt-4 flex items-center justify-center gap-2.5 text-xs text-slate-500">
+          <a
+            href="mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/85 px-3 py-2"
+          >
+            <HelpCircle size={13} />
+            Ayuda
+          </a>
+          <a
+            href="tel:+573000000000"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/85 px-3 py-2"
+          >
+            <Phone size={13} />
+            Contáctenos
+          </a>
+        </section>
+      </div>
+    </StageShell>
+  );
+}
 
 export default function SystemStatus() {
   const location = useLocation();
@@ -43,18 +118,15 @@ export default function SystemStatus() {
   );
 
   const [status, setStatus] = useState<ProcessStatus>('creating');
+  const [successStage, setSuccessStage] = useState<SuccessStage>('confirm');
   const [errorMessage, setErrorMessage] = useState(
     'No pudimos procesar tu solicitud. Revisa tu internet.',
   );
-  const [errorTitle, setErrorTitle] = useState('Error de conexion. Intentalo de nuevo.');
+  const [errorTitle, setErrorTitle] = useState('Error de conexión. Inténtalo de nuevo.');
   const registrationStartedRef = useRef(false);
-  const redirectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
+    if (!hydrated) return;
     if (token && hasCompany && !processState) {
       navigate('/inicio', { replace: true });
     }
@@ -62,10 +134,7 @@ export default function SystemStatus() {
 
   const executeRegistration = useCallback(
     async (force = false) => {
-      if (registrationStartedRef.current && !force) {
-        return;
-      }
-
+      if (registrationStartedRef.current && !force) return;
       registrationStartedRef.current = true;
 
       if (!processState) {
@@ -78,7 +147,8 @@ export default function SystemStatus() {
       }
 
       setStatus('creating');
-      setErrorTitle('Error de conexion. Intentalo de nuevo.');
+      setSuccessStage('confirm');
+      setErrorTitle('Error de conexión. Inténtalo de nuevo.');
       setErrorMessage('No pudimos procesar tu solicitud. Revisa tu internet.');
 
       try {
@@ -94,18 +164,14 @@ export default function SystemStatus() {
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
           });
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
             nombre: processState.nombre,
             telefono: processState.telefono,
             correo: processState.correo,
@@ -118,25 +184,33 @@ export default function SystemStatus() {
             id: response.user.id,
             email: response.user.email,
             name: response.user.name,
+            organizacionId: response.user.organizacionId ?? null,
+            tipoOrganizacion: response.user.tipoOrganizacion ?? null,
+            otroTipoDetalle: response.user.otroTipoDetalle ?? null,
           },
           token: response.access_token,
           hasCompany: response.hasCompany,
         });
-        setStatus('success');
 
-        redirectTimerRef.current = window.setTimeout(() => {
-          navigate('/inicio', { replace: true });
-        }, 1000);
+        setStatus('success');
+        setSuccessStage('confirm');
       } catch (err) {
         const authError = err as AuthError;
         const field = (authError.field ?? '').toLowerCase();
+
+        registrationStartedRef.current = false;
+        setStatus('error');
+        setSuccessStage('confirm');
+
         if (field === 'email' || field === 'correo') {
           setErrorTitle('No se pudo crear la cuenta.');
+        } else {
+          setErrorTitle('Error de conexión. Inténtalo de nuevo.');
         }
+
         setErrorMessage(
           authError.message || 'No pudimos procesar tu solicitud. Revisa tu internet.',
         );
-        setStatus('error');
       }
     },
     [hasCompany, navigate, processState, setSession, token],
@@ -144,135 +218,56 @@ export default function SystemStatus() {
 
   useEffect(() => {
     void executeRegistration();
-
-    return () => {
-      if (redirectTimerRef.current !== null) {
-        window.clearTimeout(redirectTimerRef.current);
-      }
-    };
   }, [executeRegistration]);
 
+  useEffect(() => {
+    if (status !== 'success' || successStage !== 'confirm') return;
+
+    const timer = window.setTimeout(() => {
+      setSuccessStage('welcome');
+    }, CONFIRMATION_DURATION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [status, successStage]);
+
+  if (status === 'success' && successStage === 'confirm') {
+    return <ConfirmSuccessView />;
+  }
+
+  if (status === 'success' && successStage === 'welcome') {
+    return <WelcomeView onStart={() => navigate('/inicio', { replace: true })} />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#efeff5] text-slate-900">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-[#efeff5] px-4 py-4">
-        <div className="mx-auto flex w-full max-w-[720px] items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/crear-empresa')}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#0b2a85]"
-            >
-              <ArrowLeft size={17} />
-              Cafe Smart
-            </button>
-            <p className="text-base font-semibold text-[#0b2a85]">Estado del sistema</p>
-          </div>
-          <CloudStatusBadge />
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-6 pb-28">
-        {status === 'creating' && (
-          <section className="rounded-2xl bg-[#e9e9f2] p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-4 border-[#c9cedf] border-t-[#0b2a85] text-[#0b2a85]">
-              <LoaderCircle className="h-7 w-7 animate-spin" />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
+      <div className="mx-auto w-full max-w-[520px] rounded-[30px] border border-white/80 bg-white/90 p-6 text-center shadow-[0_24px_50px_rgba(15,23,42,0.08)]">
+        {status === 'creating' ? (
+          <>
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+              <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
-            <h2 className="text-4xl font-extrabold tracking-tight text-[#0b2a85]">
-              Creando cuenta...
-            </h2>
-            <p className="mx-auto mt-3 max-w-[260px] text-lg text-slate-600">
-              Estamos preparando tu perfil de agronomo digital.
+            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">Creando cuenta...</h1>
+            <p className="mt-3 text-base text-slate-600">
+              Estamos configurando tu espacio de trabajo.
             </p>
-          </section>
-        )}
-
-        {status === 'success' && (
-          <section className="rounded-2xl bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#80d9d8] text-[#0a5f63]">
-              <CheckCircle2 className="h-8 w-8" />
+          </>
+        ) : (
+          <>
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+              <AlertTriangle size={34} />
             </div>
-            <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-black">
-              Cuenta creada correctamente
-            </h2>
-            <p className="mx-auto mt-3 max-w-[280px] text-lg text-slate-700">
-              Bienvenido a bordo. Ya puedes gestionar tus cosechas.
-            </p>
-            <p className="mx-auto mt-3 max-w-[320px] text-sm font-medium text-emerald-700">
-              Si ves la nube en verde arriba, la cuenta ya fue confirmada con la API.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/inicio')}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b2a85] px-4 py-3 text-lg font-semibold text-white"
-            >
-              Ir al inicio <ArrowRight size={18} />
-            </button>
-          </section>
-        )}
-
-        {status === 'error' && (
-          <section className="rounded-2xl bg-[#e9e9f2] p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center text-red-700">
-              <AlertTriangle className="h-10 w-10" />
-            </div>
-            <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-black">
-              {errorTitle}
-            </h2>
-            <p className="mx-auto mt-3 max-w-[290px] text-lg text-slate-700">
-              {errorMessage}
-            </p>
+            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">{errorTitle}</h1>
+            <p className="mt-3 text-base text-slate-600">{errorMessage}</p>
             <button
               type="button"
               onClick={() => void executeRegistration(true)}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-[#dddee8] px-4 py-3 text-lg font-semibold text-[#0b1e6b]"
+              className="mt-6 inline-flex min-h-[46px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-[#eef0fb] px-5 py-3 text-base font-bold text-[#102d92]"
             >
-              <RefreshCw size={17} /> Reintentar
+              Reintentar
             </button>
-          </section>
+          </>
         )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <section className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
-            <div className="bg-blue-50 p-3 rounded-xl text-[#072688] flex-shrink-0">
-              <Shield className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Seguridad garantizada</h3>
-              <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                Tus datos de produccion estan protegidos con altos estandares de seguridad.
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
-            <div className="bg-emerald-50 p-3 rounded-xl text-[#0b5663] flex-shrink-0">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Panel de control</h3>
-              <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                Analiza el rendimiento y optimiza cada grano de tu cosecha en tiempo real.
-              </p>
-            </div>
-          </section>
-        </div>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-[#efeff5] px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[720px] items-center justify-center gap-10">
-          <button type="button" className="flex flex-col items-center gap-1 text-slate-700">
-            <HelpCircle size={18} />
-            <span className="text-xs font-semibold">Ayuda</span>
-          </button>
-          <button
-            type="button"
-            className="flex flex-col items-center gap-1 rounded-2xl bg-[#d8d9e4] px-5 py-3 text-[#0b2a85]"
-          >
-            <Headset size={18} />
-            <span className="text-xs font-semibold">Contacto</span>
-          </button>
-        </div>
-      </nav>
+      </div>
     </div>
   );
 }

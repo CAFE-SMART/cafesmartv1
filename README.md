@@ -30,14 +30,15 @@ cafesmartv1/
 ## Requisitos
 
 - Node.js 22+
-- pnpm
+- npm 10+ (recomendado)
+- pnpm (opcional)
 - Android Studio (si se prueba movil)
 
 Verificar:
 
 ```bash
 node -v
-pnpm -v
+npm -v
 ```
 
 ### Opción 1: pnpm Workspaces (Recomendado)
@@ -62,15 +63,15 @@ Backend:
 
 ```bash
 cd backend
-pnpm install
-pnpm prisma generate
+npm install
+npm run build
 ```
 
 Frontend:
 
 ```bash
 cd frontend
-pnpm install
+npm install
 ```
 
 ## Variables de entorno
@@ -134,30 +135,54 @@ Backend dev:
 
 ```bash
 cd backend
-pnpm start:dev
+npm run start:dev
 ```
 
 Backend prod:
 
 ```bash
 cd backend
-pnpm build
-pnpm start:prod
+npm run build
+npm run start:prod
 ```
 
 Frontend dev:
 
 ```bash
 cd frontend
-pnpm dev
+npm run dev
 ```
 
 Build de verificacion:
 
 ```bash
-cd backend && pnpm build
-cd frontend && pnpm build
+cd backend && npm run build
+cd frontend && npm run build
 ```
+
+## Arranque en Windows (sin errores de PowerShell/UNC)
+
+Si aparece alguno de estos errores:
+
+- `No se puede cargar ... npm.ps1 ... execution policies`
+- `CMD.EXE se inicio con ruta UNC`
+- `Could not read package.json: C:\\Windows\\package.json`
+
+Usar estos comandos exactos:
+
+```powershell
+Set-Location -LiteralPath "C:\Users\user\Downloads\Cafe Smart\cafesmartv1_backend_inventario\backend"
+npm.cmd run start:dev
+```
+
+En otra terminal:
+
+```powershell
+Set-Location -LiteralPath "C:\Users\user\Downloads\Cafe Smart\cafesmartv1_backend_inventario\frontend"
+cmd /d /c "npm run dev"
+```
+
+Nota: evita trabajar desde rutas que empiecen por `\\?\` al ejecutar `npm`.
 
 ## Rutas frontend
 
@@ -242,13 +267,10 @@ Que hace hoy:
 
 Estados visibles del badge:
 
-- Sin internet
-- Verificando nube
-- Nube conectada
-- Sincronizando
-- Guardado en la nube
-- Servidor no disponible
-- Fallo de sincronizacion
+- Sin conexion
+- Conectando
+- Conectado
+- Sincronizando cambios
 
 Importante:
 

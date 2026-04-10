@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+﻿import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
@@ -7,10 +7,15 @@ import {
 } from '../storage/authStorage';
 import { parseJwtPayload } from '../utils/jwt';
 
+type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+
 type User = {
   id: number | string;
   email: string;
   name: string;
+  organizacionId?: string | null;
+  tipoOrganizacion?: TipoOrganizacion | null;
+  otroTipoDetalle?: string | null;
 };
 
 type StoredUserShape = {
@@ -19,6 +24,9 @@ type StoredUserShape = {
   name?: string;
   correo?: string;
   nombre?: string;
+  organizacionId?: string | null;
+  tipoOrganizacion?: TipoOrganizacion | null;
+  otroTipoDetalle?: string | null;
 };
 
 type UserSessionInput = {
@@ -95,6 +103,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           id: parsed.id,
           email: parsed.email ?? parsed.correo ?? '',
           name: parsed.name ?? parsed.nombre ?? '',
+          organizacionId: parsed.organizacionId ?? null,
+          tipoOrganizacion: parsed.tipoOrganizacion ?? null,
+          otroTipoDetalle: parsed.otroTipoDetalle ?? null,
         });
       } catch {
         setUser(null);

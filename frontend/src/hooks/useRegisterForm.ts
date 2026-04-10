@@ -12,6 +12,7 @@ import {
   type TipoOrg,
   type TipoOrgSelection,
 } from '../utils/registerValidators';
+import { normalizePossiblyMojibake } from '../utils/jwt';
 
 type UseRegisterFormParams = {
   hasGoogleFlow: boolean;
@@ -27,10 +28,16 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
   const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
-  const [nombre, setNombre] = useState(routeState.googlePrefill?.nombre || '');
-  const [apellidos, setApellidos] = useState(routeState.googlePrefill?.apellidos || '');
+  const [nombre, setNombre] = useState(
+    normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
+  );
+  const [apellidos, setApellidos] = useState(
+    normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
+  );
   const [telefono, setTelefono] = useState('');
-  const [correo, setCorreo] = useState(routeState.googlePrefill?.correo || '');
+  const [correo, setCorreo] = useState(
+    normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
+  );
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -40,9 +47,35 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
   useEffect(() => {
     if (hasGoogleFlow && routeState.googlePrefill) {
-      setNombre(routeState.googlePrefill.nombre || '');
-      setApellidos(routeState.googlePrefill.apellidos || '');
-      setCorreo(routeState.googlePrefill.correo || '');
+      const nombreGoogle = normalizePossiblyMojibake(
+        routeState.googlePrefill.nombre?.trim(),
+      );
+      const apellidosGoogle = normalizePossiblyMojibake(
+        routeState.googlePrefill.apellidos?.trim(),
+      );
+      const correoGoogle = normalizePossiblyMojibake(
+        routeState.googlePrefill.correo?.trim(),
+      ).toLowerCase();
+
+      if (nombreGoogle) {
+        setNombre(nombreGoogle);
+      }
+
+      if (apellidosGoogle) {
+        setApellidos(apellidosGoogle);
+      }
+
+      if (correoGoogle) {
+        setCorreo(correoGoogle);
+      }
+
+      setStepTwoErrors((prev) => ({
+        ...prev,
+        nombre: undefined,
+        apellidos: undefined,
+        correo: undefined,
+      }));
+      setError(null);
     }
   }, [hasGoogleFlow, routeState.googlePrefill]);
 

@@ -4,50 +4,7 @@ import { Mail, Lock, Eye, EyeOff, LogIn, Loader, X } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
-import { parseJwtPayload } from '../utils/jwt';
-
-type GoogleJwtPayload = {
-  email?: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-};
-
-type GoogleNameParts = {
-  nombre: string;
-  apellidos: string;
-};
-
-function splitGoogleName(payload: GoogleJwtPayload): GoogleNameParts {
-  const given = payload.given_name?.trim() || '';
-  const family = payload.family_name?.trim() || '';
-
-  if (given || family) {
-    return {
-      nombre: given,
-      apellidos: family,
-    };
-  }
-
-  const fullName = payload.name?.trim() || '';
-  if (!fullName) {
-    return { nombre: '', apellidos: '' };
-  }
-
-  const parts = fullName.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) {
-    return { nombre: parts[0], apellidos: '' };
-  }
-
-  return {
-    nombre: parts[0],
-    apellidos: parts.slice(1).join(' '),
-  };
-}
-
-function decodeGoogleJwt(idToken: string): GoogleJwtPayload {
-  return parseJwtPayload<GoogleJwtPayload>(idToken) ?? {};
-}
+import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -110,6 +67,9 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
+          organizacionId: data.user.organizacionId ?? null,
+          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
@@ -170,6 +130,9 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
+          organizacionId: data.user.organizacionId ?? null,
+          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
@@ -181,16 +144,11 @@ export default function Login() {
       const loginError = err as AuthError;
 
       if (loginError.action === 'register') {
-        const googleData = decodeGoogleJwt(idToken);
-        const nameParts = splitGoogleName(googleData);
+        const googlePrefill = getGooglePrefillFromIdToken(idToken);
         navigate('/crear-empresa', {
           state: {
             googleToken: idToken,
-            googlePrefill: {
-              correo: googleData.email || '',
-              nombre: nameParts.nombre,
-              apellidos: nameParts.apellidos,
-            },
+            googlePrefill,
           },
         });
         return;
