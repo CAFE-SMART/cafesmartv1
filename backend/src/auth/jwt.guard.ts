@@ -10,6 +10,9 @@ import { JwtService } from '@nestjs/jwt';
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 
+  /**
+   * Extrae y valida el Bearer token, y expone el payload en `request.user`.
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       headers?: { authorization?: string };

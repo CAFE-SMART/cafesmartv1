@@ -1,143 +1,147 @@
-# Cafe Smart
+# Café Smart
 
-Sistema web y movil para gestion de cooperativas y compraventas de cafe.
+Café Smart es una plataforma web y móvil orientada a la digitalización y optimización de la gestión operativa y financiera en compraventas y cooperativas de café.
 
-Este repositorio contiene dos aplicaciones:
+El sistema estructura la operación bajo un modelo de control y trazabilidad por sublotes, permitiendo un seguimiento preciso del café desde su adquisición hasta su comercialización. A través de este enfoque, automatiza el cálculo de merma, costos y utilidad neta, garantizando integridad de la información y soporte para la toma de decisiones basada en datos.
 
-- frontend: React + Vite + Capacitor
-- backend: NestJS + Prisma
+## Tecnologías principales
 
-## Estructura
+- Backend: NestJS, Prisma y PostgreSQL
+- Base de datos en la nube: Supabase
+- Frontend web: React + Vite
+- Aplicación móvil: Capacitor + Android Studio
+- Monorepo: pnpm Workspaces
+
+## Estructura general del proyecto
 
 ```text
 cafesmartv1/
-|-- backend/
-|   |-- prisma/
-|   |   |-- schema.prisma
-|   |   `-- seed.ts
-|   |-- src/
-|   `-- package.json
-|-- frontend/
-|   |-- android/
-|   |-- src/
-|   `-- package.json
-|-- pnpm-workspace.yaml
-|-- package.json (root)
-|-- docker-compose.yml
-`-- README.md
+|-- backend/              API, lógica de negocio, Prisma y módulos del sistema
+|-- frontend/             Aplicación web, app móvil con Capacitor y recursos Android
+|-- docker-compose.yml    Entorno local opcional con PostgreSQL y servicios del proyecto
+|-- package.json          Scripts principales del monorepo
+|-- pnpm-workspace.yaml   Configuración de workspaces
+`-- README.md             Documentación principal
 ```
+
+### Componentes principales
+
+- `backend/`
+  API REST en NestJS, autenticación, módulos de compras, ventas, usuarios, parámetros y acceso a base de datos con Prisma.
+- `backend/prisma/`
+  Esquema principal de datos y seeding.
+- `frontend/`
+  Interfaz web en React y empaquetado móvil con Capacitor.
+- `frontend/src/`
+  Páginas, módulos funcionales, servicios, hooks y componentes reutilizables.
+- `frontend/android/`
+  Proyecto Android generado por Capacitor para compilar y ejecutar la app móvil en Android Studio.
 
 ## Requisitos
 
-- Node.js 22+
+- Node.js 22 o superior
 - pnpm
-- Android Studio (si se prueba movil)
+- Android Studio, si vas a probar la app móvil
+- Cuenta o proyecto en Supabase, si vas a trabajar con la base en la nube
 
-Verificar:
+Verifica tu entorno con:
 
 ```bash
 node -v
 pnpm -v
 ```
 
-### Opción 1: pnpm Workspaces (Recomendado)
+## Configuración de variables de entorno
 
-Instalar todo desde la raíz:
+### Backend
 
-```bash
-pnpm install
-```
+Crea `backend/.env` a partir de `backend/.env.example`.
 
-Levantar servicios desde la raíz:
+Las conexiones actuales del backend ya fueron validadas con Prisma y sí funcionan para:
 
-```bash
-pnpm dev:backend   # Inicia backend en modo dev
-pnpm dev:frontend  # Inicia frontend en modo dev
-pnpm seed          # Ejecuta el seeding de la base de datos
-```
+- conexión normal del backend
+- `prisma db pull --print`
+- `prisma db push`
+- sincronización de esquema con Supabase
 
-### Opción 2: Instalación Manual
+Uso esperado:
 
-Backend:
+- `DATABASE_URL`: conexión que usa el backend en ejecución normal
+- `DIRECT_URL`: conexión directa que usa Prisma para tareas de esquema e introspección
 
-```bash
-cd backend
-pnpm install
-pnpm prisma generate
-```
+Configuración recomendada en Supabase:
 
-Frontend:
+- `DATABASE_URL` usando Session Pooler
+- `DIRECT_URL` usando la conexión directa del proyecto
 
-```bash
-cd frontend
-pnpm install
-```
-
-## Variables de entorno
-
-Backend: crear backend/.env (hay ejemplo en backend/.env.example)
-
-Variables minimas:
+Ejemplo:
 
 ```env
-DATABASE_URL="postgresql://USUARIO:CLAVE@HOST:5432/postgres"
-DIRECT_URL="postgresql://USUARIO:CLAVE@HOST:5432/postgres"
-JWT_SECRET="tu_secreto"
-GOOGLE_CLIENT_ID="tu_google_client_id"
-GOOGLE_CLIENT_IDS="id_web,id_android"
+DATABASE_URL="postgresql://postgres.ielltlinimqcnwlkvrbs:TU_PASSWORD@aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DIRECT_URL="postgresql://postgres:TU_PASSWORD@db.ielltlinimqcnwlkvrbs.supabase.co:5432/postgres?sslmode=require"
+JWT_SECRET="cambia-esto-por-un-secreto-largo"
+GOOGLE_CLIENT_ID="TU_CLIENT_ID_WEB.apps.googleusercontent.com"
+GOOGLE_CLIENT_IDS="TU_CLIENT_ID_WEB.apps.googleusercontent.com,TU_CLIENT_ID_ANDROID.apps.googleusercontent.com"
 PRISMA_CONNECT_MAX_ATTEMPTS=5
 PRISMA_CONNECT_RETRY_DELAY_MS=3000
 ```
 
-Frontend: crear frontend/.env (hay ejemplo en frontend/.env.example)
+Notas importantes:
+
+- Solo debes reemplazar `TU_PASSWORD` y los valores sensibles como `JWT_SECRET` y los Client ID de Google.
+- Prisma CLI necesita que `DIRECT_URL` esté bien configurada cuando hagas `db pull`, `db push` o migraciones.
+
+### Frontend
+
+Crea `frontend/.env` a partir de `frontend/.env.example`.
+
+Variables principales:
 
 ```env
 VITE_API_URL="http://localhost:3000"
-VITE_GOOGLE_CLIENT_ID="tu_google_client_id_web"
+VITE_GOOGLE_CLIENT_ID="TU_CLIENT_ID_DE_GOOGLE.apps.googleusercontent.com"
 ```
 
-Importante:
+Notas importantes:
 
-- `backend/.env` si afecta el arranque real del backend.
-- `backend/.env.example` y `frontend/.env.example` son solo guia para el equipo.
-- Si el backend muestra error Prisma `P1000`, normalmente la clave real de Supabase no fue reemplazada bien en `DATABASE_URL` y `DIRECT_URL`.
-- Si el backend muestra error Prisma `P1001`, suele ser un problema de conectividad con Supabase. El backend ahora hace reintentos breves antes de fallar.
+- El frontend no se conecta directamente a PostgreSQL ni a Supabase.
+- El frontend siempre consume el backend.
+- Si cambias `VITE_API_URL`, debes volver a ejecutar `pnpm build` antes de sincronizar con Android.
 
-### Supabase (Producción o Nube)
+## Ejecución local del proyecto
 
-Si usas Supabase, la configuración en `backend/.env` debe usar su Session Pooler o conexión directa.
+### Opción recomendada: desde la raíz con pnpm Workspaces
 
-### PostgreSQL Local (Alternativa rápida)
+Instala dependencias:
 
-Si prefieres desarrollar localmente sin depender de Supabase, puedes usar el servicio incluido en `docker-compose.yml`:
+```bash
+pnpm install
+```
 
-1. Levanta la DB: `docker-compose up -d db`
-2. Configura tu `backend/.env`:
-   ```env
-   DATABASE_URL="postgresql://user_cafe:password_cafe@localhost:5432/cafe_smart_db"
-   DIRECT_URL="postgresql://user_cafe:password_cafe@localhost:5432/cafe_smart_db"
-   ```
-3. Ejecuta migraciones y seed:
-   ```bash
-   pnpm --filter cafe-smart-backend prisma migrate dev
-   pnpm seed
-   ```
+Levanta backend y frontend en desarrollo:
 
-Nota:
-- El frontend Android/web no debe conectarse directo a Postgres.
-- La app habla con el backend.
-- El backend es quien se conecta a la base de datos.
+```bash
+pnpm dev:backend
+pnpm dev:frontend
+```
 
-## Ejecutar
+Ejecuta el seed del backend:
 
-Backend dev:
+```bash
+pnpm seed
+```
+
+### Ejecución manual por aplicación
+
+Backend en desarrollo:
 
 ```bash
 cd backend
+pnpm install
 pnpm start:dev
 ```
 
-Backend prod:
+Backend en producción:
 
 ```bash
 cd backend
@@ -145,168 +149,181 @@ pnpm build
 pnpm start:prod
 ```
 
-Frontend dev:
+Frontend en desarrollo:
 
 ```bash
 cd frontend
+pnpm install
 pnpm dev
 ```
 
-Build de verificacion:
+Compilación de verificación:
 
 ```bash
-cd backend && pnpm build
-cd frontend && pnpm build
-```
-
-## Rutas frontend
-
-- /login
-- /register
-- /crear-empresa
-- /estado-sistema
-- /inventario (protegida)
-
-## Dependencias Clave Implementadas
-
-En este ciclo de desarrollo se incluyeron las siguientes dependencias esenciales:
-
-**Frontend**:
-- `@react-oauth/google`: Permite renderizar y gestionar el flujo seguro del botón de "Iniciar sesión con Google".
-- `lucide-react`: Librería ligera que nos provee los iconos modernos (ej. los escudos y las gráficas en el estado del sistema).
-- `@capacitor/...`: Conjunto de herramientas para compilar y empaquetar el frontend web `React` nativamente hacia `Android` (APK).
-
-**Backend**:
-- `@nestjs/jwt` y `bcrypt`: Se usan para encriptar las contraseñas de manera segura y gestionar los tokens de sesión firmados.
-- `google-auth-library`: Librería oficial de Google para el servidor, sirve para *desencriptar y validar* los tokens de seguridad de Google desde el lado del Backend (garantizando autenticación verídica).
-- `@prisma/client`: Nuestro ORM para interactuar con la base de datos de PostgreSQL (Supabase) evitando escribir consultas de SQL a mano.
-
-## Auth estandarizado (actual)
-
-Se unifico el contrato para login, register, loginGoogle y registerGoogle.
-
-Respuesta unica:
-
-```json
-{
-	"message": "Login exitoso",
-	"access_token": "...",
-	"hasCompany": true,
-	"user": {
-		"id": 1,
-		"email": "user@mail.com",
-		"name": "Nombre Apellido"
-	}
-}
-```
-
-Errores de campo (ejemplo correo duplicado):
-
-```json
-{
-	"message": "El correo ya esta registrado",
-	"field": "email"
-}
-```
-
-## Convencion de idioma en codigo
-
-Se adopto mix inteligente:
-
-- Tecnico en ingles: user, email, access_token, hasCompany
-- Dominio negocio en espanol: correo, nombre, organizacion en persistencia
-- Mensajes al usuario en espanol
-
-Regla:
-
-- Un endpoint, un contrato.
-- Evitar mezclar shapes viejos y nuevos.
-
-## Persistencia de sesion
-
-- Se usa @capacitor/preferences (no localStorage como fuente principal).
-- Claves de sesion centralizadas en frontend/src/storage/authStorage.ts.
-- Se implemento auto logout por expiracion de JWT en frontend/src/context/UserContext.tsx.
-
-## Estado de nube y base offline-first (actual)
-
-Se agrego una primera capa visual para preparar el camino offline-first sin romper la arquitectura actual.
-
-Que hace hoy:
-
-- Muestra un badge de nube en la parte superior de Inventario y Estado del sistema.
-- Verifica si el dispositivo tiene internet.
-- Verifica si la API del backend responde.
-- Muestra cuando login o registro estan sincronizando con la nube.
-- Muestra cuando la operacion quedo confirmada por la API.
-
-Estados visibles del badge:
-
-- Sin internet
-- Verificando nube
-- Nube conectada
-- Sincronizando
-- Guardado en la nube
-- Servidor no disponible
-- Fallo de sincronizacion
-
-Importante:
-
-- Esto todavia no es offline-first completo.
-- Aun no existe SQLite local ni cola de sincronizacion para lotes, ventas o inventario.
-- Esta fase solo deja la base de conectividad y feedback visual lista para que el equipo siga construyendo.
-
-Archivos agregados para esta capa:
-
-- frontend/src/context/CloudStatusContext.tsx
-- frontend/src/components/CloudStatusBadge.tsx
-- frontend/src/services/cloudStatusEvents.ts
-
-Archivos ajustados:
-
-- frontend/src/services/authService.ts
-- frontend/src/pages/SystemStatus.tsx
-- frontend/src/pages/Inventario.tsx
-- frontend/src/main.tsx
-
-Por que se hizo asi:
-
-- Para no cambiar dependencias compartidas del equipo.
-- Para no fingir una sincronizacion offline que todavia no existe.
-- Para dejar una base reutilizable sobre la que luego se pueda montar SQLite local y una cola real de sync.
-
-Siguiente fase recomendada:
-
-1. Crear base local SQLite en la app.
-2. Guardar primero local.
-3. Crear tabla de cola de sincronizacion.
-4. Subir pendientes al backend cuando vuelva internet.
-5. Mostrar cantidad de pendientes junto al badge de nube.
-
-## Flujo esperado
-
-1. Registro exitoso crea usuario y organizacion.
-2. Register/Login guardan token y user en sesion.
-3. Si hasCompany es true, navega a /inventario.
-4. Google login, si cuenta existe y esta vinculada, entra directo a /inventario.
-5. Si login/registro llegan al backend, el badge de nube puede mostrar "Guardado en la nube" o "Sesion validada con la nube".
-
-## Android (Capacitor)
-
-```bash
-cd frontend
+cd backend
 pnpm build
+
+cd ../frontend
+pnpm build
+```
+
+### Opción local con Docker
+
+Si quieres levantar el stack localmente con Docker:
+
+```bash
+pnpm docker:up
+```
+
+Para apagarlo:
+
+```bash
+pnpm docker:down
+```
+
+Si solo quieres usar la base de datos local:
+
+```bash
+docker-compose up -d db
+```
+
+En ese caso, ajusta `backend/.env` para apuntar a tu PostgreSQL local.
+
+## Ejecución en Android Studio
+
+Esta es la forma recomendada para probar la app móvil Android usando Capacitor.
+
+### 1. Prepara Android Studio
+
+- Instala Android Studio.
+- Abre el `SDK Manager` y asegúrate de tener instalado el SDK de Android.
+- Crea un emulador desde el `Device Manager`, o conecta un dispositivo físico con depuración USB habilitada.
+
+### 2. Configura el frontend
+
+Antes de compilar la app móvil, revisa `frontend/.env`.
+
+Ejemplos de `VITE_API_URL` según el entorno:
+
+- Web local:
+  `VITE_API_URL="http://localhost:3000"`
+- Emulador Android:
+  `VITE_API_URL="http://10.0.2.2:3000"`
+- Dispositivo físico en la misma red:
+  `VITE_API_URL="http://TU_IP_LOCAL:3000"`
+- Backend desplegado:
+  `VITE_API_URL="https://tu-backend.com"`
+
+### 3. Construye la app web que usará Capacitor
+
+Desde `frontend/`:
+
+```bash
+pnpm build
+```
+
+Este paso genera la carpeta `dist/`, que es la versión web que luego se copia al proyecto Android.
+
+### 4. Sincroniza el proyecto Android
+
+```bash
 npx cap sync android
+```
+
+Este comando:
+
+- copia los archivos de `dist/` al proyecto Android
+- actualiza la integración de Capacitor
+- refleja en Android los cambios recientes del frontend
+
+Debes repetir `pnpm build` y luego `npx cap sync android` cada vez que cambies el frontend y quieras ver esos cambios en la app Android.
+
+### 5. Abre Android Studio
+
+```bash
 npx cap open android
 ```
 
-Para emulador Android usar URL backend con 10.0.2.2 si aplica.
+Esto abre el proyecto nativo Android generado dentro de `frontend/android/`.
 
-## Limpieza realizada para evitar confusion
+### 6. Espera la sincronización de Gradle
 
-- Se removio capa legacy de sesion en frontend (sessionPersistence).
-- Se elimino contrato viejo de auth que devolvia estructuras distintas.
-- Se consolido respuestas de auth en un solo helper de backend.
-- Se alineo frontend al contrato nuevo y se limpiaron mapeos viejos.
-- Se corrigio el estandar de nombres de NestJS (`user.services.ts` a `users.service.ts`).
-- Se modernizo el diseno de Estado del Sistema a un CSS Grid mas compacto y profesional.
+Cuando Android Studio abra el proyecto:
+
+- espera a que termine la sincronización de Gradle
+- deja que descargue dependencias si es la primera vez
+- revisa que no haya errores de SDK o de versión de Gradle
+
+### 7. Ejecuta la app
+
+- Selecciona el emulador o dispositivo físico en la barra superior de Android Studio.
+- Pulsa el botón `Run`.
+- Android Studio compilará el proyecto e instalará la app.
+
+### 8. Cuándo repetir cada paso
+
+- Si cambias código React, vistas, estilos o servicios del frontend:
+  vuelve a ejecutar `pnpm build` y `npx cap sync android`.
+- Si cambias configuración nativa Android:
+  normalmente basta con abrir Android Studio y recompilar.
+
+### Problemas comunes en Android
+
+- La app abre pero no carga datos:
+  revisa `VITE_API_URL` y confirma que el backend esté encendido.
+- En el emulador no responde `localhost`:
+  usa `10.0.2.2` en lugar de `localhost`.
+- En dispositivo físico no conecta:
+  usa la IP local de tu computador y asegúrate de que ambos estén en la misma red.
+- Los cambios del frontend no aparecen:
+  vuelve a ejecutar `pnpm build` y `npx cap sync android`.
+- Android Studio tarda mucho o falla al abrir:
+  espera la descarga inicial de Gradle y verifica que el SDK de Android esté instalado correctamente.
+
+## Base de datos y Prisma
+
+Comandos útiles desde `backend/`:
+
+Generar Prisma Client:
+
+```bash
+pnpm exec prisma generate
+```
+
+Inspeccionar el estado actual de la base:
+
+```bash
+pnpm exec prisma db pull --print
+```
+
+Sincronizar el esquema con la base:
+
+```bash
+pnpm exec prisma db push
+```
+
+Seed de la base:
+
+```bash
+pnpm exec prisma db seed
+```
+
+Notas:
+
+- Usa `DIRECT_URL` para tareas de Prisma relacionadas con esquema.
+- Usa `DATABASE_URL` para la operación normal del backend.
+- El modelo actual del sistema trabaja con trazabilidad por sublotes.
+- El módulo de ventas descuenta inventario desde `Sublote` y registra movimientos para mantener trazabilidad.
+
+## Problemas comunes
+
+- Error Prisma `P1000`:
+  normalmente la contraseña o la URL están mal escritas en `DATABASE_URL` o `DIRECT_URL`.
+- Error Prisma `P1001`:
+  suele indicar problema de conectividad con Supabase o con PostgreSQL.
+- Prisma intenta borrar una columna existente:
+  revisa primero la estructura real con `pnpm exec prisma db pull --print` antes de hacer `db push`.
+- El backend no conecta al iniciar:
+  confirma `DATABASE_URL`, `JWT_SECRET` y acceso a la red.
+- Google OAuth falla:
+  revisa los Client ID configurados en backend y frontend.

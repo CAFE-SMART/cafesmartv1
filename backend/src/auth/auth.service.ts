@@ -20,6 +20,10 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * Resuelve los Client ID validos para Google OAuth.
+   * Prioriza la lista multiple y, si no existe, usa el Client ID unico.
+   */
   private getGoogleAudiences(): string | string[] {
     const list = (this.configService.get<string>('GOOGLE_CLIENT_IDS') ?? '')
       .split(',')
@@ -44,6 +48,9 @@ export class AuthService {
     return new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
   }
 
+  /**
+   * Registra un administrador nuevo junto con su organizacion inicial.
+   */
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.correo.trim().toLowerCase();
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
@@ -78,6 +85,9 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Registro exitoso');
   }
 
+  /**
+   * Registra o vincula una cuenta usando el token emitido por Google.
+   */
   async registerGoogle(dto: RegisterGoogleDto) {
     const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: dto.googleToken,
@@ -136,6 +146,9 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Registro con Google exitoso');
   }
 
+  /**
+   * Valida credenciales tradicionales y devuelve el contrato unificado de sesion.
+   */
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email.trim().toLowerCase());
 
@@ -164,6 +177,9 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Login exitoso');
   }
 
+  /**
+   * Autentica una cuenta existente a partir de un token valido de Google.
+   */
   async loginWithGoogle(googleData: { idToken: string }) {
     const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: googleData.idToken,
@@ -208,6 +224,9 @@ export class AuthService {
     return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
   }
 
+  /**
+   * Traduce errores de unicidad de Prisma a mensajes funcionales para el cliente.
+   */
   private throwIfUniqueConstraint(error: unknown): never | void {
     if (
       !error ||
@@ -246,6 +265,9 @@ export class AuthService {
     }
   }
 
+  /**
+   * Construye la respuesta comun de autenticacion para login y registro.
+   */
   private buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);

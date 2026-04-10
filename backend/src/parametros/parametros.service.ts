@@ -6,12 +6,11 @@ export class ParametrosService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Obtiene un parámetro específico de una organización.
-   * Valida existencia, valor no vacío y conversión numérica.
-   * 
-   * @param nombre Nombre del parámetro a consultar.
-   * @param organizacionId UUID de la organización.
-   * @returns El valor del parámetro convertido a número.
+   * Obtiene un parametro numerico por organizacion y valida que tenga contenido util.
+   *
+   * @param nombre Nombre del parametro a consultar.
+   * @param organizacionId UUID de la organizacion.
+   * @returns El valor del parametro convertido a numero.
    * @throws InternalServerErrorException en cualquier caso de error.
    */
   async getParametro(nombre: string, organizacionId: string): Promise<number> {
@@ -24,19 +23,22 @@ export class ParametrosService {
       },
     });
 
-    // Validar existencia y valor no vacío
-    if (!parametro || parametro.valor === null || parametro.valor === undefined || parametro.valor.trim() === '') {
+    if (
+      !parametro ||
+      parametro.valor === null ||
+      parametro.valor === undefined ||
+      parametro.valor.trim() === ''
+    ) {
       throw new InternalServerErrorException(
-        `El parámetro '${nombre}' no existe o está vacío para la organización.`,
+        `El parametro '${nombre}' no existe o esta vacio para la organizacion.`,
       );
     }
 
     const valorNumerico = Number(parametro.valor);
 
-    // Validar conversión a número
-    if (isNaN(valorNumerico)) {
+    if (Number.isNaN(valorNumerico)) {
       throw new InternalServerErrorException(
-        `El parámetro '${nombre}' no tiene un valor numérico válido: ${parametro.valor}`,
+        `El parametro '${nombre}' no tiene un valor numerico valido: ${parametro.valor}`,
       );
     }
 

@@ -1,0 +1,58 @@
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+
+export class CreateVentaDetalleDto {
+  @IsUUID('4', { message: 'El sublote seleccionado no es valido' })
+  @IsNotEmpty({ message: 'Debe seleccionar un sublote' })
+  subloteId: string;
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El peso vendido debe ser un numero' })
+  @Min(0.01, { message: 'El peso vendido debe ser mayor a 0' })
+  @Max(100000, { message: 'El peso vendido no puede superar los 100,000 kg' })
+  pesoVendido: number;
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El precio por kg debe ser un numero' })
+  @Min(0.01, { message: 'El precio por kg debe ser mayor a 0' })
+  @Max(100000, { message: 'El precio por kg no puede superar los 100,000' })
+  precioKg: number;
+}
+
+export class CreateVentaDto {
+  @IsOptional()
+  @IsDateString({}, { message: 'La fecha debe tener un formato valido' })
+  fecha?: string;
+
+  @IsOptional()
+  @IsUUID('4', { message: 'El cliente seleccionado no es valido' })
+  @IsString({ message: 'clienteId debe ser un texto' })
+  @IsNotEmpty({ message: 'clienteId no puede venir vacio' })
+  clienteId?: string;
+
+  @IsArray({ message: 'Los detalles deben venir en una lista' })
+  @ArrayMinSize(1, { message: 'Debe registrar al menos un detalle de venta' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateVentaDetalleDto)
+  detalles: CreateVentaDetalleDto[];
+
+  @IsString({ message: 'deviceId debe ser un texto' })
+  @IsNotEmpty({ message: 'deviceId es obligatorio' })
+  deviceId: string;
+
+  @IsString({ message: 'localId debe ser un texto' })
+  @IsNotEmpty({ message: 'localId es obligatorio' })
+  localId: string;
+}
