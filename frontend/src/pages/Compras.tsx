@@ -8,13 +8,16 @@ import {
   CalendarDays,
   Check,
   Coffee,
+  Frown,
   Leaf,
+  Meh,
   Pencil,
   Plus,
   RefreshCcw,
   Search,
   Save,
   ShoppingBag,
+  Smile,
   SunMedium,
   Trash2,
   Warehouse,
@@ -193,10 +196,62 @@ function ordenarCatalogos(items: CatalogoItem[], ordenBase: string[]) {
 
 function iconoTipoCafe(nombre: string) {
   const tipo = clave(nombre);
-  if (tipo === 'VERDE') return { icono: <Leaf size={18} />, fondo: 'bg-[#eff9f1] text-[#185d31]' };
-  if (tipo === 'SECO') return { icono: <SunMedium size={18} />, fondo: 'bg-[#fff4e9] text-[#9d4a12]' };
-  if (tipo === 'PASILLA') return { icono: <BadgeAlert size={18} />, fondo: 'bg-[#fff0f4] text-[#a31d3e]' };
-  return { icono: <Coffee size={18} />, fondo: 'bg-[#eef2ff] text-[#102d92]' };
+  if (tipo === 'VERDE') {
+    return {
+      icono: <Leaf size={18} />,
+      fondo: 'bg-[#eff9f1] text-[#185d31]',
+      borde: 'border-[#d4efde]',
+      texto: 'text-[#1f7f46]',
+    };
+  }
+  if (tipo === 'SECO') {
+    return {
+      icono: <SunMedium size={18} />,
+      fondo: 'bg-[#fff4e9] text-[#9d4a12]',
+      borde: 'border-[#f8dfc7]',
+      texto: 'text-[#9d4a12]',
+    };
+  }
+  if (tipo === 'PASILLA') {
+    return {
+      icono: <BadgeAlert size={18} />,
+      fondo: 'bg-[#fff0f4] text-[#a31d3e]',
+      borde: 'border-[#ffd4e1]',
+      texto: 'text-[#a31d3e]',
+    };
+  }
+  return {
+    icono: <Coffee size={18} />,
+    fondo: 'bg-[#eef2ff] text-[#102d92]',
+    borde: 'border-[#d9e4ff]',
+    texto: 'text-[#102d92]',
+  };
+}
+
+function visualCalidad(nombre: string) {
+  const calidad = clave(nombre);
+  if (calidad === 'BUENO') {
+    return {
+      icono: <Smile size={16} />,
+      fondo: 'bg-[#ecf4ff] text-[#173ea6]',
+      borde: 'border-[#d5e1ff]',
+      texto: 'text-[#173ea6]',
+    };
+  }
+  if (calidad === 'REGULAR') {
+    return {
+      icono: <Meh size={16} />,
+      fondo: 'bg-[#fff6e7] text-[#8f5f08]',
+      borde: 'border-[#f3ddb3]',
+      texto: 'text-[#8f5f08]',
+    };
+  }
+  return {
+    icono: <Frown size={16} />,
+    fondo: 'bg-[#fff0f4] text-[#a31d3e]',
+    borde: 'border-[#ffd5e1]',
+    texto: 'text-[#a31d3e]',
+  };
 }
 
 function datosPaso(step: Step) {
@@ -627,8 +682,8 @@ export default function Compras() {
         </section>
 
         {step === 1 ? (
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
+          <section className="flex flex-col gap-4">
+            <div className="order-2 flex items-center gap-3">
               <div className="relative flex-1">
                 <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -661,15 +716,15 @@ export default function Compras() {
               </button>
             </div>
             {busquedaPendiente ? (
-              <p className="text-sm text-slate-500">Pulsa la lupa para buscar el productor escrito.</p>
+              <p className="order-3 text-sm text-slate-500">Pulsa la lupa para buscar el productor escrito.</p>
             ) : null}
 
-            <button type="button" onClick={() => abrirModalProductor()} className="inline-flex w-full items-center justify-center gap-3 rounded-[18px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]">
+            <button type="button" onClick={() => abrirModalProductor()} className="order-4 inline-flex w-full items-center justify-center gap-3 rounded-[18px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]">
               <Plus size={18} />
               Nuevo Productor
             </button>
 
-            <button type="button" onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)} className="w-full rounded-[20px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3.5 text-left text-[#102d92] shadow-sm">
+            <button type="button" onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)} className="order-1 w-full rounded-[20px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3.5 text-left text-[#102d92] shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[1.08rem] font-black leading-tight">Productor General</p>
@@ -683,7 +738,7 @@ export default function Compras() {
               </div>
             </button>
 
-            <div>
+            <div className="order-5">
               <p className="text-sm font-black uppercase tracking-[0.24em] text-slate-400">Productores recientes</p>
               <div className="mt-4 space-y-3">
                 {productoresRecientes.map((productor) => {
@@ -727,7 +782,7 @@ export default function Compras() {
               </div>
             </div>
 
-            <article className="rounded-[24px] border border-[#eceffa] bg-[#f4f5ff] p-5 shadow-sm">
+            <article className="order-6 rounded-[24px] border border-[#eceffa] bg-[#f4f5ff] p-5 shadow-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Total productores</p>
@@ -758,7 +813,7 @@ export default function Compras() {
                 <ArrowLeft size={18} />
               </button>
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Paso 2 de la compra</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Productor seleccionado</p>
                 <p className="text-[1.05rem] font-semibold text-slate-600">{productorSeleccionado.nombre}</p>
               </div>
             </div>
@@ -811,9 +866,32 @@ export default function Compras() {
                     <div className="grid grid-cols-2 gap-3">
                       {tiposCafe.map((tipoCafe) => {
                         const activo = sublote.tipoCafeId === tipoCafe.id;
+                        const visualTipo = iconoTipoCafe(tipoCafe.nombre);
                         return (
-                          <button key={tipoCafe.id} type="button" onClick={() => actualizarSublote(sublote.id, 'tipoCafeId', tipoCafe.id)} className={`rounded-[18px] border px-4 py-3.5 text-sm font-black transition ${activo ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]' : 'border-transparent bg-white/70 text-slate-700'}`}>
-                            {tipoCafe.nombre}
+                          <button
+                            key={tipoCafe.id}
+                            type="button"
+                            onClick={() =>
+                              actualizarSublote(sublote.id, 'tipoCafeId', tipoCafe.id)
+                            }
+                            className={`rounded-[18px] border px-3 py-3 text-sm font-black transition ${
+                              activo
+                                ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]'
+                                : `${visualTipo.borde} bg-white/85 text-slate-700 hover:bg-white`
+                            }`}
+                          >
+                            <span className="flex flex-col items-center gap-1.5">
+                              <span
+                                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${
+                                  activo ? 'bg-[#e8efff] text-[#173ea6]' : visualTipo.fondo
+                                }`}
+                              >
+                                {visualTipo.icono}
+                              </span>
+                              <span className="text-xs font-black uppercase tracking-[0.08em]">
+                                {tipoCafe.nombre}
+                              </span>
+                            </span>
                           </button>
                         );
                       })}
@@ -825,9 +903,32 @@ export default function Compras() {
                     <div className="grid grid-cols-3 gap-3">
                       {calidades.map((calidad) => {
                         const activo = sublote.calidadId === calidad.id;
+                        const visual = visualCalidad(calidad.nombre);
                         return (
-                          <button key={calidad.id} type="button" onClick={() => actualizarSublote(sublote.id, 'calidadId', calidad.id)} className={`rounded-[18px] border px-3 py-3.5 text-sm font-black transition ${activo ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]' : 'border-transparent bg-white/70 text-slate-700'}`}>
-                            {calidad.nombre}
+                          <button
+                            key={calidad.id}
+                            type="button"
+                            onClick={() =>
+                              actualizarSublote(sublote.id, 'calidadId', calidad.id)
+                            }
+                            className={`rounded-[18px] border px-2 py-3 text-sm font-black transition ${
+                              activo
+                                ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]'
+                                : `${visual.borde} bg-white/85 text-slate-700 hover:bg-white`
+                            }`}
+                          >
+                            <span className="flex flex-col items-center gap-1.5">
+                              <span
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
+                                  activo ? 'bg-[#e8efff] text-[#173ea6]' : visual.fondo
+                                }`}
+                              >
+                                {visual.icono}
+                              </span>
+                              <span className="text-[11px] font-black uppercase tracking-[0.08em]">
+                                {calidad.nombre}
+                              </span>
+                            </span>
                           </button>
                         );
                       })}

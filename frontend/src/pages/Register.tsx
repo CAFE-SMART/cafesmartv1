@@ -230,7 +230,7 @@ export default function Register() {
               <h2 className="text-2xl font-bold text-[#0f172a] mb-1">
                 Informacion del Negocio
               </h2>
-              <p className="text-gray-500 mb-8 text-sm">
+              <p className="text-gray-500 mb-6 text-sm">
                 Comencemos configurando la identidad de su establecimiento cafetero.
               </p>
 
@@ -263,7 +263,7 @@ export default function Register() {
                 <label className="block text-sm font-bold text-slate-700 mb-3">
                   Tipo de negocio
                 </label>
-                <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
                   {tiposOrg.map((t) => {
                     const selected = tipoOrganizacion === t.value;
                     return (
@@ -274,33 +274,25 @@ export default function Register() {
                           setTipoOrganizacion(t.value);
                           setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
                         }}
-                        className={`
-                          w-full flex items-center gap-4 px-4 py-4 rounded-xl border-2 text-left transition-all
-                          ${
-                            selected
-                              ? 'border-[#1e3a8a] bg-blue-50/60 shadow-sm'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                          }
-                        `}
+                        className={`w-full min-h-[122px] rounded-xl border px-2 py-3 text-center transition-all ${
+                          selected
+                            ? 'border-[#1e3a8a] bg-blue-50/60 shadow-sm'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
                       >
-                        <div
-                          className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${colorByType[t.value]}`}
-                        >
-                          {t.icon}
+                        <div className="mx-auto flex justify-center">
+                          <div
+                            className={`h-10 w-10 rounded-xl flex items-center justify-center ${colorByType[t.value]}`}
+                          >
+                            {t.icon}
+                          </div>
                         </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[#0f172a] text-sm">{t.label}</p>
-                          <p className="text-xs text-gray-500">{t.desc}</p>
-                        </div>
-
-                        <div
-                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            selected ? 'border-[#1e3a8a] bg-[#0f172a]' : 'border-gray-300'
-                          }`}
-                        >
-                          {selected && <div className="w-2 h-2 rounded-full bg-white" />}
-                        </div>
+                        <p className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]">
+                          {t.label}
+                        </p>
+                        <p className="mt-1 hidden text-[10px] leading-4 text-slate-500 sm:block">
+                          {t.desc}
+                        </p>
                       </button>
                     );
                   })}
@@ -342,7 +334,7 @@ export default function Register() {
                 onClick={goToStep2}
                 className="w-full py-3.5 px-4 rounded-xl text-white font-semibold bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
               >
-                Siguiente Paso <ArrowRight size={18} />
+                Siguiente paso <ArrowRight size={18} />
               </button>
             </section>
           )}
