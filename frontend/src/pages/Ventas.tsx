@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { LoteResumen, obtenerLotes } from '../services/lotesService';
+import { CreateVentaResponse, crearVenta } from '../services/ventasService';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -33,13 +34,30 @@ type ClienteForm = { nombre: string; telefono: string; documento: string };
 type LoteVenta = {
   id: string;
   codigo: string;
+  tipoCafeId: string;
   tipoCafe: string;
+  calidadId: string;
   calidad: string;
   disponibleKg: number;
   cantidadKg: string;
   precioKg: string;
 };
+type VentaGuardadaResumen = {
+  referenciaId: string;
+  clienteNombre: string;
+  clienteDocumento: string;
+  totalKg: number;
+  totalVenta: number;
+  items: Array<{
+    codigo: string;
+    tipoCafe: string;
+    calidad: string;
+    cantidadKg: number;
+    subtotal: number;
+  }>;
+};
 
+const DEVICE_STORAGE_KEY = 'cafesmart-device-id';
 const STORAGE_KEY = 'cafesmart-clientes-locales-v1';
 const LIMITE = 6;
 
@@ -71,7 +89,9 @@ function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
     .map((l) => ({
       id: l.id,
       codigo: l.codigo,
+      tipoCafeId: l.tipoCafeId,
       tipoCafe: l.tipoCafe,
+      calidadId: l.calidadId,
       calidad: l.calidad,
       disponibleKg: l.pesoActual,
       cantidadKg: '',
@@ -102,6 +122,32 @@ const uid = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+function obtenerDeviceId() {
+  if (typeof window === 'undefined') return uid();
+  const existente = window.localStorage.getItem(DEVICE_STORAGE_KEY);
+  if (existente) return existente;
+  const nuevo = uid();
+  window.localStorage.setItem(DEVICE_STORAGE_KEY, nuevo);
+  return nuevo;
+}
+
+function crearResumenVentaGuardada(respuesta: CreateVentaResponse): VentaGuardadaResumen {
+  return {
+    referenciaId: respuesta.venta.referenciaId,
+    clienteNombre: respuesta.venta.cliente.nombre,
+    clienteDocumento: respuesta.venta.cliente.documento,
+    totalKg: respuesta.venta.totalKg,
+    totalVenta: respuesta.venta.totalVenta,
+    items: respuesta.items.map((item) => ({
+      codigo: item.codigo,
+      tipoCafe: item.tipoCafe,
+      calidad: item.calidad,
+      cantidadKg: item.cantidadKg,
+      subtotal: item.subtotal,
+    })),
+  };
+}
+
 function datosPasoVenta(step: Step) {
   if (step === 1) {
     return {
@@ -131,7 +177,9 @@ export default function Ventas() {
   const navigate = useNavigate();
   const [cargando, setCargando] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [ventaExitosa, setVentaExitosa] = React.useState(false);
+  const [guardandoVenta, setGuardandoVenta] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
   const [paso, setPaso] = React.useState<Step>(1);
   const [intentoPaso1, setIntentoPaso1] = React.useState(false);
   const [intentoPaso2, setIntentoPaso2] = React.useState(false);
@@ -145,6 +193,7 @@ export default function Ventas() {
   const [mostrarModal, setMostrarModal] = React.useState(false);
   const [clienteForm, setClienteForm] = React.useState<ClienteForm>({ nombre: '', telefono: '', documento: '' });
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(null);
+  const ventaLocalIdRef = React.useRef(uid());
 
   const cargarLotes = React.useCallback(async () => {
     try {
@@ -211,8 +260,8 @@ export default function Ventas() {
   const parcialConErrores = React.useMemo(() => {
     if (modoVenta !== 'PARCIAL') return false;
     return lotesVenta.some((lote) => {
-      const touched = lote.cantidadKg.trim() !== '' || lote.precioKg.trim() !== '';
-      if (!touched) return false;
+      const cantidadIngresada = lote.cantidadKg.trim() !== '';
+      if (!cantidadIngresada) return false;
       const cantidad = toNum(lote.cantidadKg);
       return cantidad <= 0 || cantidad > lote.disponibleKg || toNum(lote.precioKg) <= 0;
     });
@@ -228,21 +277,24 @@ export default function Ventas() {
     if (paso === 1) {
       setIntentoPaso1(true);
       if (!clienteSeleccionado) return;
+      setSubmitError(null);
       setIntentoPaso2(false);
       return setPaso(2);
     }
     if (paso === 2) {
       setIntentoPaso2(true);
       if (!puedeAvanzarPaso2) return;
+      setSubmitError(null);
       return setPaso(3);
     }
   }, [paso, clienteSeleccionado, puedeAvanzarPaso2]);
 
   const anterior = React.useCallback(() => {
+    setSubmitError(null);
     setPaso((p) => Math.max(1, p - 1) as Step);
   }, []);
 
-  const confirmar = React.useCallback(() => {
+  const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
       setPaso(1);
       setIntentoPaso1(true);
@@ -254,12 +306,44 @@ export default function Ventas() {
       setIntentoPaso2(true);
       return;
     }
-    setVentaExitosa(true);
-  }, [clienteSeleccionado, validarPasoVenta]);
+    if (guardandoVenta) return;
+
+    setGuardandoVenta(true);
+    setSubmitError(null);
+
+    try {
+      const respuesta = await crearVenta({
+        deviceId: obtenerDeviceId(),
+        localId: ventaLocalIdRef.current,
+        cliente: {
+          nombre: clienteSeleccionado.nombre,
+          documento: clienteSeleccionado.documento,
+          telefono: clienteSeleccionado.telefono,
+          detalle: clienteSeleccionado.detalle,
+          rapido: clienteSeleccionado.rapido,
+        },
+        items: lotesConCantidad.map((lote) => ({
+          tipoCafeId: lote.tipoCafeId,
+          calidadId: lote.calidadId,
+          cantidadKg: lote.cantidad,
+          precioKg: lote.precio,
+        })),
+      });
+
+      setVentaGuardada(crearResumenVentaGuardada(respuesta));
+      await cargarLotes();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'No fue posible registrar la venta.');
+    } finally {
+      setGuardandoVenta(false);
+    }
+  }, [cargarLotes, clienteSeleccionado, guardandoVenta, lotesConCantidad, validarPasoVenta]);
 
   const reiniciar = React.useCallback(() => {
     setPaso(1);
-    setVentaExitosa(false);
+    setGuardandoVenta(false);
+    setSubmitError(null);
+    setVentaGuardada(null);
     setClienteSeleccionado(null);
     setBusquedaCliente('');
     setBusquedaAplicada('');
@@ -268,11 +352,18 @@ export default function Ventas() {
     setIntentoPaso1(false);
     setIntentoPaso2(false);
     setLoadError(null);
-    setLotesVenta((prev) => prev.map((l) => ({ ...l, cantidadKg: '' })));
-  }, []);
+    ventaLocalIdRef.current = uid();
+    void cargarLotes();
+  }, [cargarLotes]);
 
   const updateLote = (id: string, campo: 'cantidadKg' | 'precioKg', valor: string) =>
     setLotesVenta((prev) => prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l)));
+
+  const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
+    setClienteSeleccionado(cliente);
+    setIntentoPaso1(false);
+    setSubmitError(null);
+  }, []);
 
   const buscarCliente = () => setBusquedaAplicada(busquedaCliente.trim());
   const pasoActual = React.useMemo(() => datosPasoVenta(paso), [paso]);
@@ -306,9 +397,10 @@ export default function Ventas() {
     setBusquedaAplicada(nombre);
     setMostrarModal(false);
     setClienteFormError(null);
+    setSubmitError(null);
   };
 
-  if (ventaExitosa) {
+  if (ventaGuardada) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[145px] text-slate-900">
         <div className="mx-auto max-w-[520px] space-y-4">
@@ -316,14 +408,34 @@ export default function Ventas() {
             <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-black text-[#0d7b67]">Venta exitosa</span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
             <h2 className="mt-3 text-[1.35rem] font-black text-[#102d92]">¡Venta exitosa!</h2>
-            <p className="mt-2 text-sm text-slate-600">El registro quedó listo para sincronizar.</p>
+            <p className="mt-2 text-sm text-slate-600">La venta se registró y el inventario quedó actualizado.</p>
             <div className="mt-4 rounded-[14px] border border-[#e1e6f3] bg-[#f8f9ff] p-4 text-left">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Cliente</p>
               <p className="mt-1 text-lg font-black text-slate-900">
-                {clienteSeleccionado?.nombre ?? 'Sin cliente'}
+                {ventaGuardada.clienteNombre}
               </p>
-              <p className="mt-2 text-sm text-slate-600">Total: {kg(totalKg)}</p>
-              <p className="text-sm font-black text-[#102d92]">{money(totalEstimado)}</p>
+              <p className="text-xs text-slate-600">{ventaGuardada.clienteDocumento}</p>
+              <p className="mt-2 text-sm text-slate-600">Total: {kg(ventaGuardada.totalKg)}</p>
+              <p className="text-sm font-black text-[#102d92]">{money(ventaGuardada.totalVenta)}</p>
+            </div>
+            <div className="mt-3 rounded-[14px] border border-[#e1e6f3] bg-[#fcfcff] p-4 text-left">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Detalle</p>
+              <div className="mt-2 space-y-2">
+                {ventaGuardada.items.map((item) => (
+                  <div
+                    key={`${ventaGuardada.referenciaId}-${item.codigo}`}
+                    className="rounded-[12px] border border-[#e7ebf7] bg-white px-3 py-2"
+                  >
+                    <p className="text-sm font-black text-slate-900">{item.codigo}</p>
+                    <p className="text-xs text-slate-600">
+                      {item.tipoCafe} - {item.calidad}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[#102d92]">
+                      {kg(item.cantidadKg)} - {money(item.subtotal)}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="mt-4 grid gap-2">
               <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-sm font-black text-[#102d92]">Nueva venta</button>
@@ -587,7 +699,7 @@ export default function Ventas() {
 
                 <button
                   type="button"
-                  onClick={() => setClienteSeleccionado(CLIENTE_GENERAL)}
+                  onClick={() => seleccionarCliente(CLIENTE_GENERAL)}
                   className={`mt-4 w-full rounded-[16px] border p-4 text-left ${
                     clienteSeleccionadoId === CLIENTE_GENERAL.id
                       ? 'border-[#102d92] bg-[#eef2ff]'
@@ -676,7 +788,7 @@ export default function Ventas() {
                           <button
                             key={cliente.id}
                             type="button"
-                            onClick={() => setClienteSeleccionado(cliente)}
+                            onClick={() => seleccionarCliente(cliente)}
                             className={`w-full rounded-[14px] border px-3 py-3 text-left ${
                               selected ? 'border-[#102d92] bg-[#eef2ff]' : 'border-[#e3e7f3] bg-[#fcfcff]'
                             }`}
@@ -690,6 +802,12 @@ export default function Ventas() {
                                 <p className="mt-0.5 truncate text-xs text-slate-600">{cliente.documento}</p>
                                 <p className="mt-0.5 truncate text-xs text-slate-500">{cliente.detalle}</p>
                               </div>
+                              {selected ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#102d92] px-2.5 py-1 text-[11px] font-black text-white">
+                                  <CheckCircle2 size={12} />
+                                  Seleccionado
+                                </span>
+                              ) : null}
                             </div>
                           </button>
                         );
@@ -697,6 +815,15 @@ export default function Ventas() {
                     </div>
                   )}
                 </div>
+
+                {clienteInvalido ? (
+                  <p
+                    className="mt-4 rounded-[12px] border border-[#f1b7b7] bg-[#fff5f5] px-3 py-2 text-sm font-semibold text-[#b42318]"
+                    role="alert"
+                  >
+                    Selecciona un cliente para continuar.
+                  </p>
+                ) : null}
 
                 <div className="mt-4">
                   <button
@@ -708,6 +835,7 @@ export default function Ventas() {
                     <ArrowRight size={16} />
                   </button>
                 </div>
+
               </section>
             ) : null}
 
@@ -719,6 +847,12 @@ export default function Ventas() {
                 <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
                   Confirma los datos de la venta
                 </h2>
+
+                {submitError ? (
+                  <div className="mt-4 rounded-[14px] border border-[#f1b7b7] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+                    {submitError}
+                  </div>
+                ) : null}
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
                   <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
@@ -772,10 +906,22 @@ export default function Ventas() {
                   <button
                     type="button"
                     onClick={confirmar}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-black text-white"
+                    disabled={guardandoVenta}
+                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-black text-white ${
+                      guardandoVenta ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
+                    }`}
                   >
-                    Confirmar venta
-                    <ArrowRight size={16} />
+                    {guardandoVenta ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        Guardando venta...
+                      </>
+                    ) : (
+                      <>
+                        Confirmar venta
+                        <ArrowRight size={16} />
+                      </>
+                    )}
                   </button>
                 </div>
               </section>

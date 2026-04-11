@@ -190,11 +190,6 @@ export class ComprasService {
           organizacionIdFinal,
         );
         const compraProcesada = procesarCompra(input, contextoCapacidad);
-        const lotesCompra = await this.asegurarLotesCompra(
-          tx,
-          organizacionIdFinal,
-          compraProcesada.sublotes,
-        );
         const movimientosCompra = this.construirMovimientosCompra(
           compraProcesada.sublotes,
         );
@@ -215,7 +210,6 @@ export class ComprasService {
             compra.id,
             input,
             compraProcesada.sublotes,
-            lotesCompra,
           ),
         });
 
@@ -402,125 +396,22 @@ export class ComprasService {
     };
   }
 
-  private construirClaveLote(tipoCafeId: string, calidadId: string): string {
-    return `${tipoCafeId}::${calidadId}`;
-  }
-
-  private async asegurarLotesCompra(
-    tx: Prisma.TransactionClient,
-    organizacionId: string,
-    sublotesProcesados: CompraProcesada['sublotes'],
-  ): Promise<Map<string, string>> {
-    const tipoCafeIds = [...new Set(sublotesProcesados.map((s) => s.tipoCafeId))];
-    const calidadIds = [...new Set(sublotesProcesados.map((s) => s.calidadId))];
-
-    const [tiposCafe, calidades, lotesExistentes] = await Promise.all([
-      tx.tipoCafe.findMany({
-        where: { id: { in: tipoCafeIds } },
-        select: { id: true, nombre: true },
-      }),
-      tx.calidad.findMany({
-        where: { id: { in: calidadIds } },
-        select: { id: true, nombre: true },
-      }),
-      tx.lote.findMany({
-        where: {
-          organizacionId,
-          tipoCafeId: { in: tipoCafeIds },
-          calidadId: { in: calidadIds },
-        },
-        select: { id: true, tipoCafeId: true, calidadId: true },
-      }),
-    ]);
-
-    const nombreTipoPorId = new Map(tiposCafe.map((tipoCafe) => [tipoCafe.id, tipoCafe.nombre]));
-    const nombreCalidadPorId = new Map(calidades.map((calidad) => [calidad.id, calidad.nombre]));
-
-    const lotesPorClave = new Map<string, string>();
-    for (const lote of lotesExistentes) {
-      lotesPorClave.set(
-        this.construirClaveLote(lote.tipoCafeId, lote.calidadId),
-        lote.id,
-      );
-    }
-
-    for (const sublote of sublotesProcesados) {
-      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
-      if (lotesPorClave.has(clave)) {
-        continue;
-      }
-
-      const tipoNombre = nombreTipoPorId.get(sublote.tipoCafeId) ?? 'TIPO';
-      const calidadNombre = nombreCalidadPorId.get(sublote.calidadId) ?? 'CALIDAD';
-      const codigo = `${tipoNombre} ${calidadNombre}`.trim();
-
-      try {
-        const loteCreado = await tx.lote.create({
-          data: {
-            organizacionId,
-            tipoCafeId: sublote.tipoCafeId,
-            calidadId: sublote.calidadId,
-            codigo,
-          },
-          select: { id: true },
-        });
-
-        lotesPorClave.set(clave, loteCreado.id);
-      } catch (error) {
-        if (!this.esErrorUnico(error)) {
-          throw error;
-        }
-
-        const loteExistente = await tx.lote.findUnique({
-          where: {
-            organizacionId_tipoCafeId_calidadId: {
-              organizacionId,
-              tipoCafeId: sublote.tipoCafeId,
-              calidadId: sublote.calidadId,
-            },
-          },
-          select: { id: true },
-        });
-
-        if (!loteExistente) {
-          throw new ConflictException(
-            'No se pudo asegurar el lote para la combinación tipo/calidad',
-          );
-        }
-
-        lotesPorClave.set(clave, loteExistente.id);
-      }
-    }
-
-    return lotesPorClave;
-  }
-
   private construirSublotesData(
     compraId: string,
     input: CreateCompraDto,
     sublotesProcesados: CompraProcesada['sublotes'],
-    lotesCompra: Map<string, string>,
   ): Prisma.SubloteCreateManyInput[] {
     return sublotesProcesados.map((sublote, index) => {
-      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
-      const idLote = lotesCompra.get(clave);
-
-      if (!idLote) {
-        throw new BadRequestException(
-          'No se encontró el lote para uno de los sublotes de la compra',
-        );
-      }
-
       return {
-      compraId,
-      tipoCafeId: sublote.tipoCafeId,
-      calidadId: sublote.calidadId,
-      pesoInicial: sublote.pesoInicial,
-      pesoActual: sublote.pesoActual,
-      precioKg: sublote.precioKg,
-      idLote,
-      deviceId: input.sublotes[index].deviceId,
-      localId: input.sublotes[index].localId,
+        compraId,
+        tipoCafeId: sublote.tipoCafeId,
+        calidadId: sublote.calidadId,
+        pesoInicial: sublote.pesoInicial,
+        pesoActual: sublote.pesoActual,
+        precioKg: sublote.precioKg,
+        idLote: null,
+        deviceId: input.sublotes[index].deviceId,
+        localId: input.sublotes[index].localId,
       };
     });
   }
@@ -746,4 +637,6 @@ export class ComprasService {
     return valor / 100;
   }
 }
+
+
 
