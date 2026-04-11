@@ -4,10 +4,10 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
+  Coffee,
   HelpCircle,
   LoaderCircle,
-  Phone,
-  User,
+  MessageCircle,
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
@@ -28,82 +28,104 @@ type RegisterProcessState = {
   password: string;
 };
 
-const CONFIRMATION_DURATION_MS = 2800;
+const CONFIRMATION_DURATION_MS = 1700;
 
-function StageShell({ children }: { children: React.ReactNode }) {
+const BACKGROUND_IMAGE = '/imagenes-de-proyecto/fondo-tecnologico-cafe.svg';
+const BEAN_IMAGE = '/imagenes-de-proyecto/granito-cafe-smart.svg';
+
+function ConfirmSuccessView() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fcf8f1_0%,#f7f5ff_62%,#f5f6fb_100%)] px-4 py-6">
-      <div className="pointer-events-none absolute -right-24 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(circle,#cbb08a_0%,rgba(203,176,138,0)_72%)] opacity-25 blur-sm" />
-      <div className="pointer-events-none absolute -left-16 top-1/3 h-52 w-52 rounded-full bg-[radial-gradient(circle,#b28f67_0%,rgba(178,143,103,0)_72%)] opacity-12 blur-sm" />
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] flex-col items-center justify-center">
-        {children}
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[520px] items-center justify-center">
+        <section className="w-full max-w-[360px] rounded-3xl border border-slate-200 bg-white px-6 py-7 text-center shadow-[0_24px_50px_rgba(15,23,42,0.1)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Check size={30} strokeWidth={3.2} />
+          </div>
+          <h1 className="mt-4 text-[1.35rem] font-black tracking-tight text-[#121826]">
+            Cuenta creada
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-600">Preparando tu bienvenida...</p>
+        </section>
       </div>
     </div>
   );
 }
 
-function ConfirmSuccessView() {
-  return (
-    <StageShell>
-      <section className="w-full max-w-[420px] rounded-3xl border border-white/80 bg-white/90 px-6 py-8 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <Check size={30} strokeWidth={3} />
-        </div>
-        <h1 className="mt-4 text-[1.45rem] font-black tracking-tight text-[#14213d]">
-          Cuenta creada satisfactoriamente
-        </h1>
-      </section>
-    </StageShell>
-  );
-}
-
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
-    <StageShell>
-      <div className="w-full max-w-[420px]">
-        <div className="mb-3 flex justify-end">
-          <div className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm">
-            <User size={14} />
-            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-          </div>
+    <div className="relative min-h-screen overflow-hidden text-white">
+      <img
+        src={BACKGROUND_IMAGE}
+        alt="Fondo tecnologico Cafe Smart"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,17,48,0.2)_0%,rgba(7,19,55,0.54)_45%,rgba(5,12,33,0.86)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(113,149,255,0.36)_0%,rgba(113,149,255,0)_45%)]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 py-5">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-5 py-2.5 backdrop-blur">
+          <Coffee size={18} className="text-white/90" />
+          <span className="text-[1.95rem] font-black tracking-tight text-white">Cafe Smart</span>
         </div>
 
-        <section className="rounded-3xl border border-white/80 bg-white/90 px-6 py-6 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm">
-          <h1 className="text-[1.55rem] font-black leading-tight tracking-tight text-[#102d92]">
-            Bienvenido a Cafe Smart ☕
-          </h1>
-          <p className="mt-2.5 text-sm leading-6 text-slate-600">
-            Gestiona tus compras, inventario y ventas de café en un solo lugar.
-          </p>
+        <div className="flex flex-1 flex-col items-center justify-center pt-4">
+          <div className="relative mt-1">
+            <div className="absolute -inset-4 rounded-full border border-[#74a7ff59]" />
+            <div className="absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]" />
+            <div className="relative flex h-[228px] w-[228px] items-center justify-center rounded-full bg-white/95 shadow-[0_28px_50px_rgba(6,10,28,0.45)]">
+              <img
+                src={BEAN_IMAGE}
+                alt="Granito Cafe Smart"
+                className="h-[170px] w-[170px] object-contain drop-shadow-[0_10px_24px_rgba(44,124,255,0.45)]"
+              />
+            </div>
+          </div>
 
-          <button
-            type="button"
-            onClick={onStart}
-            className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-[#102d92] px-5 py-3 text-base font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.22)]"
-          >
-            Comenzar ahora
-            <ArrowRight size={17} />
-          </button>
-        </section>
+          <div className="mt-6 w-full max-w-[460px] rounded-[30px] border border-[#70a2ff42] bg-[linear-gradient(180deg,rgba(15,34,88,0.35)_0%,rgba(13,27,70,0.4)_100%)] px-5 py-5 backdrop-blur-sm">
+            <h1 className="text-center text-[2.35rem] font-black leading-[1.04] tracking-tight text-white">
+              Bienvenido a
+              <span className="block bg-[linear-gradient(180deg,#b8e4ff_0%,#5db9ff_100%)] bg-clip-text text-transparent">
+                Cafe Smart
+              </span>
+            </h1>
 
-        <section className="mt-4 flex items-center justify-center gap-2.5 text-xs text-slate-500">
-          <a
-            href="mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart"
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/85 px-3 py-2"
-          >
-            <HelpCircle size={13} />
-            Ayuda
-          </a>
-          <a
-            href="tel:+573000000000"
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/85 px-3 py-2"
-          >
-            <Phone size={13} />
-            Contáctenos
-          </a>
-        </section>
+            <p className="mt-3 text-center text-[1rem] leading-7 text-[#e0e8ff]">
+              Controla tu cafe en un solo lugar con precision.
+            </p>
+
+            <button
+              type="button"
+              onClick={onStart}
+              className="mt-6 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#1240c7] px-6 py-3 text-[1.5rem] font-black text-white shadow-[0_18px_40px_rgba(13,70,222,0.5)]"
+            >
+              Comenzar ahora
+              <ArrowRight size={20} />
+            </button>
+          </div>
+
+          <div className="mt-4 grid w-full max-w-[460px] grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => window.open('mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart', '_self')}
+              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+            >
+              <HelpCircle size={18} />
+              Ayuda
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                window.open('mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart', '_self')
+              }
+              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+            >
+              <MessageCircle size={18} />
+              Contactenos
+            </button>
+          </div>
+        </div>
       </div>
-    </StageShell>
+    </div>
   );
 }
 
@@ -120,9 +142,9 @@ export default function SystemStatus() {
   const [status, setStatus] = useState<ProcessStatus>('creating');
   const [successStage, setSuccessStage] = useState<SuccessStage>('confirm');
   const [errorMessage, setErrorMessage] = useState(
-    'No pudimos procesar tu solicitud. Revisa tu internet.',
+    'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
   );
-  const [errorTitle, setErrorTitle] = useState('Error de conexión. Inténtalo de nuevo.');
+  const [errorTitle, setErrorTitle] = useState('Error de conexion');
   const registrationStartedRef = useRef(false);
 
   useEffect(() => {
@@ -148,8 +170,8 @@ export default function SystemStatus() {
 
       setStatus('creating');
       setSuccessStage('confirm');
-      setErrorTitle('Error de conexión. Inténtalo de nuevo.');
-      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu internet.');
+      setErrorTitle('Error de conexion');
+      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.');
 
       try {
         let response: AuthResponse;
@@ -203,13 +225,14 @@ export default function SystemStatus() {
         setSuccessStage('confirm');
 
         if (field === 'email' || field === 'correo') {
-          setErrorTitle('No se pudo crear la cuenta.');
+          setErrorTitle('No se pudo crear la cuenta');
         } else {
-          setErrorTitle('Error de conexión. Inténtalo de nuevo.');
+          setErrorTitle('Error de conexion');
         }
 
         setErrorMessage(
-          authError.message || 'No pudimos procesar tu solicitud. Revisa tu internet.',
+          authError.message ||
+            'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
         );
       }
     },
@@ -247,9 +270,7 @@ export default function SystemStatus() {
               <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
             <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">Creando cuenta...</h1>
-            <p className="mt-3 text-base text-slate-600">
-              Estamos configurando tu espacio de trabajo.
-            </p>
+            <p className="mt-3 text-base text-slate-600">Estamos configurando tu espacio de trabajo.</p>
           </>
         ) : (
           <>

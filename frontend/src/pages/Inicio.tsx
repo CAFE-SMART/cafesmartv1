@@ -7,8 +7,8 @@ import {
   Coffee,
   Leaf,
   RefreshCcw,
-  Scale,
   SunMedium,
+  UserCircle2,
   Warehouse,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -16,8 +16,8 @@ import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { useUser } from '../context/UserContext';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getBodegaConfig } from '../utils/bodegaConfig';
-import { applySecadoToLots } from '../utils/secadoFlow';
 import { getAverageFactorForLot } from '../utils/factorStorage';
+import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 
 type TipoNivelKey = 'VERDE' | 'SECO' | 'TRILLADO' | 'PASILLA';
@@ -31,8 +31,9 @@ type TipoNivelCard = {
 
 type QuickIssue = {
   id: string;
-  problem: string;
-  actionLabel: string;
+  code: string;
+  summary: string;
+  statusLabel: 'LISTO' | 'PENDIENTE' | 'REVISAR';
   severity: 'critical' | 'attention' | 'info';
   target: 'LOTE' | 'BODEGA' | 'INVENTARIO';
   lot?: LoteResumen;
@@ -131,6 +132,7 @@ function buildNiveles(lotes: LoteResumen[]) {
 
 function buildQuickIssues(lotes: LoteResumen[]): QuickIssue[] {
   const issues: QuickIssue[] = [];
+  const usedLots = new Set<string>();
   const sortedByOldest = [...lotes].sort((a, b) => getLotDays(b).max - getLotDays(a).max);
 
   const missingFactor = lotes.find((lote) => {
@@ -138,81 +140,62 @@ function buildQuickIssues(lotes: LoteResumen[]): QuickIssue[] {
     return getAverageFactorForLot(lote.id) === null;
   });
   if (missingFactor) {
-    return [
-      {
-        id: `factor-${missingFactor.id}`,
-        problem: `Factor pendiente en lote ${missingFactor.tipoCafe} ${missingFactor.calidad}`,
-        actionLabel: 'Editar',
-        severity: 'critical',
-        target: 'LOTE',
-        lot: missingFactor,
-      },
-    ];
+    issues.push({
+      id: `factor-${missingFactor.id}`,
+      code: `#${missingFactor.codigo}`,
+      summary: 'Falta factor de rendimiento',
+      statusLabel: 'PENDIENTE',
+      severity: 'attention',
+      target: 'LOTE',
+      lot: missingFactor,
+    });
+    usedLots.add(missingFactor.id);
   }
 
   const highHumidity = lotes
     .filter((lote) => lote.humedadPromedio !== null && lote.humedadPromedio > 13.5)
     .sort((a, b) => (b.humedadPromedio ?? 0) - (a.humedadPromedio ?? 0))[0];
-  if (highHumidity) {
+  if (highHumidity && !usedLots.has(highHumidity.id)) {
     issues.push({
-      id: `humidity-high-${highHumidity.id}`,
-      problem: `Humedad alta en lote ${highHumidity.codigo}`,
-      actionLabel: 'Revisar',
+      id: `humidity-${highHumidity.id}`,
+      code: `#${highHumidity.codigo}`,
+      summary: 'Humedad fuera de rango',
+      statusLabel: 'REVISAR',
       severity: 'critical',
       target: 'LOTE',
       lot: highHumidity,
     });
+    usedLots.add(highHumidity.id);
   }
 
-  const oldestLot = sortedByOldest[0];
-  if (oldestLot && getLotDays(oldestLot).max >= 20 && !issues.some((issue) => issue.lot?.id === oldestLot.id)) {
+  const oldestLot = sortedByOldest.find((lote) => getLotDays(lote).max >= 20);
+  if (oldestLot && !usedLots.has(oldestLot.id)) {
     issues.push({
-      id: `oldest-${oldestLot.id}`,
-      problem: 'Lote en riesgo por almacenamiento prolongado',
-      actionLabel: 'Ver lote',
+      id: `days-${oldestLot.id}`,
+      code: `#${oldestLot.codigo}`,
+      summary: `Tiempo en bodega: ${getLotDays(oldestLot).max} días`,
+      statusLabel: 'REVISAR',
       severity: 'critical',
       target: 'LOTE',
       lot: oldestLot,
     });
-  }
-
-  const unstableHumidity = lotes
-    .filter((lote) => lote.humedadPromedio !== null && lote.humedadPromedio > 12 && lote.humedadPromedio <= 13.5)
-    .sort((a, b) => (b.humedadPromedio ?? 0) - (a.humedadPromedio ?? 0))[0];
-  if (unstableHumidity && !issues.some((issue) => issue.lot?.id === unstableHumidity.id)) {
-    issues.push({
-      id: `humidity-unstable-${unstableHumidity.id}`,
-      problem: `Humedad inestable en lote ${unstableHumidity.codigo}`,
-      actionLabel: 'Ajustar',
-      severity: 'attention',
-      target: 'LOTE',
-      lot: unstableHumidity,
-    });
-  }
-
-  const daysAttention = sortedByOldest.find((lote) => getLotDays(lote).max >= 12);
-  if (daysAttention && !issues.some((issue) => issue.lot?.id === daysAttention.id)) {
-    issues.push({
-      id: `days-attention-${daysAttention.id}`,
-      problem: 'Lote con varios días en bodega',
-      actionLabel: 'Ver lote',
-      severity: 'attention',
-      target: 'LOTE',
-      lot: daysAttention,
-    });
+    usedLots.add(oldestLot.id);
   }
 
   if (issues.length === 0 && lotes.length > 0) {
+    const first = lotes[0];
     issues.push({
-      id: 'inventory-updated',
-      problem: 'Inventario actualizado',
-      actionLabel: 'Ver',
+      id: `ok-${first.id}`,
+      code: `#${first.codigo}`,
+      summary: `${formatNumber(first.pesoActual)} kg · Café ${first.tipoCafe}`,
+      statusLabel: 'LISTO',
       severity: 'info',
-      target: 'INVENTARIO',
+      target: 'LOTE',
+      lot: first,
     });
   }
 
-  return issues.slice(0, 2);
+  return issues.slice(0, 3);
 }
 
 function NivelCard({ item }: { item: TipoNivelCard }) {
@@ -222,9 +205,7 @@ function NivelCard({ item }: { item: TipoNivelCard }) {
   return (
     <article className="rounded-[18px] border border-[#e6e8f3] bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between">
-        <p className={`text-[12px] font-black uppercase tracking-[0.14em] ${visual.label}`}>
-          {item.tipo}
-        </p>
+        <p className={`text-[12px] font-black uppercase tracking-[0.14em] ${visual.label}`}>{item.tipo}</p>
         <div className={`rounded-xl p-2 ${visual.iconBox}`}>{visual.icon}</div>
       </div>
 
@@ -249,44 +230,59 @@ function NivelCard({ item }: { item: TipoNivelCard }) {
   );
 }
 
-function IssueCard({
-  issue,
-  onAction,
-}: {
-  issue: QuickIssue;
-  onAction?: () => void;
-}) {
-  const toneClass =
+function IssueCard({ issue, onAction }: { issue: QuickIssue; onAction?: () => void }) {
+  const tone =
     issue.severity === 'critical'
-      ? 'border-rose-200 bg-rose-50 text-rose-800'
+      ? 'border-rose-200 bg-rose-50'
       : issue.severity === 'attention'
-        ? 'border-amber-200 bg-amber-50 text-amber-900'
-        : 'border-blue-200 bg-blue-50 text-[#102d92]';
+        ? 'border-amber-200 bg-amber-50'
+        : 'border-emerald-200 bg-emerald-50';
+
+  const iconBox =
+    issue.severity === 'critical'
+      ? 'bg-rose-100 text-rose-700'
+      : issue.severity === 'attention'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-emerald-100 text-emerald-700';
+
+  const badge =
+    issue.statusLabel === 'REVISAR'
+      ? 'bg-rose-600 text-white'
+      : issue.statusLabel === 'PENDIENTE'
+        ? 'bg-amber-400 text-slate-900'
+        : 'bg-emerald-600 text-white';
 
   const Icon =
-    issue.severity === 'critical'
-      ? AlertTriangle
-      : issue.severity === 'attention'
-        ? Clock3
-        : CheckCircle2;
+    issue.severity === 'critical' ? AlertTriangle : issue.severity === 'attention' ? Clock3 : CheckCircle2;
 
   return (
-    <article className={`rounded-[14px] border px-3 py-2 ${toneClass}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="inline-flex items-center gap-1.5 text-xs font-black">
-          <Icon size={14} />
-          {issue.problem}
-        </p>
-        {onAction ? (
-          <button
-            type="button"
-            onClick={onAction}
-            className="inline-flex items-center gap-1 text-[11px] font-black text-[#102d92]"
-          >
-            <Scale size={11} />
-            {issue.actionLabel}
-          </button>
-        ) : null}
+    <article
+      className={`rounded-[16px] border p-3 shadow-sm transition ${tone} ${onAction ? 'cursor-pointer hover:shadow-md' : ''}`}
+      onClick={onAction}
+      role={onAction ? 'button' : undefined}
+      tabIndex={onAction ? 0 : -1}
+      onKeyDown={(event) => {
+        if (!onAction) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onAction();
+        }
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={`rounded-[12px] p-2 ${iconBox}`}>
+            <Icon size={16} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sublote</p>
+            <p className="truncate text-[1.12rem] font-black text-[#102d92]">{issue.code}</p>
+            <p className="truncate text-sm font-semibold text-slate-700">{issue.summary}</p>
+          </div>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${badge}`}>
+          {issue.statusLabel}
+        </span>
       </div>
     </article>
   );
@@ -331,13 +327,7 @@ export default function Inicio() {
       ocupacionRaw === 0 ? '0' : ocupacionRaw < 1 ? ocupacionRaw.toFixed(1) : ocupacionRaw.toFixed(0);
     const barraWidth = totalKg > 0 ? Math.max(2, Math.min(100, ocupacionRaw)) : 0;
 
-    return {
-      totalKg,
-      capacidadKg,
-      disponibleKg,
-      ocupacionDisplay,
-      barraWidth,
-    };
+    return { totalKg, capacidadKg, disponibleKg, ocupacionDisplay, barraWidth };
   }, [bodegaConfig.capacidadKg, lotes]);
 
   const niveles = useMemo(() => buildNiveles(lotes), [lotes]);
@@ -346,6 +336,15 @@ export default function Inicio() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f2fb_100%)] px-4 py-5 pb-[150px] text-slate-900">
       <div className="mx-auto flex w-full max-w-[520px] flex-col gap-5">
+        <section className="rounded-[18px] border border-[#e4e9f8] bg-white px-4 py-3 shadow-sm">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+            Mensaje del día
+          </p>
+          <p className="mt-1 text-sm font-semibold text-slate-700">
+            Hoy prioriza lotes con mayor antigüedad y valida humedad/factor antes de vender.
+          </p>
+        </section>
+
         <header className="rounded-[22px] border border-white/80 bg-white/90 px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.07)] backdrop-blur">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-[#eef2ff] p-3 text-[#102d92] shadow-inner">
@@ -359,6 +358,9 @@ export default function Inicio() {
               <h1 className="mt-2 text-[1.3rem] font-black leading-tight text-[#121826]">
                 Hola, {user?.name?.trim() ? user.name : 'usuario'}
               </h1>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f4ff] text-[#102d92]">
+              <UserCircle2 size={20} />
             </div>
           </div>
 
@@ -381,9 +383,7 @@ export default function Inicio() {
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-[1.2rem] font-black tracking-tight text-[#121826]">
-                Niveles de inventario
-              </h2>
+              <h2 className="text-[1.2rem] font-black tracking-tight text-[#121826]">Niveles de inventario</h2>
               <p className="text-xs text-slate-500">Kg, lotes y días por tipo.</p>
             </div>
             <button
@@ -413,25 +413,16 @@ export default function Inicio() {
             <Warehouse size={96} strokeWidth={1.5} />
           </div>
           <div className="relative z-10">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b6f9d]">
-              Capacidad en bodega
-            </p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b6f9d]">Capacidad en bodega</p>
             <div className="mt-2 flex items-end gap-2">
-              <p className="text-[1.9rem] font-black leading-none">
-                {loading ? '...' : formatNumber(resumenGeneral.totalKg)}
-              </p>
-              <span className="pb-1 text-base font-semibold text-[#5b6f9d]">
-                / {formatNumber(resumenGeneral.capacidadKg)} kg
-              </span>
+              <p className="text-[1.9rem] font-black leading-none">{loading ? '...' : formatNumber(resumenGeneral.totalKg)}</p>
+              <span className="pb-1 text-base font-semibold text-[#5b6f9d]">/ {formatNumber(resumenGeneral.capacidadKg)} kg</span>
             </div>
             <p className="mt-2 text-xs font-semibold text-[#5b6f9d]">
               {resumenGeneral.ocupacionDisplay}% ocupada · {formatNumber(resumenGeneral.disponibleKg)} kg disponibles
             </p>
             <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#d6e1f8]">
-              <div
-                className="h-full rounded-full bg-[#102d92]"
-                style={{ width: `${resumenGeneral.barraWidth}%` }}
-              />
+              <div className="h-full rounded-full bg-[#102d92]" style={{ width: `${resumenGeneral.barraWidth}%` }} />
             </div>
           </div>
         </section>
@@ -442,31 +433,29 @@ export default function Inicio() {
           </div>
         ) : null}
 
-        <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.04)]">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-sm font-black text-slate-900">Vista rápida</p>
-            <span className="rounded-full bg-[#eef1ff] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#102d92]">
+        <section className="rounded-[20px] border border-[#e2e7f8] bg-white p-3 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-[1rem] font-black text-[#121826]">Vista rápida</p>
+            <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#102d92]">
               Alertas
             </span>
           </div>
 
-          <div className="space-y-2">
-            {quickIssues.map((issue) => (
-              <IssueCard
-                key={issue.id}
-                issue={issue}
-                onAction={
-                  issue.target === 'LOTE' && issue.lot
-                    ? () =>
-                        navigate(
-                          `/inventario/${issue.lot.tipoCafeId}/${issue.lot.calidadId}/sublotes`,
-                        )
-                    : issue.target === 'BODEGA'
-                      ? () => navigate('/ajustes')
-                      : () => navigate('/inventario')
-                }
-              />
-            ))}
+          <div className="space-y-2.5">
+            {quickIssues.map((issue) => {
+              let onAction: (() => void) | undefined;
+
+              if (issue.target === 'LOTE' && issue.lot) {
+                const lot = issue.lot;
+                onAction = () => navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`);
+              } else if (issue.target === 'BODEGA') {
+                onAction = () => navigate('/ajustes');
+              } else {
+                onAction = () => navigate('/inventario');
+              }
+
+              return <IssueCard key={issue.id} issue={issue} onAction={onAction} />;
+            })}
           </div>
         </section>
       </div>

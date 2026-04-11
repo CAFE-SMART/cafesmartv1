@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Fondo tecnológico de cafetal">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7f6ba6"/>
+      <stop offset="45%" stop-color="#3e447f"/>
+      <stop offset="100%" stop-color="#1a2a55"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#325a58"/>
+      <stop offset="100%" stop-color="#17383a"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="18%" cy="18%" r="28%">
+      <stop offset="0%" stop-color="#ffdca0" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffdca0" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blurSmall" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#sky)"/>
+  <rect y="430" width="1024" height="594" fill="url(#field)"/>
+  <rect width="1024" height="1024" fill="url(#sun)"/>
+
+  <g opacity="0.25" fill="#1b3e63">
+    <path d="M0 455l210 569h106L118 455z"/>
+    <path d="M234 455l174 569h96L350 455z"/>
+    <path d="M430 455l134 569h92L542 455z"/>
+    <path d="M600 455l94 569h92L700 455z"/>
+    <path d="M760 455l70 569h90L846 455z"/>
+  </g>
+
+  <g opacity="0.34" fill="#2c6d61">
+    <ellipse cx="90" cy="570" rx="45" ry="25"/>
+    <ellipse cx="170" cy="605" rx="48" ry="26"/>
+    <ellipse cx="260" cy="640" rx="52" ry="28"/>
+    <ellipse cx="365" cy="678" rx="55" ry="29"/>
+    <ellipse cx="480" cy="720" rx="57" ry="30"/>
+    <ellipse cx="600" cy="770" rx="60" ry="31"/>
+    <ellipse cx="725" cy="822" rx="63" ry="33"/>
+    <ellipse cx="855" cy="878" rx="66" ry="35"/>
+  </g>
+
+  <g fill="none" stroke="#63c8ff" stroke-width="3" opacity="0.38">
+    <rect x="360" y="310" width="304" height="420" rx="70"/>
+    <path d="M512 350v100m-62 48h124m-104 56h84"/>
+    <rect x="406" y="540" width="212" height="148" rx="30"/>
+    <path d="M442 582h140M442 616h95"/>
+  </g>
+
+  <g fill="#7ad4ff" opacity="0.38" filter="url(#blurSmall)">
+    <circle cx="343" cy="460" r="7"/>
+    <circle cx="680" cy="438" r="8"/>
+    <circle cx="713" cy="620" r="8"/>
+    <circle cx="298" cy="700" r="8"/>
+    <circle cx="747" cy="796" r="8"/>
+  </g>
+
+  <g fill="#95d8ff" opacity="0.28">
+    <circle cx="205" cy="248" r="6"/>
+    <circle cx="312" cy="212" r="5"/>
+    <circle cx="804" cy="268" r="6"/>
+    <circle cx="864" cy="236" r="5"/>
+  </g>
+
+  <rect width="1024" height="1024" fill="url(#sky)" opacity="0.12"/>
+</svg>

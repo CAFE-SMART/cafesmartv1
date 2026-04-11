@@ -8,7 +8,7 @@ export const ProtectedRoute = () => {
     return null;
   }
   
-  // Si no hay token, lo mandamos al login
+  // Si no hay token, lo mandamos al login.
   if (!token) {
     return <Navigate to="/login" replace />;
   }
