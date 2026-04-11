@@ -5,6 +5,7 @@ import Register from '../pages/Register';
 import Inicio from '../pages/Inicio';
 import Compras from '../pages/Compras';
 import Inventario from '../pages/Inventario';
+import Ventas from '../pages/Ventas';
 import Sublotes from '../pages/Sublotes';
 import SecadoSeleccion from '../pages/SecadoSeleccion';
 import SecadoProceso from '../pages/SecadoProceso';
@@ -24,6 +25,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/inicio" element={<Inicio />} />
         <Route path="/compras" element={<Compras />} />
+        <Route path="/ventas" element={<Ventas />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/ajustes" element={<Ajustes />} />
         <Route
