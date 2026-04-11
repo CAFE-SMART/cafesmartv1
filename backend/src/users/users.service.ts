@@ -33,6 +33,36 @@ export class UsersService {
   async findByEmail(correo: string) {
     return this.prisma.user.findUnique({
       where: { correo: correo.trim().toLowerCase() },
+      include: {
+        organizacion: {
+          select: {
+            id: true,
+            nombre: true,
+            tipo: true,
+            otroTipoDetalle: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findSessionById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        organizacionId: true,
+        organizacion: {
+          select: {
+            id: true,
+            nombre: true,
+            tipo: true,
+            otroTipoDetalle: true,
+          },
+        },
+      },
     });
   }
 
@@ -99,10 +129,7 @@ export class UsersService {
     });
   }
 
-  /**
-   * Vincula el identificador de Google a un usuario existente.
-   */
-  async linkGoogleAccount(userId: string, googleId: string) {
+  async linkGoogleAccount(userId: number, googleId: string) {
     return this.prisma.user.update({
       where: { id: userId },
       data: { googleId },

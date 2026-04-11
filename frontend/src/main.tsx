@@ -6,7 +6,7 @@ import { CloudStatusProvider } from './context/CloudStatusContext';
 import { UserProvider } from './context/UserContext';
 import './index.css';
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim();
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (

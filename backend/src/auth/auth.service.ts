@@ -1,4 +1,4 @@
-import {
+﻿import {
   HttpException,
   HttpStatus,
   Injectable,
@@ -11,6 +11,13 @@ import { OAuth2Client } from 'google-auth-library';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
+
+type AuthResponseUser = {
+  id: string;
+  correo: string;
+  nombre: string;
+  organizacionId: string | null;
+};
 
 @Injectable()
 export class AuthService {
@@ -265,24 +272,23 @@ export class AuthService {
     }
   }
 
-  /**
-   * Construye la respuesta comun de autenticacion para login y registro.
-   */
   private buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
+    const sessionUser = await this.usersService.findSessionById(user.id);
 
     return {
       message,
       access_token: token,
-      hasCompany: Boolean(user.organizacionId),
+      hasCompany: Boolean(sessionUser?.organizacionId ?? user.organizacionId),
       user: {
         id: user.id,
         email: user.correo,
         name: user.nombre,
+        organizacionId: sessionUser?.organizacionId ?? user.organizacionId ?? null,
+        tipoOrganizacion: sessionUser?.organizacion?.tipo ?? null,
+        otroTipoDetalle: sessionUser?.organizacion?.otroTipoDetalle ?? null,
       },
     };
   }
 }
-
-

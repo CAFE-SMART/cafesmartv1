@@ -6,11 +6,12 @@ export class ParametrosService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Obtiene un parametro numerico por organizacion y valida que tenga contenido util.
-   *
-   * @param nombre Nombre del parametro a consultar.
-   * @param organizacionId UUID de la organizacion.
-   * @returns El valor del parametro convertido a numero.
+   * Obtiene un parámetro específico de una organización.
+   * Valida existencia, valor no vacío y conversión numérica.
+   * 
+   * @param nombre Nombre del parámetro a consultar.
+   * @param organizacionId UUID de la organización.
+   * @returns El valor del parámetro convertido a número.
    * @throws InternalServerErrorException en cualquier caso de error.
    */
   async getParametro(nombre: string, organizacionId: string): Promise<number> {

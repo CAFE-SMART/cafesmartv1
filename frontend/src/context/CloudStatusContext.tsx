@@ -143,8 +143,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
     if (!isOnline) {
       return {
         tone: 'offline',
-        title: 'Sin internet',
-        detail: 'La app sigue local. La nube no esta disponible.',
+        title: 'Sin conexión',
+        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -156,8 +156,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
     if (lastEvent?.status === 'syncing') {
       return {
         tone: 'syncing',
-        title: 'Sincronizando',
-        detail: lastEvent.message,
+        title: 'Conectado',
+        detail: 'Con internet. Sincronizando cambios...',
         isOnline,
         backendReachable,
         isSyncing: true,
@@ -169,8 +169,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
     if (backendReachable === null) {
       return {
         tone: 'checking',
-        title: 'Verificando nube',
-        detail: 'Comprobando conexion con la API.',
+        title: 'Conectando',
+        detail: 'Validando internet y nube.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -181,9 +181,9 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
 
     if (!backendReachable) {
       return {
-        tone: 'degraded',
-        title: 'Servidor no disponible',
-        detail: 'Hay red, pero no responde la API del backend.',
+        tone: 'offline',
+        title: 'Sin conexión',
+        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -194,9 +194,9 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
 
     if (lastEvent?.status === 'synced') {
       return {
-        tone: 'synced',
-        title: 'Guardado en la nube',
-        detail: lastEvent.message,
+        tone: 'connected',
+        title: 'Conectado',
+        detail: 'Con internet. Tus cambios ya están guardados.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -207,9 +207,9 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
 
     if (lastEvent?.status === 'error') {
       return {
-        tone: 'error',
-        title: 'Fallo de sincronizacion',
-        detail: lastEvent.message,
+        tone: 'offline',
+        title: 'Sin conexión',
+        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -220,10 +220,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
 
     return {
       tone: 'connected',
-      title: 'Nube conectada',
-      detail: lastSyncAt
-        ? 'La API responde y la ultima operacion llego a la nube.'
-        : 'La API responde y esta lista para sincronizar.',
+      title: 'Conectado',
+      detail: 'Con internet. Tus cambios ya están guardados.',
       isOnline,
       backendReachable,
       isSyncing: false,

@@ -1,6 +1,7 @@
-import {
+﻿import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -14,6 +15,18 @@ import { CreateCompraDto } from './dto/crear-compra.dto';
 @Controller('compras')
 export class ComprasController {
   constructor(private readonly comprasService: ComprasService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async listar(@Req() req: { user: { sub: string } }) {
+    return this.comprasService.listarCompras(req.user.sub);
+  }
+
+  @Get('catalogos')
+  @UseGuards(JwtAuthGuard)
+  async catalogos(@Req() req: { user: { sub: string } }) {
+    return this.comprasService.obtenerCatalogos(req.user.sub);
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)
