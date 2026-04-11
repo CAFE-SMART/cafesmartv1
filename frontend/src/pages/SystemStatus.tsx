@@ -30,9 +30,6 @@ type RegisterProcessState = {
 
 const CONFIRMATION_DURATION_MS = 1700;
 
-const BACKGROUND_IMAGE = '/imagenes-de-proyecto/fondo-tecnologico-cafe.svg';
-const BEAN_IMAGE = '/imagenes-de-proyecto/granito-cafe-smart.svg';
-
 function ConfirmSuccessView() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
@@ -54,13 +51,12 @@ function ConfirmSuccessView() {
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      <img
-        src={BACKGROUND_IMAGE}
-        alt="Fondo tecnologico Cafe Smart"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,17,48,0.2)_0%,rgba(7,19,55,0.54)_45%,rgba(5,12,33,0.86)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(113,149,255,0.36)_0%,rgba(113,149,255,0)_45%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,#07132f_0%,#0b1e52_35%,#08142f_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(113,149,255,0.32)_0%,rgba(113,149,255,0)_42%)]" />
+      <div className="absolute -left-20 top-12 h-72 w-72 rounded-full bg-[#2d7cff]/20 blur-3xl" />
+      <div className="absolute -right-16 top-0 h-80 w-80 rounded-full bg-[#54d2ff]/18 blur-3xl" />
+      <div className="absolute inset-x-0 bottom-[-8rem] mx-auto h-80 w-[36rem] rounded-full bg-[#0a2f73]/55 blur-3xl" />
+      <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.85)_1px,transparent_0)] [background-size:28px_28px]" />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 py-5">
         <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-5 py-2.5 backdrop-blur">
@@ -70,14 +66,18 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
 
         <div className="flex flex-1 flex-col items-center justify-center pt-4">
           <div className="relative mt-1">
-            <div className="absolute -inset-4 rounded-full border border-[#74a7ff59]" />
-            <div className="absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]" />
+            <div className="cafesmart-pulse-ring absolute -inset-4 rounded-full border border-[#74a7ff59]" />
+            <div
+              className="cafesmart-pulse-ring absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]"
+              style={{ animationDelay: '0.7s' }}
+            />
             <div className="relative flex h-[228px] w-[228px] items-center justify-center rounded-full bg-white/95 shadow-[0_28px_50px_rgba(6,10,28,0.45)]">
-              <img
-                src={BEAN_IMAGE}
-                alt="Granito Cafe Smart"
-                className="h-[170px] w-[170px] object-contain drop-shadow-[0_10px_24px_rgba(44,124,255,0.45)]"
-              />
+              <div className="cafesmart-float relative h-[170px] w-[170px]" aria-hidden="true">
+                <div className="absolute inset-0 rounded-[46%_54%_50%_50%/58%_44%_56%_42%] bg-[radial-gradient(circle_at_32%_22%,#dbeafe_0%,#7dd3fc_18%,#3b82f6_42%,#1d4ed8_64%,#0f172a_100%)] shadow-[0_18px_34px_rgba(37,99,235,0.36)]" />
+                <div className="absolute inset-y-[18%] left-1/2 w-[18%] -translate-x-1/2 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.4)_0%,rgba(15,23,42,0.2)_100%)] opacity-90" />
+                <div className="absolute left-[28%] top-[25%] h-4 w-4 rounded-full bg-white/40 blur-sm" />
+                <div className="absolute right-[22%] top-[54%] h-7 w-7 rounded-full bg-sky-300/25 blur-md" />
+              </div>
             </div>
           </div>
 
