@@ -71,13 +71,13 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
               className="cafesmart-pulse-ring absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]"
               style={{ animationDelay: '0.7s' }}
             />
-            <div className="relative flex h-[228px] w-[228px] items-center justify-center rounded-full bg-white/95 shadow-[0_28px_50px_rgba(6,10,28,0.45)]">
-              <div className="cafesmart-float relative h-[170px] w-[170px]" aria-hidden="true">
-                <div className="absolute inset-0 rounded-[46%_54%_50%_50%/58%_44%_56%_42%] bg-[radial-gradient(circle_at_32%_22%,#dbeafe_0%,#7dd3fc_18%,#3b82f6_42%,#1d4ed8_64%,#0f172a_100%)] shadow-[0_18px_34px_rgba(37,99,235,0.36)]" />
-                <div className="absolute inset-y-[18%] left-1/2 w-[18%] -translate-x-1/2 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.4)_0%,rgba(15,23,42,0.2)_100%)] opacity-90" />
-                <div className="absolute left-[28%] top-[25%] h-4 w-4 rounded-full bg-white/40 blur-sm" />
-                <div className="absolute right-[22%] top-[54%] h-7 w-7 rounded-full bg-sky-300/25 blur-md" />
-              </div>
+            <div className="relative flex h-[258px] w-[258px] items-center justify-center">
+              <div className="absolute inset-[18%] rounded-full bg-[#80c6ff]/18 blur-3xl" aria-hidden="true" />
+              <img
+                src="/imagenes-de-proyecto/granito-inteligente.png"
+                alt="Granito inteligente de Cafe Smart"
+                className="cafesmart-float relative h-[250px] w-[250px] object-contain drop-shadow-[0_28px_50px_rgba(6,10,28,0.45)]"
+              />
             </div>
           </div>
 

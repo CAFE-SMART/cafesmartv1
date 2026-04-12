@@ -5,10 +5,12 @@ import {
   Banknote,
   CheckCircle2,
   IdCard,
+  Pencil,
   Phone,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
@@ -64,15 +66,15 @@ const LIMITE = 6;
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
   nombre: 'Cliente General',
-  documento: 'Venta rápida',
-  detalle: 'Para ventas rápidas o clientes ocasionales no registrados en el sistema.',
+  documento: 'Venta rapida',
+  detalle: 'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
   rapido: true,
 };
 
 const CLIENTES_BASE: ClienteOption[] = [
-  { id: 'c1', nombre: 'Juan Pérez Rodríguez', documento: 'C.C. 1.123.456.789', detalle: 'Cliente agregado manualmente' },
-  { id: 'c2', nombre: 'María Elena Giraldo', documento: 'C.C. 24.331.XXX', detalle: 'Compra frecuente' },
-  { id: 'c3', nombre: 'Pedro Gómez Ospina', documento: 'C.C. 70.122.XXX', detalle: 'Pago de contado' },
+  { id: 'c1', nombre: 'Juan Perez Rodriguez', documento: 'C.C. 1.123.456.789', detalle: 'Cliente agregado manualmente' },
+  { id: 'c2', nombre: 'Maria Elena Giraldo', documento: 'C.C. 24.331.XXX', detalle: 'Compra frecuente' },
+  { id: 'c3', nombre: 'Pedro Gomez Ospina', documento: 'C.C. 70.122.XXX', detalle: 'Pago de contado' },
 ];
 
 const kg = (v: number) => `${v.toLocaleString('es-CO', { maximumFractionDigits: 2 })} kg`;
@@ -242,13 +244,13 @@ export default function Ventas() {
     if (!lotesVenta.length) return 'No hay lotes disponibles para vender.';
     if (!modoVenta) return 'Selecciona como deseas realizar la venta.';
     if (modoVenta === 'TOTAL') {
-      if (toNum(precioGlobal) <= 0) return 'Ingresa un precio por kg válido para venta total.';
+      if (toNum(precioGlobal) <= 0) return 'Ingresa un precio por kg valido para venta total.';
       return null;
     }
     if (!lotesConCantidad.length) return 'Ingresa al menos una cantidad para continuar.';
     for (const l of lotesConCantidad) {
       if (l.cantidad > l.disponibleKg) return `La cantidad supera el disponible en ${l.codigo}.`;
-      if (l.precio <= 0) return `Ingresa un precio por kg válido en ${l.codigo}.`;
+      if (l.precio <= 0) return `Ingresa un precio por kg valido en ${l.codigo}.`;
     }
     return null;
   }, [lotesVenta.length, modoVenta, precioGlobal, lotesConCantidad]);
@@ -293,6 +295,44 @@ export default function Ventas() {
     setSubmitError(null);
     setPaso((p) => Math.max(1, p - 1) as Step);
   }, []);
+
+  const editarLoteDesdeRevision = React.useCallback(() => {
+    setSubmitError(null);
+    setIntentoPaso2(false);
+    setPaso(2);
+  }, []);
+
+  const eliminarLoteDesdeRevision = React.useCallback((loteId: string) => {
+    setSubmitError(null);
+    setIntentoPaso2(false);
+    setPaso(2);
+
+    setLotesVenta((prev) =>
+      prev.map((lote) => {
+        if (modoVenta === 'TOTAL') {
+          return {
+            ...lote,
+            cantidadKg: lote.id === loteId ? '' : String(lote.disponibleKg),
+            precioKg: precioGlobal || lote.precioKg,
+          };
+        }
+
+        if (lote.id !== loteId) {
+          return lote;
+        }
+
+        return {
+          ...lote,
+          cantidadKg: '',
+        };
+      }),
+    );
+
+    if (modoVenta === 'TOTAL') {
+      setModoVenta('PARCIAL');
+      setPrecioGlobal('');
+    }
+  }, [modoVenta, precioGlobal]);
 
   const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
@@ -407,8 +447,8 @@ export default function Ventas() {
           <section className="rounded-[22px] border border-[#daf0e3] bg-white p-5 text-center shadow-sm">
             <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-black text-[#0d7b67]">Venta exitosa</span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
-            <h2 className="mt-3 text-[1.35rem] font-black text-[#102d92]">¡Venta exitosa!</h2>
-            <p className="mt-2 text-sm text-slate-600">La venta se registró y el inventario quedó actualizado.</p>
+            <h2 className="mt-3 text-[1.35rem] font-black text-[#102d92]">Venta exitosa</h2>
+            <p className="mt-2 text-sm text-slate-600">La venta se registro y el inventario quedo actualizado.</p>
             <div className="mt-4 rounded-[14px] border border-[#e1e6f3] bg-[#f8f9ff] p-4 text-left">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Cliente</p>
               <p className="mt-1 text-lg font-black text-slate-900">
@@ -439,7 +479,7 @@ export default function Ventas() {
             </div>
             <div className="mt-4 grid gap-2">
               <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-sm font-black text-[#102d92]">Nueva venta</button>
-              <button type="button" onClick={() => navigate('/inicio')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-black text-white">Volver al inicio</button>
+              <button type="button" onClick={() => navigate('/inventario')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-black text-white">Ir a inventario</button>
             </div>
           </section>
         </div>
@@ -496,10 +536,10 @@ export default function Ventas() {
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-                  Seleccionar café
+                  Seleccionar cafe
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
-                  ¿Cómo deseas realizar la venta?
+                  Como deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
@@ -524,7 +564,7 @@ export default function Ventas() {
                   >
                     <p className="text-base font-black text-slate-900">Vender una parte del inventario</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Selecciona lotes específicos y ajusta cantidades.
+                      Selecciona lotes especificos y ajusta cantidades.
                     </p>
                   </button>
 
@@ -590,7 +630,7 @@ export default function Ventas() {
                     >
                       <p className="text-lg font-black text-[#102d92]">{lote.codigo}</p>
                       <p className="text-sm text-slate-600">
-                        {lote.tipoCafe} · {lote.calidad}
+                        {lote.tipoCafe} - {lote.calidad}
                       </p>
                       <p className="mt-1 text-sm font-black text-slate-900">
                         Disponible: {kg(lote.disponibleKg)}
@@ -671,7 +711,7 @@ export default function Ventas() {
                     className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-black text-slate-600"
                   >
                     <ArrowLeft size={16} />
-                    Atrás
+                    Atras
                   </button>
                   <button
                     type="button"
@@ -694,7 +734,7 @@ export default function Ventas() {
                   Seleccionar cliente
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
-                  Elige quién recibe la venta
+                  Elige quien recibe la venta
                 </h2>
 
                 <button
@@ -714,12 +754,12 @@ export default function Ventas() {
                       <div>
                         <p className="text-base font-black text-[#102d92]">Cliente General</p>
                         <p className="mt-1 text-sm text-slate-600">
-                          Venta rápida para cliente ocasional.
+                          Venta rapida para cliente ocasional.
                         </p>
                       </div>
                     </div>
                     <span className="rounded-full bg-[#dbe5ff] px-2.5 py-1 text-[11px] font-black text-[#102d92]">
-                      Rápido
+                      Rapido
                     </span>
                   </div>
                 </button>
@@ -745,7 +785,7 @@ export default function Ventas() {
                           buscarCliente();
                         }
                       }}
-                      placeholder="Buscar por nombre, cédula o documento"
+                      placeholder="Buscar por nombre, cedula o documento"
                       className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
                     />
                   </label>
@@ -778,7 +818,7 @@ export default function Ventas() {
                   </p>
                   {clientesRecientes.length === 0 ? (
                     <div className="mt-2 rounded-[14px] border border-dashed border-[#d5dced] bg-[#fbfcff] px-4 py-5 text-center text-sm text-slate-500">
-                      No se encontraron clientes con esa búsqueda.
+                      No se encontraron clientes con esa busqueda.
                     </div>
                   ) : (
                     <div className="mt-2 space-y-2">
@@ -842,7 +882,7 @@ export default function Ventas() {
             {paso === 3 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-                  Revisión final
+                  Revision final
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
                   Confirma los datos de la venta
@@ -865,20 +905,43 @@ export default function Ventas() {
                     {clienteSeleccionado?.documento ?? 'Seleccion pendiente'}
                   </p>
                 </div>
-
                 <div className="mt-4 space-y-2">
                   {lotesConCantidad.map((lote) => (
                     <div
                       key={lote.id}
                       className="rounded-[12px] border border-[#e5e7f2] bg-[#fcfcff] px-3 py-2"
                     >
-                      <p className="text-sm font-black text-slate-900">{lote.codigo}</p>
-                      <p className="text-xs text-slate-600">
-                        {lote.tipoCafe} · {lote.calidad}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-[#102d92]">
-                        {kg(lote.cantidad)} · {money(lote.cantidad * lote.precio)}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-black text-slate-900">{lote.codigo}</p>
+                          <p className="text-xs text-slate-600">
+                            {lote.tipoCafe} - {lote.calidad}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#102d92]">
+                            {kg(lote.cantidad)} - {money(lote.cantidad * lote.precio)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={editarLoteDesdeRevision}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                            title="Editar producto"
+                            aria-label={`Editar ${lote.codigo}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => eliminarLoteDesdeRevision(lote.id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                            title="Quitar producto"
+                            aria-label={`Quitar ${lote.codigo}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -901,7 +964,7 @@ export default function Ventas() {
                     className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-black text-slate-600"
                   >
                     <ArrowLeft size={16} />
-                    Atrás
+                    Atras
                   </button>
                   <button
                     type="button"
@@ -961,7 +1024,7 @@ export default function Ventas() {
                       onChange={(event) =>
                         setClienteForm((actual) => ({ ...actual, nombre: event.target.value }))
                       }
-                      placeholder="Ej. Juan Pérez Rodríguez"
+                      placeholder="Ej. Juan Perez Rodriguez"
                       className="w-full bg-transparent text-base text-slate-900 outline-none"
                     />
                   </label>
@@ -969,7 +1032,7 @@ export default function Ventas() {
 
                 <div>
                   <label className="mb-2 block text-base font-black text-slate-900">
-                    Teléfono (opcional)
+                    Telefono (opcional)
                   </label>
                   <label className="flex items-center gap-3 rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4">
                     <Phone size={18} className="text-slate-400" />
