@@ -72,6 +72,14 @@ Frontend:
 cd frontend
 pnpm install
 ```
+⚠️ Si hay errores con pnpm (workspace):
+
+Si pnpm install falla por problemas con el workspace, ejecutar:
+```bash
+cd frontend
+pnpm install --no-frozen-lockfile --ignore-workspace
+```
+Esto fuerza la instalación local en frontend, ignorando la configuración del workspace.
 
 ## Variables de entorno
 
