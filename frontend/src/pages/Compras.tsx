@@ -677,10 +677,10 @@ export default function Compras() {
             <div className="inline-flex rounded-full bg-[#86e7e2] px-3 py-2 text-[11px] font-black text-[#0b565d]">{pasoActual.chip}</div>
           </div>
           <div className="h-3 overflow-hidden rounded-full bg-[#dfe6f4]">
-            <div 
-              className="h-full rounded-full bg-[#173ea6] transition-all duration-300"
-              style={{ width: `${pasoActual.progreso}%` }} 
-            />
+          <div 
+            className="h-full rounded-full bg-[#173ea6] transition-all duration-300"
+            style={{ width: `${pasoActual.progreso}%` }}
+          />
           </div>
         </section>
 
@@ -854,12 +854,16 @@ export default function Compras() {
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Fecha de compra</p>
                     <div className="mt-3 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
                       <CalendarDays size={18} className="text-[#102d92]" />
+                      <label className="block text-sm font-bold text-slate-600">
+                        Fecha de compra
+                      </label>
                       <input
                         type="date"
                         value={fecha}
                         max={hoyLocal()}
                         onChange={(event) => setFecha(event.target.value)}
                         className="w-full bg-transparent text-sm font-black text-[#102d92] outline-none"
+                        aria-label="Fecha de compra"
                       />
                     </div>
                   </div>
@@ -938,18 +942,19 @@ export default function Compras() {
                     </div>
                   </div>
 
-                  <div className="mt-6 rounded-[22px] bg-white p-5">
-                    <label className="block text-base font-black text-slate-900">Peso (kg)</label>
-                    <input 
-                      type="number" 
-                      min="0.01" 
-                      step="0.01" 
-                      value={sublote.pesoInicial} 
-                      onChange={(event) => actualizarSublote(sublote.id, 'pesoInicial', event.target.value)} 
-                      className="mt-3 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.8rem] font-black text-slate-900 outline-none focus:border-[#102d92]" 
-                      placeholder="0.00" 
-                      title="Ingresa el peso en kilogramos" 
-                    />
+<div className="mt-6 rounded-[22px] bg-white p-5">
+  <label className="block text-base font-black text-slate-900">Peso (kg)</label>
+  <input 
+    type="number" 
+    min="0.01" 
+    step="0.01" 
+    value={sublote.pesoInicial} 
+    onChange={(event) => actualizarSublote(sublote.id, 'pesoInicial', event.target.value)} 
+    className="mt-3 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.8rem] font-black text-slate-900 outline-none focus:border-[#102d92]" 
+    placeholder="0.00 kg" 
+    title="Ingresa el peso en kilogramos"
+    aria-label="Peso en kilogramos" 
+  />
 
                     <div className="mt-5 grid grid-cols-2 gap-4">
                       <div>
@@ -968,7 +973,17 @@ export default function Compras() {
                       <p className="text-base font-black text-slate-900">Precio a pagar (kg)</p>
                       <p className="mt-1 text-sm text-slate-500">Precio sugerido: $14.500</p>
                     </div>
-                    <input type="number" min="0.1" step="0.01" value={sublote.precioKg} onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)} className="mt-4 w-full rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4 text-[1.85rem] font-black text-[#173ea6] outline-none focus:border-[#102d92]" placeholder="14500" title="Ingresa el precio en pesos por kilogramo" aria-label="Precio a pagar por kilogramo" />
+                    <input 
+                      type="number" 
+                      min="0.1" 
+                      step="0.01" 
+                      value={sublote.precioKg} 
+                      onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)} 
+                      className="mt-4 w-full rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4 text-[1.85rem] font-black text-[#173ea6] outline-none focus:border-[#102d92]" 
+                      placeholder="14500" 
+                      title="Ingresa el precio en pesos por kilogramo"
+                      aria-label="Precio a pagar por kilogramo" 
+                    />
                   </div>
 
                   <div className="mt-5 rounded-[22px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92]">
