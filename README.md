@@ -73,6 +73,14 @@ Frontend:
 cd frontend
 npm install
 ```
+⚠️ Si hay errores con pnpm (workspace):
+
+Si pnpm install falla por problemas con el workspace, ejecutar:
+```bash
+cd frontend
+pnpm install --no-frozen-lockfile --ignore-workspace
+```
+Esto fuerza la instalación local en frontend, ignorando la configuración del workspace.
 
 ## Variables de entorno
 
@@ -332,3 +340,94 @@ Para emulador Android usar URL backend con 10.0.2.2 si aplica.
 - Se alineo frontend al contrato nuevo y se limpiaron mapeos viejos.
 - Se corrigio el estandar de nombres de NestJS (`user.services.ts` a `users.service.ts`).
 - Se modernizo el diseno de Estado del Sistema a un CSS Grid mas compacto y profesional.
+
+## Android (Capacitor)
+```bash
+cd frontend
+pnpm build
+npx cap sync android
+npx cap open android
+```
+
+## Configuración completa 
+Después de bajar cambios de Git o instalar librerías nuevas, TODOS deben hacer:
+
+1. Preparar frontend
+  ``` bash
+cd frontend
+pnpm install
+pnpm build
+```
+
+2. Sincronizar con Capacitor
+```bash
+npx cap sync android
+```
+
+3. Abrir correctamente en Android Studio
+ - NO abrir la raíz del proyecto: cafesmartv1
+ - SI abrir: cafesmartv1/frontend/android
+
+4. Sincronizar Gradle (PASO CRÍTICO)
+ - Si ves errores: Ir a: File > Sync Project with Gradle Files
+ - Si aparece error tipo desugar / optimize: En build.gradle (Module: app) agregar o verificar:
+```bash
+isCoreLibraryDesugaringEnabled = true
+```
+
+5. Ejecutar la app
+ - Emulador: API 24 mínimo
+ - Celular físico: activar depuración USB
+ - Luego presionar ▶️ Run
+
+## Preparar celular (Modo desarrollador)
+ - Activar modo desarrollador
+ - Ajustes
+ - Acerca del teléfono
+ - Número de compilación
+ - Tocar 7 veces
+ - Activar depuración USB
+ - Ajustes
+ - Opciones de desarrollador
+ - Activar "Depuración USB"
+ - Conectar al PC
+ - Aceptar permisos
+ - Conectar dispositivo con QR (Running Device)
+
+Si no quieres usar cable USB, puedes conectar el celular por WiFi usando QR:
+
+## Pasos en Android Studio
+
+ a. Abrir Android Studio
+ b. Ir a Device Manager
+ c. Clic en Pair Devices Using Wi-Fi
+ d. Seleccionar Pair using QR Code
+ e. En el celular
+ f. Activar Opciones de desarrollador
+ g. Entrar en Depuración inalámbrica (Wireless Debugging)
+ h. Pulsar Vincular dispositivo con código QR
+ i. Escanear el código que muestra Android Studio
+ 
+Resultado: El celular aparecerá como dispositivo disponible logrando ejecutarlo con ▶️ Run sin cable
+
+## Notas importantes
+El celular y el PC deben estar en la misma red WiFi mantener activa la depuración inalámbrica y si no aparece el dispositivo, volver a emparejar
+
+## Flujo de trabajo correcto (MUY IMPORTANTE)
+
+Cada vez que hagan cambios en el frontend:
+```bash
+pnpm build
+npx cap copy android
+```
+Luego: Abrir Android Studio y ejecutar con ▶️ Run
+
+## Problemas comunes
+
+Problema	                       Solución
+
+Web asset directory not found	   Ejecutar pnpm build
+No se reflejan cambios	           pnpm build + npx cap copy android
+Error Java	                       Usar Java 17
+No detecta celular	               Activar depuración USB
+Error Capacitor	                   npx cap sync android
