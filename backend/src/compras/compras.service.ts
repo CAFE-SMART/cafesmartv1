@@ -8,6 +8,7 @@ import {
   Compra,
   Prisma,
   Sublote,
+  TipoOrganizacion,
   TipoReferenciaInventario,
   TipoMovimientoInventario,
 } from '@prisma/client';
@@ -29,6 +30,29 @@ type CrearCompraResultado = {
   exceso?: number;
 };
 
+type CatalogoItem = {
+  id: string;
+  nombre: string;
+};
+
+type CompraListadoItem = {
+  id: string;
+  fecha: string;
+  totalCompra: number;
+  totalSublotes: number;
+  creadoEn: string;
+  sublotes: {
+    id: string;
+    tipoCafeId: string;
+    tipoCafe: string;
+    calidadId: string;
+    calidad: string;
+    pesoInicial: number;
+    pesoActual: number;
+    precioKg: number;
+  }[];
+};
+
 type MovimientoInventario = {
   tipoCafeId: string;
   calidadId: string;
@@ -37,9 +61,93 @@ type MovimientoInventario = {
   referenciaTipo: TipoReferenciaInventario;
 };
 
+const TIPOS_CAFE_BASE = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
+const CALIDADES_BASE = ['BUENO', 'REGULAR', 'MALO'];
+
 @Injectable()
 export class ComprasService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async asegurarCatalogosBase(
+    prisma: PrismaService | Prisma.TransactionClient,
+  ) {
+    await Promise.all([
+      prisma.tipoCafe.createMany({
+        data: TIPOS_CAFE_BASE.map((nombre) => ({ nombre })),
+        skipDuplicates: true,
+      }),
+      prisma.calidad.createMany({
+        data: CALIDADES_BASE.map((nombre) => ({ nombre })),
+        skipDuplicates: true,
+      }),
+    ]);
+  }
+
+  async listarCompras(userId: string): Promise<CompraListadoItem[]> {
+    const organizacionId = await this.obtenerOrganizacionId(this.prisma, userId);
+    const compras = await this.prisma.compra.findMany({
+      where: {
+        deletedAt: null,
+        organizacionId,
+      },
+      include: {
+        sublotes: {
+          where: this.obtenerWhereSubloteActivo(),
+          include: {
+            tipoCafe: { select: { id: true, nombre: true } },
+            calidad: { select: { id: true, nombre: true } },
+          },
+          orderBy: { creadoEn: 'asc' },
+        },
+      },
+      orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }],
+    });
+
+    return compras.map((compra) => ({
+      id: compra.id,
+      fecha: compra.fecha.toISOString(),
+      totalCompra: Number(compra.totalCompra),
+      totalSublotes: compra.sublotes.length,
+      creadoEn: compra.creadoEn.toISOString(),
+      sublotes: compra.sublotes.map((sublote) => ({
+        id: sublote.id,
+        tipoCafeId: sublote.tipoCafeId,
+        tipoCafe: sublote.tipoCafe.nombre,
+        calidadId: sublote.calidadId,
+        calidad: sublote.calidad.nombre,
+        pesoInicial: Number(sublote.pesoInicial),
+        pesoActual: Number(sublote.pesoActual),
+        precioKg: Number(sublote.precioKg),
+      })),
+    }));
+  }
+
+  async obtenerCatalogos(userId: string): Promise<{
+    tiposCafe: CatalogoItem[];
+    calidades: CatalogoItem[];
+  }> {
+    await this.asegurarCatalogosBase(this.prisma);
+
+    const tipoOrganizacion = await this.obtenerTipoOrganizacionUsuario(userId);
+    const whereTiposCafe =
+      tipoOrganizacion === TipoOrganizacion.COMPRAVENTA
+        ? { nombre: { not: 'TRILLADO' } }
+        : {};
+
+    const [tiposCafe, calidades] = await Promise.all([
+      this.prisma.tipoCafe.findMany({
+        where: whereTiposCafe,
+        select: { id: true, nombre: true },
+        orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.calidad.findMany({
+        select: { id: true, nombre: true },
+        orderBy: { nombre: 'asc' },
+      }),
+    ]);
+
+    return { tiposCafe, calidades };
+  }
 
   async crearCompra(
     input: CreateCompraDto,
@@ -74,6 +182,7 @@ export class ComprasService {
         }
 
         this.validarSublotesDuplicadosEnRequest(input);
+        await this.asegurarCatalogosBase(tx);
         await this.validarCatalogos(tx, input);
 
         const contextoCapacidad = await this.obtenerContextoCapacidad(
@@ -152,7 +261,7 @@ export class ComprasService {
   }
 
   private async obtenerOrganizacionId(
-    tx: Prisma.TransactionClient,
+    tx: Prisma.TransactionClient | PrismaService,
     userId: string,
     organizacionId?: string,
   ): Promise<string> {
@@ -176,6 +285,21 @@ export class ComprasService {
     }
 
     return usuario.organizacionId;
+  }
+
+  private async obtenerTipoOrganizacionUsuario(
+    userId: string,
+  ): Promise<TipoOrganizacion | null> {
+    const usuario = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        organizacion: {
+          select: { tipo: true },
+        },
+      },
+    });
+
+    return usuario?.organizacion?.tipo ?? null;
   }
 
   private validarSublotesDuplicadosEnRequest(input: CreateCompraDto): void {
@@ -277,17 +401,19 @@ export class ComprasService {
     input: CreateCompraDto,
     sublotesProcesados: CompraProcesada['sublotes'],
   ): Prisma.SubloteCreateManyInput[] {
-    return sublotesProcesados.map((sublote, index) => ({
-      compraId,
-      tipoCafeId: sublote.tipoCafeId,
-      calidadId: sublote.calidadId,
-      pesoInicial: sublote.pesoInicial,
-      pesoActual: sublote.pesoActual,
-      precioKg: sublote.precioKg,
-      idLote: null,
-      deviceId: input.sublotes[index].deviceId,
-      localId: input.sublotes[index].localId,
-    }));
+    return sublotesProcesados.map((sublote, index) => {
+      return {
+        compraId,
+        tipoCafeId: sublote.tipoCafeId,
+        calidadId: sublote.calidadId,
+        pesoInicial: sublote.pesoInicial,
+        pesoActual: sublote.pesoActual,
+        precioKg: sublote.precioKg,
+        idLote: null,
+        deviceId: input.sublotes[index].deviceId,
+        localId: input.sublotes[index].localId,
+      };
+    });
   }
 
   private async actualizarInventarioSnapshot(
@@ -511,3 +637,6 @@ export class ComprasService {
     return valor / 100;
   }
 }
+
+
+

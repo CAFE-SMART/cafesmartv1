@@ -1,4 +1,4 @@
-import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+﻿import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
 const API_BASE_URL =
@@ -21,6 +21,9 @@ export type AuthResponse = {
     id: number | string;
     email: string;
     name: string;
+    organizacionId?: string | null;
+    tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
+    otroTipoDetalle?: string | null;
   };
   hasCompany: boolean;
 };

@@ -9,11 +9,22 @@ build/
 
 # Entorno y Secretos
 .env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 
 # Logs
 npm-debug.log*

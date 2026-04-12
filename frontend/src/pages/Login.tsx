@@ -1,53 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, Loader, X } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, Loader, X, ChevronRight } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
-import { parseJwtPayload } from '../utils/jwt';
-
-type GoogleJwtPayload = {
-  email?: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-};
-
-type GoogleNameParts = {
-  nombre: string;
-  apellidos: string;
-};
-
-function splitGoogleName(payload: GoogleJwtPayload): GoogleNameParts {
-  const given = payload.given_name?.trim() || '';
-  const family = payload.family_name?.trim() || '';
-
-  if (given || family) {
-    return {
-      nombre: given,
-      apellidos: family,
-    };
-  }
-
-  const fullName = payload.name?.trim() || '';
-  if (!fullName) {
-    return { nombre: '', apellidos: '' };
-  }
-
-  const parts = fullName.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) {
-    return { nombre: parts[0], apellidos: '' };
-  }
-
-  return {
-    nombre: parts[0],
-    apellidos: parts.slice(1).join(' '),
-  };
-}
-
-function decodeGoogleJwt(idToken: string): GoogleJwtPayload {
-  return parseJwtPayload<GoogleJwtPayload>(idToken) ?? {};
-}
+import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -110,6 +67,9 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
+          organizacionId: data.user.organizacionId ?? null,
+          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
@@ -170,6 +130,9 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
+          organizacionId: data.user.organizacionId ?? null,
+          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
         hasCompany: data.hasCompany,
@@ -181,16 +144,11 @@ export default function Login() {
       const loginError = err as AuthError;
 
       if (loginError.action === 'register') {
-        const googleData = decodeGoogleJwt(idToken);
-        const nameParts = splitGoogleName(googleData);
+        const googlePrefill = getGooglePrefillFromIdToken(idToken);
         navigate('/crear-empresa', {
           state: {
             googleToken: idToken,
-            googlePrefill: {
-              correo: googleData.email || '',
-              nombre: nameParts.nombre,
-              apellidos: nameParts.apellidos,
-            },
+            googlePrefill,
           },
         });
         return;
@@ -242,10 +200,20 @@ export default function Login() {
 
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-[480px]">
-          <h2 className="text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesion</h2>
-          <p className="text-center text-gray-500 mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
+<div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-[#1e3a8a] to-[#1e40af] bg-clip-text text-transparent mb-6 leading-tight">
+            Cafe Smart
+          </h1>
+          <p className="text-xl text-gray-600 max-w-md mx-auto leading-relaxed">
+            Gestión inteligente para el negocio cafetero del siglo XXI
           </p>
+        </div>
+        <div className="text-center mb-12">
+          <h2 className="text-2xl md:text-3xl font-bold text-[#0f172a] mb-4">Iniciar Sesión</h2>
+          <p className="text-gray-500 max-w-lg mx-auto">
+            Accede a tu panel de control con tu cuenta
+          </p>
+        </div>
 
           {error && (
           <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm text-center">
@@ -391,7 +359,7 @@ export default function Login() {
                 text="signin_with"
                 theme="outline"
                 size="large"
-                width="100%"
+                width={320}
               />
             </div>
           )}
@@ -404,12 +372,14 @@ export default function Login() {
             </div>
           )}
 
-          <p className="mt-8 text-center text-sm text-slate-600">
-            No tienes una cuenta?{' '}
-            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
-              Registrate gratis
-            </Link>
-          </p>
+<div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100">
+            <p className="text-center text-sm font-medium text-slate-700 mb-4">
+              ¿Nuevo en Cafe Smart? 
+              <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline ml-1 block mt-1">
+                Crear cuenta gratis
+              </Link>
+            </p>
+          </div>
         </div>
       </main>
 

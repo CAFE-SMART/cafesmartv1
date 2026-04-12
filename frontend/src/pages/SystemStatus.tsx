@@ -2,21 +2,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  Headset,
+  Check,
+  Coffee,
   HelpCircle,
   LoaderCircle,
-  RefreshCw,
-  Shield,
+  MessageCircle,
 } from 'lucide-react';
-import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+type ProcessStatus = 'creating' | 'success' | 'error';
+type SuccessStage = 'confirm' | 'welcome';
 
 type RegisterProcessState = {
   hasGoogleFlow: boolean;
@@ -30,7 +28,106 @@ type RegisterProcessState = {
   password: string;
 };
 
-type ProcessStatus = 'creating' | 'success' | 'error';
+const CONFIRMATION_DURATION_MS = 1700;
+
+function ConfirmSuccessView() {
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[520px] items-center justify-center">
+        <section className="w-full max-w-[360px] rounded-3xl border border-slate-200 bg-white px-6 py-7 text-center shadow-[0_24px_50px_rgba(15,23,42,0.1)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Check size={30} strokeWidth={3.2} />
+          </div>
+          <h1 className="mt-4 text-[1.35rem] font-black tracking-tight text-[#121826]">
+            Cuenta creada
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-600">Preparando tu bienvenida...</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function WelcomeView({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="relative min-h-screen overflow-hidden text-white">
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,#07132f_0%,#0b1e52_35%,#08142f_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(113,149,255,0.32)_0%,rgba(113,149,255,0)_42%)]" />
+      <div className="absolute -left-20 top-12 h-72 w-72 rounded-full bg-[#2d7cff]/20 blur-3xl" />
+      <div className="absolute -right-16 top-0 h-80 w-80 rounded-full bg-[#54d2ff]/18 blur-3xl" />
+      <div className="absolute inset-x-0 bottom-[-8rem] mx-auto h-80 w-[36rem] rounded-full bg-[#0a2f73]/55 blur-3xl" />
+      <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.85)_1px,transparent_0)] [background-size:28px_28px]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 py-5">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-5 py-2.5 backdrop-blur">
+          <Coffee size={18} className="text-white/90" />
+          <span className="text-[1.95rem] font-black tracking-tight text-white">Cafe Smart</span>
+        </div>
+
+        <div className="flex flex-1 flex-col items-center justify-center pt-4">
+          <div className="relative mt-1">
+            <div className="cafesmart-pulse-ring absolute -inset-4 rounded-full border border-[#74a7ff59]" />
+            <div
+              className="cafesmart-pulse-ring absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]"
+              style={{ animationDelay: '0.7s' }}
+            />
+            <div className="relative flex h-[258px] w-[258px] items-center justify-center">
+              <div className="absolute inset-[18%] rounded-full bg-[#80c6ff]/18 blur-3xl" aria-hidden="true" />
+              <img
+                src="/imagenes-de-proyecto/granito-inteligente.png"
+                alt="Granito inteligente de Cafe Smart"
+                className="cafesmart-float relative h-[250px] w-[250px] object-contain drop-shadow-[0_28px_50px_rgba(6,10,28,0.45)]"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 w-full max-w-[460px] rounded-[30px] border border-[#70a2ff42] bg-[linear-gradient(180deg,rgba(15,34,88,0.35)_0%,rgba(13,27,70,0.4)_100%)] px-5 py-5 backdrop-blur-sm">
+            <h1 className="text-center text-[2.35rem] font-black leading-[1.04] tracking-tight text-white">
+              Bienvenido a
+              <span className="block bg-[linear-gradient(180deg,#b8e4ff_0%,#5db9ff_100%)] bg-clip-text text-transparent">
+                Cafe Smart
+              </span>
+            </h1>
+
+            <p className="mt-3 text-center text-[1rem] leading-7 text-[#e0e8ff]">
+              Controla tu cafe en un solo lugar con precision.
+            </p>
+
+            <button
+              type="button"
+              onClick={onStart}
+              className="mt-6 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#1240c7] px-6 py-3 text-[1.5rem] font-black text-white shadow-[0_18px_40px_rgba(13,70,222,0.5)]"
+            >
+              Comenzar ahora
+              <ArrowRight size={20} />
+            </button>
+          </div>
+
+          <div className="mt-4 grid w-full max-w-[460px] grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => window.open('mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart', '_self')}
+              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+            >
+              <HelpCircle size={18} />
+              Ayuda
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                window.open('mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart', '_self')
+              }
+              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+            >
+              <MessageCircle size={18} />
+              Contactenos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SystemStatus() {
   const location = useLocation();
@@ -43,18 +140,15 @@ export default function SystemStatus() {
   );
 
   const [status, setStatus] = useState<ProcessStatus>('creating');
+  const [successStage, setSuccessStage] = useState<SuccessStage>('confirm');
   const [errorMessage, setErrorMessage] = useState(
-    'No pudimos procesar tu solicitud. Revisa tu internet.',
+    'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
   );
-  const [errorTitle, setErrorTitle] = useState('Error de conexion. Intentalo de nuevo.');
+  const [errorTitle, setErrorTitle] = useState('Error de conexion');
   const registrationStartedRef = useRef(false);
-  const redirectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
+    if (!hydrated) return;
     if (token && hasCompany && !processState) {
       navigate('/inicio', { replace: true });
     }
@@ -62,10 +156,7 @@ export default function SystemStatus() {
 
   const executeRegistration = useCallback(
     async (force = false) => {
-      if (registrationStartedRef.current && !force) {
-        return;
-      }
-
+      if (registrationStartedRef.current && !force) return;
       registrationStartedRef.current = true;
 
       if (!processState) {
@@ -78,8 +169,9 @@ export default function SystemStatus() {
       }
 
       setStatus('creating');
-      setErrorTitle('Error de conexion. Intentalo de nuevo.');
-      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu internet.');
+      setSuccessStage('confirm');
+      setErrorTitle('Error de conexion');
+      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.');
 
       try {
         let response: AuthResponse;
@@ -94,18 +186,14 @@ export default function SystemStatus() {
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
           });
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
             nombre: processState.nombre,
             telefono: processState.telefono,
             correo: processState.correo,
@@ -118,25 +206,34 @@ export default function SystemStatus() {
             id: response.user.id,
             email: response.user.email,
             name: response.user.name,
+            organizacionId: response.user.organizacionId ?? null,
+            tipoOrganizacion: response.user.tipoOrganizacion ?? null,
+            otroTipoDetalle: response.user.otroTipoDetalle ?? null,
           },
           token: response.access_token,
           hasCompany: response.hasCompany,
         });
-        setStatus('success');
 
-        redirectTimerRef.current = window.setTimeout(() => {
-          navigate('/inicio', { replace: true });
-        }, 1000);
+        setStatus('success');
+        setSuccessStage('confirm');
       } catch (err) {
         const authError = err as AuthError;
         const field = (authError.field ?? '').toLowerCase();
-        if (field === 'email' || field === 'correo') {
-          setErrorTitle('No se pudo crear la cuenta.');
-        }
-        setErrorMessage(
-          authError.message || 'No pudimos procesar tu solicitud. Revisa tu internet.',
-        );
+
+        registrationStartedRef.current = false;
         setStatus('error');
+        setSuccessStage('confirm');
+
+        if (field === 'email' || field === 'correo') {
+          setErrorTitle('No se pudo crear la cuenta');
+        } else {
+          setErrorTitle('Error de conexion');
+        }
+
+        setErrorMessage(
+          authError.message ||
+            'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+        );
       }
     },
     [hasCompany, navigate, processState, setSession, token],
@@ -144,135 +241,54 @@ export default function SystemStatus() {
 
   useEffect(() => {
     void executeRegistration();
-
-    return () => {
-      if (redirectTimerRef.current !== null) {
-        window.clearTimeout(redirectTimerRef.current);
-      }
-    };
   }, [executeRegistration]);
 
+  useEffect(() => {
+    if (status !== 'success' || successStage !== 'confirm') return;
+
+    const timer = window.setTimeout(() => {
+      setSuccessStage('welcome');
+    }, CONFIRMATION_DURATION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [status, successStage]);
+
+  if (status === 'success' && successStage === 'confirm') {
+    return <ConfirmSuccessView />;
+  }
+
+  if (status === 'success' && successStage === 'welcome') {
+    return <WelcomeView onStart={() => navigate('/inicio', { replace: true })} />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#efeff5] text-slate-900">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-[#efeff5] px-4 py-4">
-        <div className="mx-auto flex w-full max-w-[720px] items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/crear-empresa')}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#0b2a85]"
-            >
-              <ArrowLeft size={17} />
-              Cafe Smart
-            </button>
-            <p className="text-base font-semibold text-[#0b2a85]">Estado del sistema</p>
-          </div>
-          <CloudStatusBadge />
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-6 pb-28">
-        {status === 'creating' && (
-          <section className="rounded-2xl bg-[#e9e9f2] p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-4 border-[#c9cedf] border-t-[#0b2a85] text-[#0b2a85]">
-              <LoaderCircle className="h-7 w-7 animate-spin" />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
+      <div className="mx-auto w-full max-w-[520px] rounded-[30px] border border-white/80 bg-white/90 p-6 text-center shadow-[0_24px_50px_rgba(15,23,42,0.08)]">
+        {status === 'creating' ? (
+          <>
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+              <LoaderCircle className="h-9 w-9 animate-spin" />
             </div>
-            <h2 className="text-4xl font-extrabold tracking-tight text-[#0b2a85]">
-              Creando cuenta...
-            </h2>
-            <p className="mx-auto mt-3 max-w-[260px] text-lg text-slate-600">
-              Estamos preparando tu perfil de agronomo digital.
-            </p>
-          </section>
-        )}
-
-        {status === 'success' && (
-          <section className="rounded-2xl bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#80d9d8] text-[#0a5f63]">
-              <CheckCircle2 className="h-8 w-8" />
+            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">Creando cuenta...</h1>
+            <p className="mt-3 text-base text-slate-600">Estamos configurando tu espacio de trabajo.</p>
+          </>
+        ) : (
+          <>
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+              <AlertTriangle size={34} />
             </div>
-            <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-black">
-              Cuenta creada correctamente
-            </h2>
-            <p className="mx-auto mt-3 max-w-[280px] text-lg text-slate-700">
-              Bienvenido a bordo. Ya puedes gestionar tus cosechas.
-            </p>
-            <p className="mx-auto mt-3 max-w-[320px] text-sm font-medium text-emerald-700">
-              Si ves la nube en verde arriba, la cuenta ya fue confirmada con la API.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/inicio')}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b2a85] px-4 py-3 text-lg font-semibold text-white"
-            >
-              Ir al inicio <ArrowRight size={18} />
-            </button>
-          </section>
-        )}
-
-        {status === 'error' && (
-          <section className="rounded-2xl bg-[#e9e9f2] p-6 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center text-red-700">
-              <AlertTriangle className="h-10 w-10" />
-            </div>
-            <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-black">
-              {errorTitle}
-            </h2>
-            <p className="mx-auto mt-3 max-w-[290px] text-lg text-slate-700">
-              {errorMessage}
-            </p>
+            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">{errorTitle}</h1>
+            <p className="mt-3 text-base text-slate-600">{errorMessage}</p>
             <button
               type="button"
               onClick={() => void executeRegistration(true)}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-[#dddee8] px-4 py-3 text-lg font-semibold text-[#0b1e6b]"
+              className="mt-6 inline-flex min-h-[46px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-[#eef0fb] px-5 py-3 text-base font-bold text-[#102d92]"
             >
-              <RefreshCw size={17} /> Reintentar
+              Reintentar
             </button>
-          </section>
+          </>
         )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <section className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
-            <div className="bg-blue-50 p-3 rounded-xl text-[#072688] flex-shrink-0">
-              <Shield className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Seguridad garantizada</h3>
-              <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                Tus datos de produccion estan protegidos con altos estandares de seguridad.
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
-            <div className="bg-emerald-50 p-3 rounded-xl text-[#0b5663] flex-shrink-0">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Panel de control</h3>
-              <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                Analiza el rendimiento y optimiza cada grano de tu cosecha en tiempo real.
-              </p>
-            </div>
-          </section>
-        </div>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-[#efeff5] px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[720px] items-center justify-center gap-10">
-          <button type="button" className="flex flex-col items-center gap-1 text-slate-700">
-            <HelpCircle size={18} />
-            <span className="text-xs font-semibold">Ayuda</span>
-          </button>
-          <button
-            type="button"
-            className="flex flex-col items-center gap-1 rounded-2xl bg-[#d8d9e4] px-5 py-3 text-[#0b2a85]"
-          >
-            <Headset size={18} />
-            <span className="text-xs font-semibold">Contacto</span>
-          </button>
-        </div>
-      </nav>
+      </div>
     </div>
   );
 }

@@ -43,6 +43,7 @@ model TipoCafe {
   creadoEn      DateTime              @default(now()) @map("created_at")
   actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
 
+  lotes         Lote[]
   sublotes      Sublote[]
   inventarios   Inventario[]
   movimientos   InventarioMovimiento[]
@@ -56,6 +57,7 @@ model Calidad {
   creadoEn      DateTime              @default(now()) @map("created_at")
   actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
 
+  lotes         Lote[]
   sublotes      Sublote[]
   inventarios   Inventario[]
   movimientos   InventarioMovimiento[]
@@ -73,6 +75,7 @@ model Organization {
 
   usuarios        User[]
   compras         Compra[]
+  lotes           Lote[]
   parametros      ParametroOrganizacion[]
   inventarios     Inventario[]
   movimientos     InventarioMovimiento[]
@@ -126,6 +129,7 @@ model Sublote {
   pesoInicial Decimal   @map("peso_inicial") @db.Decimal(10, 2)
   pesoActual  Decimal   @map("peso_actual") @db.Decimal(10, 2)
   precioKg    Decimal   @map("precio_kg") @db.Decimal(10, 2)
+  humedad     Decimal?  @map("humedad") @db.Decimal(5, 2)
   idLote      String?   @map("id_lote")
   deviceId    String    @map("device_id")
   localId     String    @map("local_id")
@@ -141,8 +145,31 @@ model Sublote {
   calidadId String  @map("id_calidad")
   calidad   Calidad @relation(fields: [calidadId], references: [id])
 
+  lote      Lote?   @relation(fields: [idLote], references: [id])
+
   @@unique([deviceId, localId])
   @@map("sublote")
+}
+
+model Lote {
+  id            String       @id @default(uuid()) @map("id_lote")
+  codigo        String       @map("codigo")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  tipoCafeId String   @map("id_tipo_cafe")
+  tipoCafe   TipoCafe @relation(fields: [tipoCafeId], references: [id])
+
+  calidadId String  @map("id_calidad")
+  calidad   Calidad @relation(fields: [calidadId], references: [id])
+
+  sublotes Sublote[]
+
+  @@unique([organizacionId, tipoCafeId, calidadId])
+  @@map("lote")
 }
 
 model Inventario {

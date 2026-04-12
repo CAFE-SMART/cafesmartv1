@@ -33,6 +33,7 @@ a {
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -53,4 +54,36 @@ a {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #92400e;
+}
+
+@keyframes cafesmart-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-14deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(-9deg);
+  }
+}
+
+@keyframes cafesmart-pulse-ring {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: scale(1.06);
+  }
+}
+
+.cafesmart-float {
+  animation: cafesmart-float 6s ease-in-out infinite;
+}
+
+.cafesmart-pulse-ring {
+  animation: cafesmart-pulse-ring 5s ease-in-out infinite;
 }
