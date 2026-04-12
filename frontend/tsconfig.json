@@ -25,6 +25,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "allowSyntheticDefaultImports": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
@@ -32,3 +33,4 @@
   },
   "include": ["src"]
 }
+

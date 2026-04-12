@@ -85,7 +85,8 @@ tailwind.config = {
 }
 .glass-card {
   background: rgba(250, 248, 255, 0.85);
-  -webkit-backdrop-filter: blur(5px);\n  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 body {
   min-height: max(884px, 100dvh);
@@ -93,7 +94,6 @@ body {
 </style>
 </head>
 <body class="bg-background text-on-background font-body selection:bg-primary-container selection:text-on-primary-container">
-<!-- TopAppBar -->
 <header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#faf8ff]">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-[#002068] text-2xl">coffee</span>
@@ -102,7 +102,6 @@ body {
 <a href="/login" class="bg-primary text-on-primary px-5 py-2 rounded-xl font-headline font-semibold text-sm hover:bg-[#003399] transition-colors active:scale-95">Iniciar sesión</a>
 </header>
 <main class="pt-16">
-<!-- Hero Section -->
 <section class="relative min-h-[751px] flex items-center justify-center overflow-hidden">
 <div class="absolute inset-0">
 <img class="w-full h-full object-cover" alt="coffee plantation" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqMxWZUEuLE4zf_97uORMTEXK1Na7w7a9AL6K8Dkm9VuvZ6t6ZEVQSqImoxQw1subcv-iG4lRdSMNToRn5YQOxmvkefLWCobFtM6gX3cCMnsphEAyzSvwdwQavUPK2Z6hTlMd2FkLpOS2DcJxdBBpMK1kJjYy0uFHX4-s9ILb0KTq08_C9pvlT_C69GkaHJIv9P9CTdprpW6OZWX_TlAV6Al1caM9Au4P6s2gwIeQIdqbuhBIl2qWwOgrE5rKim6kPqVsvj954OraS"/>
@@ -120,7 +119,6 @@ Optimiza cada grano, desde la cosecha hasta la taza, con tecnología de precisi�
 </div>
 </div>
 </section>
-<!-- Metrics Bento -->
 <section class="px-6 -mt-12 relative z-20">
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
 <div class="bg-surface-container-low p-6 rounded-lg flex items-center gap-4 border border-outline-variant/10 shadow-sm">
@@ -152,7 +150,6 @@ Optimiza cada grano, desde la cosecha hasta la taza, con tecnología de precisi�
 </div>
 </div>
 </section>
-<!-- Features Accordion -->
 <section class="py-20 px-6">
 <div class="max-w-2xl mx-auto">
 <div class="text-center mb-12">
@@ -202,7 +199,6 @@ Optimiza cada grano, desde la cosecha hasta la taza, con tecnología de precisi�
 </div>
 </div>
 </section>
-<!-- CTA Final -->
 <section class="relative py-24 px-6 overflow-hidden">
 <div class="absolute inset-0 z-0 scale-110 blur-sm">
 <img class="w-full h-full object-cover opacity-30" alt="coffee beans" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmITg489PJE0aqW1q99jhSGWOO2anFTbB7pxagpZpkXr0z3F28UVEX89QIxVT-KXftHNdM3g7LIpjtdsK7D94IdSmq6KiHci7nO1cIdEoJrxAVgTBg0OCQmucqjRktEMSoQrjp8ciWOi653qCblAxkg7MssHfEsj6R2qqWsOAKrR4MjFcPIjrWKVD7WX_7ibFfciB9fl9TYBFJNvP7-J4KdGXGNXXOF_kqdWKoHkKspv4F3cU1mLrP6jQj-INXyApw_RuTtVHrT3c2"/>
@@ -218,7 +214,6 @@ La herramienta profesional que tu finca necesita para escalar al siguiente nivel
 </div>
 </section>
 </main>
-<!-- Footer -->
 <footer class="w-full py-8 px-6 flex flex-col items-center gap-4 bg-[#dad9e2] border-t border-[#444653]/10">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-[#002068] text-xl">coffee</span>
@@ -233,5 +228,5 @@ La herramienta profesional que tu finca necesita para escalar al siguiente nivel
 © 2024 Café Smart. The Digital Agronomist.
 </p>
 </footer>
-</body></html>
-
+</body>
+</html>
