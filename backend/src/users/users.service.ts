@@ -27,6 +27,9 @@ type CreateAdminWithOrganizationInput = {
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Busca un usuario por correo normalizando mayusculas y espacios.
+   */
   async findByEmail(correo: string) {
     return this.prisma.user.findUnique({
       where: { correo: correo.trim().toLowerCase() },
@@ -63,6 +66,9 @@ export class UsersService {
     });
   }
 
+  /**
+   * Crea un usuario en la transaccion actual o en el cliente principal si no se provee una.
+   */
   async create(data: CrearUsuarioData, tx?: Prisma.TransactionClient) {
     const prismaClient = tx ? tx : this.prisma;
     return prismaClient.user.create({
@@ -87,6 +93,9 @@ export class UsersService {
     });
   }
 
+  /**
+   * Registra la organizacion inicial y su administrador dentro de una misma transaccion.
+   */
   async createAdminWithOrganization(input: CreateAdminWithOrganizationInput) {
     return this.prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({

@@ -74,13 +74,34 @@ model Organization {
   creadoEn        DateTime              @default(now()) @map("fecha_registro")
 
   usuarios        User[]
+  clientes        Cliente[]
   compras         Compra[]
+  ventas          Venta[]
   lotes           Lote[]
   parametros      ParametroOrganizacion[]
   inventarios     Inventario[]
   movimientos     InventarioMovimiento[]
 
   @@map("organizacion")
+}
+
+model Cliente {
+  id         String    @id @default(uuid()) @map("id_cliente")
+  nombre     String    @map("nombre")
+  telefono   String?   @map("telefono")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+  deviceId   String?   @map("device_id")
+  localId    String?   @map("local_id")
+  syncStatus String?   @map("sync_status")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  ventas Venta[]
+
+  @@map("cliente")
 }
 
 model User {
@@ -98,6 +119,7 @@ model User {
   organizacionId String       @map("id_organizacion")
 
   compras     Compra[]
+  ventas      Venta[]
   movimientos InventarioMovimiento[]
 
   @@map("usuario")
@@ -145,10 +167,61 @@ model Sublote {
   calidadId String  @map("id_calidad")
   calidad   Calidad @relation(fields: [calidadId], references: [id])
 
-  lote      Lote?   @relation(fields: [idLote], references: [id])
+  detallesVenta         VentaDetalle[]
+  lote                  Lote?                @relation(fields: [idLote], references: [id])
+  movimientosInventario InventarioMovimiento[]
 
   @@unique([deviceId, localId])
   @@map("sublote")
+}
+
+model Venta {
+  id         String    @id @default(uuid()) @map("id_venta")
+  fecha      DateTime  @default(now()) @map("fecha")
+  totalVenta Decimal   @map("total_venta") @db.Decimal(12, 2)
+  deviceId   String    @map("device_id")
+  localId    String    @map("local_id")
+  syncStatus String?   @map("sync_status")
+  deletedAt  DateTime? @map("deleted_at")
+  clienteId  String?   @map("id_cliente")
+  cliente    Cliente?  @relation(fields: [clienteId], references: [id])
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  creadoPor String @map("id_usuario")
+  creador   User   @relation(fields: [creadoPor], references: [id])
+
+  detalles VentaDetalle[]
+
+  @@unique([deviceId, localId])
+  @@index([organizacionId, fecha])
+  @@map("venta")
+}
+
+model VentaDetalle {
+  id          String    @id @default(uuid()) @map("id_venta_detalle")
+  ventaId     String    @map("id_venta")
+  subloteId   String    @map("id_sublote")
+  pesoVendido Decimal   @map("peso_vendido") @db.Decimal(10, 2)
+  precioKg    Decimal   @map("precio_kg") @db.Decimal(10, 2)
+  subtotal    Decimal   @map("subtotal") @db.Decimal(12, 2)
+  deviceId    String    @map("device_id")
+  localId     String    @map("local_id")
+  syncStatus  String?   @map("sync_status")
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  venta   Venta   @relation(fields: [ventaId], references: [id])
+  sublote Sublote @relation(fields: [subloteId], references: [id])
+
+  @@unique([deviceId, localId])
+  @@index([ventaId])
+  @@index([subloteId])
+  @@map("venta_detalle")
 }
 
 model Lote {
@@ -191,29 +264,33 @@ model Inventario {
 }
 
 model InventarioMovimiento {
-  id             String                  @id @default(uuid()) @map("id_inventario_movimiento")
-  cantidad       Decimal                 @map("cantidad") @db.Decimal(12, 2)
+  id             String                   @id @default(uuid()) @map("id_inventario_movimiento")
+  cantidad       Decimal                  @map("cantidad") @db.Decimal(12, 2)
   tipoMovimiento TipoMovimientoInventario @map("tipo_movimiento")
   referenciaTipo TipoReferenciaInventario @map("referencia_tipo")
-  referenciaId   String                  @map("referencia_id")
-  createdAt      DateTime                @default(now()) @map("created_at")
+  referenciaId   String                   @map("referencia_id")
+  createdAt      DateTime                 @default(now()) @map("created_at")
 
-  organizacionId String                  @map("id_organizacion")
-  organizacion   Organization            @relation(fields: [organizacionId], references: [id])
+  organizacionId String                   @map("id_organizacion")
+  organizacion   Organization             @relation(fields: [organizacionId], references: [id])
 
-  usuarioId      String                  @map("id_usuario")
-  usuario        User                    @relation(fields: [usuarioId], references: [id])
+  usuarioId      String                   @map("id_usuario")
+  usuario        User                     @relation(fields: [usuarioId], references: [id])
 
-  tipoCafeId     String                  @map("id_tipo_cafe")
-  tipoCafe       TipoCafe                @relation(fields: [tipoCafeId], references: [id])
+  tipoCafeId     String                   @map("id_tipo_cafe")
+  tipoCafe       TipoCafe                 @relation(fields: [tipoCafeId], references: [id])
 
-  calidadId      String                  @map("id_calidad")
-  calidad        Calidad                 @relation(fields: [calidadId], references: [id])
+  calidadId      String                   @map("id_calidad")
+  calidad        Calidad                  @relation(fields: [calidadId], references: [id])
+
+  subloteId      String?                  @map("id_sublote")
+  sublote        Sublote?                 @relation(fields: [subloteId], references: [id])
 
   @@index([organizacionId, createdAt])
   @@index([organizacionId, tipoCafeId, calidadId, createdAt])
   @@index([referenciaId])
   @@index([organizacionId, referenciaId])
+  @@index([subloteId])
   @@map("inventario_movimiento")
 }
 

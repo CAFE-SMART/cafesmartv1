@@ -19,6 +19,10 @@ export class AuthRateLimitGuard implements CanActivate {
 
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Aplica una ventana fija por IP, metodo y ruta para limitar intentos
+   * repetidos sobre endpoints sensibles de autenticacion.
+   */
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<{
       headers?: Record<string, string | string[] | undefined>;
@@ -36,7 +40,6 @@ export class AuthRateLimitGuard implements CanActivate {
       this.configService.get('AUTH_RATE_LIMIT_MAX_REQUESTS') ?? 15,
     );
     const now = Date.now();
-
     this.cleanupExpiredEntries(now);
 
     const routeKey = request.route?.path ?? request.originalUrl ?? 'unknown-route';
@@ -71,6 +74,9 @@ export class AuthRateLimitGuard implements CanActivate {
     return true;
   }
 
+  /**
+   * Elimina entradas vencidas en memoria para mantener acotado el mapa de limites.
+   */
   private cleanupExpiredEntries(now: number) {
     if (now - this.lastCleanupAt < 30_000) {
       return;
@@ -85,6 +91,9 @@ export class AuthRateLimitGuard implements CanActivate {
     this.lastCleanupAt = now;
   }
 
+  /**
+   * Obtiene la IP efectiva del cliente, priorizando proxies reversos cuando existen.
+   */
   private getClientIp(request: {
     headers?: Record<string, string | string[] | undefined>;
     ip?: string;

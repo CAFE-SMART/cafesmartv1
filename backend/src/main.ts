@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
+/**
+ * Aplana errores anidados de validacion para devolver un contrato simple por campo.
+ */
 function flattenValidationErrors(
   errors: ValidationError[],
   parentPath = '',
@@ -18,6 +21,9 @@ function flattenValidationErrors(
   });
 }
 
+/**
+ * Configura el backend con CORS, validacion global y formato uniforme de errores.
+ */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);

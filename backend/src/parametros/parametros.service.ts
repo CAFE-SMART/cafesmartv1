@@ -5,6 +5,15 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ParametrosService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Obtiene un parámetro específico de una organización.
+   * Valida existencia, valor no vacío y conversión numérica.
+   * 
+   * @param nombre Nombre del parámetro a consultar.
+   * @param organizacionId UUID de la organización.
+   * @returns El valor del parámetro convertido a número.
+   * @throws InternalServerErrorException en cualquier caso de error.
+   */
   async getParametro(nombre: string, organizacionId: string): Promise<number> {
     const parametro = await this.prisma.parametroOrganizacion.findUnique({
       where: {

@@ -164,6 +164,10 @@ export class ComprasService {
     organizacionId?: string,
   ): Promise<CrearCompraResultado> {
     try {
+      /**
+       * Ejecuta la compra como una sola unidad de trabajo:
+       * crea la compra, crea sublotes, actualiza el agregado y registra trazabilidad.
+       */
       return await this.prisma.$transaction(async (tx) => {
         const organizacionIdFinal = await this.obtenerOrganizacionId(
           tx,
@@ -190,6 +194,11 @@ export class ComprasService {
           organizacionIdFinal,
         );
         const compraProcesada = procesarCompra(input, contextoCapacidad);
+        const lotesCompra = await this.asegurarLotesCompra(
+          tx,
+          organizacionIdFinal,
+          compraProcesada.sublotes,
+        );
         const movimientosCompra = this.construirMovimientosCompra(
           compraProcesada.sublotes,
         );
@@ -210,6 +219,7 @@ export class ComprasService {
             compra.id,
             input,
             compraProcesada.sublotes,
+            lotesCompra,
           ),
         });
 
@@ -260,6 +270,9 @@ export class ComprasService {
     }
   }
 
+  /**
+   * Resuelve la organizacion efectiva del usuario y valida acceso cruzado.
+   */
   private async obtenerOrganizacionId(
     tx: Prisma.TransactionClient | PrismaService,
     userId: string,
@@ -302,6 +315,9 @@ export class ComprasService {
     return usuario?.organizacion?.tipo ?? null;
   }
 
+  /**
+   * Evita que un mismo request intente registrar el mismo sublote dos veces.
+   */
   private validarSublotesDuplicadosEnRequest(input: CreateCompraDto): void {
     const clavesVistas = new Set<string>();
     const clavesDuplicadas = new Set<string>();
@@ -324,6 +340,9 @@ export class ComprasService {
     }
   }
 
+  /**
+   * Verifica que los catalogos referenciados por la compra existan antes de persistir.
+   */
   private async validarCatalogos(
     tx: Prisma.TransactionClient,
     input: CreateCompraDto,
@@ -359,6 +378,9 @@ export class ComprasService {
     }
   }
 
+  /**
+   * Obtiene la capacidad configurada de la bodega y el inventario agregado actual.
+   */
   private async obtenerContextoCapacidad(
     tx: Prisma.TransactionClient,
     organizacionId: string,
@@ -396,26 +418,135 @@ export class ComprasService {
     };
   }
 
+  private construirClaveLote(tipoCafeId: string, calidadId: string): string {
+    return `${tipoCafeId}::${calidadId}`;
+  }
+
+  private async asegurarLotesCompra(
+    tx: Prisma.TransactionClient,
+    organizacionId: string,
+    sublotesProcesados: CompraProcesada['sublotes'],
+  ): Promise<Map<string, string>> {
+    const tipoCafeIds = [...new Set(sublotesProcesados.map((s) => s.tipoCafeId))];
+    const calidadIds = [...new Set(sublotesProcesados.map((s) => s.calidadId))];
+
+    const [tiposCafe, calidades, lotesExistentes] = await Promise.all([
+      tx.tipoCafe.findMany({
+        where: { id: { in: tipoCafeIds } },
+        select: { id: true, nombre: true },
+      }),
+      tx.calidad.findMany({
+        where: { id: { in: calidadIds } },
+        select: { id: true, nombre: true },
+      }),
+      tx.lote.findMany({
+        where: {
+          organizacionId,
+          tipoCafeId: { in: tipoCafeIds },
+          calidadId: { in: calidadIds },
+        },
+        select: { id: true, tipoCafeId: true, calidadId: true },
+      }),
+    ]);
+
+    const nombreTipoPorId = new Map(tiposCafe.map((tipoCafe) => [tipoCafe.id, tipoCafe.nombre]));
+    const nombreCalidadPorId = new Map(calidades.map((calidad) => [calidad.id, calidad.nombre]));
+
+    const lotesPorClave = new Map<string, string>();
+    for (const lote of lotesExistentes) {
+      lotesPorClave.set(
+        this.construirClaveLote(lote.tipoCafeId, lote.calidadId),
+        lote.id,
+      );
+    }
+
+    for (const sublote of sublotesProcesados) {
+      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
+      if (lotesPorClave.has(clave)) {
+        continue;
+      }
+
+      const tipoNombre = nombreTipoPorId.get(sublote.tipoCafeId) ?? 'TIPO';
+      const calidadNombre = nombreCalidadPorId.get(sublote.calidadId) ?? 'CALIDAD';
+      const codigo = `${tipoNombre} ${calidadNombre}`.trim();
+
+      try {
+        const loteCreado = await tx.lote.create({
+          data: {
+            organizacionId,
+            tipoCafeId: sublote.tipoCafeId,
+            calidadId: sublote.calidadId,
+            codigo,
+          },
+          select: { id: true },
+        });
+
+        lotesPorClave.set(clave, loteCreado.id);
+      } catch (error) {
+        if (!this.esErrorUnico(error)) {
+          throw error;
+        }
+
+        const loteExistente = await tx.lote.findUnique({
+          where: {
+            organizacionId_tipoCafeId_calidadId: {
+              organizacionId,
+              tipoCafeId: sublote.tipoCafeId,
+              calidadId: sublote.calidadId,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (!loteExistente) {
+          throw new ConflictException(
+            'No se pudo asegurar el lote para la combinación tipo/calidad',
+          );
+        }
+
+        lotesPorClave.set(clave, loteExistente.id);
+      }
+    }
+
+    return lotesPorClave;
+  }
+
+  /**
+   * Transforma los sublotes procesados al formato que espera `createMany`.
+   */
   private construirSublotesData(
     compraId: string,
     input: CreateCompraDto,
     sublotesProcesados: CompraProcesada['sublotes'],
+    lotesCompra: Map<string, string>,
   ): Prisma.SubloteCreateManyInput[] {
     return sublotesProcesados.map((sublote, index) => {
+      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
+      const idLote = lotesCompra.get(clave);
+
+      if (!idLote) {
+        throw new BadRequestException(
+          'No se encontró el lote para uno de los sublotes de la compra',
+        );
+      }
+
       return {
-        compraId,
-        tipoCafeId: sublote.tipoCafeId,
-        calidadId: sublote.calidadId,
-        pesoInicial: sublote.pesoInicial,
-        pesoActual: sublote.pesoActual,
-        precioKg: sublote.precioKg,
-        idLote: null,
-        deviceId: input.sublotes[index].deviceId,
-        localId: input.sublotes[index].localId,
+      compraId,
+      tipoCafeId: sublote.tipoCafeId,
+      calidadId: sublote.calidadId,
+      pesoInicial: sublote.pesoInicial,
+      pesoActual: sublote.pesoActual,
+      precioKg: sublote.precioKg,
+      idLote,
+      deviceId: input.sublotes[index].deviceId,
+      localId: input.sublotes[index].localId,
       };
     });
   }
 
+  /**
+   * Actualiza el inventario agregado por tipo de cafe y calidad.
+   */
   private async actualizarInventarioSnapshot(
     tx: Prisma.TransactionClient,
     organizacionId: string,
@@ -447,6 +578,9 @@ export class ComprasService {
     }
   }
 
+  /**
+   * Registra movimientos de inventario para dejar trazabilidad de la compra.
+   */
   private async registrarMovimientosInventario(
     tx: Prisma.TransactionClient,
     organizacionId: string,
@@ -468,6 +602,9 @@ export class ComprasService {
     });
   }
 
+  /**
+   * Traduce sublotes procesados a movimientos de inventario de tipo compra.
+   */
   private construirMovimientosCompra(
     sublotesProcesados: CompraProcesada['sublotes'],
   ): MovimientoInventario[] {
@@ -480,6 +617,9 @@ export class ComprasService {
     }));
   }
 
+  /**
+   * Consolida movimientos iguales para evitar operaciones repetidas sobre el agregado.
+   */
   private agruparMovimientosInventario(
     movimientos: MovimientoInventario[],
   ): MovimientoInventario[] {
@@ -515,6 +655,9 @@ export class ComprasService {
     }));
   }
 
+  /**
+   * Busca una compra activa por su llave de sincronizacion movil.
+   */
   private async buscarCompraActivaPorSync(
     client: Prisma.TransactionClient | PrismaService,
     deviceId: string,
@@ -541,6 +684,9 @@ export class ComprasService {
     return compra;
   }
 
+  /**
+   * Busca una compra por sincronizacion sin filtrar si fue eliminada.
+   */
   private async buscarCompraPorSync(
     client: Prisma.TransactionClient | PrismaService,
     deviceId: string,
@@ -556,6 +702,9 @@ export class ComprasService {
     });
   }
 
+  /**
+   * Busca si alguno de los sublotes del request ya existe en la base.
+   */
   private async buscarSublotePorSync(
     client: Prisma.TransactionClient | PrismaService,
     input: CreateCompraDto,
@@ -570,6 +719,9 @@ export class ComprasService {
     });
   }
 
+  /**
+   * Recompone la respuesta de una compra ya existente en el formato del servicio.
+   */
   private construirRespuestaDesdeCompraExistente(
     compraExistente: CompraActivaConSublotes,
   ): CrearCompraResultado {
@@ -581,6 +733,9 @@ export class ComprasService {
     };
   }
 
+  /**
+   * Aplica el filtro de sublotes no eliminados a consultas internas del servicio.
+   */
   private obtenerWhereSubloteActivo(
     where: Prisma.SubloteWhereInput = {},
   ): Prisma.SubloteWhereInput {
@@ -590,6 +745,9 @@ export class ComprasService {
     };
   }
 
+  /**
+   * Determina la causa funcional de un conflicto de sincronizacion en compras.
+   */
   private async lanzarConflictoDeSincronizacion(
     input: CreateCompraDto,
   ): Promise<never> {
@@ -622,6 +780,9 @@ export class ComprasService {
     throw new ConflictException('Conflicto de sincronizacion al crear la compra');
   }
 
+  /**
+   * Identifica errores de unicidad emitidos por Prisma.
+   */
   private esErrorUnico(error: unknown): boolean {
     return (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -629,6 +790,9 @@ export class ComprasService {
     );
   }
 
+  /**
+   * Utilidades de conversion para operar cantidades monetarias y de peso con dos decimales.
+   */
   private aCentiUnidades(valor: number): number {
     return Math.round((valor + Number.EPSILON) * 100);
   }
@@ -637,6 +801,4 @@ export class ComprasService {
     return valor / 100;
   }
 }
-
-
 
