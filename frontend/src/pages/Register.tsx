@@ -194,6 +194,8 @@ export default function Register() {
     setSupportPanel((currentPanel) => (currentPanel === 'contact' ? null : 'contact'));
   };
 
+  const supportPanelId = supportPanel === 'help' ? 'register-support-help' : 'register-support-contact';
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
       <header className="flex flex-col gap-3 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
@@ -219,15 +221,19 @@ export default function Register() {
           <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
 
           {error && (
-            <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm flex items-start gap-2">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm flex items-start gap-2"
+            >
               <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {step === 1 && (
-            <section>
-              <h2 className="text-2xl font-bold text-[#0f172a] mb-1">
+            <section aria-labelledby="register-business-title">
+              <h2 id="register-business-title" className="text-2xl font-bold text-[#0f172a] mb-1">
                 Informacion del Negocio
               </h2>
               <p className="text-gray-500 mb-6 text-sm">
@@ -235,10 +241,12 @@ export default function Register() {
               </p>
 
               <div className="mb-6">
-                <label className="block text-sm font-bold text-slate-700 mb-2">
+                <label htmlFor="register-business-name" className="block text-sm font-bold text-slate-700 mb-2">
                   Nombre del negocio
                 </label>
                 <input
+                  id="register-business-name"
+                  name="businessName"
                   type="text"
                   value={nombreOrganizacion}
                   onChange={(e) => {
@@ -246,6 +254,11 @@ export default function Register() {
                     setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
                   }}
                   placeholder="Ej: Cooperativa El Cafetal"
+                  autoComplete="organization"
+                  aria-invalid={Boolean(stepOneErrors.nombreOrganizacion)}
+                  aria-describedby={
+                    stepOneErrors.nombreOrganizacion ? 'register-business-name-error' : undefined
+                  }
                   className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                     stepOneErrors.nombreOrganizacion
                       ? 'border-red-300 bg-red-50/40'
@@ -253,23 +266,32 @@ export default function Register() {
                   }`}
                 />
                 {stepOneErrors.nombreOrganizacion && (
-                  <p className="mt-2 text-xs font-medium text-red-600">
+                  <p id="register-business-name-error" className="mt-2 text-xs font-medium text-red-600">
                     {stepOneErrors.nombreOrganizacion}
                   </p>
                 )}
               </div>
 
               <div className="mb-6">
-                <label className="block text-sm font-bold text-slate-700 mb-3">
+                <label className="block text-sm font-bold text-slate-700 mb-3" id="register-business-type-label">
                   Tipo de negocio
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div
+                  role="radiogroup"
+                  aria-labelledby="register-business-type-label"
+                  aria-describedby={
+                    stepOneErrors.tipoOrganizacion ? 'register-business-type-error' : undefined
+                  }
+                  className="grid grid-cols-3 gap-3"
+                >
                   {tiposOrg.map((t) => {
                     const selected = tipoOrganizacion === t.value;
                     return (
                       <button
                         key={t.value}
                         type="button"
+                        role="radio"
+                        aria-checked={selected}
                         onClick={() => {
                           setTipoOrganizacion(t.value);
                           setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
@@ -298,7 +320,7 @@ export default function Register() {
                   })}
                 </div>
                 {stepOneErrors.tipoOrganizacion && (
-                  <p className="mt-2 text-xs font-medium text-red-600">
+                  <p id="register-business-type-error" className="mt-2 text-xs font-medium text-red-600">
                     {stepOneErrors.tipoOrganizacion}
                   </p>
                 )}
@@ -306,10 +328,12 @@ export default function Register() {
 
               {tipoOrganizacion === 'OTRO' && (
                 <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label htmlFor="register-business-type-other" className="block text-sm font-bold text-slate-700 mb-2">
                     Especifica el tipo
                   </label>
                   <input
+                    id="register-business-type-other"
+                    name="businessTypeOther"
                     type="text"
                     value={otroTipoDetalle}
                     onChange={(e) => {
@@ -317,12 +341,16 @@ export default function Register() {
                       setStepOneErrors((prev) => ({ ...prev, otroTipoDetalle: undefined }));
                     }}
                     placeholder="Ej: Exportadora, Trilladora"
+                    aria-invalid={Boolean(stepOneErrors.otroTipoDetalle)}
+                    aria-describedby={
+                      stepOneErrors.otroTipoDetalle ? 'register-business-type-other-error' : undefined
+                    }
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                       stepOneErrors.otroTipoDetalle ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
                     }`}
                   />
                   {stepOneErrors.otroTipoDetalle && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
+                    <p id="register-business-type-other-error" className="mt-2 text-xs font-medium text-red-600">
                       {stepOneErrors.otroTipoDetalle}
                     </p>
                   )}
@@ -340,9 +368,9 @@ export default function Register() {
           )}
 
           {step === 2 && (
-            <section>
+            <section aria-labelledby="register-admin-title">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <h2 className="text-2xl font-bold text-[#0f172a]">
+                <h2 id="register-admin-title" className="text-2xl font-bold text-[#0f172a]">
                   Datos del Administrador
                 </h2>
                 <span className="text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap mt-1">
@@ -380,8 +408,12 @@ export default function Register() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">Nombre</label>
+                    <label htmlFor="register-admin-name" className="mb-2 block text-sm font-bold text-slate-700">
+                      Nombre
+                    </label>
                     <input
+                      id="register-admin-name"
+                      name="firstName"
                       type="text"
                       value={nombre}
                       onChange={(e) => {
@@ -389,6 +421,9 @@ export default function Register() {
                         setStepTwoErrors((prev) => ({ ...prev, nombre: undefined }));
                       }}
                       placeholder="Ej. Juan"
+                      autoComplete="given-name"
+                      aria-invalid={Boolean(stepTwoErrors.nombre)}
+                      aria-describedby={stepTwoErrors.nombre ? 'register-admin-name-error' : undefined}
                       className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all placeholder-gray-400 ${
                         stepTwoErrors.nombre
                           ? 'border-red-300 bg-red-50/40 text-gray-700'
@@ -397,15 +432,19 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.nombre && (
-                      <p className="mt-2 text-xs font-medium text-red-600">
+                      <p id="register-admin-name-error" className="mt-2 text-xs font-medium text-red-600">
                         {stepTwoErrors.nombre}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">Apellidos</label>
+                    <label htmlFor="register-admin-lastname" className="mb-2 block text-sm font-bold text-slate-700">
+                      Apellidos
+                    </label>
                     <input
+                      id="register-admin-lastname"
+                      name="lastName"
                       type="text"
                       value={apellidos}
                       onChange={(e) => {
@@ -413,6 +452,11 @@ export default function Register() {
                         setStepTwoErrors((prev) => ({ ...prev, apellidos: undefined }));
                       }}
                       placeholder="Ej. Perez Gomez"
+                      autoComplete="family-name"
+                      aria-invalid={Boolean(stepTwoErrors.apellidos)}
+                      aria-describedby={
+                        stepTwoErrors.apellidos ? 'register-admin-lastname-error' : undefined
+                      }
                       className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all placeholder-gray-400 ${
                         stepTwoErrors.apellidos
                           ? 'border-red-300 bg-red-50/40 text-gray-700'
@@ -421,7 +465,7 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.apellidos && (
-                      <p className="mt-2 text-xs font-medium text-red-600">
+                      <p id="register-admin-lastname-error" className="mt-2 text-xs font-medium text-red-600">
                         {stepTwoErrors.apellidos}
                       </p>
                     )}
@@ -429,10 +473,12 @@ export default function Register() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label htmlFor="register-admin-phone" className="block text-sm font-bold text-slate-700 mb-2">
                     Telefono
                   </label>
                   <input
+                    id="register-admin-phone"
+                    name="phone"
                     type="tel"
                     value={telefono}
                     onChange={(e) => {
@@ -440,21 +486,28 @@ export default function Register() {
                       setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
                     }}
                     placeholder="+57 300 123 4567"
+                    autoComplete="tel"
+                    aria-invalid={Boolean(stepTwoErrors.telefono)}
+                    aria-describedby={stepTwoErrors.telefono ? 'register-admin-phone-error' : undefined}
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                       stepTwoErrors.telefono ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
                     }`}
                     required
                   />
                   {stepTwoErrors.telefono && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
+                    <p id="register-admin-phone-error" className="mt-2 text-xs font-medium text-red-600">
                       {stepTwoErrors.telefono}
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">Correo electronico</label>
+                  <label htmlFor="register-admin-email" className="mb-2 block text-sm font-bold text-slate-700">
+                    Correo electronico
+                  </label>
                   <input
+                    id="register-admin-email"
+                    name="email"
                     type="email"
                     value={correo}
                     onChange={(e) => {
@@ -468,6 +521,15 @@ export default function Register() {
                       }
                     }}
                     placeholder="admin@empresa.com"
+                    autoComplete="email"
+                    aria-invalid={Boolean(stepTwoErrors.correo)}
+                    aria-describedby={
+                      stepTwoErrors.correo
+                        ? 'register-admin-email-error'
+                        : isCheckingEmail
+                          ? 'register-admin-email-status'
+                          : undefined
+                    }
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all placeholder-gray-400 ${
                       stepTwoErrors.correo
                         ? 'border-red-300 bg-red-50/40 text-gray-700'
@@ -476,23 +538,25 @@ export default function Register() {
                     required
                   />
                   {isCheckingEmail && !stepTwoErrors.correo && (
-                    <p className="mt-2 text-xs font-medium text-slate-500">
+                    <p id="register-admin-email-status" className="mt-2 text-xs font-medium text-slate-500">
                       Validando correo...
                     </p>
                   )}
                   {stepTwoErrors.correo && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
+                    <p id="register-admin-email-error" className="mt-2 text-xs font-medium text-red-600">
                       {stepTwoErrors.correo}
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label htmlFor="register-admin-password" className="block text-sm font-bold text-slate-700 mb-2">
                     Contraseña
                   </label>
                   <div className="relative">
                     <input
+                      id="register-admin-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => {
@@ -500,6 +564,9 @@ export default function Register() {
                         setStepTwoErrors((prev) => ({ ...prev, password: undefined }));
                       }}
                       placeholder="************"
+                      autoComplete={hasGoogleFlow ? 'new-password' : 'new-password'}
+                      aria-invalid={Boolean(stepTwoErrors.password)}
+                      aria-describedby={stepTwoErrors.password ? 'register-admin-password-error' : undefined}
                       className={`block w-full px-4 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                         stepTwoErrors.password ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
                       }`}
@@ -510,6 +577,7 @@ export default function Register() {
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
                     >
                       {showPassword ? (
                         <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
@@ -519,7 +587,7 @@ export default function Register() {
                     </button>
                   </div>
                   {stepTwoErrors.password && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
+                    <p id="register-admin-password-error" className="mt-2 text-xs font-medium text-red-600">
                       {stepTwoErrors.password}
                     </p>
                   )}
@@ -549,10 +617,12 @@ export default function Register() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label htmlFor="register-admin-password-confirm" className="block text-sm font-bold text-slate-700 mb-2">
                     Confirma tu contraseña
                   </label>
                   <input
+                    id="register-admin-password-confirm"
+                    name="confirmPassword"
                     type={showPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => {
@@ -560,6 +630,15 @@ export default function Register() {
                       setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
                     }}
                     placeholder="Vuelve a escribir tu contraseña"
+                    autoComplete="new-password"
+                    aria-invalid={Boolean(stepTwoErrors.confirmPassword)}
+                    aria-describedby={
+                      stepTwoErrors.confirmPassword
+                        ? 'register-admin-password-confirm-error'
+                        : hasStartedConfirming
+                          ? 'register-admin-password-confirm-status'
+                          : undefined
+                    }
                     className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
                       stepTwoErrors.confirmPassword
                         ? 'border-red-300 bg-red-50/40'
@@ -569,12 +648,13 @@ export default function Register() {
                     minLength={6}
                   />
                   {stepTwoErrors.confirmPassword && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
+                    <p id="register-admin-password-confirm-error" className="mt-2 text-xs font-medium text-red-600">
                       {stepTwoErrors.confirmPassword}
                     </p>
                   )}
                   {!stepTwoErrors.confirmPassword && hasStartedConfirming && (
                     <p
+                      id="register-admin-password-confirm-status"
                       className={`mt-2 text-xs font-medium ${
                         passwordsMatch ? 'text-emerald-600' : 'text-red-600'
                       }`}
@@ -656,13 +736,19 @@ export default function Register() {
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6 sm:justify-end sm:px-6">
         <div className="pointer-events-auto relative flex items-end gap-3">
           {supportPanel && (
-            <div className="fixed left-4 right-4 bottom-20 z-50 max-h-[62vh] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-[min(92vw,23rem)] sm:max-h-none">
+            <div
+              id={supportPanelId}
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="register-support-title"
+              className="fixed left-4 right-4 bottom-20 z-50 max-h-[62vh] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-[min(92vw,23rem)] sm:max-h-none"
+            >
               <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div>
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-[#102d92]">
                     {supportContent.badge}
                   </p>
-                  <h3 className="mt-1 text-lg font-black text-slate-900">
+                  <h3 id="register-support-title" className="mt-1 text-lg font-black text-slate-900">
                     {supportPanel === 'help' ? supportContent.title : supportContent.contactTitle}
                   </h3>
                 </div>
@@ -712,6 +798,8 @@ export default function Register() {
             <button
               type="button"
               onClick={handleHelpClick}
+              aria-expanded={supportPanel === 'help'}
+              aria-controls="register-support-help"
               className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
                 supportPanel === 'help'
                   ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'
@@ -724,6 +812,8 @@ export default function Register() {
             <button
               type="button"
               onClick={handleContactClick}
+              aria-expanded={supportPanel === 'contact'}
+              aria-controls="register-support-contact"
               className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
                 supportPanel === 'contact'
                   ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'

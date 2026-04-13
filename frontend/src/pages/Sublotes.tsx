@@ -509,7 +509,7 @@ export default function Sublotes() {
                         onChange={(event) => updateFactor(sublote.id, event.target.value)}
                         disabled={!isSecoBuenoLot}
                         className="mt-2 w-full rounded-[12px] border border-[#dfe5f2] bg-white px-3 py-2.5 text-base font-semibold text-slate-900 outline-none focus:border-[#102d92] disabled:bg-slate-100 disabled:text-slate-500"
-                        placeholder={isSecoBuenoLot ? 'Ingresa el factor (Ej: 0.95)' : 'No aplica en este lote'}
+                        placeholder={isSecoBuenoLot ? 'Ingresa el factor (Ej: 1.85)' : 'No aplica en este lote'}
                       />
                       {saved[factorSavedKey] ? (
                         <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-black text-emerald-700">

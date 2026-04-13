@@ -113,7 +113,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
-      setError('Corrige los campos marcados para continuar.');
+      setError('Revisa los campos en rojo y corrigelos para continuar.');
       return;
     }
 
@@ -186,7 +186,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
-      setError('Corrige los campos marcados para continuar.');
+      setError('Revisa los campos en rojo y corrigelos para continuar.');
       return;
     }
 
