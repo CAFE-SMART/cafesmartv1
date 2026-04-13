@@ -272,7 +272,7 @@ export class AuthService {
     }
   }
 
-  private buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
+  private async buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
     const sessionUser = await this.usersService.findSessionById(user.id);

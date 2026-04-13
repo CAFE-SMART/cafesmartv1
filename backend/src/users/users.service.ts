@@ -129,7 +129,7 @@ export class UsersService {
     });
   }
 
-  async linkGoogleAccount(userId: number, googleId: string) {
+  async linkGoogleAccount(userId: string, googleId: string) {
     return this.prisma.user.update({
       where: { id: userId },
       data: { googleId },

@@ -118,6 +118,12 @@ Instala dependencias:
 pnpm install
 ```
 
+Genera el cliente de Prisma (recomendado en instalaciones limpias):
+
+```bash
+pnpm --filter cafe-smart-backend exec prisma generate
+```
+
 Levanta backend y frontend en desarrollo:
 
 ```bash
