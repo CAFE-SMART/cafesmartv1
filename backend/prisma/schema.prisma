@@ -37,6 +37,21 @@ enum TipoReferenciaInventario {
   MEZCLA
 }
 
+// ── Gastos Operativos ────────────────────────────────────────
+enum TipoGasto {
+  TRANSPORTE
+  COMIDA
+  SECADO
+  CARGUE
+  DESCARGUE
+  OTROS
+}
+
+enum EstadoPago {
+  PAGADO
+  PENDIENTE
+}
+
 model TipoCafe {
   id            String                @id @default(uuid()) @map("id_tipo_cafe")
   nombre        String                @unique @map("nombre")
@@ -73,14 +88,15 @@ model Organization {
   activo          Boolean               @default(true) @map("estado")
   creadoEn        DateTime              @default(now()) @map("fecha_registro")
 
-  usuarios        User[]
-  clientes        Cliente[]
-  compras         Compra[]
-  ventas          Venta[]
-  lotes           Lote[]
-  parametros      ParametroOrganizacion[]
-  inventarios     Inventario[]
-  movimientos     InventarioMovimiento[]
+  usuarios         User[]
+  clientes         Cliente[]
+  compras          Compra[]
+  ventas           Venta[]
+  lotes            Lote[]
+  parametros       ParametroOrganizacion[]
+  inventarios      Inventario[]
+  movimientos      InventarioMovimiento[]
+  gastosOperativos GastoOperativo[]
 
   @@map("organizacion")
 }
@@ -170,6 +186,7 @@ model Sublote {
   detallesVenta         VentaDetalle[]
   lote                  Lote?                @relation(fields: [idLote], references: [id])
   movimientosInventario InventarioMovimiento[]
+  gastosOperativos      GastoSublote[]
 
   @@unique([deviceId, localId])
   @@map("sublote")
@@ -312,4 +329,61 @@ model Parametro {
   valor  String @map("valor")
 
   @@map("parametro")
+}
+
+// ============================================================
+// GASTOS OPERATIVOS
+// ============================================================
+
+model GastoOperativo {
+  id            String     @id @default(uuid()) @map("id_gasto")
+
+  /// Ej. "Pago de jornaleros - Cosecha Oct"
+  conceptoGasto String     @map("concepto_gasto")
+
+  /// Descripción breve / detalles adicionales (opcional)
+  descripcion   String?    @map("descripcion")
+
+  montoGasto    Decimal    @map("monto_gasto") @db.Decimal(12, 2)
+  fechaGasto    DateTime   @map("fecha_gasto")
+
+  tipoGasto     TipoGasto  @map("tipo_gasto")
+  estadoPago    EstadoPago @map("estado_pago")
+
+  // ── Campos de sincronización offline-first ───────────────
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt      @map("updated_at")
+  deletedAt     DateTime?                  @map("deleted_at")
+  deviceId      String?                    @map("device_id")
+  syncStatus    String?                    @map("sync_status")
+  localId       String?                    @map("local_id")
+  createdBy     String?                    @map("created_by")
+
+  // ── Relación con la organización ─────────────────────────
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  // ── Relación many-to-many con sublotes (opcional) ────────
+  sublotes GastoSublote[]
+
+  @@unique([deviceId, localId])
+  @@index([organizacionId, fechaGasto])
+  @@index([organizacionId, tipoGasto])
+  @@map("gasto_operativo")
+}
+
+/// Tabla pivot que vincula un gasto operativo con uno o varios sublotes
+/// (solo se usa cuando el gasto aplica a sublotes específicos, no al global)
+model GastoSublote {
+  id             String @id @default(uuid()) @map("id_gasto_sublote")
+
+  gastoOperativoId String         @map("id_gasto")
+  gastoOperativo   GastoOperativo @relation(fields: [gastoOperativoId], references: [id])
+
+  subloteId String  @map("id_sublote")
+  sublote   Sublote @relation(fields: [subloteId], references: [id])
+
+  @@unique([gastoOperativoId, subloteId])
+  @@index([subloteId])
+  @@map("gasto_sublote")
 }
