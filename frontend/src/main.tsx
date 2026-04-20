@@ -17,17 +17,15 @@ function Providers({ children }: { children: React.ReactNode }) {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    {googleClientId ? (
-      <GoogleOAuthProvider clientId={googleClientId}>
-        <Providers>
-          <App />
-        </Providers>
-      </GoogleOAuthProvider>
-    ) : (
+  googleClientId ? (
+    <GoogleOAuthProvider clientId={googleClientId}>
       <Providers>
         <App />
       </Providers>
-    )}
-  </React.StrictMode>,
+    </GoogleOAuthProvider>
+  ) : (
+    <Providers>
+      <App />
+    </Providers>
+  ),
 );

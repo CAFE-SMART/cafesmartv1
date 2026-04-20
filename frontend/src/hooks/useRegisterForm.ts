@@ -88,8 +88,13 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     try {
       const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
       return exists ? 'Este correo ya esta registrado. Usa otro o inicia sesion.' : null;
-    } catch {
-      return null;
+    } catch (checkError) {
+      const message =
+        checkError && typeof checkError === 'object' && 'message' in checkError
+          ? String((checkError as { message?: unknown }).message)
+          : 'No se pudo validar el correo con el servidor.';
+
+      return message || 'No se pudo validar el correo con el servidor.';
     } finally {
       setIsCheckingEmail(false);
     }

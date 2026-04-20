@@ -6,7 +6,6 @@ type CrearUsuarioData = {
   nombre: string;
   correo: string;
   password: string | null;
-  googleId?: string | null;
   telefono: string;
   rol: RolUsuario;
   organizacionId: string;
@@ -20,7 +19,6 @@ type CreateAdminWithOrganizationInput = {
   correo: string;
   telefono: string;
   password: string;
-  googleId?: string | null;
 };
 
 @Injectable()
@@ -30,7 +28,14 @@ export class UsersService {
   async findByEmail(correo: string) {
     return this.prisma.user.findUnique({
       where: { correo: correo.trim().toLowerCase() },
-      include: {
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        password: true,
+        telefono: true,
+        rol: true,
+        organizacionId: true,
         organizacion: {
           select: {
             id: true,
@@ -71,7 +76,6 @@ export class UsersService {
         nombre: data.nombre,
         correo: data.correo.trim().toLowerCase(),
         password: data.password,
-        googleId: data.googleId,
         telefono: data.telefono,
         rol: data.rol,
         organizacionId: data.organizacionId,
@@ -83,7 +87,6 @@ export class UsersService {
         telefono: true,
         rol: true,
         organizacionId: true,
-        googleId: true,
       },
     });
   }
@@ -104,7 +107,6 @@ export class UsersService {
           correo: input.correo.trim().toLowerCase(),
           telefono: input.telefono,
           password: input.password,
-          googleId: input.googleId ?? null,
           rol: RolUsuario.ADMIN,
           organizacionId: organization.id,
         },
@@ -115,16 +117,16 @@ export class UsersService {
           telefono: true,
           rol: true,
           organizacionId: true,
-          googleId: true,
         },
       });
     });
   }
 
   async linkGoogleAccount(userId: string, googleId: string) {
-    return this.prisma.user.update({
+    void googleId;
+
+    return this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      data: { googleId },
       select: {
         id: true,
         nombre: true,
@@ -132,7 +134,6 @@ export class UsersService {
         telefono: true,
         rol: true,
         organizacionId: true,
-        googleId: true,
       },
     });
   }

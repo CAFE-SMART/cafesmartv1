@@ -104,22 +104,8 @@ export class AuthService {
 
     const existingUser = await this.usersService.findByEmail(googleEmail);
     if (existingUser) {
-      if (existingUser.googleId && existingUser.googleId !== googleSubject) {
-        throw new HttpException(
-          {
-            message: 'Este correo ya esta vinculado con otra cuenta de Google',
-            field: 'email',
-          },
-          HttpStatus.CONFLICT,
-        );
-      }
-
-      const linkedUser =
-        existingUser.googleId === googleSubject
-          ? existingUser
-          : await this.usersService.linkGoogleAccount(existingUser.id, googleSubject);
-
-      return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
+      void googleSubject;
+      return this.buildAuthResponse(existingUser, 'Cuenta validada con Google');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -133,7 +119,6 @@ export class AuthService {
         correo: googleEmail,
         telefono: dto.telefono,
         password: hashedPassword,
-        googleId: googleSubject,
       });
     } catch (error) {
       this.throwIfUniqueConstraint(error);
@@ -200,19 +185,9 @@ export class AuthService {
       });
     }
 
-    if (user.googleId && user.googleId !== googleSubject) {
-      throw new UnauthorizedException({
-        message: 'Esta cuenta ya esta vinculada con otra cuenta de Google',
-        field: 'email',
-      });
-    }
+    void googleSubject;
 
-    const linkedUser =
-      user.googleId === googleSubject
-        ? user
-        : await this.usersService.linkGoogleAccount(user.id, googleSubject);
-
-    return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
+    return this.buildAuthResponse(user, 'Login con Google exitoso');
   }
 
   private throwIfUniqueConstraint(error: unknown): never | void {

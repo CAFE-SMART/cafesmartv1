@@ -18,6 +18,7 @@ export type AuthError = {
   field: string | null;
   details?: Record<string, string[]>;
   action?: string | null;
+  debug?: unknown;
   code: 'OFFLINE' | 'HTTP' | 'UNKNOWN';
   status?: number;
 };
@@ -41,6 +42,10 @@ type RawApiError = {
   field?: string;
   details?: Record<string, string[]>;
   action?: string;
+  debug?: unknown;
+  path?: string;
+  raw?: string;
+  statusCode?: number;
 };
 
 type CloudTrackingConfig = {
@@ -82,14 +87,48 @@ async function postAuth<TResponse>(
       body: JSON.stringify(body),
     });
 
-    const data = (await response.json().catch(() => ({}))) as TResponse & RawApiError;
+    const responseText = await response.text();
+    let data: TResponse & RawApiError;
+
+    try {
+      data = (responseText ? JSON.parse(responseText) : {}) as TResponse & RawApiError;
+    } catch (parseError) {
+      if (import.meta.env.DEV) {
+        console.error('AUTH API PARSE ERROR', {
+          endpoint,
+          status: response.status,
+          raw: responseText,
+          error: parseError,
+        });
+      }
+
+      throw {
+        message: 'El servidor respondio algo que no es JSON valido. Revisa la terminal del backend.',
+        field: null,
+        code: 'UNKNOWN',
+        status: response.status,
+      } as AuthError;
+    }
 
     if (!response.ok) {
+      if (import.meta.env.DEV) {
+        console.error('AUTH API ERROR', {
+          endpoint,
+          status: response.status,
+          message: data.message,
+          path: data.path,
+          debug: data.debug,
+          details: data.details,
+          raw: responseText,
+        });
+      }
+
       const authError: AuthError = {
         message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
         field: data.field ?? null,
         details: data.details,
         action: data.action ?? null,
+        debug: data.debug,
         code: 'HTTP',
         status: response.status,
       };
@@ -125,6 +164,7 @@ async function postAuth<TResponse>(
       field: knownError.field ?? null,
       details: knownError.details,
       action: knownError.action ?? null,
+      debug: knownError.debug,
       code: knownError.code ?? 'UNKNOWN',
       status: knownError.status,
     } as AuthError;

@@ -720,7 +720,7 @@ export default function Register() {
                             text="continue_with"
                             theme="outline"
                             size="large"
-                            width="100%"
+                            width={320}
                           />
                         </div>
                       )}
