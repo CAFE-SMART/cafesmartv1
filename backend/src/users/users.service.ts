@@ -65,6 +65,7 @@ export class UsersService {
 
   async create(data: CrearUsuarioData, tx?: Prisma.TransactionClient) {
     const prismaClient = tx ? tx : this.prisma;
+
     return prismaClient.user.create({
       data: {
         nombre: data.nombre,
@@ -120,11 +121,7 @@ export class UsersService {
     });
   }
 
-<<<<<<< HEAD
-async linkGoogleAccount(userId: string, googleId: string) {
-=======
   async linkGoogleAccount(userId: string, googleId: string) {
->>>>>>> origin/develop
     return this.prisma.user.update({
       where: { id: userId },
       data: { googleId },
