@@ -1,8 +1,16 @@
-﻿import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+﻿import { Capacitor } from '@capacitor/core';
+import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
+// 🔥 Detectar entorno (Android vs Web)
+const isAndroid = Capacitor.getPlatform() === 'android';
+
+// 🔥 Base URL dinámica
+const API_BASE_URL = isAndroid
+  ? 'http://10.0.2.2:3000'
+  : (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
+
+// 🔥 Endpoint base
 const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
 
 export type AuthError = {
@@ -43,9 +51,7 @@ type CloudTrackingConfig = {
 };
 
 function isNetworkFetchError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
+  if (!(error instanceof Error)) return false;
 
   const message = error.message.toLowerCase();
   return (
@@ -105,8 +111,7 @@ async function postAuth<TResponse>(
       emitCloudStatusEvent({
         status: 'error',
         source: cloudTracking.source ?? 'sync',
-        message:
-          knownError.message || 'No se pudo completar la operacion con la nube.',
+        message: knownError.message || 'No se pudo completar la operacion con la nube.',
       });
     }
 
