@@ -313,7 +313,7 @@ export async function procesarVenta(
       venta,
       detalles: detallesCreados,
     };
-  });
+  }, { maxWait: 10000, timeout: 25000 });
 }
 
 /**

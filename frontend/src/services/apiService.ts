@@ -2,37 +2,59 @@ import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
 
 const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+type ApiErrorDetails = Record<string, string[]>;
+
+type ApiRequestErrorOptions = {
+  status: number;
+  field?: string | null;
+  details?: ApiErrorDetails | null;
+};
+
+export class ApiRequestError extends Error {
+  status: number;
+  field: string | null;
+  details: ApiErrorDetails | null;
+
+  constructor(message: string, options: ApiRequestErrorOptions) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = options.status;
+    this.field = options.field ?? null;
+    this.details = options.details ?? null;
+  }
+}
+
 function traducirMensajeError(message: string | null | undefined, status: number) {
   const texto = (message || '').trim();
 
   if (!texto) {
     if (status >= 500) {
-      return 'Ocurrio un problema interno del sistema. Por favor comunicate con la persona encargada.';
+      return 'Intenta guardar de nuevo. Tuvimos un inconveniente, pero tus datos están a salvo.';
     }
 
     if (status === 401) {
-      return 'Tu sesion ya no esta activa. Ingresa nuevamente.';
+      return 'Ingresa otra vez. Tu sesión se cerró para proteger tu cuenta.';
     }
 
     if (status === 403) {
-      return 'No tienes permiso para realizar esta accion.';
+      return 'Pide autorización al administrador. Tu cuenta actual no tiene habilitada esta opción.';
     }
 
     if (status === 404) {
-      return 'No se encontro la informacion solicitada.';
+      return 'Revisa tu búsqueda. No logramos encontrar la información que solicitas.';
     }
 
-    return 'No fue posible completar la solicitud.';
+    return 'Intenta la acción nuevamente. Hubo un pequeño tropiezo procesando tus datos.';
   }
 
   const mapa: Record<string, string> = {
-    'Internal server error': 'Ocurrio un problema interno del sistema. Por favor comunicate con la persona encargada.',
-    Unauthorized: 'Tu sesion ya no esta activa. Ingresa nuevamente.',
-    Forbidden: 'No tienes permiso para realizar esta accion.',
-    'Forbidden resource': 'No tienes permiso para realizar esta accion.',
-    'Not Found': 'No se encontro la informacion solicitada.',
-    'Bad Request': 'No fue posible procesar la informacion enviada. Revisa los datos e intenta de nuevo.',
-    'Failed to fetch': 'No fue posible conectarse con el servidor. Verifica que el backend este encendido y que esta app pueda alcanzarlo.',
+    'Internal server error': 'Guarda tu progreso de nuevo. Tuvimos un inconveniente técnico, pero nada se ha perdido.',
+    Unauthorized: 'Ingresa de nuevo a tu cuenta. La sesión se cerró por tu seguridad.',
+    Forbidden: 'Solicita acceso para esto. Tu cuenta no tiene permisos para usar esta función.',
+    'Forbidden resource': 'Solicita acceso para esto. Tu cuenta no tiene permisos para esta opción.',
+    'Not Found': 'Revisa el dato buscado. No logramos encontrar esa información en el sistema.',
+    'Bad Request': 'Verifica lo que escribiste. Parece que falta algún dato o hay un pequeño error de escritura.',
+    'Failed to fetch': 'Comprueba tu conexión. Parece que tu celular se quedó sin internet temporalmente.',
   };
 
   return mapa[texto] || texto;
@@ -72,7 +94,7 @@ function traducirErrorConexion(error: unknown) {
     if (mensaje) return mensaje;
   }
 
-  return 'No fue posible conectarse con el servidor. Verifica la conexion e intenta nuevamente.';
+  return 'Verifica la conexión. No pudimos conectarnos al sistema, por favor revisa el internet de tu celular.';
 }
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
@@ -98,7 +120,14 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
       if (!response.ok) {
         const mensaje = traducirMensajeError(data?.message, response.status);
-        throw new Error(mensaje || 'No fue posible completar la solicitud.');
+        throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
+          status: response.status,
+          field: typeof data?.field === 'string' ? data.field : null,
+          details:
+            data?.details && typeof data.details === 'object'
+              ? (data.details as ApiErrorDetails)
+              : null,
+        });
       }
 
       return data;
@@ -111,5 +140,5 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     }
   }
 
-  throw new Error(traducirErrorConexion(ultimoError));
+  throw new ApiRequestError(traducirErrorConexion(ultimoError), { status: 0 });
 };

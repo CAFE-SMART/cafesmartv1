@@ -19,6 +19,7 @@ export type CompraProcesada = {
     pesoInicial: number;
     pesoActual: number;
     precioKg: number;
+    costoTotal: number;
     subtotal: number;
   }>;
   warning?: string;
@@ -69,6 +70,7 @@ function procesarSublote(sublote: SubloteInput): SubloteProcesado {
     pesoInicial: desdeCentiUnidades(pesoInicialCenti),
     pesoActual: desdeCentiUnidades(pesoInicialCenti),
     precioKg: desdeCentiUnidades(precioKgCenti),
+    costoTotal: desdeCentiUnidades(subtotalCenti),
     subtotal: desdeCentiUnidades(subtotalCenti),
   };
 }

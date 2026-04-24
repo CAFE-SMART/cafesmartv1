@@ -121,7 +121,7 @@ export class GastosService {
       }
 
       return nuevoGasto;
-    });
+    }, { maxWait: 10000, timeout: 25000 });
 
     return this.formatearGasto(gasto, esGastoGeneral);
   }

@@ -45,4 +45,51 @@ export class ParametrosService {
 
     return valorNumerico;
   }
+
+  /**
+   * Obtiene o crea un parámetro de organización.
+   * Si no existe, retorna null o valor por defecto.
+   */
+  async getParametroString(
+    nombre: string,
+    organizacionId: string,
+    defaultValue?: string,
+  ): Promise<string | null> {
+    const parametro = await this.prisma.parametroOrganizacion.findUnique({
+      where: {
+        organizacionId_nombre: {
+          organizacionId,
+          nombre,
+        },
+      },
+    });
+
+    return parametro?.valor ?? defaultValue ?? null;
+  }
+
+  /**
+   * Actualiza o crea un parámetro de organización.
+   */
+  async setParametro(
+    nombre: string,
+    valor: string,
+    organizacionId: string,
+  ): Promise<void> {
+    await this.prisma.parametroOrganizacion.upsert({
+      where: {
+        organizacionId_nombre: {
+          organizacionId,
+          nombre,
+        },
+      },
+      create: {
+        nombre,
+        valor,
+        organizacionId,
+      },
+      update: {
+        valor,
+      },
+    });
+  }
 }

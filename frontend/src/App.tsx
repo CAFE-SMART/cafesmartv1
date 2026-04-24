@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
+import { useCloudStatus } from './context/CloudStatusContext';
+import { useLocation } from 'react-router-dom';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -49,11 +51,33 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
   }
 }
 
+function GlobalOfflineNotice() {
+  const { isOnline } = useCloudStatus();
+  const location = useLocation();
+
+  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
+
+  if (isOnline || isSubloteDetail) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-[#ececec] bg-white px-4 py-3">
+      <div className="mx-auto max-w-[390px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
+        Para refrescar los datos necesitas conexión a internet.
+        {'\n'}
+        Tus cambios están guardados y se sincronizarán automáticamente.
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AppErrorBoundary>
         <div className="min-h-screen bg-gray-50 text-gray-900">
+          <GlobalOfflineNotice />
           <AppRoutes />
         </div>
       </AppErrorBoundary>

@@ -7,7 +7,7 @@ import {
 } from '../storage/authStorage';
 import { parseJwtPayload } from '../utils/jwt';
 
-type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 
 type User = {
   id: number | string;

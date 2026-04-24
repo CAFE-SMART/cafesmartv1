@@ -186,6 +186,8 @@ export class AuthService {
 
   /**
    * Autentica una cuenta existente a partir de un token valido de Google.
+   * Si el usuario no existe, retorna un error con action:'register' para permitir que el
+   * frontend rediriga al flujo de registro.
    */
   async loginWithGoogle(googleData: { idToken: string }) {
     const ticket = await this.getGoogleClient().verifyIdToken({
@@ -207,15 +209,18 @@ export class AuthService {
       });
     }
 
-    const user = await this.usersService.findByEmail(payload.email.trim().toLowerCase());
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
 
+    // Si el usuario no existe, lanzar error con accion de registro
     if (!user) {
       throw new UnauthorizedException({
-        message: 'No encontramos tu cuenta en Google',
+        message: 'No encontramos tu cuenta. Por favor, registrate primero.',
         action: 'register',
       });
     }
 
+    // Si el usuario ya está vinculado a otra cuenta de Google, lanzar error
     if (user.googleId && user.googleId !== googleSubject) {
       throw new UnauthorizedException({
         message: 'Esta cuenta ya esta vinculada con otra cuenta de Google',
@@ -223,6 +228,7 @@ export class AuthService {
       });
     }
 
+    // Vincular Google si aún no está vinculado, o simplemente devolver el usuario si ya lo está
     const linkedUser =
       user.googleId === googleSubject
         ? user
@@ -275,19 +281,34 @@ export class AuthService {
   private async buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
-    const sessionUser = await this.usersService.findSessionById(user.id);
+    
+    // Intentar cargar datos adicionales de sesión (organización, tipo, etc.)
+    // pero usar los datos del usuario como fuente de verdad principal
+    let sessionData: { organizacion?: { tipo?: string; otroTipoDetalle?: string | null } } = {};
+    try {
+      const sessionUser = await this.usersService.findSessionById(user.id);
+      if (sessionUser?.organizacion) {
+        sessionData.organizacion = sessionUser.organizacion;
+      }
+    } catch {
+      // Silenciar errores en sesión auxiliar
+    }
+
+    // hasCompany se basa SIEMPRE en si el usuario tiene una organizacionId
+    // El usuario.organizacionId es la fuente de verdad
+    const hasCompany = Boolean(user.organizacionId);
 
     return {
       message,
       access_token: token,
-      hasCompany: Boolean(sessionUser?.organizacionId ?? user.organizacionId),
+      hasCompany,
       user: {
         id: user.id,
         email: user.correo,
         name: user.nombre,
-        organizacionId: sessionUser?.organizacionId ?? user.organizacionId ?? null,
-        tipoOrganizacion: sessionUser?.organizacion?.tipo ?? null,
-        otroTipoDetalle: sessionUser?.organizacion?.otroTipoDetalle ?? null,
+        organizacionId: user.organizacionId ?? null,
+        tipoOrganizacion: (sessionData.organizacion as any)?.tipo ?? null,
+        otroTipoDetalle: (sessionData.organizacion as any)?.otroTipoDetalle ?? null,
       },
     };
   }

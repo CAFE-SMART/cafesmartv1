@@ -188,6 +188,7 @@ export class ComprasService {
         this.validarSublotesDuplicadosEnRequest(input);
         await this.asegurarCatalogosBase(tx);
         await this.validarCatalogos(tx, input);
+        await this.validarProductor(tx, organizacionIdFinal, input.productorId);
 
         const contextoCapacidad = await this.obtenerContextoCapacidad(
           tx,
@@ -211,6 +212,7 @@ export class ComprasService {
             localId: compraProcesada.compra.localId,
             usuarioId: userId,
             organizacionId: organizacionIdFinal,
+            productorId: input.productorId?.trim() || null,
           },
         });
 
@@ -250,7 +252,7 @@ export class ComprasService {
           warning: compraProcesada.warning,
           exceso: compraProcesada.exceso,
         };
-      });
+      }, { maxWait: 10000, timeout: 25000 });
     } catch (error) {
       if (this.esErrorUnico(error)) {
         const compraExistente = await this.buscarCompraActivaPorSync(
@@ -374,6 +376,33 @@ export class ComprasService {
       const faltantes = calidadIds.filter((id) => !encontrados.has(id));
       throw new BadRequestException(
         `Calidad(es) no encontrada(s): ${faltantes.join(', ')}`,
+      );
+    }
+  }
+
+  private async validarProductor(
+    tx: Prisma.TransactionClient,
+    organizacionId: string,
+    productorId?: string,
+  ): Promise<void> {
+    const productorIdNormalizado = productorId?.trim();
+
+    if (!productorIdNormalizado) {
+      return;
+    }
+
+    const productor = await tx.productor.findFirst({
+      where: {
+        id: productorIdNormalizado,
+        organizacionId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!productor) {
+      throw new BadRequestException(
+        'El productor seleccionado no esta disponible para esta organizacion',
       );
     }
   }
@@ -537,6 +566,7 @@ export class ComprasService {
       pesoInicial: sublote.pesoInicial,
       pesoActual: sublote.pesoActual,
       precioKg: sublote.precioKg,
+      costoTotal: sublote.costoTotal,
       idLote,
       deviceId: input.sublotes[index].deviceId,
       localId: input.sublotes[index].localId,

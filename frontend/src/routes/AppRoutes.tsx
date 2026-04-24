@@ -12,6 +12,7 @@ import SecadoProceso from '../pages/SecadoProceso';
 import SecadoResumen from '../pages/SecadoResumen';
 import Ajustes from '../pages/Ajustes';
 import SystemStatus from '../pages/SystemStatus';
+import GastosOperativos from '../pages/GastosOperativos';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export default function AppRoutes() {
@@ -44,6 +45,7 @@ export default function AppRoutes() {
           path="/inventario/:tipoCafeId/:calidadId/sublotes"
           element={<Sublotes />}
         />
+        <Route path="/gastos/registro" element={<GastosOperativos />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

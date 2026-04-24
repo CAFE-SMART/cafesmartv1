@@ -44,6 +44,9 @@ replay_pid*.log
 *.sln
 *.sw?
 
+# archivos de apoyo
+*.txt
+
 # OS específicos
 .DS_Store
 Thumbs.db

@@ -107,10 +107,6 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
       nextErrors.tipoOrganizacion = 'Debes seleccionar el tipo de negocio.';
     }
 
-    if (tipoOrganizacion === 'OTRO' && !otroTipoDetalle.trim()) {
-      nextErrors.otroTipoDetalle = 'Por favor especifica el tipo de organizacion.';
-    }
-
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
       setError('Revisa los campos en rojo y corrigelos para continuar.');
@@ -203,7 +199,10 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
         googleToken: routeState.googleToken,
         nombreOrganizacion,
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
-        otroTipoDetalle: tipoOrganizacion === 'OTRO' ? otroTipoDetalle : undefined,
+        otroTipoDetalle:
+          tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()
+            ? otroTipoDetalle.trim()
+            : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
         telefono,
         correo,

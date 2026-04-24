@@ -48,6 +48,12 @@ export class CreateCompraDto {
   @IsDateString({}, { message: 'La fecha debe ser ISO 8601' })
   fecha?: string;
 
+  @IsOptional()
+  @IsUUID('4', { message: 'El productor seleccionado no es valido' })
+  @IsString({ message: 'productorId debe ser un string' })
+  @IsNotEmpty({ message: 'productorId no puede venir vacio' })
+  productorId?: string;
+
   @IsString({ message: 'deviceId de la compra debe ser un string' })
   @IsNotEmpty({ message: 'deviceId de la compra es obligatorio' })
   deviceId: string;

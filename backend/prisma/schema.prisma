@@ -90,6 +90,7 @@ model Organization {
 
   usuarios         User[]
   clientes         Cliente[]
+  productores      Productor[]
   compras          Compra[]
   ventas           Venta[]
   lotes            Lote[]
@@ -104,6 +105,7 @@ model Organization {
 model Cliente {
   id         String    @id @default(uuid()) @map("id_cliente")
   nombre     String    @map("nombre")
+  documento  String?   @map("documento")
   telefono   String?   @map("telefono")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
@@ -118,6 +120,26 @@ model Cliente {
   ventas Venta[]
 
   @@map("cliente")
+}
+
+model Productor {
+  id         String    @id @default(uuid()) @map("id_productor")
+  nombre     String    @map("nombre")
+  documento  String?   @map("documento")
+  telefono   String?   @map("telefono")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+  deviceId   String?   @map("device_id")
+  localId    String?   @map("local_id")
+  syncStatus String?   @map("sync_status")
+
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  compras Compra[]
+
+  @@map("productor")
 }
 
 model User {
@@ -156,9 +178,13 @@ model Compra {
   organizacionId String       @map("id_organizacion")
   organizacion   Organization @relation(fields: [organizacionId], references: [id])
 
+  productorId String?   @map("id_productor")
+  productor   Productor? @relation(fields: [productorId], references: [id])
+
   sublotes Sublote[]
 
   @@unique([deviceId, localId])
+  @@index([organizacionId, deletedAt, fecha])
   @@map("compra")
 }
 
@@ -167,7 +193,9 @@ model Sublote {
   pesoInicial Decimal   @map("peso_inicial") @db.Decimal(10, 2)
   pesoActual  Decimal   @map("peso_actual") @db.Decimal(10, 2)
   precioKg    Decimal   @map("precio_kg") @db.Decimal(10, 2)
+  costoTotal  Decimal   @default(0) @map("costo_total") @db.Decimal(12, 2)
   humedad     Decimal?  @map("humedad") @db.Decimal(5, 2)
+  factor      Decimal?  @map("factor") @db.Decimal(5, 2)
   idLote      String?   @map("id_lote")
   deviceId    String    @map("device_id")
   localId     String    @map("local_id")
@@ -189,6 +217,9 @@ model Sublote {
   gastosOperativos      GastoSublote[]
 
   @@unique([deviceId, localId])
+  @@index([compraId])
+  @@index([tipoCafeId, calidadId, deletedAt])
+  @@index([idLote])
   @@map("sublote")
 }
 
@@ -238,6 +269,7 @@ model VentaDetalle {
   @@unique([deviceId, localId])
   @@index([ventaId])
   @@index([subloteId])
+  @@index([subloteId, deletedAt])
   @@map("venta_detalle")
 }
 
@@ -369,6 +401,7 @@ model GastoOperativo {
   @@unique([deviceId, localId])
   @@index([organizacionId, fechaGasto])
   @@index([organizacionId, tipoGasto])
+  @@index([organizacionId, deletedAt])
   @@map("gasto_operativo")
 }
 
