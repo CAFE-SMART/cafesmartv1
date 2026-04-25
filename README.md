@@ -321,6 +321,16 @@ Notas:
 - El modelo actual del sistema trabaja con trazabilidad por sublotes.
 - El módulo de ventas descuenta inventario desde `Sublote` y registra movimientos para mantener trazabilidad.
 
+## Pruebas
+
+Para ejecutar las pruebas tanto del frontend como del backend:
+
+```bash
+pnpm test .
+```
+
+Este comando ejecutará todos los tests disponibles en el proyecto.
+
 ## Problemas comunes
 
 - Error Prisma `P1000`:
