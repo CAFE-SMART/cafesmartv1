@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
+import { obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
-import { getBodegaConfig } from '../utils/bodegaConfig';
 import { getDaysInBodega } from '../utils/date';
 
 const TYPE_ORDER = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
@@ -239,15 +239,25 @@ export default function Inventario() {
   const [typeKey, setTypeKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
-  const [bodegaConfig, setBodegaConfig] = useState(() => getBodegaConfig());
+  const [bodegaConfig, setBodegaConfig] = useState<{ nombreBodega: string; capacidadKg: number }>({
+    nombreBodega: 'Bodega principal',
+    capacidadKg: 3000,
+  });
 
   const loadLots = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await obtenerLotes();
+      const [data, config] = await Promise.all([
+        obtenerLotes(),
+        obtenerConfiguracionBodega(),
+      ]);
       setLots(applySecadoToLots(data));
+      setBodegaConfig({
+        nombreBodega: config.nombreBodega,
+        capacidadKg: config.capacidadKg,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el inventario.');
       setLots(applySecadoToLots([]));
@@ -259,10 +269,6 @@ export default function Inventario() {
   useEffect(() => {
     void loadLots();
   }, []);
-
-  useEffect(() => {
-    setBodegaConfig(getBodegaConfig());
-  }, [location.key]);
 
   const activeSession = getActiveSecadoSession();
 

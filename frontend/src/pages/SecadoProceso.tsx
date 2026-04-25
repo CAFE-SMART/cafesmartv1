@@ -71,6 +71,7 @@ export default function SecadoProceso() {
   );
   const [error, setError] = useState<string | null>(null);
   const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(null);
+  const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
 
   const totalEntrada = useMemo(
     () => (session ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0) : 0),
@@ -109,6 +110,8 @@ export default function SecadoProceso() {
       setFloatingError(getSecadoGuidance(message));
       return;
     }
+
+    setBotonRegistrarPresionado(true);
 
     saveSecadoResults(sessionId, {
       outputBuenoKg: outputQuality === 'BUENO' ? outputKg : 0,
@@ -268,10 +271,11 @@ export default function SecadoProceso() {
         <button
           type="button"
           onClick={continuar}
-          className="inline-flex w-full items-center justify-center gap-3 rounded-[22px] bg-[#2155da] px-5 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(33,85,218,0.22)]"
+          disabled={botonRegistrarPresionado}
+          className="inline-flex w-full items-center justify-center gap-3 rounded-[22px] bg-[#2155da] px-5 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(33,85,218,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save size={20} />
-          Registrar secado
+          {botonRegistrarPresionado ? 'Guardando secado...' : 'Registrar secado'}
         </button>
       </main>
 

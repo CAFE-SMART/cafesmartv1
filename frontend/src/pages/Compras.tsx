@@ -42,6 +42,7 @@ import {
   type CatalogosCompra,
   type CompraListadoItem,
 } from '../services/comprasService';
+import { obtenerInventarioResumen } from '../services/inventarioService';
 import {
   crearProductor,
   listarProductores,
@@ -235,7 +236,7 @@ function datosPaso(step: Step) {
   if (step === 2) {
     return {
       chip: 'Paso 2 de 3',
-      titulo: 'SELECCIONAR CAFÉ',
+      titulo: 'Seleccionar café',
       descripcion: 'Completa tipo de café, calidad, peso y precio por kilo.',
       progreso: 66,
     };
@@ -348,10 +349,26 @@ export default function Compras() {
   const [warning, setWarning] = useState<string | null>(null);
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
+  const [mostrarModalCapacidad, setMostrarModalCapacidad] = useState(false);
+  const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
+  const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
   const [registroErrorMensaje, setRegistroErrorMensaje] = useState<string | null>(null);
+  const [datosCapacidad, setDatosCapacidad] = useState<{
+    capacidadKg: number;
+    inventarioActual: number;
+    nuevoTotal: number;
+  } | null>(null);
+  const [datosAlerta80, setDatosAlerta80] = useState<{
+    capacidadKg: number;
+    inventarioActual: number;
+    nuevoTotal: number;
+    porcentaje: number;
+  } | null>(null);
 
   const [step, setStep] = useState<Step>(1);
   const [compraGuardada, setCompraGuardada] = useState<CompraGuardadaResumen | null>(null);
+  const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
+  const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] = useState(false);
 
   const cargarTodo = async () => {
     setLoading(true);
@@ -512,6 +529,8 @@ export default function Compras() {
       return;
     }
 
+    setBotonGuardarProductorPresionado(true);
+
     try {
       const productorGuardado = await crearProductor({
         nombre,
@@ -536,6 +555,8 @@ export default function Compras() {
       setProductorFormError(
         err instanceof Error ? err.message : 'No se pudo guardar el productor.',
       );
+    } finally {
+      setBotonGuardarProductorPresionado(false);
     }
   };
 
@@ -549,6 +570,9 @@ export default function Compras() {
     setRegistroErrorMensaje(null);
     setMostrarModalCancelar(false);
     setMostrarModalConfirmar(false);
+    setMostrarModalAlerta80(false);
+    setAlerta80Mostrada(false);
+    setDatosAlerta80(null);
     setStep(1);
     setError(null);
     setWarning(null);
@@ -578,8 +602,8 @@ export default function Compras() {
       if (!Number.isFinite(Number(sublote.pesoInicial)) || Number(sublote.pesoInicial) <= 0) {
         return `Ingresa un peso valido para el sublote ${index + 1}.`;
       }
-      if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) <= 0) {
-        return `Ingresa un precio valido para el sublote ${index + 1}.`;
+      if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) < 1000) {
+        return `El precio por kilo debe ser mínimo $1,000 para el sublote ${index + 1}.`;
       }
     }
     return null;
@@ -611,6 +635,45 @@ export default function Compras() {
     setStep((actual) => Math.max(1, actual - 1) as Step);
   };
 
+  const validarCapacidadBodega = async (): Promise<boolean> => {
+    try {
+      const inventarioResumen = await obtenerInventarioResumen();
+      const capacidadKg = inventarioResumen.kgCapacidad;
+      const inventarioActual = inventarioResumen.kgActual;
+      const nuevoTotal = inventarioActual + resumen.totalKg;
+      const limiteWarning = capacidadKg * 0.8;
+      
+      if (nuevoTotal > capacidadKg) {
+        setDatosCapacidad({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+        });
+        setMostrarModalCapacidad(true);
+        return false; // No continuar automáticamente
+      }
+      
+      // Warning informativo al 80% - mostrar modal y bloquear solo si no se ha mostrado antes
+      if (nuevoTotal >= limiteWarning && !alerta80Mostrada) {
+        setDatosAlerta80({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+          porcentaje: Math.round((nuevoTotal / capacidadKg) * 100),
+        });
+        setMostrarModalAlerta80(true);
+        setAlerta80Mostrada(true);
+        return false; // No continuar automáticamente hasta cerrar modal
+      }
+      
+      return true; // Puede continuar directamente
+    } catch (error) {
+      // Si falla la validación, permitir continuar (offline-first)
+      console.warn('No se pudo validar capacidad, permitiendo continuar:', error);
+      return true;
+    }
+  };
+
   const guardarCompra = async () => {
     setRegistroErrorMensaje(null);
     if (!productorSeleccionado) {
@@ -623,7 +686,15 @@ export default function Compras() {
       setError(mensajeValidacion);
       return;
     }
+    
+    // Validar capacidad antes de mostrar modal de confirmación
+    const puedeContinuar = await validarCapacidadBodega();
+    if (!puedeContinuar) {
+      return; // El modal de capacidad se mostrará
+    }
+    
     setSaving(true);
+    setBotonRegistrarPresionado(true);
     setError(null);
     setWarning(null);
     try {
@@ -673,8 +744,19 @@ export default function Compras() {
       setError(null);
     } finally {
       setSaving(false);
+      setBotonRegistrarPresionado(false);
       setMostrarModalConfirmar(false);
     }
+  };
+
+  const confirmarCompraConAdvertencia = async () => {
+    setMostrarModalCapacidad(false);
+    setMostrarModalConfirmar(true);
+  };
+
+  const cerrarModalConfirmar = () => {
+    setMostrarModalConfirmar(false);
+    setBotonRegistrarPresionado(false);
   };
 
   const confirmarCancelarCompra = () => {
@@ -780,7 +862,7 @@ export default function Compras() {
 
         <div className="mt-8">
           <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
-            <span>{step === 2 ? 'PASO 2: SELECCIONAR CAFÉ' : `Paso ${step}: ${pasoActual.titulo}`}</span>
+            <span>{step === 2 ? 'Paso 2: Seleccionar café' : `Paso ${step}: ${pasoActual.titulo}`}</span>
             <span>{step} de 3</span>
           </div>
           <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
@@ -1209,7 +1291,6 @@ export default function Compras() {
             </article>
 
             {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
-            {warning ? <div className="flex items-start gap-3 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><span>{warning}</span></div> : null}
 
             <div className="grid gap-3">
               <button type="button" onClick={() => setMostrarModalConfirmar(true)} disabled={!puedeRegistrarCompra} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
@@ -1258,6 +1339,113 @@ export default function Compras() {
         </div>
       ) : null}
 
+      {mostrarModalCapacidad && datosCapacidad ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
+                Estás superando la capacidad de la bodega
+              </h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                Con esta compra tendrás más café del que tu bodega puede almacenar.
+              </p>
+              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
+                Puedes continuar, pero es recomendable revisar esta decisión para evitar pérdidas o problemas de almacenamiento.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Capacidad máxima</span>
+                <span className="font-semibold text-slate-900">
+                  {datosCapacidad.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
+                <span className="font-semibold text-[#ea580c]">
+                  {datosCapacidad.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={confirmarCompraConAdvertencia}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+              >
+                Continuar de todas formas
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalCapacidad(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
+              >
+                Revisar compra
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalAlerta80 && datosAlerta80 ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
+                Bodega en nivel de alerta
+              </h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                La compra dejará la bodega al {datosAlerta80.porcentaje}% de su capacidad.
+              </p>
+              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
+                Es recomendable considerar vender parte del inventario para evitar problemas de almacenamiento.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Capacidad total</span>
+                <span className="font-semibold text-slate-900">
+                  {datosAlerta80.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Antes de la compra</span>
+                <span className="font-semibold text-slate-900">
+                  {datosAlerta80.inventarioActual.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
+                <span className="font-semibold text-[#ea580c]">
+                  {datosAlerta80.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => setMostrarModalAlerta80(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarModalConfirmar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
@@ -1291,14 +1479,14 @@ export default function Compras() {
               <button
                 type="button"
                 onClick={() => void guardarCompra()}
-                disabled={!puedeRegistrarCompra}
+                disabled={!puedeRegistrarCompra || saving}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? 'Confirmando...' : 'Confirmar compra'}
+                {saving ? 'Guardando compra...' : 'Confirmar compra'}
               </button>
               <button
                 type="button"
-                onClick={() => setMostrarModalConfirmar(false)}
+                onClick={cerrarModalConfirmar}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
               >
                 Cancelar
@@ -1343,8 +1531,8 @@ export default function Compras() {
             </div>
 
             <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-6 py-5">
-              <button type="button" onClick={guardarProductorLocal} className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white">
-                Guardar Productor
+              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                {botonGuardarProductorPresionado ? 'Guardando productor...' : 'Guardar Productor'}
               </button>
               <button type="button" onClick={cerrarModalProductor} className="mt-4 inline-flex w-full items-center justify-center px-5 py-2 text-base font-semibold text-slate-500">
                 Cancelar

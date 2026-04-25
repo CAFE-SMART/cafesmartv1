@@ -238,6 +238,7 @@ export default function GastosOperativos() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [botonGuardarPresionado, setBotonGuardarPresionado] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(null);
 
@@ -404,6 +405,12 @@ export default function GastosOperativos() {
     setFieldErrors({});
     setFloatingNotice(null);
     setShowSublotesSelector(false);
+    setBotonGuardarPresionado(false);
+  };
+
+  const cerrarModalConfirmar = () => {
+    setShowConfirmModal(false);
+    setBotonGuardarPresionado(false);
   };
 
   const toggleSublote = (id: string) => {
@@ -451,6 +458,7 @@ export default function GastosOperativos() {
     }
 
     setSaving(true);
+    setBotonGuardarPresionado(true);
     setShowConfirmModal(false);
 
     try {
@@ -511,6 +519,7 @@ export default function GastosOperativos() {
       });
     } finally {
       setSaving(false);
+      setBotonGuardarPresionado(false);
     }
   };
 
@@ -848,11 +857,11 @@ export default function GastosOperativos() {
         <div className="space-y-3 pt-6">
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || botonGuardarPresionado}
             onClick={handleConfirmar}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2051e5] py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_4px_14px_0_rgba(32,81,229,0.39)] transition active:scale-[0.98] hover:bg-[#102d92] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {saving ? (
+            {saving || botonGuardarPresionado ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
               'Guardar Gasto'
@@ -888,15 +897,16 @@ export default function GastosOperativos() {
             <div className="space-y-2">
               <button
                 type="button"
+                disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="w-full rounded-xl bg-[#2051e5] py-3 font-bold text-white transition active:scale-[0.98]"
+                className="w-full rounded-xl bg-[#2051e5] py-3 font-bold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Registrar gasto
+                {saving || botonGuardarPresionado ? 'Guardando gasto...' : 'Registrar gasto'}
               </button>
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => setShowConfirmModal(false)}
+                onClick={cerrarModalConfirmar}
                 className="w-full rounded-xl border border-slate-200 bg-white py-3 font-bold text-slate-600 transition"
               >
                 Cancelar

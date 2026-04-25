@@ -217,6 +217,7 @@ export default function Ventas() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
   const [paso, setPaso] = React.useState<Step>(1);
+  const [botonConfirmarPresionado, setBotonConfirmarPresionado] = React.useState(false);
   const [intentoPaso1, setIntentoPaso1] = React.useState(false);
   const [intentoPaso2, setIntentoPaso2] = React.useState(false);
   const [modoVenta, setModoVenta] = React.useState<ModoVenta | null>(null);
@@ -384,6 +385,7 @@ export default function Ventas() {
     if (guardandoVenta) return;
 
     setGuardandoVenta(true);
+    setBotonConfirmarPresionado(true);
     setSubmitError(null);
 
     try {
@@ -462,6 +464,7 @@ export default function Ventas() {
       setSubmitError(error instanceof Error ? error.message : 'No fue posible registrar la venta.');
     } finally {
       setGuardandoVenta(false);
+      setBotonConfirmarPresionado(false);
     }
   }, [
     cargarLotes,
@@ -1118,12 +1121,12 @@ export default function Ventas() {
                   <button
                     type="button"
                     onClick={confirmar}
-                    disabled={guardandoVenta}
+                    disabled={guardandoVenta || botonConfirmarPresionado}
                     className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
-                      guardandoVenta ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
+                      guardandoVenta || botonConfirmarPresionado ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
                     }`}
                   >
-                    {guardandoVenta ? (
+                    {guardandoVenta || botonConfirmarPresionado ? (
                       <>
                         <RefreshCw size={16} className="animate-spin" />
                         Guardando venta...

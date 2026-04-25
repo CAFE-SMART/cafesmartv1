@@ -36,7 +36,6 @@ import { useUser } from '../context/UserContext';
 import { listarCompras } from '../services/comprasService';
 import { listarGastos } from '../services/gastosService';
 import { obtenerLotes } from '../services/lotesService';
-import { getBodegaConfig, saveBodegaConfig } from '../utils/bodegaConfig';
 import {
   obtenerConfiguracionBodega,
   guardarConfiguracionBodega,
@@ -229,7 +228,11 @@ export default function Ajustes() {
   const navigate = useNavigate();
   const { user, logout } = useUser();
 
-  const initialConfig = useMemo(() => getBodegaConfig(), []);
+  const initialConfig = useMemo(() => ({
+    nombreBodega: 'Bodega principal',
+    capacidadKg: 3000,
+    updatedAt: new Date().toISOString(),
+  }), []);
 
   const [profile, setProfile] = useState<ProfileSettings>(() => getStoredProfile() ?? { nombre: '', correo: '', telefono: '' });
   const [company, setCompany] = useState<CompanySettings>(() => getStoredCompany() ?? {
@@ -324,11 +327,10 @@ export default function Ajustes() {
         setCapacidadKg(String(config.capacidadKg));
         setUpdatedAt(config.updatedAt);
       } catch {
-        // Fallback a localStorage si la API falla
-        const fallbackConfig = getBodegaConfig();
-        setNombreBodega(fallbackConfig.nombreBodega);
-        setCapacidadKg(String(fallbackConfig.capacidadKg));
-        setUpdatedAt(fallbackConfig.updatedAt);
+        // Si falla, usar valores por defecto
+        setNombreBodega(initialConfig.nombreBodega);
+        setCapacidadKg(String(initialConfig.capacidadKg));
+        setUpdatedAt(initialConfig.updatedAt);
       }
     };
 
@@ -444,17 +446,9 @@ export default function Ajustes() {
     }
 
     try {
-      // Primero intenta guardar en la API
       const result = await guardarConfiguracionBodega({
         nombreBodega,
         capacidadKg: capacidad,
-      });
-
-      // También guarda en localStorage como respaldo
-      saveBodegaConfig({
-        nombreBodega: result.nombreBodega,
-        capacidadKg: result.capacidadKg,
-        updatedAt: result.updatedAt,
       });
 
       setNombreBodega(result.nombreBodega);

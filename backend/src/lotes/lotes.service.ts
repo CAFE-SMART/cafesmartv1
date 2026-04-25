@@ -490,30 +490,8 @@ export class LotesService {
           organizacionId,
         },
       },
-      include: {
-        compra: {
-          select: {
-            fecha: true,
-          },
-        },
-        lote: {
-          select: {
-            id: true,
-            codigo: true,
-          },
-        },
-        tipoCafe: {
-          select: {
-            id: true,
-            nombre: true,
-          },
-        },
-        calidad: {
-          select: {
-            id: true,
-            nombre: true,
-          },
-        },
+      select: {
+        ...SUBLOTE_INVENTARIO_SELECT,
         detallesVenta: {
           where: { deletedAt: null },
         },
@@ -565,6 +543,7 @@ export class LotesService {
       const pesoActualSublote = Number(sublote.pesoActual);
       const precioKg = Number(sublote.precioKg);
       const humedad = this.normalizarNumeroNullable(sublote.humedad);
+      const factor = this.normalizarNumeroNullable(sublote.factor);
       const fechaIngreso = sublote.compra.fecha;
 
       const financiero = this.calcularFinancieroSublote(sublote);
@@ -592,9 +571,9 @@ export class LotesService {
       return {
         id: sublote.id,
         etiqueta: `Sublote ${index + 1}`,
-        tipoCafeId: sublote.tipoCafeId,
+        tipoCafeId: sublote.tipoCafe.id,
         tipoCafe: sublote.tipoCafe.nombre,
-        calidadId: sublote.calidadId,
+        calidadId: sublote.calidad.id,
         calidad: sublote.calidad.nombre,
         pesoInicial: pesoInicialSublote,
         pesoActual: pesoActualSublote,
