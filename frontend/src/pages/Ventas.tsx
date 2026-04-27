@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   IdCard,
   Pencil,
-  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -17,6 +16,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import {
+  FormattedPhoneInput,
+  isValidColombianPhone,
+} from '../components/FormattedPhoneInput';
+import { useFormPersistence } from '../hooks/useFormPersistence';
 import { LoteResumen, obtenerLotes } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
 
@@ -58,9 +62,22 @@ type VentaGuardadaResumen = {
     subtotal: number;
   }>;
 };
+type VentaDraft = {
+  paso: Step;
+  modoVenta: ModoVenta | null;
+  precioGlobal: string;
+  lotesVenta: LoteVenta[];
+  clienteSeleccionado: ClienteOption | null;
+  busquedaCliente: string;
+  busquedaAplicada: string;
+  clienteForm: ClienteForm;
+  mostrarModal: boolean;
+  ventaLocalId: string;
+};
 
 const DEVICE_STORAGE_KEY = 'cafesmart-device-id';
 const STORAGE_KEY = 'cafesmart-clientes-locales-v1';
+const VENTA_DRAFT_STORAGE_KEY = 'cafesmart-venta-draft-v1';
 const LIMITE = 6;
 
 const CLIENTE_GENERAL: ClienteOption = {
@@ -99,6 +116,19 @@ function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
       cantidadKg: '',
       precioKg: String(Math.round(l.precioPromedioKg || 0)),
     }));
+}
+
+function mergeLotesConBorrador(lotes: LoteVenta[], draftLotes: LoteVenta[]) {
+  return lotes.map((lote) => {
+    const draft = draftLotes.find((item) => item.id === lote.id);
+    if (!draft) return lote;
+
+    return {
+      ...lote,
+      cantidadKg: draft.cantidadKg,
+      precioKg: draft.precioKg || lote.precioKg,
+    };
+  });
 }
 
 function readClientes() {
@@ -175,6 +205,33 @@ function datosPasoVenta(step: Step) {
   };
 }
 
+function formatoHoraBorrador(value: string | null) {
+  if (!value) return null;
+
+  return new Date(value).toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function esVentaDraftVacio(draft: VentaDraft) {
+  const lotesSinCantidad = draft.lotesVenta.every((lote) => !lote.cantidadKg.trim());
+
+  return (
+    draft.paso === 1 &&
+    !draft.modoVenta &&
+    !draft.precioGlobal &&
+    !draft.clienteSeleccionado &&
+    !draft.busquedaCliente &&
+    !draft.busquedaAplicada &&
+    !draft.mostrarModal &&
+    !draft.clienteForm.nombre &&
+    !draft.clienteForm.telefono &&
+    !draft.clienteForm.documento &&
+    lotesSinCantidad
+  );
+}
+
 export default function Ventas() {
   const navigate = useNavigate();
   const [cargando, setCargando] = React.useState(true);
@@ -196,13 +253,17 @@ export default function Ventas() {
   const [clienteForm, setClienteForm] = React.useState<ClienteForm>({ nombre: '', telefono: '', documento: '' });
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(null);
   const ventaLocalIdRef = React.useRef(uid());
+  const pendingVentaDraftRef = React.useRef<VentaDraft | null>(null);
 
   const cargarLotes = React.useCallback(async () => {
     try {
       setCargando(true);
       setLoadError(null);
       const lotes = await obtenerLotes();
-      setLotesVenta(mkLotes(lotes));
+      const lotesFrescos = mkLotes(lotes);
+      const draftLotes = pendingVentaDraftRef.current?.lotesVenta;
+      setLotesVenta(draftLotes ? mergeLotesConBorrador(lotesFrescos, draftLotes) : lotesFrescos);
+      pendingVentaDraftRef.current = null;
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'No fue posible cargar el inventario para venta.');
     } finally {
@@ -333,6 +394,51 @@ export default function Ventas() {
       setPrecioGlobal('');
     }
   }, [modoVenta, precioGlobal]);
+  const ventaDraft = React.useMemo<VentaDraft>(
+    () => ({
+      paso,
+      modoVenta,
+      precioGlobal,
+      lotesVenta,
+      clienteSeleccionado,
+      busquedaCliente,
+      busquedaAplicada,
+      clienteForm,
+      mostrarModal,
+      ventaLocalId: ventaLocalIdRef.current,
+    }),
+    [
+      busquedaAplicada,
+      busquedaCliente,
+      clienteForm,
+      clienteSeleccionado,
+      lotesVenta,
+      modoVenta,
+      mostrarModal,
+      paso,
+      precioGlobal,
+    ],
+  );
+  const { clearDraft: clearVentaDraft, lastSavedAt } = useFormPersistence<VentaDraft>({
+    key: VENTA_DRAFT_STORAGE_KEY,
+    value: ventaDraft,
+    isEmpty: esVentaDraftVacio,
+    onRestore: (draft) => {
+      pendingVentaDraftRef.current = draft;
+      setPaso([1, 2, 3].includes(draft.paso) ? draft.paso : 1);
+      setModoVenta(draft.modoVenta);
+      setPrecioGlobal(draft.precioGlobal ?? '');
+      setClienteSeleccionado(draft.clienteSeleccionado ?? null);
+      setBusquedaCliente(draft.busquedaCliente ?? '');
+      setBusquedaAplicada(draft.busquedaAplicada ?? '');
+      setClienteForm(draft.clienteForm ?? { nombre: '', telefono: '', documento: '' });
+      setMostrarModal(Boolean(draft.mostrarModal));
+      ventaLocalIdRef.current = draft.ventaLocalId || uid();
+      if (Array.isArray(draft.lotesVenta) && draft.lotesVenta.length > 0) {
+        setLotesVenta(draft.lotesVenta);
+      }
+    },
+  });
 
   const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
@@ -370,6 +476,7 @@ export default function Ventas() {
         })),
       });
 
+      clearVentaDraft();
       setVentaGuardada(crearResumenVentaGuardada(respuesta));
       await cargarLotes();
     } catch (error) {
@@ -377,7 +484,7 @@ export default function Ventas() {
     } finally {
       setGuardandoVenta(false);
     }
-  }, [cargarLotes, clienteSeleccionado, guardandoVenta, lotesConCantidad, validarPasoVenta]);
+  }, [cargarLotes, clearVentaDraft, clienteSeleccionado, guardandoVenta, lotesConCantidad, validarPasoVenta]);
 
   const reiniciar = React.useCallback(() => {
     setPaso(1);
@@ -393,8 +500,9 @@ export default function Ventas() {
     setIntentoPaso2(false);
     setLoadError(null);
     ventaLocalIdRef.current = uid();
+    clearVentaDraft();
     void cargarLotes();
-  }, [cargarLotes]);
+  }, [cargarLotes, clearVentaDraft]);
 
   const updateLote = (id: string, campo: 'cantidadKg' | 'precioKg', valor: string) =>
     setLotesVenta((prev) => prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l)));
@@ -421,7 +529,10 @@ export default function Ventas() {
     const nombre = clienteForm.nombre.trim();
     const telefono = clienteForm.telefono.trim();
     const documento = clienteForm.documento.trim();
-    if (!nombre) return setClienteFormError('Escribe al menos el nombre del cliente.');
+    if (!nombre) return setClienteFormError('Escribe el nombre del cliente para guardarlo.');
+    if (telefono && !isValidColombianPhone(telefono, true)) {
+      return setClienteFormError('El celular parece incompleto. Escribe los 10 digitos o dejalo vacio.');
+    }
     const nuevo: ClienteOption = {
       id: uid(),
       nombre,
@@ -448,7 +559,7 @@ export default function Ventas() {
             <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-black text-[#0d7b67]">Venta exitosa</span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
             <h2 className="mt-3 text-[1.35rem] font-black text-[#102d92]">Venta exitosa</h2>
-            <p className="mt-2 text-sm text-slate-600">La venta se registro y el inventario quedo actualizado.</p>
+            <p className="mt-2 text-sm text-slate-600">Tu venta fue registrada correctamente. Ahora puedes verla reflejada en el inventario.</p>
             <div className="mt-4 rounded-[14px] border border-[#e1e6f3] bg-[#f8f9ff] p-4 text-left">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Cliente</p>
               <p className="mt-1 text-lg font-black text-slate-900">
@@ -515,6 +626,11 @@ export default function Ventas() {
               style={{ width: `${pasoActual.progreso}%` }}
             />
           </div>
+          {lastSavedAt ? (
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              Borrador guardado automaticamente a las {formatoHoraBorrador(lastSavedAt)}.
+            </p>
+          ) : null}
         </header>
         {cargando ? (
           <CardMsg text="Cargando lotes para venta..." />
@@ -1031,21 +1147,14 @@ export default function Ventas() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">
-                    Telefono (opcional)
-                  </label>
-                  <label className="flex items-center gap-3 rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4">
-                    <Phone size={18} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={clienteForm.telefono}
-                      onChange={(event) =>
-                        setClienteForm((actual) => ({ ...actual, telefono: event.target.value }))
-                      }
-                      placeholder="+57 000 000 000"
-                      className="w-full bg-transparent text-base text-slate-900 outline-none"
-                    />
-                  </label>
+                  <FormattedPhoneInput
+                    label="Telefono"
+                    optional
+                    value={clienteForm.telefono}
+                    onChange={(telefono) =>
+                      setClienteForm((actual) => ({ ...actual, telefono }))
+                    }
+                  />
                 </div>
 
                 <div>

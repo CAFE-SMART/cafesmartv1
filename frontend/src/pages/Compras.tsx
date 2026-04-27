@@ -25,7 +25,12 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import {
+  FormattedPhoneInput,
+  isValidColombianPhone,
+} from '../components/FormattedPhoneInput';
 import { useUser } from '../context/UserContext';
+import { useFormPersistence } from '../hooks/useFormPersistence';
 import {
   formatDateLabel,
   getTodayLocalDateValue,
@@ -75,9 +80,18 @@ type ProductorForm = {
   telefono: string;
   documento: string;
 };
+type CompraDraft = {
+  fecha: string;
+  sublotes: SubloteForm[];
+  productorSeleccionado: ProductorOption;
+  busquedaProductor: string;
+  busquedaAplicada: string;
+  step: Step;
+};
 
 const DEVICE_STORAGE_KEY = 'cafesmart-device-id';
 const PRODUCTORES_STORAGE_KEY = 'cafesmart-productores-locales-v1';
+const COMPRA_DRAFT_STORAGE_KEY = 'cafesmart-compra-draft-v1';
 const ORDEN_TIPOS = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const ORDEN_CALIDADES = ['BUENO', 'REGULAR', 'MALO'];
 const PRODUCTOR_GENERAL: ProductorOption = {
@@ -175,6 +189,33 @@ function formatoMoneda(valor: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(valor);
+}
+
+function formatoHoraBorrador(value: string | null) {
+  if (!value) return null;
+
+  return new Date(value).toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function esCompraDraftVacio(draft: CompraDraft) {
+  const subloteUnicoVacio =
+    draft.sublotes.length === 1 &&
+    !draft.sublotes[0].tipoCafeId &&
+    !draft.sublotes[0].calidadId &&
+    !draft.sublotes[0].pesoInicial &&
+    !draft.sublotes[0].precioKg;
+
+  return (
+    draft.step === 1 &&
+    draft.fecha === hoyLocal() &&
+    draft.productorSeleccionado.id === PRODUCTOR_GENERAL.id &&
+    !draft.busquedaProductor &&
+    !draft.busquedaAplicada &&
+    subloteUnicoVacio
+  );
 }
 
 function clave(nombre: string) {
@@ -301,6 +342,30 @@ export default function Compras() {
   const [compraGuardada, setCompraGuardada] = useState<CompraGuardadaResumen | null>(null);
   const [editingProductorId, setEditingProductorId] = useState<string | null>(null);
   const [highlightedSubloteId, setHighlightedSubloteId] = useState<string | null>(null);
+  const compraDraft = useMemo<CompraDraft>(
+    () => ({
+      fecha,
+      sublotes,
+      productorSeleccionado,
+      busquedaProductor,
+      busquedaAplicada,
+      step,
+    }),
+    [busquedaAplicada, busquedaProductor, fecha, productorSeleccionado, step, sublotes],
+  );
+  const { clearDraft: clearCompraDraft, lastSavedAt } = useFormPersistence<CompraDraft>({
+    key: COMPRA_DRAFT_STORAGE_KEY,
+    value: compraDraft,
+    isEmpty: esCompraDraftVacio,
+    onRestore: (draft) => {
+      setFecha(draft.fecha || hoyLocal());
+      setSublotes(Array.isArray(draft.sublotes) && draft.sublotes.length > 0 ? draft.sublotes : [crearSubloteVacio()]);
+      setProductorSeleccionado(draft.productorSeleccionado ?? PRODUCTOR_GENERAL);
+      setBusquedaProductor(draft.busquedaProductor ?? '');
+      setBusquedaAplicada(draft.busquedaAplicada ?? '');
+      setStep([1, 2, 3].includes(draft.step) ? draft.step : 1);
+    },
+  });
 
   const cargarTodo = async () => {
     setLoading(true);
@@ -426,7 +491,12 @@ export default function Compras() {
     const documento = productorForm.documento.trim();
 
     if (!nombre) {
-      setProductorFormError('Escribe al menos el nombre del productor.');
+      setProductorFormError('Escribe el nombre del productor para guardarlo.');
+      return;
+    }
+
+    if (productorForm.telefono && !isValidColombianPhone(productorForm.telefono, true)) {
+      setProductorFormError('El celular parece incompleto. Escribe los 10 digitos o dejalo vacio.');
       return;
     }
 
@@ -576,6 +646,7 @@ export default function Compras() {
       });
       const comprasActualizadas = await listarCompras();
       setCompras(comprasActualizadas);
+      clearCompraDraft();
       resetFormulario();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la compra.');
@@ -608,7 +679,7 @@ export default function Compras() {
               </div>
             </div>
             <h1 className="mt-8 text-[1.85rem] font-black uppercase tracking-[0.03em] text-[#102d92]">Compra registrada</h1>
-            <p className="mt-3 text-base leading-7 text-slate-600">La compra se guardó correctamente.</p>
+            <p className="mt-3 text-base leading-7 text-slate-600">Tu compra fue registrada correctamente. Ahora puedes verla reflejada en el inventario.</p>
           </section>
 
           <section className="rounded-[28px] border border-[#e6e8f3] bg-[#f7f8ff] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
@@ -682,6 +753,11 @@ export default function Compras() {
             style={{ width: `${pasoActual.progreso}%` }}
           />
           </div>
+          {lastSavedAt ? (
+            <p className="text-xs font-semibold text-slate-500">
+              Borrador guardado automaticamente a las {formatoHoraBorrador(lastSavedAt)}.
+            </p>
+          ) : null}
         </section>
 
         {step === 1 ? (
@@ -1159,8 +1235,14 @@ export default function Compras() {
                   <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Pérez Rodríguez" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">Teléfono (opcional)</label>
-                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="+57 000 000 000" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <FormattedPhoneInput
+                    label="Telefono"
+                    optional
+                    value={productorForm.telefono}
+                    onChange={(telefono) =>
+                      setProductorForm((actual) => ({ ...actual, telefono }))
+                    }
+                  />
                 </div>
                 <div>
                   <label className="mb-2 block text-base font-black text-slate-900">Documento o NIT</label>

@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { FormattedPhoneInput } from '../components/FormattedPhoneInput';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
@@ -472,34 +473,18 @@ export default function Register() {
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="register-admin-phone" className="block text-sm font-bold text-slate-700 mb-2">
-                    Telefono
-                  </label>
-                  <input
+                <FormattedPhoneInput
                     id="register-admin-phone"
-                    name="phone"
-                    type="tel"
+                    label="Telefono"
                     value={telefono}
-                    onChange={(e) => {
-                      setTelefono(e.target.value);
+                    onChange={(value) => {
+                      setTelefono(value);
                       setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
                     }}
-                    placeholder="+57 300 123 4567"
-                    autoComplete="tel"
-                    aria-invalid={Boolean(stepTwoErrors.telefono)}
-                    aria-describedby={stepTwoErrors.telefono ? 'register-admin-phone-error' : undefined}
-                    className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                      stepTwoErrors.telefono ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                    }`}
-                    required
+                    error={stepTwoErrors.telefono}
+                    hint="Escribe solo los 10 digitos del celular. Nosotros agregamos +57 y los espacios."
+                    className="text-slate-700"
                   />
-                  {stepTwoErrors.telefono && (
-                    <p id="register-admin-phone-error" className="mt-2 text-xs font-medium text-red-600">
-                      {stepTwoErrors.telefono}
-                    </p>
-                  )}
-                </div>
 
                 <div>
                   <label htmlFor="register-admin-email" className="mb-2 block text-sm font-bold text-slate-700">

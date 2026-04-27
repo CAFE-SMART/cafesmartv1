@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { FormattedPhoneInput } from '../components/FormattedPhoneInput';
 import { useUser } from '../context/UserContext';
 import { obtenerLotes } from '../services/lotesService';
 import { getBodegaConfig, saveBodegaConfig } from '../utils/bodegaConfig';
@@ -308,12 +309,12 @@ export default function Ajustes() {
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 placeholder="Correo electrónico"
               />
-              <input
-                type="tel"
+              <FormattedPhoneInput
+                label="Telefono"
+                optional
                 value={profile.telefono}
-                onChange={(event) => setProfile((prev) => ({ ...prev, telefono: event.target.value }))}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                placeholder="Teléfono"
+                onChange={(telefono) => setProfile((prev) => ({ ...prev, telefono }))}
+                hint="Escribe solo el celular. Cafe Smart agrega +57 y los espacios."
               />
               <button
                 type="button"
