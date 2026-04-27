@@ -67,8 +67,17 @@ export async function listarCompras() {
 }
 
 export async function crearCompra(payload: CreateCompraPayload) {
-  return apiFetch('/compras', {
+  const response = (await apiFetch('/compras', {
     method: 'POST',
     body: JSON.stringify(payload),
-  }) as Promise<CreateCompraResponse>;
+  })) as CreateCompraResponse | CreateCompraResponse['compra'];
+
+  if ('compra' in response) {
+    return response;
+  }
+
+  return {
+    compra: response,
+    sublotes: [],
+  };
 }

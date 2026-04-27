@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma, RolUsuario, TipoOrganizacion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -24,6 +24,10 @@ type CreateAdminWithOrganizationInput = {
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
+
+  private normalizeOrganizationName(value: string) {
+    return value.trim().replace(/\s+/g, ' ');
+  }
 
   async findByEmail(correo: string) {
     return this.prisma.user.findUnique({
@@ -93,9 +97,27 @@ export class UsersService {
 
   async createAdminWithOrganization(input: CreateAdminWithOrganizationInput) {
     return this.prisma.$transaction(async (tx) => {
+      const normalizedOrganizationName = this.normalizeOrganizationName(input.nombreOrganizacion);
+      const existingOrganization = await tx.organization.findFirst({
+        where: {
+          nombre: {
+            equals: normalizedOrganizationName,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+        select: { id: true, nombre: true },
+      });
+
+      if (existingOrganization) {
+        throw new ConflictException({
+          message: 'Ya existe una empresa registrada con ese nombre.',
+          field: 'nombreOrganizacion',
+        });
+      }
+
       const organization = await tx.organization.create({
         data: {
-          nombre: input.nombreOrganizacion,
+          nombre: normalizedOrganizationName,
           tipo: input.tipoOrganizacion,
           otroTipoDetalle: input.otroTipoDetalle ?? null,
         },

@@ -200,6 +200,30 @@ function formatoHoraBorrador(value: string | null) {
   });
 }
 
+function construirMensajeAmigableCompra(error: unknown) {
+  const fallback =
+    'No pudimos registrar la compra en este momento. Revisa la información e inténtalo nuevamente.';
+
+  if (!(error instanceof Error)) return fallback;
+
+  const mensaje = error.message.trim();
+  const mensajeNormalizado = normalizeSearchText(mensaje);
+
+  if (
+    mensajeNormalizado.includes('fecha') ||
+    mensajeNormalizado.includes('iso 8601') ||
+    mensajeNormalizado.includes('invalid date')
+  ) {
+    return 'No pudimos registrar la fecha de la compra. Verifica que la fecha exista, vuelve a seleccionarla en el calendario y luego intenta guardar de nuevo.';
+  }
+
+  if (mensajeNormalizado.includes('token')) {
+    return 'Tu sesión ya no está activa. Ingresa nuevamente para poder registrar la compra.';
+  }
+
+  return mensaje || fallback;
+}
+
 function esCompraDraftVacio(draft: CompraDraft) {
   const subloteUnicoVacio =
     draft.sublotes.length === 1 &&
@@ -627,7 +651,7 @@ export default function Compras() {
       const respuesta = await crearCompra(payload);
       if (respuesta.warning) setWarning(respuesta.warning);
       setCompraGuardada({
-        fecha: respuesta.compra.fecha,
+        fecha: respuesta.compra?.fecha ?? fechaNormalizada ?? new Date().toISOString(),
         productorNombre: productorSeleccionado.nombre,
         productorDocumento: productorSeleccionado.documento,
         totalKg: resumen.totalKg,
@@ -649,7 +673,7 @@ export default function Compras() {
       clearCompraDraft();
       resetFormulario();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la compra.');
+      setError(construirMensajeAmigableCompra(err));
     } finally {
       setSaving(false);
     }

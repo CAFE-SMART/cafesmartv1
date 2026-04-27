@@ -88,7 +88,24 @@ export class ComprasService {
         })),
       });
 
-      return compra;
+      const sublotesCreados = await tx.sublote.findMany({
+        where: { compraId: compra.id },
+        orderBy: [{ creadoEn: 'asc' }],
+      });
+
+      return {
+        compra: {
+          id: compra.id,
+          fecha: compra.fecha.toISOString(),
+          totalCompra: Number(compra.totalCompra ?? 0),
+        },
+        sublotes: sublotesCreados.map((sublote) => ({
+          id: sublote.id,
+          pesoInicial: Number(sublote.pesoInicial ?? 0),
+          pesoActual: Number(sublote.pesoActual ?? 0),
+          precioKg: Number(sublote.precioKg ?? 0),
+        })),
+      };
     });
   }
 

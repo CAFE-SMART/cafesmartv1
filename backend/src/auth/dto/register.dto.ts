@@ -27,8 +27,12 @@ import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
 
 export class RegisterDto {
+  @Transform(({ value }) => String(value).trim().replace(/\s+/g, ' '))
   @IsString({ message: 'El nombre de la organizacion debe ser texto.' })
   @IsNotEmpty({ message: 'El nombre de la organizacion es obligatorio.' })
+  @MinLength(2, {
+    message: 'El nombre de la organizacion debe tener al menos 2 caracteres.',
+  })
   nombreOrganizacion: string;
 
   @IsEnum(TipoOrganizacion, {

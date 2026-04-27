@@ -55,6 +55,7 @@ Thumbs.db
 # Vite / React
 /frontend/dist/
 /frontend/node_modules/
+/frontend/vite.config.ts.timestamp-*.mjs
 
 # Capacitor (archivos que no deben ir en git)
 /frontend/android/app/build/

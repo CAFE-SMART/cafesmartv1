@@ -21,6 +21,7 @@ export class DashboardService {
       comprasAgg,
       ventasAgg,
       gastosAgg,
+      mermaAgg,
       primeraCompra,
       primeraVenta,
       primerGasto,
@@ -54,6 +55,13 @@ export class DashboardService {
           deleted_at: null,
         },
         _sum: { monto_gasto: true },
+      }),
+      this.prisma.inventarioMovimiento.aggregate({
+        where: {
+          organizacionId,
+          tipoMovimiento: 'SECADO',
+        },
+        _sum: { cantidad: true },
       }),
       this.prisma.compra.findFirst({
         where: {
@@ -107,7 +115,7 @@ export class DashboardService {
     const totalCompras = round2(toNumber(comprasAgg._sum.totalCompra));
     const totalGastos = round2(toNumber(gastosAgg._sum.monto_gasto));
     const totalProfit = round2(totalVentas - totalCompras - totalGastos);
-    const totalWasteKg = 0;
+    const totalWasteKg = round2(Math.abs(Math.min(0, toNumber(mermaAgg._sum.cantidad))));
     const hasRecords =
       inventoryAvailableKg > 0 ||
       Boolean(primeraCompra) ||
