@@ -9,6 +9,7 @@ import { ComprasModule } from './compras/compras.module';
 import { ParametrosModule } from './parametros/parametros.module';
 import { LotesModule } from './lotes/lotes.module';
 import { VentasModule } from './ventas/ventas.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { VentasModule } from './ventas/ventas.module';
     ParametrosModule,
     LotesModule,
     VentasModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

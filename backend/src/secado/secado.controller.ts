@@ -13,7 +13,6 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { SecadoService } from './secado.service';
 import { StartSecadoDto } from './dto/start-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
-import type { SecadoSession } from '@prisma/client';
 
 @Controller('secado')
 @UseGuards(JwtAuthGuard)
@@ -48,7 +47,7 @@ export class SecadoController {
   finalize(
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Req() req: { user: { sub: string } },
-  ): Promise<SecadoSession> {
+  ) {
     return this.secadoService.finalizeSecado(req.user.sub, sessionId);
   }
 

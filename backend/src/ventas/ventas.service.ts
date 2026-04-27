@@ -25,6 +25,8 @@ type VentaItemResumen = {
 
 type AsignacionSublote = {
   subloteId: string;
+  cantidadVendida: number;
+  precioKg: number;
   siguientePesoActual: number;
 };
 
@@ -49,6 +51,10 @@ function resolverFechaVenta(fecha?: string): string {
   return texto ? texto : new Date().toISOString();
 }
 
+function resolverFechaVentaDate(fecha?: string): Date {
+  return new Date(resolverFechaVenta(fecha));
+}
+
 @Injectable()
 export class VentasService {
   constructor(private readonly prisma: PrismaService) {}
@@ -58,13 +64,14 @@ export class VentasService {
       const organizacionId = await this.obtenerOrganizacionId(tx, userId);
       const referenciaId = this.construirReferenciaId(input);
 
-      const yaRegistrada = await tx.inventarioMovimiento.findFirst({
+      const yaRegistrada = await tx.venta.findFirst({
         where: {
-          organizacionId,
-          referenciaTipo: TipoReferenciaInventario.VENTA,
-          referenciaId,
+          id_organizacion: organizacionId,
+          device_id: input.deviceId,
+          local_id: input.localId,
+          deleted_at: null,
         },
-        select: { id: true },
+        select: { id_venta: true },
       });
 
       this.validarItemsDuplicados(input);
@@ -143,6 +150,8 @@ export class VentasService {
 
           actualizaciones.push({
             subloteId: sublote.id,
+            cantidadVendida: desdeCentiUnidades(descontarCenti),
+            precioKg: normalizarADosDecimales(item.precioKg),
             siguientePesoActual: desdeCentiUnidades(actualCenti - descontarCenti),
           });
         }
@@ -162,6 +171,38 @@ export class VentasService {
           data: { pesoActual: actualizacion.siguientePesoActual },
         });
       }
+
+      const totalVenta = normalizarADosDecimales(
+        input.items.reduce(
+          (sum, item) => sum + item.cantidadKg * item.precioKg,
+          0,
+        ),
+      );
+
+      const venta = await tx.venta.create({
+        data: {
+          fecha: resolverFechaVentaDate(input.fecha),
+          total_venta: totalVenta,
+          device_id: input.deviceId,
+          local_id: input.localId,
+          id_organizacion: organizacionId,
+          usuarioId: userId,
+        },
+      });
+
+      await tx.venta_detalle.createMany({
+        data: actualizaciones.map((actualizacion, index) => ({
+          id_venta: venta.id_venta,
+          id_sublote: actualizacion.subloteId,
+          peso_vendido: actualizacion.cantidadVendida,
+          precio_kg: actualizacion.precioKg,
+          subtotal: normalizarADosDecimales(
+            actualizacion.cantidadVendida * actualizacion.precioKg,
+          ),
+          device_id: input.deviceId,
+          local_id: `${input.localId}:${index}`,
+        })),
+      });
 
       await this.recalcularInventario(tx, organizacionId, input);
       await this.registrarMovimientosInventario(

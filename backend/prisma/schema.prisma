@@ -8,7 +8,310 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// --- ENUMS ---
+model TipoCafe {
+  id          String                 @id @default(uuid()) @map("id_tipo_cafe")
+  nombre      String                 @unique
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @default(now()) @updatedAt
+  inventarios Inventario[]
+  movimientos InventarioMovimiento[]
+  lotes       Lote[]
+  sublotes    Sublote[]
+
+  @@map("tipo_cafe")
+}
+
+model Calidad {
+  id          String                 @id @default(uuid()) @map("id_calidad")
+  nombre      String                 @unique
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @default(now()) @updatedAt
+  inventarios Inventario[]
+  movimientos InventarioMovimiento[]
+  lotes       Lote[]
+  sublotes    Sublote[]
+
+  @@map("calidad")
+}
+
+model Organization {
+  id              String                  @id @default(uuid()) @map("id_organizacion")
+  nombre          String
+  tipo            TipoOrganizacion        @map("id_tipo_organizacion")
+  otroTipoDetalle String?                 @map("otro_tipo_detalle")
+  estado          Boolean                 @default(true)
+  fecha_registro  DateTime                @default(now())
+  clientes        cliente[]
+  compras         Compra[]
+  gastos          gasto_operativo[]
+  inventarios     Inventario[]
+  movimientos     InventarioMovimiento[]
+  lotes           Lote[]
+  parametros      ParametroOrganizacion[]
+  productor       productor[]
+  usuarios        User[]
+  ventas          venta[]
+
+  @@map("organizacion")
+}
+
+model ParametroOrganizacion {
+  id             String       @id @default(uuid()) @map("id_parametro")
+  nombre         String
+  valor          String
+  organizacionId String       @map("id_organizacion")
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+
+  @@unique([organizacionId, nombre])
+  @@map("parametro_organizacion")
+}
+
+model User {
+  id             String                 @id @default(uuid()) @map("id_usuario")
+  nombre         String
+  correo         String                 @unique
+  password       String?
+  googleId       String?                @unique @map("google_id")
+  telefono       String
+  rol            RolUsuario             @default(ADMIN) @map("id_rol")
+  estado         Boolean                @default(true)
+  fecha_creacion DateTime               @default(now())
+  organizacionId String                 @map("id_organizacion")
+  compras        Compra[]
+  movimientos    InventarioMovimiento[]
+  organizacion   Organization           @relation(fields: [organizacionId], references: [id])
+  ventas         venta[]
+
+  @@map("usuario")
+}
+
+model Compra {
+  id             String       @id @default(uuid()) @map("id_compra")
+  fecha          DateTime
+  totalCompra    Decimal      @map("total_compra") @db.Decimal(12, 2)
+  deviceId       String       @map("device_id")
+  localId        String       @map("local_id")
+  deletedAt      DateTime?    @map("deleted_at")
+  creado_en      DateTime     @default(now())
+  usuarioId      String       @map("id_usuario")
+  organizacionId String       @map("id_organizacion")
+  id_productor   String?
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+  productor      productor?   @relation(fields: [id_productor], references: [id_productor])
+  usuario        User         @relation(fields: [usuarioId], references: [id])
+  sublotes       Sublote[]
+
+  @@unique([deviceId, localId])
+  @@index([organizacionId, deletedAt, fecha])
+  @@map("compra")
+}
+
+model Sublote {
+  id             String                 @id @default(uuid()) @map("id_sublote")
+  pesoInicial    Decimal                @map("peso_inicial") @db.Decimal(10, 2)
+  pesoActual     Decimal                @map("peso_actual") @db.Decimal(10, 2)
+  precioKg       Decimal                @map("precio_kg") @db.Decimal(10, 2)
+  humedad        Decimal?               @db.Decimal(5, 2)
+  loteId         String?                @map("id_lote")
+  deviceId       String                 @map("device_id")
+  localId        String                 @map("local_id")
+  deletedAt      DateTime?              @map("deleted_at")
+  creadoEn       DateTime               @default(now()) @map("creado_en")
+  compraId       String                 @map("id_compra")
+  tipoCafeId     String                 @map("id_tipo_cafe")
+  calidadId      String                 @map("id_calidad")
+  costo_total    Decimal                @default(0) @db.Decimal(12, 2)
+  factor         Decimal?               @db.Decimal(5, 2)
+  gastos         gasto_sublote[]
+  movimientos    InventarioMovimiento[]
+  calidad        Calidad                @relation(fields: [calidadId], references: [id])
+  compra         Compra                 @relation(fields: [compraId], references: [id])
+  lote           Lote?                  @relation(fields: [loteId], references: [id])
+  tipoCafe       TipoCafe               @relation(fields: [tipoCafeId], references: [id])
+  venta_detalles venta_detalle[]
+
+  @@unique([deviceId, localId])
+  @@index([compraId])
+  @@index([loteId])
+  @@index([tipoCafeId, calidadId, deletedAt])
+  @@map("sublote")
+}
+
+model Lote {
+  id             String       @id @default(uuid()) @map("id_lote")
+  codigo         String
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+  organizacionId String       @map("id_organizacion")
+  tipoCafeId     String       @map("id_tipo_cafe")
+  calidadId      String       @map("id_calidad")
+  calidad        Calidad      @relation(fields: [calidadId], references: [id])
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+  tipoCafe       TipoCafe     @relation(fields: [tipoCafeId], references: [id])
+  sublotes       Sublote[]
+
+  @@unique([organizacionId, tipoCafeId, calidadId])
+  @@map("lote")
+}
+
+model Inventario {
+  id             String       @id @default(uuid()) @map("id_inventario")
+  pesoTotal      Decimal      @map("peso_total") @db.Decimal(12, 2)
+  updated_at     DateTime     @updatedAt
+  organizacionId String       @map("id_organizacion")
+  tipoCafeId     String       @map("id_tipo_cafe")
+  calidadId      String       @map("id_calidad")
+  calidad        Calidad      @relation(fields: [calidadId], references: [id])
+  organizacion   Organization @relation(fields: [organizacionId], references: [id])
+  tipoCafe       TipoCafe     @relation(fields: [tipoCafeId], references: [id])
+
+  @@unique([organizacionId, tipoCafeId, calidadId])
+  @@map("inventario")
+}
+
+model InventarioMovimiento {
+  id             String                   @id @default(uuid()) @map("id_inventario_movimiento")
+  cantidad       Decimal                  @db.Decimal(12, 2)
+  tipoMovimiento TipoMovimientoInventario @map("tipo_movimiento")
+  referenciaTipo TipoReferenciaInventario @map("referencia_tipo")
+  referenciaId   String                   @map("referencia_id")
+  created_at     DateTime                 @default(now())
+  organizacionId String                   @map("id_organizacion")
+  usuarioId      String                   @map("id_usuario")
+  tipoCafeId     String                   @map("id_tipo_cafe")
+  calidadId      String                   @map("id_calidad")
+  id_sublote     String?
+  calidad        Calidad                  @relation(fields: [calidadId], references: [id])
+  organizacion   Organization             @relation(fields: [organizacionId], references: [id])
+  sublote        Sublote?                 @relation(fields: [id_sublote], references: [id])
+  tipoCafe       TipoCafe                 @relation(fields: [tipoCafeId], references: [id])
+  usuario        User                     @relation(fields: [usuarioId], references: [id])
+
+  @@index([organizacionId, created_at])
+  @@index([organizacionId, tipoCafeId, calidadId, created_at])
+  @@index([organizacionId, referenciaId])
+  @@index([id_sublote])
+  @@index([referenciaId])
+  @@map("inventario_movimiento")
+}
+
+model cliente {
+  id_cliente      String       @id @default(uuid())
+  nombre          String
+  telefono        String?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  deleted_at      DateTime?
+  device_id       String?
+  local_id        String?
+  sync_status     String?
+  id_organizacion String
+  documento       String?
+  organizacion    Organization @relation(fields: [id_organizacion], references: [id])
+  ventas          venta[]
+}
+
+model gasto_operativo {
+  id_gasto        String          @id @default(uuid())
+  concepto_gasto  String
+  descripcion     String?
+  monto_gasto     Decimal         @db.Decimal(12, 2)
+  fecha_gasto     DateTime
+  tipo_gasto      TipoGasto
+  estado_pago     EstadoPago
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  deleted_at      DateTime?
+  device_id       String?
+  sync_status     String?
+  local_id        String?
+  created_by      String?
+  id_organizacion String
+  organizacion    Organization    @relation(fields: [id_organizacion], references: [id])
+  gasto_sublote   gasto_sublote[]
+
+  @@unique([device_id, local_id])
+  @@index([id_organizacion, deleted_at])
+  @@index([id_organizacion, fecha_gasto])
+  @@index([id_organizacion, tipo_gasto])
+}
+
+model gasto_sublote {
+  id_gasto_sublote String          @id @default(uuid())
+  id_gasto         String
+  id_sublote       String
+  gasto_operativo  gasto_operativo @relation(fields: [id_gasto], references: [id_gasto])
+  sublote          Sublote         @relation(fields: [id_sublote], references: [id])
+
+  @@unique([id_gasto, id_sublote])
+  @@index([id_sublote])
+}
+
+model venta {
+  id_venta        String          @id @default(uuid())
+  fecha           DateTime        @default(now())
+  total_venta     Decimal         @db.Decimal(12, 2)
+  device_id       String
+  local_id        String
+  sync_status     String?
+  deleted_at      DateTime?
+  id_cliente      String?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  id_organizacion String
+  usuarioId       String          @map("id_usuario")
+  cliente         cliente?        @relation(fields: [id_cliente], references: [id_cliente])
+  organizacion    Organization    @relation(fields: [id_organizacion], references: [id])
+  usuario         User            @relation(fields: [usuarioId], references: [id])
+  detalles        venta_detalle[]
+
+  @@unique([device_id, local_id])
+  @@index([id_organizacion, fecha])
+}
+
+model venta_detalle {
+  id_venta_detalle String    @id @default(uuid())
+  id_venta         String
+  id_sublote       String
+  peso_vendido     Decimal   @db.Decimal(10, 2)
+  precio_kg        Decimal   @db.Decimal(10, 2)
+  subtotal         Decimal   @db.Decimal(12, 2)
+  device_id        String
+  local_id         String
+  sync_status      String?
+  deleted_at       DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  sublote          Sublote   @relation(fields: [id_sublote], references: [id])
+  venta            venta     @relation(fields: [id_venta], references: [id_venta])
+
+  @@unique([device_id, local_id])
+  @@index([id_sublote, deleted_at])
+  @@index([id_sublote])
+  @@index([id_venta])
+}
+
+model parametro {
+  id_parametro String @id
+  nombre       String @unique
+  valor        String
+}
+
+model productor {
+  id_productor    String       @id
+  nombre          String
+  documento       String?
+  telefono        String?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime
+  deleted_at      DateTime?
+  device_id       String?
+  local_id        String?
+  sync_status     String?
+  id_organizacion String
+  compra          Compra[]
+  organizacion    Organization @relation(fields: [id_organizacion], references: [id])
+}
 
 enum TipoOrganizacion {
   COOPERATIVA
@@ -47,318 +350,4 @@ enum TipoGasto {
   CARGUE
   DESCARGUE
   OTROS
-}
-
-// --- MODELS ---
-
-model TipoCafe {
-  id         String   @id @default(uuid()) @map("id_tipo_cafe")
-  nombre     String   @unique
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now()) @updatedAt
-
-  inventarios Inventario[]
-  movimientos InventarioMovimiento[]
-  lotes       Lote[]
-  sublotes    Sublote[]
-  secados     SecadoSession[]
-
-  @@map("tipo_cafe")
-}
-
-model Calidad {
-  id         String   @id @default(uuid()) @map("id_calidad")
-  nombre     String   @unique
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now()) @updatedAt
-
-  inventarios Inventario[]
-  movimientos InventarioMovimiento[]
-  lotes       Lote[]
-  sublotes    Sublote[]
-  secados     SecadoSession[]
-
-  @@map("calidad")
-}
-
-model Organization {
-  id              String            @id @default(uuid()) @map("id_organizacion")
-  nombre          String
-  // Mapeamos 'tipo' para que el Seed y el código funcionen, pero en DB es id_tipo_organizacion
-  tipo            TipoOrganizacion  @map("id_tipo_organizacion")
-  otroTipoDetalle String?           @map("otro_tipo_detalle")
-  estado          Boolean           @default(true)
-  fecha_registro  DateTime          @default(now())
-
-  clientes    cliente[]
-  compras     Compra[]
-  gastos      gasto_operativo[]
-  inventarios Inventario[]
-  movimientos InventarioMovimiento[]
-  lotes       Lote[]
-  parametros  ParametroOrganizacion[]
-  usuarios    User[]
-  ventas      venta[]
-  secados     SecadoSession[]
-
-  @@map("organizacion")
-}
-
-model ParametroOrganizacion {
-  id             String       @id @default(uuid()) @map("id_parametro")
-  nombre         String
-  valor          String
-  organizacionId String       @map("id_organizacion")
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-
-  @@unique([organizacionId, nombre])
-  @@map("parametro_organizacion")
-}
-
-model User {
-  id             String       @id @default(uuid()) @map("id_usuario")
-  nombre         String
-  correo         String       @unique
-  password       String?
-  googleId       String?      @unique @map("google_id")
-  telefono       String?
-  rol            RolUsuario   @default(ADMIN) @map("id_rol")
-  estado         Boolean      @default(true)
-  fecha_creacion DateTime     @default(now())
-  organizacionId String       @map("id_organizacion")
-  
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  compras     Compra[]
-  movimientos InventarioMovimiento[]
-  ventas      venta[]
-
-  @@map("usuario")
-}
-
-model Compra {
-  id             String       @id @default(uuid()) @map("id_compra")
-  fecha          DateTime     @default(now())
-  totalCompra    Decimal?     @map("total_compra") @db.Decimal(12, 2)
-  deviceId       String?      @map("device_id")
-  localId        String?      @map("local_id")
-  deletedAt      DateTime?    @map("deleted_at")
-  creado_en      DateTime     @default(now())
-  usuarioId      String       @map("id_usuario")
-  organizacionId String       @map("id_organizacion")
-
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  usuario        User         @relation(fields: [usuarioId], references: [id])
-  sublotes       Sublote[]
-
-  @@unique([deviceId, localId])
-  @@map("compra")
-}
-
-model Sublote {
-  id              String         @id @default(uuid()) @map("id_sublote")
-  pesoInicial     Decimal?       @map("peso_inicial") @db.Decimal(10, 2)
-  pesoActual      Decimal?       @map("peso_actual") @db.Decimal(10, 2)
-  precioKg        Decimal?       @map("precio_kg") @db.Decimal(10, 2)
-  humedad         Decimal?       @db.Decimal(5, 2)
-  loteId          String?        @map("id_lote")
-  deviceId        String         @map("device_id")
-  localId         String         @map("local_id")
-  deletedAt       DateTime?      @map("deleted_at")
-  creadoEn        DateTime       @default(now()) @map("creado_en")
-  compraId        String         @map("id_compra")
-  tipoCafeId      String         @map("id_tipo_cafe")
-  calidadId       String         @map("id_calidad")
-  secadoSessionId String?        @map("id_secado_session")
-  
-  calidad         Calidad        @relation(fields: [calidadId], references: [id])
-  compra          Compra         @relation(fields: [compraId], references: [id])
-  lote            Lote?          @relation(fields: [loteId], references: [id])
-  tipoCafe        TipoCafe       @relation(fields: [tipoCafeId], references: [id])
-  secadoSession   SecadoSession? @relation(fields: [secadoSessionId], references: [id])
-
-  gastos          gasto_sublote[]
-  movimientos     InventarioMovimiento[]
-  venta_detalles  venta_detalle[]
-
-  @@map("sublote")
-}
-
-model Lote {
-  id             String       @id @default(uuid()) @map("id_lote")
-  codigo         String
-  created_at     DateTime     @default(now())
-  updated_at     DateTime     @default(now()) @updatedAt
-  organizacionId String       @map("id_organizacion")
-  tipoCafeId     String       @map("id_tipo_cafe")
-  calidadId      String       @map("id_calidad")
-  
-  calidad        Calidad      @relation(fields: [calidadId], references: [id])
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  tipoCafe       TipoCafe     @relation(fields: [tipoCafeId], references: [id])
-  sublotes       Sublote[]
-  secados        SecadoSession[]
-
-  @@unique([organizacionId, tipoCafeId, calidadId])
-  @@map("lote")
-}
-
-model Inventario {
-  id             String       @id @default(uuid()) @map("id_inventario")
-  pesoTotal      Decimal      @default(0) @map("peso_total") @db.Decimal(12, 2)
-  updated_at     DateTime     @default(now()) @updatedAt
-  organizacionId String       @map("id_organizacion")
-  tipoCafeId     String       @map("id_tipo_cafe")
-  calidadId      String       @map("id_calidad")
-  
-  calidad        Calidad      @relation(fields: [calidadId], references: [id])
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  tipoCafe       TipoCafe     @relation(fields: [tipoCafeId], references: [id])
-
-  @@unique([organizacionId, tipoCafeId, calidadId])
-  @@map("inventario")
-}
-
-model InventarioMovimiento {
-  id             String                   @id @default(uuid()) @map("id_inventario_movimiento")
-  cantidad       Decimal                  @db.Decimal(12, 2)
-  tipoMovimiento TipoMovimientoInventario @map("tipo_movimiento")
-  referenciaTipo TipoReferenciaInventario @map("referencia_tipo")
-  referenciaId   String?                  @map("referencia_id")
-  created_at     DateTime                 @default(now())
-  organizacionId String                   @map("id_organizacion")
-  usuarioId      String                   @map("id_usuario")
-  tipoCafeId     String                   @map("id_tipo_cafe")
-  calidadId      String                   @map("id_calidad")
-  id_sublote     String?
-  
-  calidad        Calidad                  @relation(fields: [calidadId], references: [id])
-  organizacion   Organization             @relation(fields: [organizacionId], references: [id])
-  sublote        Sublote?                 @relation(fields: [id_sublote], references: [id])
-  tipoCafe       TipoCafe                 @relation(fields: [tipoCafeId], references: [id])
-  usuario        User                     @relation(fields: [usuarioId], references: [id])
-
-  @@index([organizacionId, created_at])
-  @@map("inventario_movimiento")
-}
-
-model cliente {
-  id_cliente      String       @id @default(uuid())
-  nombre          String
-  telefono        String?
-  created_at      DateTime     @default(now())
-  updated_at      DateTime     @default(now()) @updatedAt
-  deleted_at      DateTime?
-  device_id       String?
-  local_id        String?
-  sync_status     String?
-  id_organizacion String
-  organizacion    Organization @relation(fields: [id_organizacion], references: [id])
-  ventas          venta[]
-}
-
-model gasto_operativo {
-  id_gasto        String          @id @default(uuid())
-  concepto_gasto  String
-  descripcion     String?
-  monto_gasto     Decimal         @db.Decimal(12, 2)
-  fecha_gasto     DateTime
-  tipo_gasto      TipoGasto
-  estado_pago     EstadoPago
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @default(now()) @updatedAt
-  deleted_at      DateTime?
-  device_id       String?
-  sync_status     String?
-  local_id        String?
-  created_by      String?
-  id_organizacion String
-  organizacion    Organization    @relation(fields: [id_organizacion], references: [id])
-  gasto_sublote   gasto_sublote[]
-
-  @@unique([device_id, local_id])
-}
-
-model gasto_sublote {
-  id_gasto_sublote String          @id @default(uuid())
-  id_gasto         String
-  id_sublote       String
-  gasto_operativo  gasto_operativo @relation(fields: [id_gasto], references: [id_gasto])
-  sublote          Sublote         @relation(fields: [id_sublote], references: [id])
-
-  @@unique([id_gasto, id_sublote])
-}
-
-model venta {
-  id_venta        String          @id @default(uuid())
-  fecha           DateTime        @default(now())
-  total_venta     Decimal         @db.Decimal(12, 2)
-  device_id       String
-  local_id        String
-  sync_status     String?
-  deleted_at      DateTime?
-  id_cliente      String?
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @default(now()) @updatedAt
-  id_organizacion String
-  usuarioId       String          @map("id_usuario")
-  
-  cliente         cliente?        @relation(fields: [id_cliente], references: [id_cliente])
-  organizacion    Organization    @relation(fields: [id_organizacion], references: [id])
-  usuario         User            @relation(fields: [usuarioId], references: [id])
-  detalles        venta_detalle[]
-
-  @@unique([device_id, local_id])
-}
-
-model venta_detalle {
-  id_venta_detalle String    @id @default(uuid())
-  id_venta         String
-  id_sublote       String
-  peso_vendido     Decimal   @db.Decimal(10, 2)
-  precio_kg        Decimal   @db.Decimal(10, 2)
-  subtotal         Decimal   @db.Decimal(12, 2)
-  device_id        String
-  local_id         String
-  sync_status      String?
-  deleted_at       DateTime?
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @default(now()) @updatedAt
-  
-  sublote          Sublote   @relation(fields: [id_sublote], references: [id])
-  venta            venta     @relation(fields: [id_venta], references: [id_venta])
-
-  @@unique([device_id, local_id])
-}
-
-model SecadoSession {
-  id             String       @id @default(uuid()) @map("id_secado_session")
-  estado         String       @default("ACTIVE")
-  fechaInicio    DateTime     @default(now()) @map("fecha_inicio")
-  fechaFin       DateTime?    @map("fecha_fin")
-  organizacionId String       @map("id_organizacion")
-  organizacion   Organization @relation(fields: [organizacionId], references: [id])
-  tipoCafeId     String       @map("id_tipo_cafe")
-  tipoCafe       TipoCafe     @relation(fields: [tipoCafeId], references: [id])
-  calidadId      String       @map("id_calidad")
-  calidad        Calidad      @relation(fields: [calidadId], references: [id])
-  loteId         String?      @map("id_lote")
-  lote           Lote?        @relation(fields: [loteId], references: [id])
-  inputKg        Decimal      @map("input_kg") @db.Decimal(12, 2)
-  outputBuenoKg        Decimal? @map("output_bueno_kg") @db.Decimal(12, 2)
-  outputBuenoHumedad   Decimal? @map("output_bueno_humedad") @db.Decimal(5, 2)
-  outputRegularKg      Decimal? @map("output_regular_kg") @db.Decimal(12, 2)
-  outputRegularHumedad Decimal? @map("output_regular_humedad") @db.Decimal(5, 2)
-  mermaKg              Decimal? @map("merma_kg") @db.Decimal(12, 2)
-  rendimientoPct       Decimal? @map("rendimiento_pct") @db.Decimal(5, 2)
-  completedAt          DateTime? @map("completed_at")
-  createdAt            DateTime @default(now()) @map("created_at")
-  sublotes             Sublote[]
-
-  @@map("secado_session")
-}
-
-model parametro {
-  id_parametro String @id
-  nombre       String @unique
-  valor        String
 }
