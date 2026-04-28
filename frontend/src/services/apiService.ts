@@ -1,4 +1,5 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
+import API_URL from '../config/api';
 
 const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
@@ -39,10 +40,8 @@ function traducirMensajeError(message: string | null | undefined, status: number
 }
 
 function construirBasesApi() {
-  const apiBaseConfigurada =
-    (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
-
-  const candidatas = [apiBaseConfigurada.replace(/\/$/, '')];
+  const apiBaseConfigurada = API_URL.replace(/\/$/, '');
+  const candidatas = [apiBaseConfigurada];
 
   if (typeof window === 'undefined') {
     return candidatas;

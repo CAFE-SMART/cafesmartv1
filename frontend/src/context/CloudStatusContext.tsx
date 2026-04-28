@@ -11,6 +11,7 @@ import {
   CLOUD_STATUS_EVENT,
   type CloudStatusEventDetail,
 } from '../services/cloudStatusEvents';
+import API_BASE_URL from '../config/api';
 
 type CloudTone =
   | 'offline'
@@ -33,9 +34,6 @@ type CloudStatusValue = {
 };
 
 const CloudStatusContext = createContext<CloudStatusValue | null>(null);
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
 
 async function pingBackend(signal?: AbortSignal) {
   const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/`, {

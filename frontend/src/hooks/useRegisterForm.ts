@@ -100,12 +100,17 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     }
   };
 
+  const nombreOrganizacionNormalizado = nombreOrganizacion.trim().replace(/\s+/g, ' ');
+
   const goToStep2 = () => {
     setError(null);
     const nextErrors: StepOneErrors = {};
 
-    if (!nombreOrganizacion.trim()) {
+    if (!nombreOrganizacionNormalizado) {
       nextErrors.nombreOrganizacion = 'El nombre de la empresa es obligatorio.';
+    } else if (nombreOrganizacionNormalizado.length < 2) {
+      nextErrors.nombreOrganizacion =
+        'El nombre de la empresa debe tener minimo 2 caracteres.';
     }
 
     if (!tipoOrganizacion) {
@@ -136,9 +141,18 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     setError(null);
     const nextErrors: StepTwoErrors = {};
 
-    if (!nombreOrganizacion.trim()) {
+    if (!nombreOrganizacionNormalizado) {
       setError('El nombre del negocio es obligatorio.');
       setStepOneErrors({ nombreOrganizacion: 'El nombre de la empresa es obligatorio.' });
+      setStep(1);
+      return;
+    }
+
+    if (nombreOrganizacionNormalizado.length < 2) {
+      setError('El nombre del negocio debe tener minimo 2 caracteres.');
+      setStepOneErrors({
+        nombreOrganizacion: 'El nombre de la empresa debe tener minimo 2 caracteres.',
+      });
       setStep(1);
       return;
     }
@@ -206,7 +220,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
       state: {
         hasGoogleFlow,
         googleToken: routeState.googleToken,
-        nombreOrganizacion,
+        nombreOrganizacion: nombreOrganizacionNormalizado,
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
         otroTipoDetalle: tipoOrganizacion === 'OTRO' ? otroTipoDetalle : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,

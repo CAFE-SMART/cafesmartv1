@@ -256,7 +256,7 @@ export default function Register() {
                   }}
                   placeholder="Ej: Cooperativa El Cafetal"
                   autoComplete="organization"
-                  aria-invalid={Boolean(stepOneErrors.nombreOrganizacion)}
+                  aria-invalid={stepOneErrors.nombreOrganizacion ? 'true' : undefined}
                   aria-describedby={
                     stepOneErrors.nombreOrganizacion ? 'register-business-name-error' : undefined
                   }
@@ -342,7 +342,7 @@ export default function Register() {
                       setStepOneErrors((prev) => ({ ...prev, otroTipoDetalle: undefined }));
                     }}
                     placeholder="Ej: Exportadora, Trilladora"
-                    aria-invalid={Boolean(stepOneErrors.otroTipoDetalle)}
+                    aria-invalid={stepOneErrors.otroTipoDetalle ? 'true' : undefined}
                     aria-describedby={
                       stepOneErrors.otroTipoDetalle ? 'register-business-type-other-error' : undefined
                     }
@@ -423,7 +423,7 @@ export default function Register() {
                       }}
                       placeholder="Ej. Juan"
                       autoComplete="given-name"
-                      aria-invalid={Boolean(stepTwoErrors.nombre)}
+                      aria-invalid={stepTwoErrors.nombre ? 'true' : undefined}
                       aria-describedby={stepTwoErrors.nombre ? 'register-admin-name-error' : undefined}
                       className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all placeholder-gray-400 ${
                         stepTwoErrors.nombre
@@ -454,7 +454,7 @@ export default function Register() {
                       }}
                       placeholder="Ej. Perez Gomez"
                       autoComplete="family-name"
-                      aria-invalid={Boolean(stepTwoErrors.apellidos)}
+                      aria-invalid={stepTwoErrors.apellidos ? 'true' : undefined}
                       aria-describedby={
                         stepTwoErrors.apellidos ? 'register-admin-lastname-error' : undefined
                       }
@@ -507,7 +507,7 @@ export default function Register() {
                     }}
                     placeholder="admin@empresa.com"
                     autoComplete="email"
-                    aria-invalid={Boolean(stepTwoErrors.correo)}
+                    aria-invalid={stepTwoErrors.correo ? 'true' : undefined}
                     aria-describedby={
                       stepTwoErrors.correo
                         ? 'register-admin-email-error'
@@ -550,7 +550,7 @@ export default function Register() {
                       }}
                       placeholder="************"
                       autoComplete={hasGoogleFlow ? 'new-password' : 'new-password'}
-                      aria-invalid={Boolean(stepTwoErrors.password)}
+                      aria-invalid={stepTwoErrors.password ? 'true' : undefined}
                       aria-describedby={stepTwoErrors.password ? 'register-admin-password-error' : undefined}
                       className={`block w-full px-4 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                         stepTwoErrors.password ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
@@ -616,7 +616,7 @@ export default function Register() {
                     }}
                     placeholder="Vuelve a escribir tu contraseña"
                     autoComplete="new-password"
-                    aria-invalid={Boolean(stepTwoErrors.confirmPassword)}
+                    aria-invalid={stepTwoErrors.confirmPassword ? 'true' : undefined}
                     aria-describedby={
                       stepTwoErrors.confirmPassword
                         ? 'register-admin-password-confirm-error'

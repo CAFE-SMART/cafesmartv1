@@ -4,7 +4,11 @@ import { ArrowLeft, Check, SunMedium } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { formatDateLabel } from '../utils/date';
-import { obtenerDetalleLote, type LoteDetalle } from '../services/lotesService';
+import {
+  obtenerDetalleLote,
+  obtenerDetalleLotePorId,
+  type LoteDetalle,
+} from '../services/lotesService';
 import {
   applySecadoToDetalle,
   getActiveSecadoSession,
@@ -25,7 +29,11 @@ function shortDate(value: string) {
 
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
-  const { tipoCafeId, calidadId } = useParams<{ tipoCafeId: string; calidadId: string }>();
+  const { tipoCafeId, calidadId, loteId } = useParams<{
+    tipoCafeId?: string;
+    calidadId?: string;
+    loteId?: string;
+  }>();
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +42,7 @@ export default function SecadoSeleccion() {
   const [blockingSessionId, setBlockingSessionId] = useState<string | null>(null);
 
   const cargar = async () => {
-    if (!tipoCafeId || !calidadId) {
+    if (!loteId && (!tipoCafeId || !calidadId)) {
       setError('No se encontro el lote verde para secado.');
       setLoading(false);
       return;
@@ -44,15 +52,33 @@ export default function SecadoSeleccion() {
     setError(null);
 
     try {
-      const base = await obtenerDetalleLote(tipoCafeId, calidadId);
-      const visual = applySecadoToDetalle(base, tipoCafeId, calidadId);
+      const base = loteId
+        ? await obtenerDetalleLotePorId(loteId)
+        : await obtenerDetalleLote(tipoCafeId as string, calidadId as string);
+      const visual = applySecadoToDetalle(
+        base,
+        base.lote.tipoCafeId,
+        base.lote.calidadId,
+      );
 
       if (!visual) {
         throw new Error('No se encontraron sublotes disponibles para este lote.');
       }
 
       setDetalle(visual);
-      setSelectedIds(visual.sublotes.map((sublote) => sublote.id));
+      setSelectedIds((current) => {
+        if (current.length === 0) {
+          return visual.sublotes.map((sublote) => sublote.id);
+        }
+
+        const validCurrent = current.filter((id) =>
+          visual.sublotes.some((sublote) => sublote.id === id),
+        );
+
+        return validCurrent.length > 0
+          ? validCurrent
+          : visual.sublotes.map((sublote) => sublote.id);
+      });
 
       const active = getActiveSecadoSessionForLot(visual.lote.id);
       setActiveSessionId(active?.id ?? null);
@@ -72,7 +98,7 @@ export default function SecadoSeleccion() {
 
   useEffect(() => {
     void cargar();
-  }, [calidadId, tipoCafeId]);
+  }, [calidadId, loteId, tipoCafeId]);
 
   const totalSeleccionado = useMemo(() => {
     if (!detalle) return 0;
@@ -102,10 +128,7 @@ export default function SecadoSeleccion() {
     if (!detalle || selectedIds.length === 0) return;
 
     const session = startSecado(detalle, selectedIds);
-    navigate('/inventario', {
-      state: { preferredTypeKey: 'VERDE', activeSecadoId: session.id },
-      replace: true,
-    });
+    navigate(`/inventario/secado/${session.id}/finalizar`);
   };
 
   return (
@@ -115,10 +138,10 @@ export default function SecadoSeleccion() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+              onClick={() => navigate('/secado')}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
-              aria-label="Volver al inventario"
-              title="Volver al inventario"
+              aria-label="Volver al paso anterior"
+              title="Volver al paso anterior"
             >
               <ArrowLeft size={18} />
             </button>

@@ -125,6 +125,8 @@ export class DashboardService {
     return {
       inventoryAvailableKg,
       inventoryByType,
+      totalRevenue: totalVentas,
+      totalExpenses: round2(totalCompras + totalGastos),
       totalProfit,
       totalWasteKg,
       hasRecords,

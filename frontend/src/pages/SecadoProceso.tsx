@@ -87,10 +87,10 @@ export default function SecadoProceso() {
           <p className="text-lg font-semibold text-slate-700">No encontre el secado en proceso.</p>
           <button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() => navigate('/secado')}
             className="mt-5 inline-flex rounded-[18px] bg-[#102d92] px-5 py-3 text-sm font-black text-white"
           >
-            Volver a inventario
+            Volver al flujo de secado
           </button>
         </div>
       </div>
@@ -103,9 +103,9 @@ export default function SecadoProceso() {
         <div className="mx-auto flex w-full max-w-[520px] items-center gap-3">
 <button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() => navigate(`/inventario/lote/${session.loteId}/secado`)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
-            aria-label="Volver a inventario"
+            aria-label="Volver al paso anterior"
           >
             <ArrowLeft size={18} />
           </button>

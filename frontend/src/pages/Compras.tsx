@@ -83,7 +83,7 @@ type ProductorForm = {
 type CompraDraft = {
   fecha: string;
   sublotes: SubloteForm[];
-  productorSeleccionado: ProductorOption;
+  productorSeleccionado: ProductorOption | null;
   busquedaProductor: string;
   busquedaAplicada: string;
   step: Step;
@@ -235,7 +235,7 @@ function esCompraDraftVacio(draft: CompraDraft) {
   return (
     draft.step === 1 &&
     draft.fecha === hoyLocal() &&
-    draft.productorSeleccionado.id === PRODUCTOR_GENERAL.id &&
+    !draft.productorSeleccionado &&
     !draft.busquedaProductor &&
     !draft.busquedaAplicada &&
     subloteUnicoVacio
@@ -351,7 +351,7 @@ export default function Compras() {
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
   const [fecha, setFecha] = useState(hoyLocal());
   const [sublotes, setSublotes] = useState<SubloteForm[]>([crearSubloteVacio()]);
-  const [productorSeleccionado, setProductorSeleccionado] = useState<ProductorOption>(PRODUCTOR_GENERAL);
+  const [productorSeleccionado, setProductorSeleccionado] = useState<ProductorOption | null>(null);
   const [productoresLocales, setProductoresLocales] = useState<ProductorOption[]>(() => cargarProductoresLocales());
   const [busquedaProductor, setBusquedaProductor] = useState('');
   const [busquedaAplicada, setBusquedaAplicada] = useState('');
@@ -384,7 +384,7 @@ export default function Compras() {
     onRestore: (draft) => {
       setFecha(draft.fecha || hoyLocal());
       setSublotes(Array.isArray(draft.sublotes) && draft.sublotes.length > 0 ? draft.sublotes : [crearSubloteVacio()]);
-      setProductorSeleccionado(draft.productorSeleccionado ?? PRODUCTOR_GENERAL);
+      setProductorSeleccionado(draft.productorSeleccionado ?? null);
       setBusquedaProductor(draft.busquedaProductor ?? '');
       setBusquedaAplicada(draft.busquedaAplicada ?? '');
       setStep([1, 2, 3].includes(draft.step) ? draft.step : 1);
@@ -444,6 +444,7 @@ export default function Compras() {
       ),
     );
   }, [busquedaAplicada, productoresLocales]);
+  const busquedaAplicadaActiva = busquedaAplicada.trim().length > 0;
   const busquedaPendiente = busquedaProductor.trim() !== busquedaAplicada.trim();
   const pasoActual = datosPaso(step);
   const inicialesUsuario = useMemo(() => {
@@ -507,7 +508,6 @@ export default function Compras() {
   const seleccionarProductor = (productor: ProductorOption) => {
     setProductorSeleccionado(productor);
     setError(null);
-    setStep(2);
   };
 
   const guardarProductorLocal = () => {
@@ -548,13 +548,12 @@ export default function Compras() {
     setProductorForm({ nombre: '', telefono: '', documento: '' });
     setProductorFormError(null);
     setError(null);
-    setStep(2);
   };
 
   const resetFormulario = () => {
     setFecha(hoyLocal());
     setSublotes([crearSubloteVacio()]);
-    setProductorSeleccionado(PRODUCTOR_GENERAL);
+    setProductorSeleccionado(null);
     setBusquedaProductor('');
     setBusquedaAplicada('');
     setProductorFormError(null);
@@ -601,6 +600,12 @@ export default function Compras() {
   const irSiguientePaso = () => {
     setError(null);
     if (step === 1) {
+      if (!productorSeleccionado) {
+        setError(
+          'Selecciona un productor o usa Productor genérico para continuar con una compra rápida.',
+        );
+        return;
+      }
       setStep(2);
       return;
     }
@@ -652,8 +657,8 @@ export default function Compras() {
       if (respuesta.warning) setWarning(respuesta.warning);
       setCompraGuardada({
         fecha: respuesta.compra?.fecha ?? fechaNormalizada ?? new Date().toISOString(),
-        productorNombre: productorSeleccionado.nombre,
-        productorDocumento: productorSeleccionado.documento,
+        productorNombre: productorSeleccionado?.nombre ?? PRODUCTOR_GENERAL.nombre,
+        productorDocumento: productorSeleccionado?.documento ?? PRODUCTOR_GENERAL.documento,
         totalKg: resumen.totalKg,
         totalCompra: Number(respuesta.compra.totalCompra),
         sublotes: sublotes.map((sublote) => {
@@ -822,23 +827,39 @@ export default function Compras() {
               <p className="order-3 text-sm text-slate-500">Pulsa la lupa para buscar el productor escrito.</p>
             ) : null}
 
-            <button type="button" onClick={() => abrirModalProductor()} className="order-4 inline-flex w-full items-center justify-center gap-3 rounded-[18px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]">
-              <Plus size={18} />
-              Nuevo Productor
-            </button>
-
-            <button type="button" onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)} className="order-1 w-full rounded-[20px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3.5 text-left text-[#102d92] shadow-sm">
+            <button
+              type="button"
+              onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)}
+              className={`order-1 w-full rounded-[20px] border px-4 py-4 text-left shadow-sm transition ${
+                productorSeleccionado?.id === PRODUCTOR_GENERAL.id
+                  ? 'border-[#173ea6] bg-[#eef3ff] text-[#102d92] shadow-[0_0_0_2px_rgba(23,62,166,0.08)]'
+                  : 'border-[#d6e2ff] bg-[#eef3ff] text-[#102d92]'
+              }`}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[1.08rem] font-black leading-tight">Productor General</p>
-                  <p className="mt-2 max-w-[260px] text-[0.9rem] leading-6 text-slate-600">{PRODUCTOR_GENERAL.detalle}</p>
+                  <p className="mt-2 max-w-[260px] text-[0.9rem] leading-6 text-slate-600">
+                    Úsalo cuando la persona no tiene tiempo de registrar sus datos en este momento.
+                  </p>
                 </div>
-                <div className="rounded-full bg-[#dce8ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">Rápido</div>
+                <div className="rounded-full bg-[#dce8ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">
+                  {productorSeleccionado?.id === PRODUCTOR_GENERAL.id ? 'Seleccionado' : 'Rápido'}
+                </div>
               </div>
               <div className="mt-4 inline-flex items-center gap-2 text-sm font-black text-[#102d92]">
-                Seleccionar rápido
+                Compra rápida sin registrar productor
                 <ArrowRight size={16} />
               </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => abrirModalProductor()}
+              className="order-4 inline-flex w-full items-center justify-center gap-3 rounded-[18px] border border-dashed border-[#b7c6ef] bg-white px-5 py-3.5 text-[0.95rem] font-black text-[#102d92]"
+            >
+              <Plus size={18} />
+              Registrar Productor
             </button>
 
             <div className="order-5">
@@ -879,13 +900,37 @@ export default function Compras() {
 
                 {productoresRecientes.length === 0 ? (
                   <div className="rounded-[22px] border border-dashed border-[#d7dcec] bg-white px-4 py-10 text-center text-sm text-slate-500">
-                    No encontré productores con esa búsqueda. Prueba con la lupa o registra uno nuevo.
+                    {busquedaAplicadaActiva
+                      ? 'No encontré productores con esa búsqueda. Prueba con otro dato o registra uno nuevo.'
+                      : 'Aún no hay productores recientes para mostrar. Puedes usar Productor General o registrar uno nuevo.'}
                   </div>
                 ) : null}
               </div>
             </div>
 
             <article className="order-6 rounded-[24px] border border-[#eceffa] bg-[#f4f5ff] p-5 shadow-sm">
+              <div className="mb-5 rounded-[18px] border border-[#d9e4ff] bg-white px-4 py-4">
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">
+                  Productor seleccionado
+                </p>
+                {productorSeleccionado ? (
+                  <div className="mt-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-black text-[#102d92]">{productorSeleccionado.nombre}</p>
+                      <p className="mt-1 text-sm text-slate-500">{productorSeleccionado.documento}</p>
+                      <p className="mt-1 text-sm text-slate-500">{productorSeleccionado.detalle}</p>
+                    </div>
+                    <span className="rounded-full bg-[#eef3ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">
+                      Listo
+                    </span>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">
+                    Selecciona un productor, usa Productor genérico o registra uno nuevo para continuar.
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Total productores</p>
@@ -906,6 +951,21 @@ export default function Compras() {
                 </button>
               </div>
             </article>
+
+            {error ? (
+              <div className="order-7 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={irSiguientePaso}
+              className="order-8 inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]"
+            >
+              Siguiente paso
+              <ArrowRight size={18} />
+            </button>
           </section>
         ) : null}
 
@@ -917,7 +977,9 @@ export default function Compras() {
               </button>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Productor seleccionado</p>
-                <p className="text-[1.05rem] font-semibold text-slate-600">{productorSeleccionado.nombre}</p>
+                <p className="text-[1.05rem] font-semibold text-slate-600">
+                  {productorSeleccionado?.nombre ?? 'Sin productor seleccionado'}
+                </p>
               </div>
             </div>
 
@@ -1138,11 +1200,15 @@ export default function Compras() {
               <div className="mt-4 space-y-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">Nombre</p>
-                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">{productorSeleccionado.nombre}</p>
+                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">
+                    {productorSeleccionado?.nombre ?? 'Sin productor seleccionado'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-500">Cédula / ID</p>
-                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">{productorSeleccionado.documento}</p>
+                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">
+                    {productorSeleccionado?.documento ?? 'Sin documento'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-500">Fecha</p>

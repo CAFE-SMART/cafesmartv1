@@ -220,6 +220,27 @@ export class LotesService {
 
     const primerSublote = sublotes[0];
 
+    const pesoInicial = sublotes.reduce((sum, sublote) => sum + Number(sublote.pesoInicial), 0);
+    const pesoActual = sublotes.reduce((sum, sublote) => sum + Number(sublote.pesoActual), 0);
+    const sublotesConHumedad = sublotes.filter((sublote) => sublote.humedad !== null).length;
+    const pesoConHumedad = sublotes
+      .filter((sublote) => sublote.humedad !== null && Number(sublote.pesoActual) > 0)
+      .reduce((sum, sublote) => sum + Number(sublote.pesoActual), 0);
+    const humedadPonderada = sublotes
+      .filter((sublote) => sublote.humedad !== null && Number(sublote.pesoActual) > 0)
+      .reduce(
+        (sum, sublote) =>
+          sum + Number(sublote.humedad ?? 0) * Number(sublote.pesoActual),
+        0,
+      );
+    const precioPonderado = sublotes.reduce(
+      (sum, sublote) => sum + Number(sublote.precioKg) * Number(sublote.pesoInicial),
+      0,
+    );
+    const fechas = sublotes.map((sublote) => sublote.compra.fecha);
+    const primeraFecha = fechas.reduce((min, fecha) => (fecha < min ? fecha : min), fechas[0]);
+    const ultimaFecha = fechas.reduce((max, fecha) => (fecha > max ? fecha : max), fechas[0]);
+
     return {
       lote: {
         id: primerSublote.loteId ?? `${tipoCafeId}::${calidadId}`,
@@ -231,19 +252,121 @@ export class LotesService {
         calidadId,
         calidad: primerSublote.calidad.nombre,
         sublotes: sublotes.length,
-        sublotesConHumedad: 0,
-        pesoInicial: 0,
-        pesoActual: 0,
-        precioPromedioKg: 0,
-        humedadPromedio: null,
-        fecha: new Date().toISOString(),
-        fechaPrimerIngreso: new Date().toISOString(),
-        fechaUltimoIngreso: new Date().toISOString(),
-        diasEnBodegaMin: 0,
-        diasEnBodegaMax: 0,
+        sublotesConHumedad,
+        pesoInicial,
+        pesoActual,
+        precioPromedioKg: pesoInicial > 0 ? precioPonderado / pesoInicial : 0,
+        humedadPromedio:
+          pesoConHumedad > 0 ? this.redondearUnDecimal(humedadPonderada / pesoConHumedad) : null,
+        fecha: ultimaFecha.toISOString(),
+        fechaPrimerIngreso: primeraFecha.toISOString(),
+        fechaUltimoIngreso: ultimaFecha.toISOString(),
+        diasEnBodegaMin: this.calcularDiasEnBodega(ultimaFecha),
+        diasEnBodegaMax: this.calcularDiasEnBodega(primeraFecha),
         creadoEn: primerSublote.creadoEn.toISOString(),
       },
-      sublotes: [],
+      sublotes: sublotes.map((sublote) => ({
+        id: sublote.id,
+        etiqueta: sublote.lote?.codigo ? `${sublote.lote.codigo}-${sublote.id.slice(0, 4)}` : sublote.id.slice(0, 8),
+        tipoCafeId: sublote.tipoCafeId,
+        tipoCafe: sublote.tipoCafe.nombre,
+        calidadId: sublote.calidadId,
+        calidad: sublote.calidad.nombre,
+        pesoInicial: Number(sublote.pesoInicial),
+        pesoActual: Number(sublote.pesoActual),
+        precioKg: Number(sublote.precioKg),
+        humedad: this.normalizarNumeroNullable(sublote.humedad),
+        fechaIngreso: sublote.compra.fecha.toISOString(),
+        diasEnBodega: this.calcularDiasEnBodega(sublote.compra.fecha),
+        creadoEn: sublote.creadoEn.toISOString(),
+      })),
+    };
+  }
+
+  async findSublotesByLoteId(userId: string, loteId: string): Promise<LoteDetalleResponse> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    const sublotes = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        loteId,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      include: {
+        compra: { select: { fecha: true } },
+        lote: { select: { id: true, codigo: true } },
+        tipoCafe: { select: { id: true, nombre: true } },
+        calidad: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
+    });
+
+    if (!sublotes.length) {
+      throw new NotFoundException('No hay sublotes para este lote.');
+    }
+
+    const primerSublote = sublotes[0];
+    const pesoInicial = sublotes.reduce((sum, sublote) => sum + Number(sublote.pesoInicial), 0);
+    const pesoActual = sublotes.reduce((sum, sublote) => sum + Number(sublote.pesoActual), 0);
+    const sublotesConHumedad = sublotes.filter((sublote) => sublote.humedad !== null).length;
+    const pesoConHumedad = sublotes
+      .filter((sublote) => sublote.humedad !== null && Number(sublote.pesoActual) > 0)
+      .reduce((sum, sublote) => sum + Number(sublote.pesoActual), 0);
+    const humedadPonderada = sublotes
+      .filter((sublote) => sublote.humedad !== null && Number(sublote.pesoActual) > 0)
+      .reduce(
+        (sum, sublote) =>
+          sum + Number(sublote.humedad ?? 0) * Number(sublote.pesoActual),
+        0,
+      );
+    const precioPonderado = sublotes.reduce(
+      (sum, sublote) => sum + Number(sublote.precioKg) * Number(sublote.pesoInicial),
+      0,
+    );
+    const fechas = sublotes.map((sublote) => sublote.compra.fecha);
+    const primeraFecha = fechas.reduce((min, fecha) => (fecha < min ? fecha : min), fechas[0]);
+    const ultimaFecha = fechas.reduce((max, fecha) => (fecha > max ? fecha : max), fechas[0]);
+
+    return {
+      lote: {
+        id: primerSublote.lote?.id ?? loteId,
+        codigo: primerSublote.lote?.codigo ?? `${primerSublote.tipoCafe.nombre} ${primerSublote.calidad.nombre}`,
+        tipoCafeId: primerSublote.tipoCafeId,
+        tipoCafe: primerSublote.tipoCafe.nombre,
+        calidadId: primerSublote.calidadId,
+        calidad: primerSublote.calidad.nombre,
+        sublotes: sublotes.length,
+        sublotesConHumedad,
+        pesoInicial,
+        pesoActual,
+        precioPromedioKg: pesoInicial > 0 ? precioPonderado / pesoInicial : 0,
+        humedadPromedio:
+          pesoConHumedad > 0 ? this.redondearUnDecimal(humedadPonderada / pesoConHumedad) : null,
+        fecha: ultimaFecha.toISOString(),
+        fechaPrimerIngreso: primeraFecha.toISOString(),
+        fechaUltimoIngreso: ultimaFecha.toISOString(),
+        diasEnBodegaMin: this.calcularDiasEnBodega(ultimaFecha),
+        diasEnBodegaMax: this.calcularDiasEnBodega(primeraFecha),
+        creadoEn: primerSublote.creadoEn.toISOString(),
+      },
+      sublotes: sublotes.map((sublote) => ({
+        id: sublote.id,
+        etiqueta: `${primerSublote.lote?.codigo ?? 'SB'}-${sublote.id.slice(0, 4)}`,
+        tipoCafeId: sublote.tipoCafeId,
+        tipoCafe: sublote.tipoCafe.nombre,
+        calidadId: sublote.calidadId,
+        calidad: sublote.calidad.nombre,
+        pesoInicial: Number(sublote.pesoInicial),
+        pesoActual: Number(sublote.pesoActual),
+        precioKg: Number(sublote.precioKg),
+        humedad: this.normalizarNumeroNullable(sublote.humedad),
+        fechaIngreso: sublote.compra.fecha.toISOString(),
+        diasEnBodega: this.calcularDiasEnBodega(sublote.compra.fecha),
+        creadoEn: sublote.creadoEn.toISOString(),
+      })),
     };
   }
 

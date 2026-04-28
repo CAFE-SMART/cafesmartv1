@@ -608,7 +608,7 @@ export default function Inventario() {
         {typeKey === 'VERDE' && !activeSession && secadoTarget ? (
           <button
             type="button"
-            onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
+            onClick={() => navigate(`/inventario/lote/${secadoTarget.id}/secado`)}
             className="inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
           >
             <SunMedium size={20} />

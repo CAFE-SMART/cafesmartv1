@@ -7,6 +7,8 @@ export type DashboardSummary = {
     tipoCafe: string;
     kg: number;
   }>;
+  totalRevenue: number;
+  totalExpenses: number;
   totalProfit: number;
   totalWasteKg: number;
   hasRecords: boolean;

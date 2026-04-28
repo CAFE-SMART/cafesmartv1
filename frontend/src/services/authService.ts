@@ -1,17 +1,9 @@
-﻿import { Capacitor } from '@capacitor/core';
 import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+import API_ROOT_URL from '../config/api';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
-// 🔥 Detectar entorno (Android vs Web)
-const isAndroid = Capacitor.getPlatform() === 'android';
-
-// 🔥 Base URL dinámica
-const API_BASE_URL = isAndroid
-  ? 'http://10.0.2.2:3000'
-  : (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
-
 // 🔥 Endpoint base
-const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
+const API_URL = `${API_ROOT_URL.replace(/\/$/, '')}/auth`;
 
 export type AuthError = {
   message: string;

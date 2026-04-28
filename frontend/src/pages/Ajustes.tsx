@@ -5,10 +5,16 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  ChevronRight,
+  CircleDollarSign,
+  Droplets,
   LogOut,
   RefreshCcw,
   Save,
   Settings,
+  ShieldCheck,
+  UserRoundCog,
+  Users,
   UserCircle2,
   Warehouse,
   Wallet,
@@ -33,8 +39,8 @@ type CompanySettings = {
   descripcion: string;
 };
 
-const PROFILE_STORAGE_KEY = 'cafesmart_profile_settings_v1';
-const COMPANY_STORAGE_KEY = 'cafesmart_company_settings_v1';
+const PROFILE_STORAGE_KEY_PREFIX = 'cafesmart_profile_settings_v1';
+const COMPANY_STORAGE_KEY_PREFIX = 'cafesmart_company_settings_v1';
 
 function formatKg(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value);
@@ -49,9 +55,19 @@ function formatDate(value: string) {
   });
 }
 
-function getStoredProfile(): ProfileSettings | null {
+function getProfileStorageKey(userId: string | number | null | undefined) {
+  return userId ? `${PROFILE_STORAGE_KEY_PREFIX}:${String(userId)}` : PROFILE_STORAGE_KEY_PREFIX;
+}
+
+function getCompanyStorageKey(organizacionId: string | null | undefined) {
+  return organizacionId
+    ? `${COMPANY_STORAGE_KEY_PREFIX}:${organizacionId}`
+    : COMPANY_STORAGE_KEY_PREFIX;
+}
+
+function getStoredProfile(storageKey: string): ProfileSettings | null {
   try {
-    const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<ProfileSettings>;
     return {
@@ -64,9 +80,9 @@ function getStoredProfile(): ProfileSettings | null {
   }
 }
 
-function getStoredCompany(): CompanySettings | null {
+function getStoredCompany(storageKey: string): CompanySettings | null {
   try {
-    const raw = window.localStorage.getItem(COMPANY_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CompanySettings>;
     return {
@@ -79,22 +95,31 @@ function getStoredCompany(): CompanySettings | null {
   }
 }
 
-function saveProfile(profile: ProfileSettings) {
-  window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+function saveProfile(storageKey: string, profile: ProfileSettings) {
+  window.localStorage.setItem(storageKey, JSON.stringify(profile));
 }
 
-function saveCompany(company: CompanySettings) {
-  window.localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(company));
+function saveCompany(storageKey: string, company: CompanySettings) {
+  window.localStorage.setItem(storageKey, JSON.stringify(company));
 }
 
 export default function Ajustes() {
   const navigate = useNavigate();
   const { user, logout } = useUser();
+  const profileStorageKey = useMemo(() => getProfileStorageKey(user?.id), [user?.id]);
+  const companyStorageKey = useMemo(
+    () => getCompanyStorageKey(user?.organizacionId ?? null),
+    [user?.organizacionId],
+  );
 
   const initialConfig = useMemo(() => getBodegaConfig(), []);
 
-  const [profile, setProfile] = useState<ProfileSettings>(() => getStoredProfile() ?? { nombre: '', correo: '', telefono: '' });
-  const [company, setCompany] = useState<CompanySettings>(() => getStoredCompany() ?? {
+  const [profile, setProfile] = useState<ProfileSettings>({
+    nombre: '',
+    correo: '',
+    telefono: '',
+  });
+  const [company, setCompany] = useState<CompanySettings>({
     nombreEmpresa: '',
     tipoEmpresa: '',
     descripcion: '',
@@ -115,29 +140,26 @@ export default function Ajustes() {
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   useEffect(() => {
-    const nextNombre = profile.nombre || user?.name || '';
-    const nextCorreo = profile.correo || user?.email || '';
-    const nextTipo =
-      company.tipoEmpresa ||
-      (user?.tipoOrganizacion ? user.tipoOrganizacion.charAt(0) + user.tipoOrganizacion.slice(1).toLowerCase() : 'Compraventa');
+    const storedProfile = getStoredProfile(profileStorageKey);
+    const storedCompany = getStoredCompany(companyStorageKey);
+    const defaultTipo = user?.tipoOrganizacion
+      ? user.tipoOrganizacion.charAt(0) + user.tipoOrganizacion.slice(1).toLowerCase()
+      : 'Compraventa';
 
-    if (nextNombre !== profile.nombre || nextCorreo !== profile.correo) {
-      setProfile((prev) => ({
-        ...prev,
-        nombre: nextNombre,
-        correo: nextCorreo,
-      }));
-    }
+    setProfile({
+      nombre: storedProfile?.nombre || user?.name || '',
+      correo: storedProfile?.correo || user?.email || '',
+      telefono: storedProfile?.telefono || '',
+    });
 
-    if (!company.nombreEmpresa || !company.tipoEmpresa) {
-      setCompany((prev) => ({
-        nombreEmpresa: prev.nombreEmpresa || 'Mi empresa cafetera',
-        tipoEmpresa: nextTipo,
-        descripcion:
-          prev.descripcion || 'Configuración base para operar compras, inventario y ventas.',
-      }));
-    }
-  }, [company.nombreEmpresa, company.tipoEmpresa, company.descripcion, profile.nombre, profile.correo, user?.name, user?.email, user?.tipoOrganizacion]);
+    setCompany({
+      nombreEmpresa: storedCompany?.nombreEmpresa || 'Mi empresa cafetera',
+      tipoEmpresa: storedCompany?.tipoEmpresa || defaultTipo,
+      descripcion:
+        storedCompany?.descripcion ||
+        'Configuración base para operar compras, inventario y ventas.',
+    });
+  }, [companyStorageKey, profileStorageKey, user?.email, user?.name, user?.tipoOrganizacion]);
 
   const cargarInventario = async () => {
     setLoadingStock(true);
@@ -173,7 +195,7 @@ export default function Ajustes() {
       setError('Escribe el correo del usuario.');
       return;
     }
-    saveProfile(profile);
+    saveProfile(profileStorageKey, profile);
     setSuccess('Perfil actualizado correctamente.');
     setIsEditingProfile(false);
   };
@@ -189,7 +211,7 @@ export default function Ajustes() {
       setError('Selecciona el tipo de empresa.');
       return;
     }
-    saveCompany(company);
+    saveCompany(companyStorageKey, company);
     setSuccess('Información de la empresa actualizada.');
     setIsEditingCompany(false);
   };
@@ -240,6 +262,13 @@ export default function Ajustes() {
 
   const servicios = [
     {
+      id: 'secado',
+      title: 'Proceso de Secado',
+      description: 'Revisa y continúa lotes listos para secado.',
+      icon: Droplets,
+      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+    },
+    {
       id: 'gastos',
       title: 'Gastos operativos',
       description: 'Controla costos diarios del negocio caficultor.',
@@ -255,46 +284,113 @@ export default function Ajustes() {
     },
   ] as const;
 
+  const configuracionNegocio = [
+    {
+      id: 'company',
+      title: 'Tipo de café',
+      description: company.tipoEmpresa || 'Información del negocio',
+      icon: Building2,
+      onClick: () => setIsEditingCompany((prev) => !prev),
+    },
+    {
+      id: 'quality',
+      title: 'Calidades de café',
+      description: company.descripcion || 'Configura la operación del negocio',
+      icon: ShieldCheck,
+      onClick: () => setIsEditingCompany((prev) => !prev),
+    },
+    {
+      id: 'warehouse',
+      title: 'Capacidad de bodega',
+      description: `${formatKg(Number(capacidadKg) || 0)} kg`,
+      icon: Warehouse,
+      onClick: () => setIsEditingBodega((prev) => !prev),
+    },
+  ] as const;
+
+  const gestionPersonas = [
+    {
+      id: 'profile',
+      title: 'Perfil del usuario',
+      description: profile.nombre || 'Administrador',
+      icon: UserRoundCog,
+      onClick: () => setIsEditingProfile((prev) => !prev),
+    },
+    {
+      id: 'users',
+      title: 'Gestión de usuarios',
+      description: 'Próximamente',
+      icon: Users,
+      onClick: () => setSuccess('La gestión de usuarios estará disponible en una siguiente actualización.'),
+    },
+  ] as const;
+
+  const resumenReciente = [
+    {
+      id: 'inventario',
+      title: 'Inventario actual',
+      value: loadingStock ? 'Cargando...' : `${formatKg(inventarioActualKg)} kg`,
+      accent: 'text-[#102d92]',
+      bg: 'bg-[#eef2ff]',
+    },
+    {
+      id: 'capacidad',
+      title: 'Capacidad disponible',
+      value: `${formatKg(capacidadRestante)} kg`,
+      accent: 'text-[#0f766e]',
+      bg: 'bg-[#ecfdf5]',
+    },
+    {
+      id: 'actualizacion',
+      title: 'Última actualización',
+      value: formatDate(updatedAt),
+      accent: 'text-[#9a3412]',
+      bg: 'bg-[#fff7ed]',
+    },
+  ] as const;
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-5">
-        <header className="flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-[#f5f7fb] px-4 py-5 pb-[150px] text-slate-900">
+      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+        <header className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate('/inicio')}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#dce2f1] bg-white text-slate-600"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-[1.7rem] font-black tracking-tight text-[#121826]">Ajustes</h1>
-          <CloudStatusBadge compact className="max-w-[180px]" />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[1.2rem] font-black text-[#111827]">Ajustes</h1>
+          </div>
+          <CloudStatusBadge compact className="max-w-[150px]" />
         </header>
 
-        <section className="rounded-[28px] border border-[#e6e8f3] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <section className="rounded-[24px] bg-[linear-gradient(180deg,#f8fbff_0%,#eef3fb_100%)] px-5 py-6 shadow-sm">
           <div className="flex flex-col items-center text-center">
             <div className="relative">
-              <div className="h-20 w-20 rounded-full bg-[#eef2ff] p-1.5 shadow-inner">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#102d92]">
-                  <UserCircle2 size={40} />
-                </div>
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#e8eefb] text-[#8a97b8]">
+                <UserCircle2 size={38} />
               </div>
-              <div className="absolute -right-0.5 -bottom-0.5 rounded-full bg-[#102d92] p-2 text-white">
+              <div className="absolute -right-1 top-0 rounded-full bg-[#2954d8] p-1.5 text-white shadow-sm">
                 <Settings size={12} />
               </div>
             </div>
-            <h2 className="mt-3 text-[1.45rem] font-black text-[#121826]">{profile.nombre || 'Administrador'}</h2>
-            <p className="text-sm font-semibold text-slate-500">Administrador</p>
+            <h2 className="mt-3 text-[1rem] font-black text-[#111827]">{profile.nombre || 'Administrador'}</h2>
+            <p className="mt-1 text-xs font-semibold text-slate-500">
+              {profile.correo || 'Administrador del sistema'}
+            </p>
             <button
               type="button"
               onClick={() => setIsEditingProfile((prev) => !prev)}
-              className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-2.5 text-sm font-black text-white"
+              className="mt-4 inline-flex min-h-[38px] items-center justify-center rounded-[12px] bg-[#2954d8] px-5 py-2 text-xs font-black text-white"
             >
               Editar perfil
             </button>
           </div>
 
           {isEditingProfile ? (
-            <div className="mt-4 space-y-3 rounded-[18px] border border-[#e7ebf6] bg-[#fbfcff] p-4">
+            <div className="mt-5 space-y-3 rounded-[18px] border border-[#dfe6f4] bg-white p-4">
               <input
                 type="text"
                 value={profile.nombre}
@@ -328,43 +424,64 @@ export default function Ajustes() {
           ) : null}
         </section>
 
-        <section className="space-y-3">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Mi negocio</p>
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+            Procesos operativos
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {servicios.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      item.id === 'gastos'
+                        ? '/gastos'
+                        : item.id === 'analisis'
+                          ? '/analisis-financiero'
+                          : '/secado',
+                    )
+                  }
+                  className="rounded-[16px] border border-[#e8edf7] bg-[#fbfcff] p-3 text-left"
+                >
+                  <div className={`inline-flex rounded-xl p-2 ${item.iconStyle}`}>
+                    <Icon size={16} />
+                  </div>
+                  <h3 className="mt-2 text-[0.78rem] font-black text-slate-900">{item.title}</h3>
+                  <p className="mt-1 text-[11px] leading-4 text-slate-500">{item.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <article className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-              <div className="inline-flex rounded-xl bg-[#e9fbf4] p-2.5 text-[#0d7b67]">
-                <Building2 size={17} />
-              </div>
-              <h3 className="mt-3 text-sm font-black text-slate-900">Información de la empresa</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-500">{company.nombreEmpresa}</p>
-              <p className="text-xs font-semibold text-slate-500">{company.tipoEmpresa}</p>
-              <button
-                type="button"
-                onClick={() => setIsEditingCompany((prev) => !prev)}
-                className="mt-3 inline-flex min-h-[34px] w-full items-center justify-center rounded-[12px] border border-[#d8def1] bg-white px-3 py-2 text-xs font-black text-[#102d92]"
-              >
-                Editar empresa
-              </button>
-            </article>
-
-            <article className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-              <div className="inline-flex rounded-xl bg-[#eef2ff] p-2.5 text-[#102d92]">
-                <Warehouse size={17} />
-              </div>
-              <h3 className="mt-3 text-sm font-black text-slate-900">Capacidad de bodega</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-500">
-                {formatKg(Number(capacidadKg) || 0)} kg
-              </p>
-              <p className="text-xs font-semibold text-slate-500">Actualizado: {formatDate(updatedAt)}</p>
-              <button
-                type="button"
-                onClick={() => setIsEditingBodega((prev) => !prev)}
-                className="mt-3 inline-flex min-h-[34px] w-full items-center justify-center rounded-[12px] border border-[#d8def1] bg-white px-3 py-2 text-xs font-black text-[#102d92]"
-              >
-                Configurar bodega
-              </button>
-            </article>
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+            Configuración del negocio
+          </p>
+          <div className="mt-3 space-y-2">
+            {configuracionNegocio.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  className="flex w-full items-center gap-3 rounded-[14px] border border-[#eef2f8] bg-[#fbfcff] px-4 py-3 text-left"
+                >
+                  <span className="inline-flex rounded-xl bg-[#eef2ff] p-2 text-[#2954d8]">
+                    <Icon size={15} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-900">{item.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span>
+                  </span>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -468,21 +585,85 @@ export default function Ajustes() {
           </section>
         ) : null}
 
-        <section className="rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-black text-slate-900">Servicios</h3>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {servicios.map((item) => {
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+            Gestión de personas
+          </p>
+          <div className="mt-3 space-y-2">
+            {gestionPersonas.map((item) => {
               const Icon = item.icon;
               return (
-                <article key={item.id} className="rounded-[16px] border border-[#e7ebf6] bg-[#fbfcff] p-3">
-                  <div className={`inline-flex rounded-xl p-2.5 ${item.iconStyle}`}>
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  className="flex w-full items-center gap-3 rounded-[14px] border border-[#eef2f8] bg-[#fbfcff] px-4 py-3 text-left"
+                >
+                  <span className="inline-flex rounded-xl bg-[#eef2ff] p-2 text-[#2954d8]">
                     <Icon size={15} />
-                  </div>
-                  <h4 className="mt-2 text-sm font-black text-slate-900">{item.title}</h4>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">{item.description}</p>
-                </article>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-900">{item.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span>
+                  </span>
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
               );
             })}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[22px] bg-[#101828] text-white shadow-[0_18px_45px_rgba(15,23,42,0.2)]">
+          <div className="flex items-center justify-between px-5 pt-5">
+            <div className="rounded-2xl bg-white/10 p-3 text-[#8fb4ff]">
+              <CircleDollarSign size={20} />
+            </div>
+            <BarChart3 size={20} className="text-white/30" />
+          </div>
+          <div className="px-5 pb-5 pt-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">
+              Información financiera
+            </p>
+            <h3 className="mt-2 text-[1rem] font-black">Ver información financiera</h3>
+            <p className="mt-1 text-xs leading-5 text-white/70">
+              Revisa utilidad, inventario disponible e indicadores del negocio.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/analisis-financiero')}
+              className="mt-4 inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#2954d8] px-5 py-2 text-xs font-black text-white"
+            >
+              Acceder ahora
+            </button>
+          </div>
+        </section>
+
+        <section className="rounded-[20px] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Resumen reciente
+            </p>
+            <button
+              type="button"
+              onClick={() => void cargarInventario()}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-[#2954d8]"
+              title="Actualizar resumen"
+            >
+              <RefreshCcw size={14} />
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {resumenReciente.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-[14px] border border-[#eef2f8] bg-[#fbfcff] px-4 py-3"
+              >
+                <p className="text-sm font-semibold text-slate-600">{item.title}</p>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${item.bg} ${item.accent}`}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
 

@@ -285,6 +285,7 @@ export default function Ventas() {
     if (!term) return base.slice(0, LIMITE);
     return base.filter((c) => [c.nombre, c.documento, c.detalle].some((v) => norm(v).includes(term)));
   }, [busquedaAplicada, clientesLocales]);
+  const busquedaAplicadaActiva = busquedaAplicada.trim().length > 0;
 
   const lotesConCantidad = React.useMemo(() => {
     if (modoVenta === 'TOTAL') {
@@ -934,7 +935,9 @@ export default function Ventas() {
                   </p>
                   {clientesRecientes.length === 0 ? (
                     <div className="mt-2 rounded-[14px] border border-dashed border-[#d5dced] bg-[#fbfcff] px-4 py-5 text-center text-sm text-slate-500">
-                      No se encontraron clientes con esa busqueda.
+                      {busquedaAplicadaActiva
+                        ? 'No se encontraron clientes con esa búsqueda. Intenta con otro dato o registra uno nuevo.'
+                        : 'Aún no hay clientes recientes para mostrar. Puedes usar Cliente General o registrar uno nuevo.'}
                     </div>
                   ) : (
                     <div className="mt-2 space-y-2">

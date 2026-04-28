@@ -47,6 +47,18 @@ export function mapFriendlyAuthMessage(
     return normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
   }
 
+  if (endpoint === '/register') {
+    if (field === 'nombreorganizacion') {
+      return 'Ya existe una empresa registrada con ese nombre. Usa un nombre diferente.';
+    }
+  }
+
+  if (endpoint === '/register/google') {
+    if (field === 'nombreorganizacion') {
+      return 'Ya existe una empresa registrada con ese nombre. Usa un nombre diferente.';
+    }
+  }
+
   return normalizeMessage(data.message, fallbackError);
 }
 
