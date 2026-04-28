@@ -28,8 +28,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = Number(configService.get('PORT') ?? 3000);
+  const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+  const corsOrigins = (configService.get<string>('CORS_ORIGINS') ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
-  app.enableCors();
+  app.enableCors({
+    origin: corsOrigins.length > 0 ? corsOrigins : nodeEnv !== 'production',
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

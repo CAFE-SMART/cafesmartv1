@@ -54,7 +54,12 @@ async function main() {
   console.log('Parámetro capacidad_bodega creado: 10000 kg');
 
   // ── 5. Usuario admin de prueba ──
-  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'admin123';
+  if (process.env.NODE_ENV === 'production' && seedAdminPassword === 'admin123') {
+    throw new Error('Define SEED_ADMIN_PASSWORD antes de ejecutar seed en produccion.');
+  }
+
+  const hashedPassword = await bcrypt.hash(seedAdminPassword, 10);
 
   await prisma.user.upsert({
     where: { correo: 'admin@cafesmart.com' },
@@ -68,7 +73,7 @@ async function main() {
       organizacionId: org.id,
     },
   });
-  console.log('Usuario de prueba creado: admin@cafesmart.com / admin123');
+  console.log('Usuario de prueba creado: admin@cafesmart.com');
 }
 
 main()
