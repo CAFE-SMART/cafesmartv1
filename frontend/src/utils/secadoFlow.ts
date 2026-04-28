@@ -396,6 +396,10 @@ export function finalizeSecado(sessionId: string) {
 }
 
 export function applySecadoToLots(baseLots: LoteResumen[]) {
+  if (baseLots.length === 0) {
+    return [];
+  }
+
   const sessions = readStorage().filter((session) => session.estado === 'COMPLETED');
   const lots = baseLots.map((lot) => ({ ...lot }));
 

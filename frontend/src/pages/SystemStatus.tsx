@@ -50,63 +50,37 @@ function ConfirmSuccessView() {
 
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
-    <div className="relative min-h-screen overflow-hidden text-white">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,#07132f_0%,#0b1e52_35%,#08142f_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(113,149,255,0.22)_0%,rgba(113,149,255,0)_44%)]" />
-      <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.85)_1px,transparent_0)] [background-size:28px_28px]" />
-
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[340px] flex-col px-4 py-5">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-4 py-2 backdrop-blur">
-          <Coffee size={15} className="text-white/90" />
-          <span className="text-[1.1rem] font-black tracking-tight text-white">Cafe Smart</span>
-        </div>
-
-        <div className="flex flex-1 flex-col items-center justify-center pt-4">
-          <div className="relative mt-1">
-            <div className="cafesmart-pulse-ring absolute -inset-4 rounded-full border border-[#74a7ff59]" />
-            <div
-              className="cafesmart-pulse-ring absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]"
-              style={{ animationDelay: '0.7s' }}
-            />
-            <div className="relative flex h-[176px] w-[176px] items-center justify-center">
-              <div className="absolute inset-[18%] rounded-full bg-[#80c6ff]/18 blur-3xl" aria-hidden="true" />
-              <img
-                src="/imagenes-de-proyecto/granito-inteligente.png"
-                alt="Granito inteligente de Cafe Smart"
-                className="cafesmart-float relative h-[168px] w-[168px] object-contain drop-shadow-[0_22px_38px_rgba(6,10,28,0.38)]"
-              />
-            </div>
+    <div className="min-h-screen bg-[#f7f8fb] px-4 py-8 text-slate-900">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+        <section className="w-full rounded-[16px] border border-[#dfe5f1] bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#274ab8]">
+            <Coffee size={21} strokeWidth={2.4} />
           </div>
 
-          <div className="mt-4 w-full max-w-[340px] rounded-[14px] border border-[#70a2ff42] bg-[linear-gradient(180deg,rgba(15,34,88,0.35)_0%,rgba(13,27,70,0.4)_100%)] px-4 py-4 backdrop-blur-sm">
-            <h1 className="text-center text-[1.35rem] font-black leading-tight tracking-normal text-white">
-              Bienvenido a
-              <span className="block bg-[linear-gradient(180deg,#b8e4ff_0%,#5db9ff_100%)] bg-clip-text text-transparent">
-                Cafe Smart
-              </span>
-            </h1>
+          <h1 className="mt-4 text-[1.18rem] font-black leading-tight tracking-normal text-[#111827]">
+            Bienvenido a Cafe Smart
+          </h1>
 
-            <p className="mt-2 text-center text-[0.72rem] leading-5 text-[#e0e8ff]">
-              Controla tu cafe en un solo lugar con precision.
-            </p>
+          <p className="mt-2 text-[0.76rem] leading-5 text-[#64748b]">
+            Tu empresa quedo lista para empezar a registrar compras, secado y ventas.
+          </p>
 
-            <button
-              type="button"
-              onClick={onStart}
-              className="mt-4 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1240c7] px-4 py-2 text-[0.72rem] font-black text-white shadow-[0_14px_30px_rgba(13,70,222,0.35)]"
-            >
-              Comenzar ahora
-              <ArrowRight size={20} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onStart}
+            className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-[0.78rem] font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+          >
+            Comenzar ahora
+            <ArrowRight size={16} />
+          </button>
 
-          <div className="mt-3 grid w-full max-w-[340px] grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => window.open('mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart', '_self')}
-              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[8px] border border-white/28 bg-[#0d162fcc] px-3 text-[0.68rem] font-bold text-white backdrop-blur"
+              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
             >
-              <HelpCircle size={18} />
+              <HelpCircle size={15} />
               Ayuda
             </button>
             <button
@@ -114,13 +88,13 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
               onClick={() =>
                 window.open('mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart', '_self')
               }
-              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[8px] border border-white/28 bg-[#0d162fcc] px-3 text-[0.68rem] font-bold text-white backdrop-blur"
+              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
             >
-              <MessageCircle size={18} />
-              Contactenos
+              <MessageCircle size={15} />
+              Contacto
             </button>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
