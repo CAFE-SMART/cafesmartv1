@@ -27,21 +27,31 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     console.error('Cafe Smart runtime error:', error);
   }
 
+  reset = () => {
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 text-center text-slate-900">
-          <div className="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-6 shadow-lg">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-rose-500">
-              Error de la interfaz
+          <div className="w-full max-w-[340px] rounded-[14px] border border-rose-200 bg-white p-4 shadow-lg">
+            <p className="text-[0.62rem] font-black uppercase tracking-[0.16em] text-rose-500">
+              Error de pantalla
             </p>
-            <h1 className="mt-3 text-2xl font-black text-slate-900">
-              La pantalla no pudo cargarse
+            <h1 className="mt-2 text-[1rem] font-black text-slate-900">
+              No se pudo cargar esta vista
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Algo en la vista de inicio de sesion o registro esta fallando en tiempo de
-              ejecucion. Ya no deberia verse en blanco; ahora veras este aviso en lugar del fallo.
+            <p className="mt-2 text-[0.68rem] leading-5 text-slate-600">
+              Intenta de nuevo. Si continua, vuelve a la pantalla anterior.
             </p>
+            <button
+              type="button"
+              onClick={this.reset}
+              className="mt-4 inline-flex min-h-[36px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.68rem] font-black text-white"
+            >
+              Reintentar
+            </button>
           </div>
         </div>
       );
@@ -63,7 +73,7 @@ function GlobalOfflineNotice() {
 
   return (
     <div className="border-b border-[#ececec] bg-white px-4 py-3">
-      <div className="mx-auto max-w-[390px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
+      <div className="mx-auto max-w-[340px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
         Para refrescar los datos necesitas conexión a internet.
         {'\n'}
         Tus cambios están guardados y se sincronizarán automáticamente.

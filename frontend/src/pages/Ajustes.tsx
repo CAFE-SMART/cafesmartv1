@@ -194,7 +194,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
       message,
       'Bodega sin nombre.',
       'Ponle un nombre para identificarla.',
-      'Escribe el nombre de la bodega.',
+      'Escribe el Nombre.',
     );
   }
 
@@ -212,7 +212,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
       message,
       'Capacidad muy pequeña.',
       'Ya tienes mas cafe guardado que ese limite.',
-      'Aumenta la capacidad de la bodega.',
+      'Aumenta la Capacidad de bodega.',
     );
   }
 
@@ -485,10 +485,10 @@ export default function Ajustes() {
     {
       id: 'gastos',
       title: 'Gastos operativos',
-      description: 'Insumos y servicios',
+      description: 'Listado y registro',
       icon: Wallet,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () => navigate('/gastos/registro'),
+      onClick: () => navigate('/gastos'),
     },
   ] as const;
 
@@ -570,7 +570,7 @@ export default function Ajustes() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[340px] flex-col gap-4">
         <header className="relative flex items-center justify-center py-1">
           <button
             type="button"
@@ -656,7 +656,7 @@ export default function Ajustes() {
 
         <section className="space-y-3">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Procesos operativos</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             {procesosOperativos.map((item) => {
               const Icon = item.icon;
               return (
@@ -727,19 +727,19 @@ export default function Ajustes() {
           </div>
 
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Información financiera</p>
-          <article className="relative overflow-hidden rounded-[16px] border border-[#1d2f66] bg-[#081336] px-4 py-5 text-white shadow-[0_12px_35px_rgba(8,19,54,0.35)]">
-            <div className="absolute -right-4 -top-6 h-24 w-24 rounded-full bg-[#27459f]/40" />
+          <article className="relative overflow-hidden rounded-[16px] border border-[#dbe5ff] bg-[#f7f9ff] px-4 py-5 text-[#172033] shadow-[0_10px_24px_rgba(42,79,181,0.10)]">
+            <div className="absolute -right-4 -top-6 h-24 w-24 rounded-full bg-[#dbe6ff]/70" />
             <div className="relative z-10 flex flex-col items-center text-center">
-              <span className="inline-flex rounded-full bg-[#1f3fa7] p-2">
+              <span className="inline-flex rounded-full bg-[#eaf0ff] p-2 text-[#2a4fb5]">
                 <Lock size={15} />
               </span>
-              <p className="mt-3 text-base font-semibold">Ver información financiera</p>
-              <p className="mt-1 max-w-[320px] text-xs text-[#c8d4ff]">Este módulo requiere contraseña de administrador para acceso.</p>
+              <p className="mt-3 text-base font-semibold">Ver resumen financiero</p>
+              <p className="mt-1 max-w-[320px] text-xs text-slate-500">Consulta ventas, compras y gastos con contraseña de administrador.</p>
             </div>
             <button
               type="button"
-              disabled
-              className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-80 mx-auto"
+              onClick={() => navigate('/resumen-financiero')}
+              className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-90 mx-auto"
             >
               Acceder ahora
             </button>
@@ -861,23 +861,23 @@ export default function Ajustes() {
 
       {isEditingBodega ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
-          <div className="w-full max-w-[560px] rounded-t-[24px] border border-[#e6e8f3] bg-white px-5 pb-6 pt-4 shadow-[0_24px_60px_rgba(15,23,42,0.35)] sm:px-6 sm:pb-7">
-            <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
+          <div className="w-full max-w-[340px] rounded-t-[16px] border border-[#e6e8f3] bg-white px-4 pb-4 pt-3 shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">Capacidad de la bodega</h3>
+              <h3 className="text-[0.95rem] font-black leading-tight text-[#111827]">Capacidad de bodega</h3>
               <button
                 type="button"
                 onClick={cerrarEditorBodega}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 aria-label="Cerrar"
               >
-                <X size={24} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="mt-8 space-y-5">
+            <div className="mt-4 space-y-3">
               <div>
-                <p className="mb-2 block text-base font-semibold text-slate-900">Nombre de la bodega</p>
+                <p className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">Nombre</p>
                 <input
                   type="text"
                   value={nombreBodega}
@@ -885,13 +885,13 @@ export default function Ajustes() {
                     setNombreBodega(event.target.value);
                     clearFeedback();
                   }}
-                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2.5 text-[0.72rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="Bodega principal"
                 />
               </div>
 
               <div>
-                <p className="mb-2 block text-base font-semibold text-slate-900">Capacidad máxima (kg)</p>
+                <p className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">Capacidad max. (kg)</p>
                 <input
                   type="number"
                   min="1"
@@ -901,32 +901,32 @@ export default function Ajustes() {
                     setCapacidadKg(event.target.value);
                     clearFeedback();
                   }}
-                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2.5 text-[0.72rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="6000"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-[16px] bg-[#f6f7fd] px-4 py-3.5">
-                  <p className="text-sm font-semibold text-slate-500">En bodega</p>
-                  <p className="mt-1 text-2xl font-black leading-tight text-slate-900">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-[10px] bg-[#f6f7fd] px-3 py-2.5">
+                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500">En bodega</p>
+                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900">
                     {loadingStock ? 'Cargando...' : `${formatKg(inventarioActualKg)} kg`}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">Kilos almacenados</p>
+                  <p className="mt-0.5 text-[0.58rem] text-slate-500">Almacenados</p>
                 </div>
-                <div className="rounded-[16px] bg-[#f6f7fd] px-4 py-3.5">
-                  <p className="text-sm font-semibold text-slate-500">Espacio disponible</p>
-                  <p className="mt-1 text-2xl font-black leading-tight text-slate-900">
+                <div className="rounded-[10px] bg-[#f6f7fd] px-3 py-2.5">
+                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500">Disponible</p>
+                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900">
                     {Number.isFinite(Number(capacidadKg)) ? `${formatKg(capacidadRestante)} kg` : 'Sin dato'}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">Kilos libres</p>
+                  <p className="mt-0.5 text-[0.58rem] text-slate-500">Libres</p>
                 </div>
               </div>
               <div>
                 <button
                   type="button"
                   onClick={guardarBodega}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white"
+                  className="inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#102d92] px-4 py-2 text-[0.68rem] font-black text-white"
                 >
                   <Save size={14} />
                   Guardar cambios
@@ -935,8 +935,8 @@ export default function Ajustes() {
               {error && activeErrorSection === 'bodega' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
-              <p className="inline-flex w-full items-center justify-center gap-2 text-center text-sm font-medium text-slate-500">
-                <CalendarDays size={14} className="text-[#102d92]" />
+              <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500">
+                <CalendarDays size={12} className="text-[#102d92]" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
             </div>

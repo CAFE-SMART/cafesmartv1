@@ -1,263 +1,124 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   ArrowRight,
-  BadgeAlert,
-  CircleDashed,
+  Banknote,
+  Box,
   Coffee,
+  House,
   Leaf,
-  Package2,
   RefreshCcw,
+  Settings,
   ShoppingCart,
   SunMedium,
+  Warehouse,
 } from 'lucide-react';
-import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 
 const TYPE_ORDER = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
 const BULTO_KG = 40.7;
 const QUALITY_SECTIONS = [
-  { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
-  { key: 'REGULAR', title: 'REGULAR', dot: 'bg-[#f6b81a]' },
-  { key: 'MALO', title: 'MALO', dot: 'bg-[#d82433]' },
+  { key: 'BUENO', label: 'BUENO', dot: 'bg-[#22c55e]' },
+  { key: 'REGULAR', label: 'REGULAR', dot: 'bg-[#f59e0b]' },
+  { key: 'MALO', label: 'MALO', dot: 'bg-[#ef4444]' },
 ] as const;
 
 function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value);
+function titleCase(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function formatSacks(valueKg: number) {
-  const sacks = valueKg / BULTO_KG;
+function formatKg(value: number) {
+  return new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: value % 1 === 0 ? 0 : 1,
+  }).format(value);
+}
+
+function formatBultos(valueKg: number) {
   return new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
-  }).format(sacks);
+  }).format(valueKg / BULTO_KG);
 }
 
-function formatShortSacks(valueKg: number) {
-  return formatSacks(valueKg);
+function isStandardBultoWeight(valueKg: number) {
+  if (valueKg < BULTO_KG) return false;
+  const bultos = valueKg / BULTO_KG;
+  return Math.abs(bultos - Math.round(bultos)) < 0.03;
 }
 
-function getLotDays(lot: LoteResumen) {
-  const oldest = getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha);
-  const newest = getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha);
-
-  return {
-    max: Math.max(oldest, newest),
-    min: Math.min(oldest, newest),
-  };
+function formatInventoryWeight(valueKg: number) {
+  const kgText = `${formatKg(valueKg)} kg`;
+  return isStandardBultoWeight(valueKg)
+    ? `${kgText} - ${formatBultos(valueKg)} bultos`
+    : kgText;
 }
 
-function coffeeVisual(name: string) {
-  const key = keyOf(name);
+function lotDays(lot: LoteResumen) {
+  return Math.max(
+    getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha),
+    getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha),
+    lot.diasEnBodegaMax || 0,
+  );
+}
 
+function typeVisual(type: string) {
+  const key = keyOf(type);
   if (key === 'VERDE') {
     return {
-      icon: <Leaf size={18} />,
-      bg: 'bg-[#e9fbf4]',
-      text: 'text-[#0d7b67]',
-      ring: '#0d7b67',
+      icon: <Leaf size={15} />,
+      card: 'bg-[#eafaf1] text-[#15915f]',
+      dot: 'bg-[#22c55e]',
     };
   }
-
   if (key === 'SECO') {
     return {
-      icon: <SunMedium size={18} />,
-      bg: 'bg-[#fff7df]',
-      text: 'text-[#d29309]',
-      ring: '#d29309',
+      icon: <SunMedium size={15} />,
+      card: 'bg-[#fff4df] text-[#df7b10]',
+      dot: 'bg-[#f59e0b]',
     };
   }
-
   if (key === 'PASILLA') {
     return {
-      icon: <BadgeAlert size={18} />,
-      bg: 'bg-[#ffe7e8]',
-      text: 'text-[#c92c32]',
-      ring: '#c92c32',
+      icon: <Coffee size={15} />,
+      card: 'bg-[#f3f4f6] text-[#4b5563]',
+      dot: 'bg-[#6b7280]',
     };
   }
-
   return {
-    icon: <Coffee size={18} />,
-    bg: 'bg-[#eef1ff]',
-    text: 'text-[#102d92]',
-    ring: '#102d92',
+    icon: <Coffee size={15} />,
+    card: 'bg-[#eef2ff] text-[#1f3fa7]',
+    dot: 'bg-[#1f3fa7]',
   };
-}
-
-function CapacityRing({
-  totalKg,
-  capacityKg,
-}: {
-  totalKg: number;
-  capacityKg: number;
-}) {
-  const safeCapacity = Math.max(1, capacityKg);
-  const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
-  const displayPercentage =
-    rawPercentage === 0
-      ? '0'
-      : rawPercentage < 1
-        ? rawPercentage.toFixed(1)
-        : rawPercentage.toFixed(0);
-  const ringPercentage = totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
-  const circumference = 2 * Math.PI * 58;
-  const offset = circumference - (ringPercentage / 100) * circumference;
-
-  return (
-    <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-      <p className="text-[0.95rem] font-extrabold text-black" style={{ fontWeight: 900 }}>
-        Resumen de Inventario
-      </p>
-      <div className="mt-2 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-end gap-2">
-            <p className="text-[2.1rem] font-extrabold leading-none text-[#102d92]" style={{ fontWeight: 900 }}>
-              {formatNumber(totalKg)}
-            </p>
-            <span className="pb-0.5 text-[1.2rem] font-bold text-slate-400" style={{ fontWeight: 900 }}>
-              / {formatNumber(safeCapacity)} kg
-            </span>
-          </div>
-          <p className="mt-1 text-sm font-semibold text-slate-600" style={{ fontWeight: 700 }}>
-            Capacidad usada: {displayPercentage}%
-          </p>
-        </div>
-
-        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center self-start">
-          <svg viewBox="0 0 140 140" className="h-24 w-24 -rotate-90">
-            <circle cx="70" cy="70" r="58" stroke="#edf1fa" strokeWidth="12" fill="none" />
-            <circle
-              cx="70"
-              cy="70"
-              r="58"
-              stroke="#102d92"
-              strokeWidth="12"
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-            />
-          </svg>
-          <div className="absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
-            <Coffee size={16} />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TypeSummaryCard({
-  lot,
-  onOpen,
-}: {
-  lot: LoteResumen;
-  onOpen: () => void;
-}) {
-  const visual = coffeeVisual(lot.tipoCafe);
-  const totalSublotesLabel = `${lot.sublotes} SUBLOTE${lot.sublotes === 1 ? '' : 'S'}`;
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-[20px] border border-[#e5e8f2] bg-white p-4 text-left shadow-sm"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] ${visual.bg} ${visual.text}`}>
-            {visual.icon}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">{lot.tipoCafe.toLowerCase()}</p>
-            <p className="mt-0.5 text-sm text-slate-500">
-              {formatNumber(lot.pesoActual)} kg · {formatShortSacks(lot.pesoActual)} bultos
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="rounded-[12px] bg-[#f2f3f7] px-4 py-2 text-sm font-semibold text-slate-700">
-            {totalSublotesLabel}
-          </span>
-          <ArrowRight size={18} className="text-slate-400" />
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void }) {
-  const lotDays = getLotDays(lot).max;
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-slate-900">{lot.codigo}</p>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {formatNumber(lot.pesoActual)} kg
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-slate-400" />
-            {lotDays} días
-          </p>
-        </div>
-        <ArrowRight size={18} className="text-slate-400" />
-      </div>
-    </button>
-  );
 }
 
 export default function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state ?? null) as
-    | {
-        preferredTypeKey?: string;
-        activeSecadoId?: string;
-        completedSecadoId?: string;
-      }
+    | { preferredTypeKey?: string; completedSecadoId?: string }
     | null;
 
   const [lots, setLots] = useState<LoteResumen[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [typeKey, setTypeKey] = useState('');
-  const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
-  const [bodegaConfig, setBodegaConfig] = useState<{ nombreBodega: string; capacidadKg: number }>({
-    nombreBodega: 'Bodega principal',
-    capacidadKg: 3000,
-  });
 
   const loadLots = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      const [data, config] = await Promise.all([
-        obtenerLotes(),
-        obtenerConfiguracionBodega(),
-      ]);
+      const data = await obtenerLotes();
       setLots(applySecadoToLots(data));
-      setBodegaConfig({
-        nombreBodega: config.nombreBodega,
-        capacidadKg: config.capacidadKg,
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el inventario.');
       setLots(applySecadoToLots([]));
@@ -270,363 +131,401 @@ export default function Inventario() {
     void loadLots();
   }, []);
 
-  const activeSession = getActiveSecadoSession();
-
   const availableTypes = useMemo(() => {
     const map = new Map<string, { key: string; name: string }>();
-
-    for (const lot of lots) {
+    lots.forEach((lot) => {
       const key = keyOf(lot.tipoCafe);
-      if (!map.has(key)) {
-        map.set(key, { key, name: lot.tipoCafe });
-      }
-    }
+      if (!map.has(key)) map.set(key, { key, name: lot.tipoCafe });
+    });
 
     return [...map.values()].sort((a, b) => {
       const indexA = TYPE_ORDER.indexOf(a.key as (typeof TYPE_ORDER)[number]);
       const indexB = TYPE_ORDER.indexOf(b.key as (typeof TYPE_ORDER)[number]);
-
       if (indexA !== -1 || indexB !== -1) {
         if (indexA === -1) return 1;
         if (indexB === -1) return -1;
         return indexA - indexB;
       }
-
       return a.name.localeCompare(b.name, 'es');
     });
   }, [lots]);
 
   useEffect(() => {
-    if (availableTypes.length === 0) {
-      if (typeKey !== '') setTypeKey('');
-      return;
-    }
-
     const preferred = keyOf(locationState?.preferredTypeKey ?? '');
-
     if (!preferredApplied && preferred && availableTypes.some((type) => type.key === preferred)) {
       setTypeKey(preferred);
       setPreferredApplied(true);
-      return;
     }
-
-    if (typeKey !== '' && !availableTypes.some((type) => type.key === typeKey)) {
-      setTypeKey('');
-    }
-  }, [availableTypes, locationState?.preferredTypeKey, preferredApplied, typeKey]);
-
-  const filteredLots = useMemo(() => {
-    if (!typeKey) return [];
-    return lots.filter((lot) => keyOf(lot.tipoCafe) === typeKey);
-  }, [lots, typeKey]);
-
-  const visibleLots = useMemo(() => (typeKey ? filteredLots : lots), [filteredLots, lots, typeKey]);
-
-  const orderedLots = useMemo(() => {
-    const copy = [...visibleLots];
-    copy.sort((a, b) => {
-      const daysA = getLotDays(a);
-      const daysB = getLotDays(b);
-
-      if (sortKey === 'OLDEST') {
-        if (daysB.max !== daysA.max) return daysB.max - daysA.max;
-        return b.pesoActual - a.pesoActual;
-      }
-
-      if (daysA.min !== daysB.min) return daysA.min - daysB.min;
-      return a.pesoActual - b.pesoActual;
-    });
-    return copy;
-  }, [visibleLots, sortKey]);
+  }, [availableTypes, locationState?.preferredTypeKey, preferredApplied]);
 
   const typeSummaries = useMemo(() => {
     const grouped = new Map<string, { key: string; name: string; lots: LoteResumen[] }>();
-
-    for (const lot of lots) {
+    lots.forEach((lot) => {
       const key = keyOf(lot.tipoCafe);
-      const current =
-        grouped.get(key) ?? {
-          key,
-          name: lot.tipoCafe,
-          lots: [],
-        };
-
+      const current = grouped.get(key) ?? { key, name: lot.tipoCafe, lots: [] };
       current.lots.push(lot);
       grouped.set(key, current);
-    }
-
-    return TYPE_ORDER.flatMap((type) => {
-      const current = grouped.get(type);
-      if (!current) return [];
-      const totalKg = current.lots.reduce((sum, lot) => sum + lot.pesoActual, 0);
-      const totalSublotes = current.lots.reduce((sum, lot) => sum + lot.sublotes, 0);
-      return [
-        {
-          key: current.key,
-          name: current.name,
-          totalKg,
-          totalSublotes,
-          lots: current.lots,
-        },
-      ];
     });
+
+    return [...grouped.values()]
+      .map((group) => ({
+        key: group.key,
+        name: group.name,
+        totalKg: group.lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
+        sublotes: group.lots.reduce((sum, lot) => sum + lot.sublotes, 0),
+        lotes: group.lots.length,
+        lots: group.lots,
+      }))
+      .sort((a, b) => {
+        const indexA = TYPE_ORDER.indexOf(a.key as (typeof TYPE_ORDER)[number]);
+        const indexB = TYPE_ORDER.indexOf(b.key as (typeof TYPE_ORDER)[number]);
+        if (indexA !== -1 || indexB !== -1) {
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        }
+        return a.name.localeCompare(b.name, 'es');
+      });
   }, [lots]);
+
+  const visibleLots = useMemo(() => {
+    const base = typeKey ? lots.filter((lot) => keyOf(lot.tipoCafe) === typeKey) : lots;
+    return [...base].sort((a, b) => lotDays(b) - lotDays(a));
+  }, [lots, typeKey]);
 
   const qualitySections = useMemo(
     () =>
       QUALITY_SECTIONS.map((section) => ({
         ...section,
-        lots: orderedLots.filter((lot) => keyOf(lot.calidad) === section.key),
+        totalKg: visibleLots
+          .filter((lot) => keyOf(lot.calidad) === section.key)
+          .reduce((sum, lot) => sum + lot.pesoActual, 0),
+        lots: visibleLots.filter((lot) => keyOf(lot.calidad) === section.key),
       })),
-    [orderedLots],
+    [visibleLots],
   );
 
-  const totalKg = useMemo(() => lots.reduce((sum, lot) => sum + lot.pesoActual, 0), [lots]);
-  const secadoTarget = typeKey === 'VERDE' && orderedLots.length > 0 ? orderedLots[0] : null;
-  const showGlobalEmptyState = !loading && !error && lots.length === 0;
-  const secadoProcessPath =
-    typeKey === 'VERDE'
-      ? activeSession
-        ? `/inventario/secado/${activeSession.id}/finalizar`
-        : secadoTarget
-          ? `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`
-          : null
-      : null;
+  const activeSession = getActiveSecadoSession();
+  const verdeTarget = visibleLots.find((lot) => keyOf(lot.tipoCafe) === 'VERDE') ?? null;
+  const hasInventory = lots.length > 0;
+  const filteredTypeName = availableTypes.find((type) => type.key === typeKey)?.name ?? '';
 
   return (
-    <div
-      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
-        showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
-      }`}
-    >
-      <main
-        className={`mx-auto flex w-full max-w-[520px] px-4 py-6 ${
-          showGlobalEmptyState
-            ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
-            : 'flex-col gap-5'
-        }`}
-      >
-        {!showGlobalEmptyState ? (
-          <CapacityRing
-            totalKg={totalKg}
-            capacityKg={bodegaConfig.capacidadKg}
-          />
+    <div className="min-h-screen bg-[#f7f7f7] text-[#171717]">
+      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-white pb-[76px] shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+        <header className="flex h-12 items-center gap-2 border-b border-[#eeeeee] px-3">
+          {typeKey ? (
+            <button
+              type="button"
+              onClick={() => setTypeKey('')}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#333333]"
+              aria-label="Volver"
+            >
+              <ArrowLeft size={14} />
+            </button>
+          ) : null}
+          <Warehouse size={15} className={hasInventory ? 'text-[#202020]' : 'text-[#bd3a2b]'} />
+          <h1 className="text-[0.82rem] font-black">Inventario</h1>
+          <button
+            type="button"
+            onClick={() => void loadLots()}
+            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400"
+            aria-label="Recargar inventario"
+          >
+            <RefreshCcw size={13} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </header>
+
+        {loading ? (
+          <section className="px-4 py-8 text-center text-[0.78rem] font-semibold text-slate-500">
+            Cargando inventario...
+          </section>
         ) : null}
 
-        {!showGlobalEmptyState ? (
-          <section className="flex flex-wrap items-center gap-3">
-            <div className="w-full max-w-[180px]">
-              <select
-                value={sortKey}
-                onChange={(event) => setSortKey(event.target.value as 'OLDEST' | 'NEWEST')}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 py-2.5 text-[1rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
-              >
-                <option value="OLDEST">Más antiguo</option>
-                <option value="NEWEST">Más reciente</option>
-              </select>
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              {[
-                { key: '', label: 'Todos' },
-                ...availableTypes.map((type) => ({ key: type.key, label: type.name })),
-              ].map((item) => {
-                const active = item.key === typeKey;
+        {!loading && error ? (
+          <section className="mx-4 mt-4 rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-3 text-[0.72rem] text-rose-700">
+            {error}
+          </section>
+        ) : null}
+
+        {!loading && !error && !hasInventory ? <EmptyInventory onBuy={() => navigate('/compras')} /> : null}
+
+        {!loading && !error && hasInventory ? (
+          <div className="px-3 py-3">
+            {!typeKey ? (
+              <section className="grid grid-cols-3 gap-2">
+                {typeSummaries.slice(0, 3).map((summary) => (
+                  <SummaryMiniCard key={summary.key} summary={summary} />
+                ))}
+              </section>
+            ) : null}
+
+            <section className="mt-3 flex flex-wrap gap-2">
+              {[{ key: '', name: 'Todos' }, ...availableTypes].map((type) => {
+                const active = type.key === typeKey;
                 return (
                   <button
-                    key={item.key || 'all'}
+                    key={type.key || 'all'}
                     type="button"
-                    onClick={() => setTypeKey(item.key)}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
-                        : 'border-[#d8deea] bg-white text-slate-600'
+                    onClick={() => setTypeKey(type.key)}
+                    className={`min-h-[26px] rounded-full px-3 text-[0.62rem] font-semibold transition ${
+                      active ? 'bg-[#172554] text-white' : 'border border-[#e1e5ed] bg-white text-[#6b7280]'
                     }`}
                   >
-                    {item.label}
+                    {titleCase(type.name)}
                   </button>
                 );
               })}
-            </div>
-          </section>
-        ) : null}
+            </section>
 
-        {showGlobalEmptyState ? (
-          <section className="w-full min-h-[calc(100vh-112px)] bg-white px-5 py-8 text-center">
-            <div className="mx-auto flex min-h-[calc(100vh-176px)] w-full max-w-[520px] flex-col items-center justify-center">
-              <div className="relative h-[210px] w-[210px]">
-                <div className="absolute inset-0 rotate-3 rounded-[30px] bg-[#f9f9fb] shadow-[0_28px_42px_rgba(35,39,75,0.1)]" />
-                <div className="absolute inset-[44px] flex items-center justify-center rounded-[20px] bg-[#f2f2f4] text-slate-300">
-                  <Package2 size={46} />
-                </div>
-                <div className="absolute -right-2 bottom-4 flex h-16 w-16 rotate-[-9deg] items-center justify-center rounded-[18px] bg-[#ff7a10] text-white shadow-[0_10px_18px_rgba(255,122,16,0.45)]">
-                  <Coffee size={24} />
-                </div>
-              </div>
+            {typeKey === 'VERDE' ? (
+              <section className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      activeSession
+                        ? `/inventario/secado/${activeSession.id}/finalizar`
+                        : verdeTarget
+                          ? `/inventario/${verdeTarget.tipoCafeId}/${verdeTarget.calidadId}/secado`
+                          : '/inventario',
+                    )
+                  }
+                  disabled={!activeSession && !verdeTarget}
+                  className="inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-[6px] border border-[#2341a0] bg-white px-3 text-[0.68rem] font-black text-[#2341a0] disabled:opacity-50"
+                >
+                  <SunMedium size={13} />
+                  {activeSession ? 'Finalizar secado' : 'Iniciar secado'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    activeSession
+                      ? navigate(`/inventario/secado/${activeSession.id}/finalizar`)
+                      : verdeTarget
+                        ? navigate(`/inventario/${verdeTarget.tipoCafeId}/${verdeTarget.calidadId}/secado`)
+                        : undefined
+                  }
+                  className="inline-flex w-full items-center justify-center gap-1.5 text-[0.58rem] font-semibold text-[#8391b4]"
+                >
+                  Ver procesos de secado
+                  <ArrowRight size={10} />
+                </button>
+              </section>
+            ) : null}
 
-              <h2 className="mt-2 text-[2.05rem] font-black leading-tight text-[#1f2432]">
-                Aún no tienes café en inventario
-              </h2>
-              <p className="mt-3 text-[1.02rem] font-medium leading-relaxed text-slate-500">
-                Registra tu primera compra para empezar a ver tu café.
-              </p>
+            {locationState?.completedSecadoId ? (
+              <section className="mt-3 rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[0.62rem] font-semibold text-emerald-700">
+                El secado ya se refleja como sublote de cafe seco.
+              </section>
+            ) : null}
 
-              <button
-                type="button"
-                onClick={() => navigate('/compras')}
-                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[16px] bg-[#2f64db] px-5 py-4 text-[1.75rem] font-semibold text-white shadow-[0_14px_30px_rgba(47,100,219,0.3)]"
-              >
-                <ShoppingCart size={24} />
-                Registrar compra
-              </button>
-            </div>
-          </section>
-        ) : null}
+            {!typeKey ? (
+              <section className="mt-3 space-y-2">
+                {typeSummaries.map((summary) => (
+                  <TypeRowCard
+                    key={summary.key}
+                    summary={summary}
+                    onOpen={() => setTypeKey(summary.key)}
+                    onOpenSublotes={() => {
+                      if (summary.lots.length === 1) {
+                        const lot = summary.lots[0];
+                        navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`);
+                        return;
+                      }
 
-        {typeKey === '' && !showGlobalEmptyState ? (
-          <section className="space-y-3">
-            <div className="grid gap-3">
-              {typeSummaries.map((group) => (
-                <TypeSummaryCard
-                  key={group.key}
-                  lot={{
-                    ...group.lots[0],
-                    tipoCafe: group.name,
-                    pesoActual: group.totalKg,
-                    sublotes: group.totalSublotes,
-                  }}
-                  onOpen={() => setTypeKey(group.key)}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {typeKey === 'VERDE' && activeSession ? (
-          <section className="rounded-[28px] border border-[#cdeef1] bg-[#dff8fb] p-5 shadow-sm">
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#0f6b6d]">
-              Monitoreo activo
-            </p>
-            <h2 className="mt-4 text-[1.9rem] font-black leading-tight text-[#102d92]">
-              Lote en proceso de secado
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Lote
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">{activeSession.loteCodigo}</p>
-              </div>
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Sublotes seleccionados
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
-                  {activeSession.sublotes.length}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(`/inventario/secado/${activeSession.id}/finalizar`)}
-              className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white"
-            >
-              Finalizar secado
-            </button>
-          </section>
-        ) : null}
-
-        {typeKey === 'VERDE' && !activeSession && secadoTarget ? (
-          <button
-            type="button"
-            onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
-          >
-            <SunMedium size={20} />
-            Iniciar secado
-          </button>
-        ) : null}
-
-        {secadoProcessPath ? (
-          <button
-            type="button"
-            onClick={() => navigate(secadoProcessPath)}
-            className="inline-flex w-full items-center justify-center gap-2 text-[1.05rem] font-semibold text-[#647cb8]"
-          >
-            <CircleDashed size={18} />
-            Ver procesos de secado
-            <ArrowRight size={18} />
-          </button>
-        ) : null}
-
-        {locationState?.completedSecadoId ? (
-          <section className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm font-medium text-emerald-700">
-            El secado se envió al inventario y ya se refleja como sublote de café seco.
-          </section>
-        ) : null}
-
-        {error ? (
-          <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            No pude cargar el inventario. {error}
-            <button
-              type="button"
-              onClick={() => void loadLots()}
-              className="mt-3 inline-flex items-center gap-2 font-black text-rose-700"
-            >
-              <RefreshCcw size={16} />
-              Reintentar
-            </button>
-          </section>
-        ) : null}
-
-        {loading ? (
-          <section className="rounded-[26px] border border-[#dde4f1] bg-white px-5 py-12 text-center shadow-sm">
-            <p className="text-lg font-semibold text-slate-500">Cargando inventario...</p>
-          </section>
-        ) : null}
-
-        {!loading && !error && typeKey !== '' && visibleLots.length === 0 ? (
-          <section className="rounded-[26px] border border-dashed border-[#d8dceb] bg-white px-6 py-12 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
-              <Package2 size={22} />
-            </div>
-            <p className="mt-4 text-lg text-slate-600">Todavía no hay lotes registrados en este tipo de café.</p>
-          </section>
-        ) : null}
-
-        {!loading && !error && typeKey !== '' && orderedLots.length > 0
-          ? (
-              <section className="space-y-4">
+                      setTypeKey(summary.key);
+                    }}
+                  />
+                ))}
+              </section>
+            ) : (
+              <section className="mt-4 space-y-4">
                 {qualitySections
                   .filter((section) => section.lots.length > 0)
                   .map((section) => (
-                  <section key={section.key} className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`h-2.5 w-2.5 rounded-full ${section.dot}`} />
-                        <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">{section.title}</p>
+                    <section key={section.key}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`h-1.5 w-1.5 rounded-full ${section.dot}`} />
+                          <p className="text-[0.55rem] font-black uppercase tracking-[0.08em] text-[#4b5563]">
+                            {section.label}
+                          </p>
+                        </div>
+                        <p className="text-[0.55rem] font-semibold text-slate-400">{formatKg(section.totalKg)} kg</p>
                       </div>
-                      <p className="text-sm font-semibold text-slate-500">
-                        {section.lots.length} lote{section.lots.length === 1 ? '' : 's'}
-                      </p>
-                    </div>
+                      <div className="space-y-2">
+                        {section.lots.map((lot) => (
+                          <QualityLotCard
+                            key={lot.id}
+                            lot={lot}
+                            onOpen={() => navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ))}
 
-                    <div className="space-y-3">
-                      {section.lots.map((lot) => (
-                        <QualityLotCard
-                          key={lot.id}
-                          lot={lot}
-                          onOpen={() => navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`)}
-                        />
-                      ))}
-                    </div>
+                {visibleLots.length === 0 ? (
+                  <section className="rounded-[8px] border border-dashed border-[#d7dce8] bg-[#fafafa] px-4 py-8 text-center text-[0.72rem] text-slate-500">
+                    No hay lotes de {titleCase(filteredTypeName)}.
                   </section>
-                ))}
+                ) : null}
               </section>
-            )
-          : null}
+            )}
+          </div>
+        ) : null}
       </main>
 
-      <AppBottomNav />
+      <InventoryBottomNav />
     </div>
+  );
+}
+
+function SummaryMiniCard({
+  summary,
+}: {
+  summary: { key: string; name: string; totalKg: number };
+}) {
+  return (
+    <article className="rounded-[6px] border border-[#eeeeee] bg-[#fbfbfb] px-2.5 py-2">
+      <p className="text-[0.48rem] font-black uppercase text-[#a0a0a0]">Cafe {titleCase(summary.name)}</p>
+      <p className="mt-1 text-[0.72rem] font-black text-[#1f1f1f]">{formatKg(summary.totalKg)} kg</p>
+    </article>
+  );
+}
+
+function TypeRowCard({
+  summary,
+  onOpen,
+  onOpenSublotes,
+}: {
+  summary: { key: string; name: string; totalKg: number; sublotes: number; lotes: number; lots: LoteResumen[] };
+  onOpen: () => void;
+  onOpenSublotes: () => void;
+}) {
+  const visual = typeVisual(summary.name);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-[58px] w-full items-center justify-between rounded-[8px] border border-[#eeeeee] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] ${visual.card}`}>
+          {visual.icon}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[0.78rem] font-black text-[#202020]">{titleCase(summary.name)}</p>
+          <p className="mt-0.5 text-[0.58rem] font-semibold text-[#929292]">{formatInventoryWeight(summary.totalKg)}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenSublotes();
+          }}
+          className="rounded-full bg-[#f4f4f4] px-2 py-1 text-[0.48rem] font-black uppercase text-[#777777] transition hover:bg-[#e9eefc] hover:text-[#1f3fa7]"
+          aria-label={`Ver ${summary.lotes} lotes de cafe ${summary.name}`}
+        >
+          {summary.lotes} lote{summary.lotes === 1 ? '' : 's'}
+        </button>
+        <ArrowRight size={12} className="text-[#b8b8b8]" />
+      </div>
+    </button>
+  );
+}
+
+function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-[58px] w-full items-center justify-between rounded-[8px] border border-[#eeeeee] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-[0.72rem] font-black text-[#202020]">{lot.codigo}</p>
+        <p className="mt-0.5 text-[0.58rem] font-semibold text-[#929292]">{formatKg(lot.pesoActual)} kg</p>
+        <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5]">{lotDays(lot)} dias</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="rounded-full bg-[#f4f4f4] px-2 py-1 text-[0.48rem] font-black uppercase text-[#777777]">
+          {lot.sublotes} sublote{lot.sublotes === 1 ? '' : 's'}
+        </span>
+        <span className="inline-flex items-center gap-0.5 text-[0.5rem] font-black uppercase text-[#1f3fa7]">
+          Ver
+          <ArrowRight size={12} />
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function EmptyInventory({ onBuy }: { onBuy: () => void }) {
+  return (
+    <section className="flex min-h-[calc(100vh-128px)] flex-col items-center justify-center px-5 text-center">
+      <div className="relative h-[154px] w-[154px]">
+        <div className="absolute left-7 top-5 h-[116px] w-[116px] rotate-3 rounded-[16px] bg-white shadow-[0_18px_34px_rgba(15,23,42,0.12)]" />
+        <div className="absolute left-[58px] top-[50px] flex h-[54px] w-[54px] items-center justify-center rounded-[8px] bg-[#f3f3f3] text-[#c8c8c8]">
+          <Box size={28} />
+        </div>
+        <div className="absolute bottom-4 right-4 flex h-10 w-10 rotate-[-8deg] items-center justify-center rounded-[10px] bg-[#f97316] text-white shadow-[0_8px_16px_rgba(249,115,22,0.32)]">
+          <ShoppingCart size={17} />
+        </div>
+      </div>
+
+      <h2 className="mt-2 text-[0.95rem] font-black leading-tight text-[#202020]">
+        Aun no tienes cafe en inventario
+      </h2>
+      <p className="mt-2 max-w-[230px] text-[0.68rem] font-semibold leading-4 text-[#8b8b8b]">
+        Registra tu primera compra para empezar a ver tu cafe.
+      </p>
+      <button
+        type="button"
+        onClick={onBuy}
+        className="mt-5 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f3fa7] px-4 text-[0.72rem] font-black text-white shadow-[0_10px_22px_rgba(31,63,167,0.22)]"
+      >
+        <ShoppingCart size={14} />
+        Registrar compra
+      </button>
+    </section>
+  );
+}
+
+function InventoryBottomNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const items = [
+    { id: 'inicio', label: 'Inicio', path: '/inicio', icon: House },
+    { id: 'compras', label: 'Compras', path: '/compras', icon: ShoppingCart },
+    { id: 'inventario', label: 'Inventario', path: '/inventario', icon: Warehouse },
+    { id: 'ventas', label: 'Ventas', path: '/ventas', icon: Banknote },
+    { id: 'ajustes', label: 'Ajustes', path: '/ajustes', icon: Settings },
+  ];
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeeee] bg-white">
+      <div className="mx-auto grid h-[58px] w-full max-w-[340px] grid-cols-5">
+        {items.map((item) => {
+          const active = location.pathname === item.path;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => navigate(item.path)}
+              className={`flex flex-col items-center justify-center gap-1 text-[0.48rem] font-black ${
+                active ? 'text-[#1f56ff]' : 'text-[#6f6f6f]'
+              }`}
+            >
+              <Icon size={14} strokeWidth={active ? 2.8 : 2.1} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }

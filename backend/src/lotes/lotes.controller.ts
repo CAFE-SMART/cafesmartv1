@@ -27,6 +27,17 @@ export class LotesController {
     );
   }
 
+  @Get('sublotes/:subloteId/resultados-financieros')
+  getResultadosFinancierosSublote(
+    @Param('subloteId') subloteId: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.lotesService.obtenerResultadosFinancierosSublote(
+      req.user.sub,
+      subloteId,
+    );
+  }
+
   @Patch('sublotes/humedad')
   updateHumedades(
     @Body() dto: ActualizarHumedadesDto,

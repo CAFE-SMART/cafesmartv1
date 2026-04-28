@@ -87,7 +87,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     setIsCheckingEmail(true);
     try {
       const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
-      return exists ? 'Este correo ya esta registrado. Usa otro o inicia sesion.' : null;
+      return exists ? 'Este correo ya esta registrado.' : null;
     } catch {
       return null;
     } finally {
@@ -100,16 +100,16 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     const nextErrors: StepOneErrors = {};
 
     if (!nombreOrganizacion.trim()) {
-      nextErrors.nombreOrganizacion = 'El nombre de la empresa es obligatorio.';
+      nextErrors.nombreOrganizacion = 'Escribe el nombre del negocio.';
     }
 
     if (!tipoOrganizacion) {
-      nextErrors.tipoOrganizacion = 'Debes seleccionar el tipo de negocio.';
+      nextErrors.tipoOrganizacion = 'Elige un tipo de negocio.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrigelos para continuar.');
+      setError('Revisa los campos marcados.');
       return;
     }
 
@@ -128,39 +128,39 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     const nextErrors: StepTwoErrors = {};
 
     if (!nombreOrganizacion.trim()) {
-      setError('El nombre del negocio es obligatorio.');
-      setStepOneErrors({ nombreOrganizacion: 'El nombre de la empresa es obligatorio.' });
+      setError('Falta el nombre del negocio.');
+      setStepOneErrors({ nombreOrganizacion: 'Escribe el nombre del negocio.' });
       setStep(1);
       return;
     }
 
     if (!tipoOrganizacion) {
-      setError('Debes seleccionar el tipo de negocio.');
-      setStepOneErrors({ tipoOrganizacion: 'Debes seleccionar el tipo de negocio.' });
+      setError('Falta el tipo de negocio.');
+      setStepOneErrors({ tipoOrganizacion: 'Elige un tipo de negocio.' });
       setStep(1);
       return;
     }
 
     if (!nombre.trim()) {
-      nextErrors.nombre = 'El nombre del administrador es obligatorio.';
+      nextErrors.nombre = 'Escribe el nombre.';
     }
 
     if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Los apellidos del administrador son obligatorios.';
+      nextErrors.apellidos = 'Escribe los apellidos.';
     } else if (!hasAtLeastOneSurname(apellidos)) {
-      nextErrors.apellidos = 'Ingresa al menos un apellido valido.';
+      nextErrors.apellidos = 'Ingresa un apellido valido.';
     }
 
     if (!telefono.trim()) {
-      nextErrors.telefono = 'El telefono es obligatorio.';
+      nextErrors.telefono = 'Escribe el telefono.';
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Ingresa un telefono colombiano valido. Ejemplo: +57 300 123 4567';
+      nextErrors.telefono = 'Telefono invalido.';
     }
 
     if (!correo.trim()) {
-      nextErrors.correo = 'El correo electronico es obligatorio.';
+      nextErrors.correo = 'Escribe el correo.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Ingresa un correo valido. Ejemplo: admin@empresa.com';
+      nextErrors.correo = 'Correo invalido.';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -171,25 +171,25 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     const checks = getPasswordChecks(password);
     if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
       nextErrors.password =
-        'La contrasena debe tener minimo 6 caracteres, una minuscula y una mayuscula.';
+        'Minimo 6 caracteres, minuscula y mayuscula.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma nuevamente tu contrasena.';
+      nextErrors.confirmPassword = 'Confirma tu contrasena.';
     } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Las contrasenas no coinciden.';
+      nextErrors.confirmPassword = 'No coinciden.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrigelos para continuar.');
+      setError('Revisa los campos marcados.');
       return;
     }
 
     setStepTwoErrors({});
 
     if (hasGoogleFlow && !routeState.googleToken) {
-      setError('No detectamos tu sesion de Google. Vuelve a iniciar con Google.');
+      setError('Vuelve a iniciar con Google.');
       return;
     }
 

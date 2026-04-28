@@ -24,37 +24,50 @@ export class ApiRequestError extends Error {
   }
 }
 
-function traducirMensajeError(message: string | null | undefined, status: number) {
-  const texto = (message || '').trim();
+function normalizarMensaje(message: unknown) {
+  if (Array.isArray(message)) {
+    return message.filter(Boolean).join(', ').trim();
+  }
+
+  return typeof message === 'string' ? message.trim() : '';
+}
+
+function traducirMensajeError(message: unknown, status: number) {
+  const texto = normalizarMensaje(message);
 
   if (!texto) {
     if (status >= 500) {
-      return 'Intenta guardar de nuevo. Tuvimos un inconveniente, pero tus datos están a salvo.';
+      return 'Surgio un problema interno. Intenta nuevamente.';
     }
 
     if (status === 401) {
-      return 'Ingresa otra vez. Tu sesión se cerró para proteger tu cuenta.';
+      return 'Tu sesion expiro. Ingresa de nuevo.';
     }
 
     if (status === 403) {
-      return 'Pide autorización al administrador. Tu cuenta actual no tiene habilitada esta opción.';
+      return 'No tienes permiso para esta accion.';
     }
 
     if (status === 404) {
-      return 'Revisa tu búsqueda. No logramos encontrar la información que solicitas.';
+      return 'Esta opcion aun no esta disponible.';
     }
 
-    return 'Intenta la acción nuevamente. Hubo un pequeño tropiezo procesando tus datos.';
+    return 'No pudimos procesarlo. Intenta de nuevo.';
+  }
+
+  if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto)) {
+    return 'Esta opcion aun no esta disponible.';
   }
 
   const mapa: Record<string, string> = {
-    'Internal server error': 'Guarda tu progreso de nuevo. Tuvimos un inconveniente técnico, pero nada se ha perdido.',
-    Unauthorized: 'Ingresa de nuevo a tu cuenta. La sesión se cerró por tu seguridad.',
-    Forbidden: 'Solicita acceso para esto. Tu cuenta no tiene permisos para usar esta función.',
-    'Forbidden resource': 'Solicita acceso para esto. Tu cuenta no tiene permisos para esta opción.',
-    'Not Found': 'Revisa el dato buscado. No logramos encontrar esa información en el sistema.',
-    'Bad Request': 'Verifica lo que escribiste. Parece que falta algún dato o hay un pequeño error de escritura.',
-    'Failed to fetch': 'Comprueba tu conexión. Parece que tu celular se quedó sin internet temporalmente.',
+    'Internal server error': 'Surgio un problema interno. Intenta nuevamente.',
+    Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
+    Forbidden: 'No tienes permiso para esta accion.',
+    'Forbidden resource': 'No tienes permiso para esta opcion.',
+    'Not Found': 'No encontramos esa informacion.',
+    'Bad Request': 'Revisa los datos e intenta de nuevo.',
+    'Failed to fetch':
+      'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.',
   };
 
   return mapa[texto] || texto;
@@ -79,7 +92,11 @@ function construirBasesApi() {
       !HOSTS_LOCALES.has(hostActual) &&
       HOSTS_LOCALES.has(urlConfigurada.hostname)
     ) {
-      candidatas.push(`${urlConfigurada.protocol}//${hostActual}${urlConfigurada.port ? `:${urlConfigurada.port}` : ''}`);
+      candidatas.push(
+        `${urlConfigurada.protocol}//${hostActual}${
+          urlConfigurada.port ? `:${urlConfigurada.port}` : ''
+        }`,
+      );
     }
   } catch {
     return candidatas;
@@ -94,7 +111,7 @@ function traducirErrorConexion(error: unknown) {
     if (mensaje) return mensaje;
   }
 
-  return 'Verifica la conexión. No pudimos conectarnos al sistema, por favor revisa el internet de tu celular.';
+  return 'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.';
 }
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {

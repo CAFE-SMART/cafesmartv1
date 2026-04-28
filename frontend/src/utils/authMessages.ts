@@ -7,16 +7,19 @@ type RawApiError = {
 };
 
 export const AUTH_MESSAGES = {
-  invalidEmail: 'Correo incorrecto. Verificalo e intenta nuevamente.',
-  invalidPassword: 'Contrasena incorrecta. Intenta nuevamente.',
-  googleGeneric: 'No se pudo iniciar sesion con Google. Intenta nuevamente.',
-  googleNeedsRegister: 'No encontramos tu cuenta. Vamos a crearla.',
-  offline: 'No se pudo conectar con el servidor. Verifica tu conexion e intenta nuevamente.',
+  invalidEmail: 'Correo incorrecto.',
+  invalidPassword: 'Contrasena incorrecta.',
+  googleGeneric:
+    'No pudimos entrar con Google. Revisa tu internet e intenta de nuevo. Si vuelve a pasar, entra con correo y contrasena o pide ayuda al encargado.',
+  googleNeedsRegister:
+    'Ese correo de Google todavia no tiene cuenta en Cafe Smart. Toca "Registrate gratis" para crear la cuenta primero.',
+  offline:
+    'No pudimos conectarnos con Cafe Smart. Revisa que tengas internet y que el sistema este abierto en el computador. Luego intenta de nuevo.',
 } as const;
 
 export function normalizeMessage(message: string | string[] | undefined, fallback: string) {
   if (Array.isArray(message)) {
-    return message.join(', ');
+    return message.filter(Boolean).join(', ');
   }
 
   return message || fallback;
@@ -44,7 +47,19 @@ export function mapFriendlyAuthMessage(
       return AUTH_MESSAGES.googleNeedsRegister;
     }
 
-    return normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
+    const rawMessage = normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
+    const lowerMessage = rawMessage.toLowerCase();
+
+    if (
+      lowerMessage.includes('internal server error') ||
+      lowerMessage.includes('server error') ||
+      lowerMessage.includes('fetch failed') ||
+      lowerMessage.includes('google')
+    ) {
+      return AUTH_MESSAGES.googleGeneric;
+    }
+
+    return rawMessage;
   }
 
   return normalizeMessage(data.message, fallbackError);

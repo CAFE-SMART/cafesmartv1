@@ -96,10 +96,7 @@ export class AuthService {
    * Registra o vincula una cuenta usando el token emitido por Google.
    */
   async registerGoogle(dto: RegisterGoogleDto) {
-    const ticket = await this.getGoogleClient().verifyIdToken({
-      idToken: dto.googleToken,
-      audience: this.getGoogleAudiences(),
-    });
+    const ticket = await this.verifyGoogleToken(dto.googleToken);
 
     const payload = ticket.getPayload();
     if (!payload?.email || payload.email_verified !== true) {
@@ -190,10 +187,7 @@ export class AuthService {
    * frontend rediriga al flujo de registro.
    */
   async loginWithGoogle(googleData: { idToken: string }) {
-    const ticket = await this.getGoogleClient().verifyIdToken({
-      idToken: googleData.idToken,
-      audience: this.getGoogleAudiences(),
-    });
+    const ticket = await this.verifyGoogleToken(googleData.idToken);
 
     const payload = ticket.getPayload();
     if (!payload?.email || payload.email_verified !== true) {
@@ -237,6 +231,27 @@ export class AuthService {
     return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
   }
 
+  async verifyCurrentPassword(userId: string, password: string) {
+    const user = await this.usersService.findPasswordById(userId);
+
+    if (!user?.password) {
+      throw new UnauthorizedException({
+        message: 'Esta cuenta no tiene contrasena local configurada',
+        field: 'password',
+      });
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      throw new UnauthorizedException({
+        message: 'Contrasena incorrecta',
+        field: 'password',
+      });
+    }
+
+    return { valid: true };
+  }
+
   /**
    * Traduce errores de unicidad de Prisma a mensajes funcionales para el cliente.
    */
@@ -275,6 +290,21 @@ export class AuthService {
         },
         HttpStatus.CONFLICT,
       );
+    }
+  }
+
+  private async verifyGoogleToken(idToken: string) {
+    try {
+      return await this.getGoogleClient().verifyIdToken({
+        idToken,
+        audience: this.getGoogleAudiences(),
+      });
+    } catch {
+      throw new UnauthorizedException({
+        message:
+          'No pudimos validar tu cuenta de Google. Revisa tu conexion a internet e intenta nuevamente.',
+        field: 'google',
+      });
     }
   }
 

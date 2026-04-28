@@ -3,7 +3,7 @@ import { emitCloudStatusEvent } from './cloudStatusEvents';
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
-const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 export type AuthError = {
   message: string;
@@ -55,50 +55,94 @@ function isNetworkFetchError(error: unknown) {
   );
 }
 
+function buildApiBaseCandidates() {
+  const configuredBase = API_BASE_URL.replace(/\/$/, '');
+  const candidates = [configuredBase];
+
+  if (typeof window === 'undefined') {
+    return candidates;
+  }
+
+  try {
+    const configuredUrl = new URL(API_BASE_URL);
+    const currentHost = window.location.hostname?.trim();
+
+    if (
+      currentHost &&
+      !LOCAL_HOSTS.has(currentHost) &&
+      LOCAL_HOSTS.has(configuredUrl.hostname)
+    ) {
+      candidates.push(
+        `${configuredUrl.protocol}//${currentHost}${
+          configuredUrl.port ? `:${configuredUrl.port}` : ''
+        }`,
+      );
+    }
+  } catch {
+    return candidates;
+  }
+
+  return [...new Set(candidates)];
+}
+
 async function postAuth<TResponse>(
   endpoint: string,
   body: Record<string, unknown>,
   fallbackError: string,
   cloudTracking?: CloudTrackingConfig,
 ): Promise<TResponse> {
+  let lastNetworkError: unknown = null;
+
   try {
     if (cloudTracking?.enabled) {
       emitCloudStatusEvent({
         status: 'syncing',
         source: cloudTracking.source ?? 'sync',
-        message: cloudTracking.syncingMessage ?? 'Sincronizando con la nube...',
+        message: cloudTracking.syncingMessage ?? 'Sincronizando...',
       });
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    for (const apiBaseUrl of buildApiBaseCandidates()) {
+      try {
+        const response = await fetch(`${apiBaseUrl}/auth${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
 
-    const data = (await response.json().catch(() => ({}))) as TResponse & RawApiError;
+        const data = (await response.json().catch(() => ({}))) as TResponse & RawApiError;
 
-    if (!response.ok) {
-      const authError: AuthError = {
-        message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
-        field: data.field ?? null,
-        details: data.details,
-        action: data.action ?? null,
-        code: 'HTTP',
-        status: response.status,
-      };
-      throw authError;
+        if (!response.ok) {
+          const authError: AuthError = {
+            message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
+            field: data.field ?? null,
+            details: data.details,
+            action: data.action ?? null,
+            code: 'HTTP',
+            status: response.status,
+          };
+          throw authError;
+        }
+
+        if (cloudTracking?.enabled) {
+          emitCloudStatusEvent({
+            status: 'synced',
+            source: cloudTracking.source ?? 'sync',
+            message: cloudTracking.successMessage ?? 'Listo.',
+          });
+        }
+
+        return data;
+      } catch (error) {
+        if (!isNetworkFetchError(error)) {
+          throw error;
+        }
+
+        lastNetworkError = error;
+      }
     }
 
-    if (cloudTracking?.enabled) {
-      emitCloudStatusEvent({
-        status: 'synced',
-        source: cloudTracking.source ?? 'sync',
-        message: cloudTracking.successMessage ?? 'Operacion confirmada en la nube.',
-      });
-    }
-
-    return data;
+    throw lastNetworkError ?? buildOfflineAuthError();
   } catch (error) {
     if (cloudTracking?.enabled) {
       const knownError = error as Partial<AuthError>;
@@ -106,7 +150,7 @@ async function postAuth<TResponse>(
         status: 'error',
         source: cloudTracking.source ?? 'sync',
         message:
-          knownError.message || 'No se pudo completar la operacion con la nube.',
+          knownError.message || 'Surgio un problema interno. Intenta nuevamente.',
       });
     }
 
@@ -116,7 +160,9 @@ async function postAuth<TResponse>(
 
     const knownError = error as Partial<AuthError>;
     throw {
-      message: knownError.message || 'Error al conectar con el servidor',
+      message:
+        knownError.message ||
+        'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.',
       field: knownError.field ?? null,
       details: knownError.details,
       action: knownError.action ?? null,
@@ -149,8 +195,8 @@ export const authService = {
     return postAuth<AuthResponse>('/register', data, 'Error al registrarse', {
       enabled: true,
       source: 'register',
-      syncingMessage: 'Guardando tu cuenta en la nube...',
-      successMessage: 'La cuenta quedo guardada en la nube.',
+      syncingMessage: 'Guardando cuenta...',
+      successMessage: 'Cuenta guardada.',
     });
   },
 
@@ -158,8 +204,8 @@ export const authService = {
     return postAuth<AuthResponse>('/login', { email, password }, 'Error de autenticacion', {
       enabled: true,
       source: 'login',
-      syncingMessage: 'Validando tu sesion con la nube...',
-      successMessage: 'La sesion fue validada con la nube.',
+      syncingMessage: 'Validando sesion...',
+      successMessage: 'Sesion validada.',
     });
   },
 
@@ -171,8 +217,8 @@ export const authService = {
       {
         enabled: true,
         source: 'login-google',
-        syncingMessage: 'Validando Google con la nube...',
-        successMessage: 'Google fue validado con la nube.',
+        syncingMessage: 'Validando Google...',
+        successMessage: 'Google validado.',
       },
     );
   },
@@ -194,8 +240,8 @@ export const authService = {
       {
         enabled: true,
         source: 'register-google',
-        syncingMessage: 'Guardando tu registro de Google en la nube...',
-        successMessage: 'La cuenta de Google quedo guardada en la nube.',
+        syncingMessage: 'Guardando Google...',
+        successMessage: 'Cuenta guardada.',
       },
     );
   },

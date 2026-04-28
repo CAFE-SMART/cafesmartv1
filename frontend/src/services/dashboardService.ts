@@ -16,6 +16,13 @@ export type DashboardSummary = {
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number;
+  inventarioPorTipo: {
+    tipoCafeId: string;
+    tipoCafe: string;
+    kgDisponible: number;
+  }[];
+  utilidadTotalAcumulada: number;
+  mermaTotalKg: number;
   movimientosRecientes: DashboardMovimiento[];
 };
 

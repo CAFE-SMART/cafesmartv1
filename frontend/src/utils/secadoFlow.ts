@@ -36,6 +36,8 @@ export type SecadoSession = {
   outputBuenoHumedad: number | null;
   outputRegularKg: number;
   outputRegularHumedad: number | null;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
   mermaKg: number;
   rendimientoPct: number;
 };
@@ -45,6 +47,8 @@ type ResultadoSecadoPayload = {
   outputBuenoHumedad: number | null;
   outputRegularKg: number;
   outputRegularHumedad: number | null;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
 };
 
 function keyOf(value: string) {
@@ -150,6 +154,14 @@ function buildGeneratedOutputs(session: SecadoSession) {
       id: `secado-${session.id}-regular`,
       label: `SC-${session.loteCodigo}-R`,
       qualityId: 'virtual-regular',
+    },
+    {
+      quality: 'MALO',
+      kg: session.outputMaloKg ?? 0,
+      humidity: session.outputMaloHumedad ?? null,
+      id: `secado-${session.id}-malo`,
+      label: `SC-${session.loteCodigo}-M`,
+      qualityId: 'virtual-malo',
     },
   ].filter((item) => item.kg > 0);
 
@@ -275,6 +287,59 @@ export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
     outputBuenoHumedad: null,
     outputRegularKg: 0,
     outputRegularHumedad: null,
+    outputMaloKg: 0,
+    outputMaloHumedad: null,
+    mermaKg: 0,
+    rendimientoPct: 0,
+  };
+
+  writeStorage([session, ...sessions]);
+  return session;
+}
+
+export function startSecadoWithWeights(
+  detalle: LoteDetalle,
+  selectedWeights: Record<string, number>,
+) {
+  const selectedSublotes = detalle.sublotes.filter((sublote) => {
+    const weight = selectedWeights[sublote.id];
+    return Number.isFinite(weight) && weight > 0;
+  });
+  const sessions = readStorage();
+  const active = sessions.find((session) => session.estado !== 'COMPLETED');
+
+  if (active) {
+    return active;
+  }
+
+  const timestamp = nowIso();
+  const session: SecadoSession = {
+    id: generateId(),
+    estado: 'IN_PROCESS',
+    loteId: detalle.lote.id,
+    loteCodigo: detalle.lote.codigo,
+    tipoCafeId: detalle.lote.tipoCafeId,
+    tipoCafe: detalle.lote.tipoCafe,
+    calidadId: detalle.lote.calidadId,
+    calidad: detalle.lote.calidad,
+    fechaLote: detalle.lote.fechaPrimerIngreso,
+    sublotes: selectedSublotes.map((sublote) => ({
+      id: sublote.id,
+      etiqueta: sublote.etiqueta,
+      pesoActual: safeNumber(Math.min(sublote.pesoActual, selectedWeights[sublote.id] ?? 0)),
+      humedad: sublote.humedad,
+      fechaIngreso: sublote.fechaIngreso,
+      diasEnBodega: sublote.diasEnBodega,
+    })),
+    startedAt: timestamp,
+    updatedAt: timestamp,
+    completedAt: null,
+    outputBuenoKg: 0,
+    outputBuenoHumedad: null,
+    outputRegularKg: 0,
+    outputRegularHumedad: null,
+    outputMaloKg: 0,
+    outputMaloHumedad: null,
     mermaKg: 0,
     rendimientoPct: 0,
   };
@@ -289,7 +354,7 @@ export function saveSecadoResults(sessionId: string, payload: ResultadoSecadoPay
     if (session.id !== sessionId) return session;
 
     const totalEntrada = totalInputKg(session);
-    const totalSalida = payload.outputBuenoKg + payload.outputRegularKg;
+    const totalSalida = payload.outputBuenoKg + payload.outputRegularKg + (payload.outputMaloKg ?? 0);
     const mermaKg = Math.max(0, totalEntrada - totalSalida);
     const rendimientoPct =
       totalEntrada > 0 ? Number(((totalSalida / totalEntrada) * 100).toFixed(1)) : 0;
@@ -302,6 +367,8 @@ export function saveSecadoResults(sessionId: string, payload: ResultadoSecadoPay
       outputBuenoHumedad: payload.outputBuenoHumedad,
       outputRegularKg: safeNumber(payload.outputRegularKg),
       outputRegularHumedad: payload.outputRegularHumedad,
+      outputMaloKg: safeNumber(payload.outputMaloKg ?? 0),
+      outputMaloHumedad: payload.outputMaloHumedad ?? null,
       mermaKg: safeNumber(mermaKg),
       rendimientoPct,
     };
@@ -349,6 +416,7 @@ export function applySecadoToLots(baseLots: LoteResumen[]) {
     const outputs = [
       { quality: 'BUENO', kg: session.outputBuenoKg, humidity: session.outputBuenoHumedad },
       { quality: 'REGULAR', kg: session.outputRegularKg, humidity: session.outputRegularHumedad },
+      { quality: 'MALO', kg: session.outputMaloKg ?? 0, humidity: session.outputMaloHumedad ?? null },
     ].filter((item) => item.kg > 0);
 
     for (const output of outputs) {

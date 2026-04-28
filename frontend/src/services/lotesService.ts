@@ -52,6 +52,19 @@ export type SubloteDetalle = {
   costoPorKg: number;
 };
 
+export type ResultadosFinancierosSublote = {
+  subloteId: string;
+  costoTotal: number;
+  totalVentas: number;
+  pesoVendido: number;
+  totalGastos: number;
+  mermaKg: number;
+  mermaPorcentaje: number;
+  mermaValor: number;
+  utilidadNeta: number;
+  costoPorKg: number;
+};
+
 export type LoteDetalle = {
   lote: LoteResumen;
   sublotes: SubloteDetalle[];
@@ -73,6 +86,10 @@ export async function obtenerLotes() {
 
 export async function obtenerDetalleLote(tipoCafeId: string, calidadId: string) {
   return apiFetch(`/lotes/${tipoCafeId}/${calidadId}/sublotes`) as Promise<LoteDetalle>;
+}
+
+export async function obtenerResultadosFinancierosSublote(subloteId: string) {
+  return apiFetch(`/lotes/sublotes/${subloteId}/resultados-financieros`) as Promise<ResultadosFinancierosSublote>;
 }
 
 export async function guardarHumedadesSublotes(

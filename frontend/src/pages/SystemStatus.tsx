@@ -33,15 +33,15 @@ const CONFIRMATION_DURATION_MS = 1700;
 function ConfirmSuccessView() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[520px] items-center justify-center">
-        <section className="w-full max-w-[360px] rounded-3xl border border-slate-200 bg-white px-6 py-7 text-center shadow-[0_24px_50px_rgba(15,23,42,0.1)]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            <Check size={30} strokeWidth={3.2} />
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+        <section className="w-full max-w-[320px] rounded-[14px] border border-slate-200 bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Check size={18} strokeWidth={3.2} />
           </div>
-          <h1 className="mt-4 text-[1.35rem] font-black tracking-tight text-[#121826]">
+          <h1 className="mt-3 text-[0.95rem] font-black tracking-tight text-[#121826]">
             Cuenta creada
           </h1>
-          <p className="mt-1.5 text-sm text-slate-600">Preparando tu bienvenida...</p>
+          <p className="mt-1 text-[0.68rem] text-slate-600">Preparando inicio...</p>
         </section>
       </div>
     </div>
@@ -52,16 +52,13 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
       <div className="absolute inset-0 bg-[linear-gradient(180deg,#07132f_0%,#0b1e52_35%,#08142f_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(113,149,255,0.32)_0%,rgba(113,149,255,0)_42%)]" />
-      <div className="absolute -left-20 top-12 h-72 w-72 rounded-full bg-[#2d7cff]/20 blur-3xl" />
-      <div className="absolute -right-16 top-0 h-80 w-80 rounded-full bg-[#54d2ff]/18 blur-3xl" />
-      <div className="absolute inset-x-0 bottom-[-8rem] mx-auto h-80 w-[36rem] rounded-full bg-[#0a2f73]/55 blur-3xl" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(113,149,255,0.22)_0%,rgba(113,149,255,0)_44%)]" />
       <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.85)_1px,transparent_0)] [background-size:28px_28px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-4 py-5">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-5 py-2.5 backdrop-blur">
-          <Coffee size={18} className="text-white/90" />
-          <span className="text-[1.95rem] font-black tracking-tight text-white">Cafe Smart</span>
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[340px] flex-col px-4 py-5">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/22 bg-white/14 px-4 py-2 backdrop-blur">
+          <Coffee size={15} className="text-white/90" />
+          <span className="text-[1.1rem] font-black tracking-tight text-white">Cafe Smart</span>
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center pt-4">
@@ -71,43 +68,43 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
               className="cafesmart-pulse-ring absolute -inset-9 rounded-full border border-dashed border-[#71a2ff63]"
               style={{ animationDelay: '0.7s' }}
             />
-            <div className="relative flex h-[258px] w-[258px] items-center justify-center">
+            <div className="relative flex h-[176px] w-[176px] items-center justify-center">
               <div className="absolute inset-[18%] rounded-full bg-[#80c6ff]/18 blur-3xl" aria-hidden="true" />
               <img
                 src="/imagenes-de-proyecto/granito-inteligente.png"
                 alt="Granito inteligente de Cafe Smart"
-                className="cafesmart-float relative h-[250px] w-[250px] object-contain drop-shadow-[0_28px_50px_rgba(6,10,28,0.45)]"
+                className="cafesmart-float relative h-[168px] w-[168px] object-contain drop-shadow-[0_22px_38px_rgba(6,10,28,0.38)]"
               />
             </div>
           </div>
 
-          <div className="mt-6 w-full max-w-[460px] rounded-[30px] border border-[#70a2ff42] bg-[linear-gradient(180deg,rgba(15,34,88,0.35)_0%,rgba(13,27,70,0.4)_100%)] px-5 py-5 backdrop-blur-sm">
-            <h1 className="text-center text-[2.35rem] font-black leading-[1.04] tracking-tight text-white">
+          <div className="mt-4 w-full max-w-[340px] rounded-[14px] border border-[#70a2ff42] bg-[linear-gradient(180deg,rgba(15,34,88,0.35)_0%,rgba(13,27,70,0.4)_100%)] px-4 py-4 backdrop-blur-sm">
+            <h1 className="text-center text-[1.35rem] font-black leading-tight tracking-normal text-white">
               Bienvenido a
               <span className="block bg-[linear-gradient(180deg,#b8e4ff_0%,#5db9ff_100%)] bg-clip-text text-transparent">
                 Cafe Smart
               </span>
             </h1>
 
-            <p className="mt-3 text-center text-[1rem] leading-7 text-[#e0e8ff]">
+            <p className="mt-2 text-center text-[0.72rem] leading-5 text-[#e0e8ff]">
               Controla tu cafe en un solo lugar con precision.
             </p>
 
             <button
               type="button"
               onClick={onStart}
-              className="mt-6 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#1240c7] px-6 py-3 text-[1.5rem] font-black text-white shadow-[0_18px_40px_rgba(13,70,222,0.5)]"
+              className="mt-4 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1240c7] px-4 py-2 text-[0.72rem] font-black text-white shadow-[0_14px_30px_rgba(13,70,222,0.35)]"
             >
               Comenzar ahora
               <ArrowRight size={20} />
             </button>
           </div>
 
-          <div className="mt-4 grid w-full max-w-[460px] grid-cols-2 gap-3">
+          <div className="mt-3 grid w-full max-w-[340px] grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => window.open('mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart', '_self')}
-              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[8px] border border-white/28 bg-[#0d162fcc] px-3 text-[0.68rem] font-bold text-white backdrop-blur"
             >
               <HelpCircle size={18} />
               Ayuda
@@ -117,7 +114,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
               onClick={() =>
                 window.open('mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart', '_self')
               }
-              className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
+              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[8px] border border-white/28 bg-[#0d162fcc] px-3 text-[0.68rem] font-bold text-white backdrop-blur"
             >
               <MessageCircle size={18} />
               Contactenos
@@ -263,26 +260,26 @@ export default function SystemStatus() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto w-full max-w-[520px] rounded-[30px] border border-white/80 bg-white/90 p-6 text-center shadow-[0_24px_50px_rgba(15,23,42,0.08)]">
+      <div className="mx-auto w-full max-w-[320px] rounded-[14px] border border-white/80 bg-white/90 p-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
         {status === 'creating' ? (
           <>
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
-              <LoaderCircle className="h-9 w-9 animate-spin" />
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+              <LoaderCircle className="h-5 w-5 animate-spin" />
             </div>
-            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">Creando cuenta...</h1>
-            <p className="mt-3 text-base text-slate-600">Estamos configurando tu espacio de trabajo.</p>
+            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">Creando cuenta...</h1>
+            <p className="mt-1 text-[0.68rem] text-slate-600">Configurando tu espacio.</p>
           </>
         ) : (
           <>
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-rose-100 text-rose-700">
-              <AlertTriangle size={34} />
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+              <AlertTriangle size={18} />
             </div>
-            <h1 className="mt-5 text-[1.8rem] font-black text-[#121826]">{errorTitle}</h1>
-            <p className="mt-3 text-base text-slate-600">{errorMessage}</p>
+            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">{errorTitle}</h1>
+            <p className="mt-1 text-[0.68rem] leading-5 text-slate-600">{errorMessage}</p>
             <button
               type="button"
               onClick={() => void executeRegistration(true)}
-              className="mt-6 inline-flex min-h-[46px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-[#eef0fb] px-5 py-3 text-base font-bold text-[#102d92]"
+              className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#eef0fb] px-4 py-2 text-[0.68rem] font-black text-[#102d92]"
             >
               Reintentar
             </button>

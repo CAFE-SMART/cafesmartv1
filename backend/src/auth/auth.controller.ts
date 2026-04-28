@@ -8,7 +8,7 @@
 // Solo recibe, valida y responde.
 // ============================================================
 
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
@@ -17,6 +17,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { UsersService } from '../users/users.service';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
+import { JwtAuthGuard } from './jwt.guard';
 
 @Controller('auth')
 @UseGuards(AuthRateLimitGuard)
@@ -55,5 +56,15 @@ export class AuthController {
   async checkEmail(@Body() dto: CheckEmailDto) {
     const user = await this.usersService.findByEmail(dto.correo.trim().toLowerCase());
     return { exists: Boolean(user) };
+  }
+
+  @Post('verify-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  verifyPassword(
+    @Body() dto: { password?: string },
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.authService.verifyCurrentPassword(req.user.sub, dto.password ?? '');
   }
 }

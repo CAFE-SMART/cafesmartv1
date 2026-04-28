@@ -13,6 +13,8 @@ import SecadoResumen from '../pages/SecadoResumen';
 import Ajustes from '../pages/Ajustes';
 import SystemStatus from '../pages/SystemStatus';
 import GastosOperativos from '../pages/GastosOperativos';
+import GastosListado from '../pages/GastosListado';
+import ResumenFinanciero from '../pages/ResumenFinanciero';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export default function AppRoutes() {
@@ -45,7 +47,9 @@ export default function AppRoutes() {
           path="/inventario/:tipoCafeId/:calidadId/sublotes"
           element={<Sublotes />}
         />
+        <Route path="/gastos" element={<GastosListado />} />
         <Route path="/gastos/registro" element={<GastosOperativos />} />
+        <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

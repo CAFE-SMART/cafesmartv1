@@ -1,12 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Loader, Lock, LogIn, Mail } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import {
-  createGuidedError,
-  InlineGuidedError,
-  type GuidedErrorMessage,
-} from '../components/forms/GuidedError';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
@@ -19,7 +15,7 @@ function normalizeTipoOrganizacion(
   value: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null | undefined,
 ): 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | null {
   if (value === 'OTRO') {
-    return 'PERSONALIZADO' as const;
+    return 'PERSONALIZADO';
   }
 
   return value ?? null;
@@ -70,30 +66,6 @@ export default function Login() {
     }
   };
 
-  const getEmailGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Revisa tu correo.',
-      'El formato no es correcto o está vacío (ej: juan@correo.com).',
-      'Corrige tu correo e intenta de nuevo.',
-    );
-
-  const getPasswordGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Revisa tu contraseña.',
-      'Puede estar incorrecta o vacía.',
-      'Escribe tu contraseña correcta.',
-    );
-
-  const getGlobalGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Problema al iniciar.',
-      'Verifica tus credenciales o conexión.',
-      'Revisa los datos e intenta entrar.',
-    );
-
   const focusEmail = () => {
     emailInputRef.current?.focus();
   };
@@ -102,8 +74,8 @@ export default function Login() {
     passwordInputRef.current?.focus();
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
@@ -113,15 +85,15 @@ export default function Login() {
     let nextPasswordError: string | null = null;
 
     if (!email.trim()) {
-      nextEmailError = 'El correo es obligatorio.';
+      nextEmailError = 'Escribe tu correo.';
       hasValidationError = true;
     } else if (!isValidEmail(email)) {
-      nextEmailError = 'Ingresa un correo valido.';
+      nextEmailError = 'Correo invalido.';
       hasValidationError = true;
     }
 
     if (!password.trim()) {
-      nextPasswordError = 'La contraseña es obligatoria.';
+      nextPasswordError = 'Escribe tu contrase\u00f1a.';
       hasValidationError = true;
     }
 
@@ -129,11 +101,7 @@ export default function Login() {
     setPasswordFieldError(nextPasswordError);
 
     if (hasValidationError) {
-      if (nextEmailError) {
-        window.setTimeout(focusEmail, 80);
-      } else if (nextPasswordError) {
-        window.setTimeout(focusPassword, 80);
-      }
+      window.setTimeout(nextEmailError ? focusEmail : focusPassword, 80);
       return;
     }
 
@@ -159,7 +127,7 @@ export default function Login() {
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No se pudo iniciar sesión. Intenta nuevamente.';
+      const message = authError.message || 'No pudimos iniciar sesion.';
       const details = authError.details ?? {};
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
@@ -175,11 +143,7 @@ export default function Login() {
 
       if (emailDetail || passwordDetail) {
         setError(null);
-        if (emailDetail) {
-          window.setTimeout(focusEmail, 80);
-        } else if (passwordDetail) {
-          window.setTimeout(focusPassword, 80);
-        }
+        window.setTimeout(emailDetail ? focusEmail : focusPassword, 80);
       } else if (field === 'email' || field === 'correo') {
         setEmailFieldError(message);
         setError(null);
@@ -204,8 +168,7 @@ export default function Login() {
 
     const idToken = credentialResponse?.credential;
     if (!idToken) {
-      const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.';
-      setError(message);
+      setError('Google no respondio. Intenta de nuevo.');
       setGoogleLoading(false);
       return;
     }
@@ -241,241 +204,281 @@ export default function Login() {
         return;
       }
 
-      const message = loginError.message || 'No se pudo iniciar sesión con Google.';
-      setError(message);
+      setError(loginError.message || 'Google no pudo iniciar sesion.');
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleGoogleError = () => {
-    const message = 'No se pudo iniciar sesión con Google.';
-    setError(message);
+    setError(
+      'No pudimos abrir Google. Revisa tu internet e intenta de nuevo. Si sigue pasando, entra con correo y contrasena o pide ayuda al encargado.',
+    );
     setEmailFieldError(null);
     setPasswordFieldError(null);
     setGoogleLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-[480px]">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-[#1e3a8a] p-2 text-white">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-                  <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-                </svg>
-              </div>
-              <p className="text-[1.45rem] font-semibold text-[#0f172a]">Cafe Smart</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void handleExitApp()}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              aria-label="Salir de la aplicacion"
-            >
-              Salir
-              <LogOut size={16} className="text-gray-500" />
-            </button>
+    <div className="min-h-screen bg-[#f4f6fa] text-slate-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-[340px] flex-col px-5 py-7">
+        <header className="flex items-center justify-between">
+          <div className="rounded-full bg-white px-3 py-2 shadow-[0_10px_26px_rgba(15,23,42,0.08)]">
+            <CafeSmartLogo />
           </div>
 
-          <h2 className="text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
-          <p className="text-center text-gray-500 mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
-          </p>
+          <button
+            type="button"
+            onClick={() => void handleExitApp()}
+            className="rounded-full px-2 py-1 text-sm font-semibold text-slate-500 transition-colors hover:text-[#274ab8]"
+          >
+            Salir
+          </button>
+        </header>
 
-          {error ? (
-            <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
-          ) : null}
-
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Correo electronico
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  required
-                  className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                    emailFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                  }`}
-                  placeholder="ejemplo@correo.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setEmailFieldError(null);
-                  }}
-                />
-              </div>
-              {emailFieldError && (
-                <InlineGuidedError
-                  id="login-email-error"
-                  message={getEmailGuidance(emailFieldError)}
-                  className="mt-2"
-                />
-              )}
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-slate-700">Contraseña</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const message = 'La recuperacion de contraseña aun no esta disponible.';
-                    setError(message);
-                  }}
-                  className="text-sm font-semibold text-[#1e3a8a] hover:underline"
-                >
-                  Olvidaste tu contraseña?
-                </button>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  ref={passwordInputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
-                    passwordFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                  }`}
-                  placeholder="********"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setPasswordFieldError(null);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                  )}
-                </button>
-              </div>
-              {passwordFieldError && (
-                <InlineGuidedError
-                  id="login-password-error"
-                  message={getPasswordGuidance(passwordFieldError)}
-                  className="mt-2"
-                />
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                id="remember_me"
-                type="checkbox"
-                className="w-5 h-5 rounded border-gray-300 text-[#1e3a8a] focus:ring-[#1e3a8a] bg-gray-50 cursor-pointer"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
+        <main className="flex flex-1 items-center justify-center py-6">
+          <section className="w-full rounded-[14px] border border-white bg-white px-5 py-5 shadow-[0_16px_38px_rgba(15,23,42,0.08)]">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#0b1118] shadow-[0_12px_24px_rgba(15,23,42,0.14)]">
+              <img
+                src="/imagenes-de-proyecto/granito-inteligente.png"
+                alt="Cafe Smart"
+                className="h-full w-full object-cover"
               />
-              <label
-                htmlFor="remember_me"
-                className="text-sm text-slate-600 cursor-pointer select-none"
+            </div>
+            <h1 className="text-center text-[1.25rem] font-black leading-tight tracking-normal text-[#172033]">
+              Iniciar Sesi&oacute;n
+            </h1>
+            <p className="mx-auto mt-2 max-w-[260px] text-center text-[0.72rem] leading-5 text-[#75859d]">
+              Bienvenido a Caf&eacute; Smart
+            </p>
+
+            {error ? <AlertBanner message={error} /> : null}
+
+            <form onSubmit={handleLogin} className="mt-5 space-y-4">
+              <TextField
+                id="login-email"
+                ref={emailInputRef}
+                label="Correo electronico"
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  setEmailFieldError(null);
+                }}
+                placeholder="ejemplo@correo.com"
+                type="email"
+                autoComplete="email"
+                error={emailFieldError}
+                icon={<Mail size={17} />}
+              />
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label htmlFor="login-password" className="text-sm font-black text-[#344054]">
+                    Contrase&ntilde;a
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setError('Recuperacion no disponible todavia.')}
+                    className="text-[11px] font-black text-[#274ab8] hover:underline"
+                  >
+                    &iquest;Olvidaste tu contrase&ntilde;a?
+                  </button>
+                </div>
+
+                <div
+                  className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+                    passwordFieldError
+                      ? 'border-rose-300 bg-rose-50/60'
+                      : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                  }`}
+                >
+                  <Lock size={17} className="shrink-0 text-[#9aa8bc]" />
+                  <input
+                    id="login-password"
+                    ref={passwordInputRef}
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setPasswordFieldError(null);
+                    }}
+                    placeholder="********"
+                    autoComplete="current-password"
+                    className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+
+                {passwordFieldError ? <FieldError message={passwordFieldError} /> : null}
+              </div>
+
+              <label className="flex items-center gap-3 text-sm text-[#5d6b82]">
+                <input
+                  id="remember_me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="h-4 w-4 rounded border-[#c8d2e2] text-[#274ab8] focus:ring-[#274ab8]"
+                />
+                <span>Recordar mi cuenta en este dispositivo</span>
+              </label>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] text-[0.72rem] font-black text-white transition ${
+                  loading
+                    ? 'cursor-wait bg-[#8398dc]'
+                    : 'bg-[#284bc1] shadow-[0_16px_30px_rgba(40,75,193,0.20)] hover:bg-[#203fa8]'
+                }`}
               >
-                Recordar mi cuenta en este
-                <br />
-                dispositivo
-              </label>
-            </div>
+                {loading ? (
+                  <>
+                    <Loader size={17} className="animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  <>
+                    Entrar
+                    <LogIn size={17} />
+                  </>
+                )}
+              </button>
+            </form>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 ${
-                loading
-                  ? 'bg-[#1e3a8a]/70 cursor-wait'
-                  : 'bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg'
-              }`}
-            >
-              {loading ? 'Entrando...' : 'Entrar'} <LogIn size={18} />
-            </button>
-          </form>
+            {isGoogleAuthEnabled ? (
+              <div className="mt-7">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[#e3e8f0]" />
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#93a1b6]">
+                    O CONTIN&Uacute;A CON
+                  </span>
+                  <div className="h-px flex-1 bg-[#e3e8f0]" />
+                </div>
 
-          {isGoogleAuthEnabled && (
-            <div className="mt-8 mb-6 flex items-center">
-              <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">
-                O CONTINUA CON
-              </span>
-              <div className="flex-1 border-t border-gray-200"></div>
-            </div>
-          )}
-
-          {isGoogleAuthEnabled && googleLoading && (
-            <div className="mb-6 flex flex-col items-center justify-center py-8">
-              <div className="relative w-16 h-16 mb-4">
-                <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
+                {googleLoading ? (
+                  <div className="mt-5 rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-5 text-center">
+                    <Loader size={18} className="mx-auto animate-spin text-[#274ab8]" />
+                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                      Validando Google...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-5 flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      text="signin_with"
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                    />
+                  </div>
+                )}
               </div>
-              <p className="text-center text-sm font-semibold text-gray-700 mb-2">
-                Procesando inicio de sesion...
+            ) : (
+              <p className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold text-amber-800">
+                Google no esta configurado.
               </p>
-              <p className="text-center text-xs text-gray-500">
-                Espera un momento mientras validamos tu cuenta.
-              </p>
-            </div>
-          )}
+            )}
 
-          {isGoogleAuthEnabled && !googleLoading && (
-            <div className="w-full flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                text="signin_with"
-                theme="outline"
-                size="large"
-                width="100%"
-              />
-            </div>
-          )}
+            <p className="mt-7 text-center text-sm text-[#5d6b82]">
+              &iquest;No tienes una cuenta?{' '}
+              <Link to="/register" className="font-black text-[#274ab8] hover:underline">
+                Reg&iacute;strate gratis
+              </Link>
+            </p>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
 
-          {!isGoogleAuthEnabled && (
-            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-800">
-              El acceso con Google no esta disponible porque falta configurar
-              <strong> VITE_GOOGLE_CLIENT_ID </strong>
-              en el frontend.
-            </div>
-          )}
+const TextField = React.forwardRef<
+  HTMLInputElement,
+  {
+    id: string;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    type?: string;
+    autoComplete?: string;
+    error?: string | null;
+    icon: React.ReactNode;
+  }
+>(function TextField(
+  { id, label, value, onChange, placeholder, type = 'text', autoComplete, error, icon },
+  ref,
+) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-[0.68rem] font-black text-[#344054]">
+        {label}
+      </label>
+      <div
+        className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+          error
+            ? 'border-rose-300 bg-rose-50/60'
+            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+        }`}
+      >
+        <span className="shrink-0 text-[#9aa8bc]">{icon}</span>
+        <input
+          id={id}
+          ref={ref}
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+        />
+      </div>
+      {error ? <FieldError message={error} /> : null}
+    </div>
+  );
+});
 
-          <p className="mt-8 text-center text-sm text-slate-600">
-            ¿No tienes una cuenta?{' '}
-            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
-              Registrate gratis
-            </Link>
-          </p>
-        </div>
-      </main>
+function FieldError({ message }: { message: string }) {
+  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>;
+}
 
-      <footer className="p-6 text-center">
-        <p className="text-xs text-slate-400 font-medium tracking-wide">
-          Copyright 2024 Cafe Smart Inc. Todos los derechos reservados.
-        </p>
-      </footer>
+function AlertBanner({ message }: { message: string }) {
+  const isGoogleError = message.toLowerCase().includes('google');
+  const isConnectionError =
+    message.toLowerCase().includes('problema interno') ||
+    message.toLowerCase().includes('conexion') ||
+    message.toLowerCase().includes('conectar') ||
+    message.toLowerCase().includes('disponible');
+  const title = isGoogleError
+    ? 'No pudimos entrar con Google'
+    : isConnectionError
+      ? 'No pudimos conectar con el sistema'
+      : 'No pudimos iniciar sesion';
+
+  return (
+    <div
+      className={`mt-5 flex gap-3 rounded-[12px] border px-4 py-3 text-sm ${
+        isConnectionError
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : 'border-rose-200 bg-rose-50 text-rose-800'
+      }`}
+      role="alert"
+    >
+      <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <div>
+        <p className="font-black">{title}</p>
+        <p className="mt-1 leading-5">{message}</p>
+      </div>
     </div>
   );
 }
