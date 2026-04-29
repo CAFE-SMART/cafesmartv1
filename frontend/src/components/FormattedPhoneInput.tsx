@@ -57,7 +57,7 @@ export function FormattedPhoneInput({
             onChange(nextDigits || optional ? (nextDigits ? formatPhone(nextDigits) : '') : '+57');
           }}
           placeholder="+57 300 123 4567"
-          aria-invalid={message ? 'true' : undefined}
+          aria-invalid={message ? 'true' : 'false'}
           className={`w-full bg-transparent px-4 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName}`}
         />
       </div>
