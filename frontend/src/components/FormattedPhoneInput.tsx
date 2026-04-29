@@ -34,6 +34,11 @@ export function FormattedPhoneInput({
       ? 'Revisa el celular: debe tener 10 digitos y empezar por 3.'
       : null;
   const message = error ?? liveError;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextDigits = getPhoneDigits(event.target.value);
+    onChange(nextDigits || optional ? (nextDigits ? formatPhone(nextDigits) : '') : '+57');
+  };
+  const inputClass = `w-full bg-transparent px-4 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName}`;
 
   return (
     <div className={className}>
@@ -46,20 +51,31 @@ export function FormattedPhoneInput({
           message ? 'border-rose-300 bg-rose-50/50' : 'border-[#dde4f1] focus-within:border-[#173ea6]'
         }`}
       >
-        <input
-          id={id}
-          type="tel"
-          inputMode="numeric"
-          autoComplete="tel"
-          value={displayValue}
-          onChange={(event) => {
-            const nextDigits = getPhoneDigits(event.target.value);
-            onChange(nextDigits || optional ? (nextDigits ? formatPhone(nextDigits) : '') : '+57');
-          }}
-          placeholder="+57 300 123 4567"
-          aria-invalid={message ? 'true' : 'false'}
-          className={`w-full bg-transparent px-4 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName}`}
-        />
+        {message ? (
+          <input
+            id={id}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={displayValue}
+            onChange={handleChange}
+            placeholder="+57 300 123 4567"
+            aria-invalid="true"
+            className={inputClass}
+          />
+        ) : (
+          <input
+            id={id}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={displayValue}
+            onChange={handleChange}
+            placeholder="+57 300 123 4567"
+            aria-invalid="false"
+            className={inputClass}
+          />
+        )}
       </div>
       <p className={`mt-2 text-xs font-semibold ${message ? 'text-rose-600' : 'text-slate-500'}`}>
         {message ?? hint}

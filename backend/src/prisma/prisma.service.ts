@@ -63,13 +63,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         }
 
         this.logger.warn(
-          `No se pudo conectar a la base de datos en el intento ${attempt}/${this.maxConnectAttempts}. Reintentando en ${this.retryDelayMs} ms.`,
+          `No se pudo conectar a la base de datos en el intento ${attempt}/${this.maxConnectAttempts}: ${this.formatConnectionError(error)}. Reintentando en ${this.retryDelayMs} ms.`,
         );
         await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
       }
     }
 
     throw lastError;
+  }
+
+  private formatConnectionError(error: unknown): string {
+    if (error instanceof Error) {
+      const code =
+        'code' in error && typeof error.code === 'string'
+          ? ` ${error.code}`
+          : '';
+
+      return `${error.name}${code}: ${error.message}`;
+    }
+
+    return String(error);
   }
 
   async onModuleDestroy() {
