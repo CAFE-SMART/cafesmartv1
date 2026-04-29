@@ -164,6 +164,7 @@ function buildGeneratedOutputs(session: SecadoSession) {
     pesoActual: item.kg,
     precioKg: 0,
     humedad: item.humidity,
+    factor: null,
     fechaIngreso: completedAt,
     diasEnBodega: daysSince(completedAt),
     creadoEn: completedAt,

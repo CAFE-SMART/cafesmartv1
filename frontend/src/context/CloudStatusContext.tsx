@@ -142,7 +142,7 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
+        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -181,7 +181,7 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
+        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -207,7 +207,7 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se guardarán al reconectar.',
+        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,

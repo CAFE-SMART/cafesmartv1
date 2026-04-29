@@ -1,22 +1,26 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
-  AlertCircle,
+  Check,
   Eye,
   EyeOff,
   Loader,
   Users,
   Store,
   Settings,
-  HelpCircle,
-  MessageCircle,
+  CircleHelp,
+  Headset,
   X,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import { FormattedPhoneInput } from '../components/FormattedPhoneInput';
+import {
+  createGuidedError,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
@@ -26,6 +30,17 @@ import {
 } from '../utils/registerValidators';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
+type RegisterField =
+  | 'nombreOrganizacion'
+  | 'tipoOrganizacion'
+  | 'otroTipoDetalle'
+  | 'nombre'
+  | 'apellidos'
+  | 'telefono'
+  | 'correo'
+  | 'password'
+  | 'confirmPassword';
+
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,7 +48,7 @@ export default function Register() {
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [supportPanel, setSupportPanel] = useState<'help' | 'contact' | null>(null);
+  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
   const initialRouteState = useMemo(
     () => ((location.state ?? null) as RegisterLocationState | null),
     [location.state],
@@ -84,27 +99,23 @@ export default function Register() {
     validateEmailAvailability,
   } = useRegisterForm({ hasGoogleFlow, routeState: googleRouteState, navigate });
 
-  useEffect(() => {
-    setSupportPanel(null);
-  }, [step]);
-
   const tiposOrg: { value: TipoOrg; label: string; desc: string; icon: React.ReactNode }[] = [
-    {
-      value: 'COOPERATIVA',
-      label: 'Cooperativa',
-      desc: 'Gestion de multiples productores.',
-      icon: <Users size={22} />,
-    },
     {
       value: 'COMPRAVENTA',
       label: 'Compraventa',
-      desc: 'Punto de acopio y comercio.',
+      desc: 'Compras cafe para revenderlo y obtener ganancias.',
       icon: <Store size={22} />,
     },
     {
-      value: 'OTRO',
+      value: 'COOPERATIVA',
+      label: 'Cooperativa',
+      desc: 'Recibes cafe de productores y lo vendes por ellos.',
+      icon: <Users size={22} />,
+    },
+    {
+      value: 'PERSONALIZADO',
       label: 'Personalizado',
-      desc: 'Configurable segun sus necesidades.',
+      desc: 'Otro tipo de negocio cafetero',
       icon: <Settings size={22} />,
     },
   ];
@@ -112,46 +123,102 @@ export default function Register() {
   const colorByType: Record<TipoOrg, string> = {
     COOPERATIVA: 'bg-blue-100 text-blue-700',
     COMPRAVENTA: 'bg-amber-100 text-amber-700',
-    OTRO: 'bg-rose-100 text-rose-700',
+    PERSONALIZADO: 'bg-rose-100 text-rose-700',
   };
-
-  const supportContent = useMemo(() => {
-    if (step === 1) {
-      return {
-        badge: 'Ayuda del registro',
-        title: 'Configuración inicial',
-        description:
-          'En este paso solo defines el negocio. Luego completas los datos del administrador.',
-        quickTip: 'Escribe el nombre del negocio y elige el tipo correspondiente.',
-        secondTip:
-          'Si no aplica cooperativa o compraventa, usa la opción personalizada.',
-        contactTitle: '¿Se trabó el inicio?',
-        contactDescription:
-          'Si tienes dudas con esta pantalla, contacta soporte y sigue con tu registro.',
-      };
-    }
-
-    return {
-      badge: 'Ayuda del registro',
-      title: 'Datos de acceso',
-      description:
-        'Este paso corresponde al administrador y no cambia la configuración del negocio.',
-      quickTip:
-        'Completa nombre, apellidos, teléfono, correo y contraseña para terminar el registro.',
-      secondTip:
-        hasGoogleFlow
-          ? 'Si llegaste con Google, revisa los datos autocompletados y solo corrige lo necesario.'
-          : 'Revisa que el correo esté bien escrito y que las contraseñas coincidan antes de guardar.',
-      contactTitle: '¿Algo falla con tu cuenta?',
-      contactDescription:
-        'Si hay problema con correo, contraseña o validación, soporte puede ayudarte sin salir de esta pantalla.',
-    };
-  }, [hasGoogleFlow, step]);
 
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
+
+  const getRegisterFieldGuidance = (field: RegisterField, message: string): GuidedErrorMessage => {
+    if (field === 'nombreOrganizacion') {
+      return createGuidedError(
+        message,
+        'Falta el nombre.',
+        'No sabemos cómo se llama tu negocio.',
+        'Escribe el nombre de tu empresa.',
+      );
+    }
+
+    if (field === 'tipoOrganizacion') {
+      return createGuidedError(
+        message,
+        'Falta el tipo.',
+        'Cuéntanos a qué se dedica el negocio.',
+        'Elige cooperativa, compraventa u otro.',
+      );
+    }
+
+    if (field === 'otroTipoDetalle') {
+      return createGuidedError(
+        message,
+        'Falta especificar.',
+        'Queremos conocer más sobre tu actividad.',
+        'Describe muy brevemente a qué te dedicas.',
+      );
+    }
+
+    if (field === 'nombre') {
+      return createGuidedError(
+        message,
+        'Falta el nombre.',
+        'No sabemos cómo llamarte.',
+        'Escribe el nombre del administrador.',
+      );
+    }
+
+    if (field === 'apellidos') {
+      return createGuidedError(
+        message,
+        'Faltan tus apellidos.',
+        'Es importante registrarlos por seguridad.',
+        'Escribe tus apellidos.',
+      );
+    }
+
+    if (field === 'telefono') {
+      return createGuidedError(
+        message,
+        'Revisa el teléfono.',
+        'Parece que falta algún número.',
+        'Ingresa un celular válido.',
+      );
+    }
+
+    if (field === 'correo') {
+      return createGuidedError(
+        message,
+        'Revisa tu correo.',
+        'O no está bien escrito, o alguien ya lo usa.',
+        'Corrige y verifica el correo.',
+      );
+    }
+
+    if (field === 'password') {
+      return createGuidedError(
+        message,
+        'La contraseña es débil.',
+        'Usa al menos 6 letras, incluyendo mayúscula y minúscula.',
+        'Mejora tu contraseña.',
+      );
+    }
+
+    return createGuidedError(
+      message,
+      'Las contraseñas son distintas.',
+      'Asegúrate de escribir la misma en ambos campos.',
+      'Repite la contraseña.',
+    );
+  };
+
+  const getRegisterGlobalGuidance = (message: string) =>
+    createGuidedError(
+      message,
+      'Problema registrando.',
+      'Algo salió mal validando tus datos.',
+      'Revisa lo que marcamos en rojo e intenta de nuevo.',
+    );
 
   const handleGoogleRegisterSuccess = (credentialResponse: CredentialResponse) => {
     const idToken = credentialResponse?.credential;
@@ -187,103 +254,94 @@ export default function Register() {
     goBackToStep1();
   };
 
-  const handleHelpClick = () => {
-    setSupportPanel((currentPanel) => (currentPanel === 'help' ? null : 'help'));
+  const closeSupportModal = () => {
+    setSupportModal(null);
   };
-
-  const handleContactClick = () => {
-    setSupportPanel((currentPanel) => (currentPanel === 'contact' ? null : 'contact'));
-  };
-
-  const supportPanelId = supportPanel === 'help' ? 'register-support-help' : 'register-support-contact';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      <header className="flex flex-col gap-3 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <button
-          type="button"
-          onClick={handleHeaderBack}
-          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-        >
-          <ArrowLeft size={18} /> {step === 1 ? 'Volver al ingreso' : 'Volver al negocio'}
-        </button>
-
-        <button
-          type="button"
-          onClick={goToLogin}
-          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
-        >
-          Cancelar registro
-        </button>
-      </header>
-
-      <main className="flex-1 flex flex-col items-center px-4 pb-36 sm:pb-28">
+    <div className="min-h-screen bg-[#f3f4f6] flex flex-col font-sans text-gray-900">
+      <main className="flex-1 flex flex-col items-center px-0 pb-0">
         <div className="w-full max-w-[520px]">
-          <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
-
-          {error && (
-            <div
-              role="alert"
-              aria-live="assertive"
-              className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm flex items-start gap-2"
-            >
-              <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
           {step === 1 && (
-            <section aria-labelledby="register-business-title">
-              <h2 id="register-business-title" className="text-2xl font-bold text-[#0f172a] mb-1">
-                Informacion del Negocio
-              </h2>
-              <p className="text-gray-500 mb-6 text-sm">
-                Comencemos configurando la identidad de su establecimiento cafetero.
-              </p>
-
-              <div className="mb-6">
-                <label htmlFor="register-business-name" className="block text-sm font-bold text-slate-700 mb-2">
-                  Nombre del negocio
-                </label>
-                <input
-                  id="register-business-name"
-                  name="businessName"
-                  type="text"
-                  value={nombreOrganizacion}
-                  onChange={(e) => {
-                    setNombreOrganizacion(e.target.value);
-                    setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
-                  }}
-                  placeholder="Ej: Cooperativa El Cafetal"
-                  autoComplete="organization"
-                  aria-invalid={stepOneErrors.nombreOrganizacion ? 'true' : undefined}
-                  aria-describedby={
-                    stepOneErrors.nombreOrganizacion ? 'register-business-name-error' : undefined
-                  }
-                  className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                    stepOneErrors.nombreOrganizacion
-                      ? 'border-red-300 bg-red-50/40'
-                      : 'border-gray-200'
-                  }`}
-                />
-                {stepOneErrors.nombreOrganizacion && (
-                  <p id="register-business-name-error" className="mt-2 text-xs font-medium text-red-600">
-                    {stepOneErrors.nombreOrganizacion}
-                  </p>
-                )}
+            <section aria-labelledby="register-business-title" className="min-h-screen bg-[#f3f4f6]">
+              <div className="border-b border-slate-200 px-4 py-4">
+                <div className="relative flex min-h-[34px] items-center justify-center">
+                <button
+                  type="button"
+                  onClick={handleHeaderBack}
+                    className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900"
+                  aria-label="Volver al ingreso"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                  <h1 id="register-business-title" className="text-center text-[1.92rem] font-semibold text-[#111827]">
+                  Crear cuenta
+                </h1>
+                </div>
               </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-bold text-slate-700 mb-3" id="register-business-type-label">
-                  Tipo de negocio
-                </label>
+              <div className="px-4 pt-5">
+                <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+
+                <h2 className="mb-7 mt-2 text-[2.15rem] font-semibold leading-[1.15] tracking-[-0.02em] text-[#111827]">
+                  Comencemos configurando tu negocio
+                </h2>
+
+                {error ? (
+                  <InlineGuidedError
+                    message={getRegisterGlobalGuidance(error)}
+                    className="mb-6"
+                  />
+                ) : null}
+
+                <div className="mb-7">
+                  <label htmlFor="register-business-name" className="mb-2.5 block text-[0.9rem] font-black uppercase tracking-[0.08em] text-[#1f2937]">
+                    Nombre del negocio
+                  </label>
+                  <input
+                    id="register-business-name"
+                    name="businessName"
+                    type="text"
+                    value={nombreOrganizacion}
+                    onChange={(e) => {
+                      setNombreOrganizacion(e.target.value);
+                      setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
+                    }}
+                    placeholder="Ej: Café Los Alpes"
+                    autoComplete="organization"
+                    aria-invalid={Boolean(stepOneErrors.nombreOrganizacion)}
+                    aria-describedby={
+                      stepOneErrors.nombreOrganizacion ? 'register-business-name-error' : undefined
+                    }
+                    className={`block w-full rounded-2xl border px-4 py-3.5 text-[1.08rem] text-[#111827] placeholder:text-[#9ca3af] focus:border-[#274397] focus:outline-none focus:ring-2 focus:ring-[#274397]/15 ${
+                      stepOneErrors.nombreOrganizacion
+                        ? 'border-red-300 bg-red-50/50'
+                        : 'border-[#e5e7eb] bg-[#f8fafc]'
+                    }`}
+                  />
+                  {stepOneErrors.nombreOrganizacion && (
+                    <InlineGuidedError
+                      id="register-business-name-error"
+                      message={getRegisterFieldGuidance(
+                        'nombreOrganizacion',
+                        stepOneErrors.nombreOrganizacion,
+                      )}
+                      className="mt-2"
+                    />
+                  )}
+                </div>
+
+                <div className="mb-8">
+                  <label className="mb-3 block text-[0.9rem] font-black uppercase tracking-[0.08em] text-[#1f2937]" id="register-business-type-label">
+                    Tipo de negocio
+                  </label>
                 <div
                   role="radiogroup"
                   aria-labelledby="register-business-type-label"
                   aria-describedby={
                     stepOneErrors.tipoOrganizacion ? 'register-business-type-error' : undefined
                   }
-                  className="grid grid-cols-3 gap-3"
+                    className="grid grid-cols-1 gap-3.5"
                 >
                   {tiposOrg.map((t) => {
                     const selected = tipoOrganizacion === t.value;
@@ -297,89 +355,111 @@ export default function Register() {
                           setTipoOrganizacion(t.value);
                           setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
                         }}
-                        className={`w-full min-h-[122px] rounded-xl border px-2 py-3 text-center transition-all ${
+                          className={`w-full rounded-[16px] border px-4 py-4 text-left transition-all ${
                           selected
-                            ? 'border-[#1e3a8a] bg-blue-50/60 shadow-sm'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                              ? 'border-[#2f4da2] bg-[#f5f8ff] shadow-[0_0_0_1px_rgba(47,77,162,0.08)]'
+                              : 'border-[#d6dbe3] bg-white hover:border-[#c7cfdb]'
                         }`}
                       >
-                        <div className="mx-auto flex justify-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            <div
+                                className={`flex h-12 w-12 items-center justify-center rounded-xl ${colorByType[t.value]}`}
+                            >
+                              {t.icon}
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                              <p className="text-[1.18rem] font-medium tracking-normal text-[#111827]">
+                              {t.label}
+                            </p>
+                              <p className="mt-1 text-[1.02rem] leading-6 text-slate-500">
+                              {t.desc}
+                            </p>
+                          </div>
                           <div
-                            className={`h-10 w-10 rounded-xl flex items-center justify-center ${colorByType[t.value]}`}
+                              className={`flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
+                              selected
+                                ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
+                                  : 'border-slate-300 bg-white text-transparent'
+                            }`}
+                            aria-hidden="true"
                           >
-                            {t.icon}
+                            <Check size={14} strokeWidth={3} />
                           </div>
                         </div>
-                        <p className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#0f172a]">
-                          {t.label}
-                        </p>
-                        <p className="mt-1 hidden text-[10px] leading-4 text-slate-500 sm:block">
-                          {t.desc}
-                        </p>
                       </button>
                     );
                   })}
                 </div>
                 {stepOneErrors.tipoOrganizacion && (
-                  <p id="register-business-type-error" className="mt-2 text-xs font-medium text-red-600">
-                    {stepOneErrors.tipoOrganizacion}
-                  </p>
+                  <InlineGuidedError
+                    id="register-business-type-error"
+                    message={getRegisterFieldGuidance(
+                      'tipoOrganizacion',
+                      stepOneErrors.tipoOrganizacion,
+                    )}
+                    className="mt-2"
+                  />
                 )}
+                </div>
               </div>
 
-              {tipoOrganizacion === 'OTRO' && (
-                <div className="mb-6">
-                  <label htmlFor="register-business-type-other" className="block text-sm font-bold text-slate-700 mb-2">
-                    Especifica el tipo
-                  </label>
-                  <input
-                    id="register-business-type-other"
-                    name="businessTypeOther"
-                    type="text"
-                    value={otroTipoDetalle}
-                    onChange={(e) => {
-                      setOtroTipoDetalle(e.target.value);
-                      setStepOneErrors((prev) => ({ ...prev, otroTipoDetalle: undefined }));
-                    }}
-                    placeholder="Ej: Exportadora, Trilladora"
-                    aria-invalid={stepOneErrors.otroTipoDetalle ? 'true' : undefined}
-                    aria-describedby={
-                      stepOneErrors.otroTipoDetalle ? 'register-business-type-other-error' : undefined
-                    }
-                    className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                      stepOneErrors.otroTipoDetalle ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                    }`}
-                  />
-                  {stepOneErrors.otroTipoDetalle && (
-                    <p id="register-business-type-other-error" className="mt-2 text-xs font-medium text-red-600">
-                      {stepOneErrors.otroTipoDetalle}
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="mt-8 border-t border-slate-200 bg-[#f3f4f6] px-4 py-4">
+                <button
+                  type="button"
+                  onClick={goToStep2}
+                  className="w-full rounded-full bg-[#28449b] px-4 py-4 text-[1.18rem] font-semibold text-white transition-colors hover:bg-[#243d8b]"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    Siguiente paso
+                    <ArrowRight size={18} />
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={goToStep2}
-                className="w-full py-3.5 px-4 rounded-xl text-white font-semibold bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                Siguiente paso <ArrowRight size={18} />
-              </button>
+                <div className="pb-3 pt-5 text-center">
+                  <p className="text-[0.95rem] font-medium text-slate-500">¿Necesitas ayuda con el registro?</p>
+                  <div className="mt-2 flex items-center justify-center gap-6">
+                    <button
+                      type="button"
+                      onClick={() => setSupportModal('help')}
+                      className="inline-flex items-center gap-1.5 text-[1rem] font-medium text-slate-600 transition-colors hover:text-[#28449b]"
+                    >
+                      <CircleHelp size={15} />
+                      Ayuda
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSupportModal('contact')}
+                      className="inline-flex items-center gap-1.5 text-[1rem] font-medium text-slate-600 transition-colors hover:text-[#28449b]"
+                    >
+                      <Headset size={15} />
+                      Contacto
+                    </button>
+                  </div>
+                </div>
+              </div>
             </section>
           )}
 
           {step === 2 && (
             <section aria-labelledby="register-admin-title">
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <h2 id="register-admin-title" className="text-2xl font-bold text-[#0f172a]">
-                  Datos del Administrador
+              <div className="relative mb-6 flex min-h-[40px] items-center justify-center">
+                <button
+                  type="button"
+                  onClick={handleHeaderBack}
+                  className="absolute left-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                  aria-label="Volver al negocio"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <h2 id="register-admin-title" className="text-2xl font-bold text-[#0f172a] text-center">
+                  Crear cuenta
                 </h2>
-                <span className="text-xs font-bold px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg whitespace-nowrap mt-1">
-                  PASO 2 DE 2
-                </span>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center gap-3 mb-6 mt-4">
+              <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center gap-3 mb-6">
                 <div className="bg-[#1e3a8a] text-white p-1.5 rounded-lg flex-shrink-0">
                   <svg
                     width="16"
@@ -423,7 +503,7 @@ export default function Register() {
                       }}
                       placeholder="Ej. Juan"
                       autoComplete="given-name"
-                      aria-invalid={stepTwoErrors.nombre ? 'true' : undefined}
+                      aria-invalid={Boolean(stepTwoErrors.nombre)}
                       aria-describedby={stepTwoErrors.nombre ? 'register-admin-name-error' : undefined}
                       className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all placeholder-gray-400 ${
                         stepTwoErrors.nombre
@@ -433,9 +513,11 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.nombre && (
-                      <p id="register-admin-name-error" className="mt-2 text-xs font-medium text-red-600">
-                        {stepTwoErrors.nombre}
-                      </p>
+                      <InlineGuidedError
+                        id="register-admin-name-error"
+                        message={getRegisterFieldGuidance('nombre', stepTwoErrors.nombre)}
+                        className="mt-2"
+                      />
                     )}
                   </div>
 
@@ -454,7 +536,7 @@ export default function Register() {
                       }}
                       placeholder="Ej. Perez Gomez"
                       autoComplete="family-name"
-                      aria-invalid={stepTwoErrors.apellidos ? 'true' : undefined}
+                      aria-invalid={Boolean(stepTwoErrors.apellidos)}
                       aria-describedby={
                         stepTwoErrors.apellidos ? 'register-admin-lastname-error' : undefined
                       }
@@ -466,25 +548,45 @@ export default function Register() {
                       required
                     />
                     {stepTwoErrors.apellidos && (
-                      <p id="register-admin-lastname-error" className="mt-2 text-xs font-medium text-red-600">
-                        {stepTwoErrors.apellidos}
-                      </p>
+                      <InlineGuidedError
+                        id="register-admin-lastname-error"
+                        message={getRegisterFieldGuidance('apellidos', stepTwoErrors.apellidos)}
+                        className="mt-2"
+                      />
                     )}
                   </div>
                 </div>
 
-                <FormattedPhoneInput
+                <div>
+                  <label htmlFor="register-admin-phone" className="block text-sm font-bold text-slate-700 mb-2">
+                    Telefono
+                  </label>
+                  <input
                     id="register-admin-phone"
-                    label="Telefono"
+                    name="phone"
+                    type="tel"
                     value={telefono}
-                    onChange={(value) => {
-                      setTelefono(value);
+                    onChange={(e) => {
+                      setTelefono(e.target.value);
                       setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
                     }}
-                    error={stepTwoErrors.telefono}
-                    hint="Escribe solo los 10 digitos del celular. Nosotros agregamos +57 y los espacios."
-                    className="text-slate-700"
+                    placeholder="+57 300 123 4567"
+                    autoComplete="tel"
+                    aria-invalid={Boolean(stepTwoErrors.telefono)}
+                    aria-describedby={stepTwoErrors.telefono ? 'register-admin-phone-error' : undefined}
+                    className={`block w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
+                      stepTwoErrors.telefono ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                    }`}
+                    required
                   />
+                  {stepTwoErrors.telefono && (
+                    <InlineGuidedError
+                      id="register-admin-phone-error"
+                      message={getRegisterFieldGuidance('telefono', stepTwoErrors.telefono)}
+                      className="mt-2"
+                    />
+                  )}
+                </div>
 
                 <div>
                   <label htmlFor="register-admin-email" className="mb-2 block text-sm font-bold text-slate-700">
@@ -507,7 +609,7 @@ export default function Register() {
                     }}
                     placeholder="admin@empresa.com"
                     autoComplete="email"
-                    aria-invalid={stepTwoErrors.correo ? 'true' : undefined}
+                    aria-invalid={Boolean(stepTwoErrors.correo)}
                     aria-describedby={
                       stepTwoErrors.correo
                         ? 'register-admin-email-error'
@@ -528,9 +630,11 @@ export default function Register() {
                     </p>
                   )}
                   {stepTwoErrors.correo && (
-                    <p id="register-admin-email-error" className="mt-2 text-xs font-medium text-red-600">
-                      {stepTwoErrors.correo}
-                    </p>
+                    <InlineGuidedError
+                      id="register-admin-email-error"
+                      message={getRegisterFieldGuidance('correo', stepTwoErrors.correo)}
+                      className="mt-2"
+                    />
                   )}
                 </div>
 
@@ -550,7 +654,7 @@ export default function Register() {
                       }}
                       placeholder="************"
                       autoComplete={hasGoogleFlow ? 'new-password' : 'new-password'}
-                      aria-invalid={stepTwoErrors.password ? 'true' : undefined}
+                      aria-invalid={Boolean(stepTwoErrors.password)}
                       aria-describedby={stepTwoErrors.password ? 'register-admin-password-error' : undefined}
                       className={`block w-full px-4 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                         stepTwoErrors.password ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
@@ -572,9 +676,11 @@ export default function Register() {
                     </button>
                   </div>
                   {stepTwoErrors.password && (
-                    <p id="register-admin-password-error" className="mt-2 text-xs font-medium text-red-600">
-                      {stepTwoErrors.password}
-                    </p>
+                    <InlineGuidedError
+                      id="register-admin-password-error"
+                      message={getRegisterFieldGuidance('password', stepTwoErrors.password)}
+                      className="mt-2"
+                    />
                   )}
                   <div className="mt-3 space-y-2">
                     <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
@@ -616,7 +722,7 @@ export default function Register() {
                     }}
                     placeholder="Vuelve a escribir tu contraseña"
                     autoComplete="new-password"
-                    aria-invalid={stepTwoErrors.confirmPassword ? 'true' : undefined}
+                    aria-invalid={Boolean(stepTwoErrors.confirmPassword)}
                     aria-describedby={
                       stepTwoErrors.confirmPassword
                         ? 'register-admin-password-confirm-error'
@@ -633,9 +739,14 @@ export default function Register() {
                     minLength={6}
                   />
                   {stepTwoErrors.confirmPassword && (
-                    <p id="register-admin-password-confirm-error" className="mt-2 text-xs font-medium text-red-600">
-                      {stepTwoErrors.confirmPassword}
-                    </p>
+                    <InlineGuidedError
+                      id="register-admin-password-confirm-error"
+                      message={getRegisterFieldGuidance(
+                        'confirmPassword',
+                        stepTwoErrors.confirmPassword,
+                      )}
+                      className="mt-2"
+                    />
                   )}
                   {!stepTwoErrors.confirmPassword && hasStartedConfirming && (
                     <p
@@ -705,7 +816,7 @@ export default function Register() {
                             text="continue_with"
                             theme="outline"
                             size="large"
-                            width={320}
+                            width="100%"
                           />
                         </div>
                       )}
@@ -718,100 +829,58 @@ export default function Register() {
         </div>
       </main>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6 sm:justify-end sm:px-6">
-        <div className="pointer-events-auto relative flex items-end gap-3">
-          {supportPanel && (
-            <div
-              id={supportPanelId}
-              role="dialog"
-              aria-modal="false"
-              aria-labelledby="register-support-title"
-              className="fixed left-4 right-4 bottom-20 z-50 max-h-[62vh] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-[min(92vw,23rem)] sm:max-h-none"
-            >
-              <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.18em] text-[#102d92]">
-                    {supportContent.badge}
-                  </p>
-                  <h3 id="register-support-title" className="mt-1 text-lg font-black text-slate-900">
-                    {supportPanel === 'help' ? supportContent.title : supportContent.contactTitle}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSupportPanel(null)}
-                  className="rounded-full bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900"
-                  aria-label="Cerrar ayuda"
-                >
-                  <X size={16} />
-                </button>
+      {step === 1 && supportModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="register-support-modal-title"
+            className="w-full max-w-[420px] rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.24)]"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-[#28449b]">
+                  Soporte de registro
+                </p>
+                <h3 id="register-support-modal-title" className="mt-1 text-[1.2rem] font-semibold text-slate-900">
+                  {supportModal === 'help' ? 'Ayuda básica' : 'Contacto'}
+                </h3>
               </div>
-
-              {supportPanel === 'help' ? (
-                <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-600">
-                  <p className="leading-6">{supportContent.description}</p>
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3 leading-6">{supportContent.quickTip}</p>
-                  <p className="rounded-2xl border border-slate-100 bg-white px-4 py-3 leading-6 shadow-sm">{supportContent.secondTip}</p>
-                </div>
-              ) : (
-                <div className="space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-600">
-                  <p className="leading-6">{supportContent.contactDescription}</p>
-                  <div className="grid gap-3">
-                    <a
-                      href="mailto:soporte@cafesmart.com"
-                      className="rounded-2xl border border-slate-100 bg-white px-4 py-3 text-center font-bold text-[#102d92] shadow-sm"
-                    >
-                      Enviar correo
-                    </a>
-                    <a
-                      href="tel:+573000000000"
-                      className="rounded-2xl border border-slate-100 bg-white px-4 py-3 text-center font-bold text-[#102d92] shadow-sm"
-                    >
-                      Llamar soporte
-                    </a>
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={closeSupportModal}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Cerrar modal"
+              >
+                <X size={16} />
+              </button>
             </div>
-          )}
 
-          <div className="flex flex-col items-end gap-2">
-            <p className="px-1 text-xs font-medium text-slate-500">
-              Ayuda rápida del registro
-            </p>
-            <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-2 py-2 shadow-[0_18px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+            {supportModal === 'help' ? (
+              <div className="space-y-3 text-[0.95rem] text-slate-600">
+                <p>1. Escribe el nombre del negocio tal como lo usas diariamente.</p>
+                <p>2. Selecciona el tipo que mejor describa tu operación cafetera.</p>
+                <p>3. Pulsa Siguiente paso para continuar con los datos del administrador.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 text-[0.95rem] text-slate-600">
+                <p>Si tienes problemas con el registro, puedes comunicarte por:</p>
+                <p>Correo: soporte@cafesmart.com</p>
+                <p>Teléfono: +57 300 000 0000</p>
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={handleHelpClick}
-              aria-expanded={supportPanel === 'help'}
-              aria-controls="register-support-help"
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
-                supportPanel === 'help'
-                  ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'
-                  : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
-              }`}
-              aria-label="Abrir ayuda"
+              onClick={closeSupportModal}
+              className="mt-5 w-full rounded-xl bg-[#28449b] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#233b86]"
             >
-              <HelpCircle size={20} />
+              Entendido
             </button>
-            <button
-              type="button"
-              onClick={handleContactClick}
-              aria-expanded={supportPanel === 'contact'}
-              aria-controls="register-support-contact"
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
-                supportPanel === 'contact'
-                  ? 'bg-[#dbe7ff] text-[#102d92] shadow-[0_10px_20px_rgba(16,45,146,0.18)]'
-                  : 'bg-[#eef1ff] text-[#102d92] hover:bg-[#dde1ff]'
-              }`}
-              aria-label="Abrir contacto"
-            >
-              <MessageCircle size={20} />
-            </button>
-            </div>
           </div>
         </div>
-      </div>
+      ) : null}
+
     </div>
   );
 }

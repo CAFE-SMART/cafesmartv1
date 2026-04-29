@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   IdCard,
   Pencil,
+  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -17,11 +18,18 @@ import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
-  FormattedPhoneInput,
-  isValidColombianPhone,
-} from '../components/FormattedPhoneInput';
-import { useFormPersistence } from '../hooks/useFormPersistence';
-import { LoteResumen, obtenerLotes } from '../services/lotesService';
+  createGuidedError,
+  FloatingGuidedNotice,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
+import { obtenerDeviceId } from '../utils/deviceId';
+import {
+  crearCliente,
+  listarClientes,
+  type ClienteItem,
+} from '../services/clientesService';
+import { LoteResumen, obtenerDetalleLote, obtenerLotes } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
@@ -62,22 +70,7 @@ type VentaGuardadaResumen = {
     subtotal: number;
   }>;
 };
-type VentaDraft = {
-  paso: Step;
-  modoVenta: ModoVenta | null;
-  precioGlobal: string;
-  lotesVenta: LoteVenta[];
-  clienteSeleccionado: ClienteOption | null;
-  busquedaCliente: string;
-  busquedaAplicada: string;
-  clienteForm: ClienteForm;
-  mostrarModal: boolean;
-  ventaLocalId: string;
-};
 
-const DEVICE_STORAGE_KEY = 'cafesmart-device-id';
-const STORAGE_KEY = 'cafesmart-clientes-locales-v1';
-const VENTA_DRAFT_STORAGE_KEY = 'cafesmart-venta-draft-v1';
 const LIMITE = 6;
 
 const CLIENTE_GENERAL: ClienteOption = {
@@ -87,12 +80,6 @@ const CLIENTE_GENERAL: ClienteOption = {
   detalle: 'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
   rapido: true,
 };
-
-const CLIENTES_BASE: ClienteOption[] = [
-  { id: 'c1', nombre: 'Juan Perez Rodriguez', documento: 'C.C. 1.123.456.789', detalle: 'Cliente agregado manualmente' },
-  { id: 'c2', nombre: 'Maria Elena Giraldo', documento: 'C.C. 24.331.XXX', detalle: 'Compra frecuente' },
-  { id: 'c3', nombre: 'Pedro Gomez Ospina', documento: 'C.C. 70.122.XXX', detalle: 'Pago de contado' },
-];
 
 const kg = (v: number) => `${v.toLocaleString('es-CO', { maximumFractionDigits: 2 })} kg`;
 const money = (v: number) => `$${v.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
@@ -118,117 +105,107 @@ function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
     }));
 }
 
-function mergeLotesConBorrador(lotes: LoteVenta[], draftLotes: LoteVenta[]) {
-  return lotes.map((lote) => {
-    const draft = draftLotes.find((item) => item.id === lote.id);
-    if (!draft) return lote;
-
-    return {
-      ...lote,
-      cantidadKg: draft.cantidadKg,
-      precioKg: draft.precioKg || lote.precioKg,
-    };
-  });
-}
-
-function readClientes() {
-  if (typeof window === 'undefined') return [] as ClienteOption[];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [] as ClienteOption[];
-    const data = JSON.parse(raw) as ClienteOption[];
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [] as ClienteOption[];
-  }
-}
-
-function saveClientes(clientes: ClienteOption[]) {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes));
-  }
-}
-
 const uid = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-function obtenerDeviceId() {
-  if (typeof window === 'undefined') return uid();
-  const existente = window.localStorage.getItem(DEVICE_STORAGE_KEY);
-  if (existente) return existente;
-  const nuevo = uid();
-  window.localStorage.setItem(DEVICE_STORAGE_KEY, nuevo);
-  return nuevo;
+function mapClienteToOption(cliente: ClienteItem): ClienteOption {
+  return {
+    id: cliente.id,
+    nombre: cliente.nombre,
+    documento: cliente.documento?.trim() || 'Documento pendiente',
+    detalle: cliente.telefono?.trim() || 'Cliente registrado en sistema',
+    telefono: cliente.telefono ?? undefined,
+  };
 }
 
 function crearResumenVentaGuardada(respuesta: CreateVentaResponse): VentaGuardadaResumen {
+  const ventaTotalKg = respuesta.detalles.reduce((total, item) => total + item.pesoVendido, 0);
   return {
-    referenciaId: respuesta.venta.referenciaId,
-    clienteNombre: respuesta.venta.cliente.nombre,
-    clienteDocumento: respuesta.venta.cliente.documento,
-    totalKg: respuesta.venta.totalKg,
-    totalVenta: respuesta.venta.totalVenta,
-    items: respuesta.items.map((item) => ({
-      codigo: item.codigo,
-      tipoCafe: item.tipoCafe,
-      calidad: item.calidad,
-      cantidadKg: item.cantidadKg,
-      subtotal: item.subtotal,
-    })),
+    referenciaId: respuesta.venta.id,
+    clienteNombre: 'Cliente registrado',
+    clienteDocumento: 'Sin detalle',
+    totalKg: ventaTotalKg,
+    totalVenta: respuesta.detalles.reduce((total, item) => total + item.subtotal, 0),
+    items: [],
   };
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function datosPasoVenta(step: Step) {
   if (step === 1) {
     return {
-      chip: 'Paso 1 de 3',
-      titulo: 'Registro de Venta',
-      descripcion: 'Seleccione el cliente para iniciar la venta de cafe.',
+      titulo: 'Identificar cliente',
       progreso: 33,
     };
   }
   if (step === 2) {
     return {
-      chip: 'Paso 2 de 3',
-      titulo: 'Seleccionar Cafe',
-      descripcion: 'Elige modo de venta, cantidades y precio por kilo.',
+      titulo: 'Seleccionar cafe',
       progreso: 66,
     };
   }
   return {
-    chip: 'Paso 3 de 3',
-    titulo: 'Revision Final',
-    descripcion: 'Confirma el resumen antes de registrar la venta.',
+    titulo: 'Finalizar registro',
     progreso: 100,
   };
 }
 
-function formatoHoraBorrador(value: string | null) {
-  if (!value) return null;
+function getVentasGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('nombre del cliente')) {
+    return createGuidedError(
+      message,
+      'Falta identificar al cliente.',
+      'Necesitamos su nombre para registrar la venta.',
+      'Toca la casilla y escribe su nombre.',
+    );
+  }
 
-  return new Date(value).toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+  if (message.includes('Selecciona un cliente')) {
+    return createGuidedError(
+      message,
+      'Falta el cliente.',
+      'La venta requiere que indiques el comprador.',
+      'Elige un cliente de la lista.',
+    );
+  }
 
-function esVentaDraftVacio(draft: VentaDraft) {
-  const lotesSinCantidad = draft.lotesVenta.every((lote) => !lote.cantidadKg.trim());
+  if (message.includes('modo de venta')) {
+    return createGuidedError(
+      message,
+      'Falta el modo de venta.',
+      'Debemos saber si vendes todo o solo una parte.',
+      'Selecciona una de las dos opciones de venta.',
+    );
+  }
 
-  return (
-    draft.paso === 1 &&
-    !draft.modoVenta &&
-    !draft.precioGlobal &&
-    !draft.clienteSeleccionado &&
-    !draft.busquedaCliente &&
-    !draft.busquedaAplicada &&
-    !draft.mostrarModal &&
-    !draft.clienteForm.nombre &&
-    !draft.clienteForm.telefono &&
-    !draft.clienteForm.documento &&
-    lotesSinCantidad
+  if (message.includes('precio por kg')) {
+    return createGuidedError(
+      message,
+      'Falta el precio por kilo.',
+      'El precio es esencial para calcular el total.',
+      'Ingresa el valor por kilo a cobrar.',
+    );
+  }
+
+  if (message.includes('cantidad')) {
+    return createGuidedError(
+      message,
+      'Cantidad supera inventario o es cero.',
+      'No puedes vender más de lo que tienes.',
+      'Revisa el peso del lote disponible y corrige.',
+    );
+  }
+
+  return createGuidedError(
+    message,
+    'Problema guardando.',
+    'Hubo un fallo con los datos o en la conexión.',
+    'Revisa los datos e intenta de nuevo.',
   );
 }
 
@@ -240,30 +217,32 @@ export default function Ventas() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
   const [paso, setPaso] = React.useState<Step>(1);
+  const [botonConfirmarPresionado, setBotonConfirmarPresionado] = React.useState(false);
   const [intentoPaso1, setIntentoPaso1] = React.useState(false);
   const [intentoPaso2, setIntentoPaso2] = React.useState(false);
   const [modoVenta, setModoVenta] = React.useState<ModoVenta | null>(null);
   const [precioGlobal, setPrecioGlobal] = React.useState('');
   const [lotesVenta, setLotesVenta] = React.useState<LoteVenta[]>([]);
-  const [clientesLocales, setClientesLocales] = React.useState<ClienteOption[]>(() => readClientes());
+  const [clientes, setClientes] = React.useState<ClienteOption[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = React.useState<ClienteOption | null>(null);
   const [busquedaCliente, setBusquedaCliente] = React.useState('');
   const [busquedaAplicada, setBusquedaAplicada] = React.useState('');
   const [mostrarModal, setMostrarModal] = React.useState(false);
   const [clienteForm, setClienteForm] = React.useState<ClienteForm>({ nombre: '', telefono: '', documento: '' });
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(null);
+  const [floatingError, setFloatingError] = React.useState<GuidedErrorMessage | null>(null);
   const ventaLocalIdRef = React.useRef(uid());
-  const pendingVentaDraftRef = React.useRef<VentaDraft | null>(null);
 
   const cargarLotes = React.useCallback(async () => {
     try {
       setCargando(true);
       setLoadError(null);
-      const lotes = await obtenerLotes();
-      const lotesFrescos = mkLotes(lotes);
-      const draftLotes = pendingVentaDraftRef.current?.lotesVenta;
-      setLotesVenta(draftLotes ? mergeLotesConBorrador(lotesFrescos, draftLotes) : lotesFrescos);
-      pendingVentaDraftRef.current = null;
+      const [lotes, clientesData] = await Promise.all([
+        obtenerLotes(),
+        listarClientes(),
+      ]);
+      setLotesVenta(mkLotes(lotes));
+      setClientes(clientesData.map(mapClienteToOption));
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'No fue posible cargar el inventario para venta.');
     } finally {
@@ -275,17 +254,12 @@ export default function Ventas() {
     void cargarLotes();
   }, [cargarLotes]);
 
-  React.useEffect(() => {
-    saveClientes(clientesLocales);
-  }, [clientesLocales]);
-
   const clientesRecientes = React.useMemo(() => {
-    const base = clientesLocales.length ? [...clientesLocales] : [...CLIENTES_BASE];
+    const base = [...clientes];
     const term = norm(busquedaAplicada.trim());
     if (!term) return base.slice(0, LIMITE);
     return base.filter((c) => [c.nombre, c.documento, c.detalle].some((v) => norm(v).includes(term)));
-  }, [busquedaAplicada, clientesLocales]);
-  const busquedaAplicadaActiva = busquedaAplicada.trim().length > 0;
+  }, [busquedaAplicada, clientes]);
 
   const lotesConCantidad = React.useMemo(() => {
     if (modoVenta === 'TOTAL') {
@@ -395,51 +369,6 @@ export default function Ventas() {
       setPrecioGlobal('');
     }
   }, [modoVenta, precioGlobal]);
-  const ventaDraft = React.useMemo<VentaDraft>(
-    () => ({
-      paso,
-      modoVenta,
-      precioGlobal,
-      lotesVenta,
-      clienteSeleccionado,
-      busquedaCliente,
-      busquedaAplicada,
-      clienteForm,
-      mostrarModal,
-      ventaLocalId: ventaLocalIdRef.current,
-    }),
-    [
-      busquedaAplicada,
-      busquedaCliente,
-      clienteForm,
-      clienteSeleccionado,
-      lotesVenta,
-      modoVenta,
-      mostrarModal,
-      paso,
-      precioGlobal,
-    ],
-  );
-  const { clearDraft: clearVentaDraft, lastSavedAt } = useFormPersistence<VentaDraft>({
-    key: VENTA_DRAFT_STORAGE_KEY,
-    value: ventaDraft,
-    isEmpty: esVentaDraftVacio,
-    onRestore: (draft) => {
-      pendingVentaDraftRef.current = draft;
-      setPaso([1, 2, 3].includes(draft.paso) ? draft.paso : 1);
-      setModoVenta(draft.modoVenta);
-      setPrecioGlobal(draft.precioGlobal ?? '');
-      setClienteSeleccionado(draft.clienteSeleccionado ?? null);
-      setBusquedaCliente(draft.busquedaCliente ?? '');
-      setBusquedaAplicada(draft.busquedaAplicada ?? '');
-      setClienteForm(draft.clienteForm ?? { nombre: '', telefono: '', documento: '' });
-      setMostrarModal(Boolean(draft.mostrarModal));
-      ventaLocalIdRef.current = draft.ventaLocalId || uid();
-      if (Array.isArray(draft.lotesVenta) && draft.lotesVenta.length > 0) {
-        setLotesVenta(draft.lotesVenta);
-      }
-    },
-  });
 
   const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
@@ -456,36 +385,96 @@ export default function Ventas() {
     if (guardandoVenta) return;
 
     setGuardandoVenta(true);
+    setBotonConfirmarPresionado(true);
     setSubmitError(null);
 
     try {
+      type PoolEntry = {
+        subloteId: string;
+        disponibleKg: number;
+      };
+
+      const pools = new Map<string, PoolEntry[]>();
+      const detalles = [] as Array<{ subloteId: string; pesoVendido: number; precioKg: number }>;
+
+      for (const lote of lotesConCantidad) {
+        const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
+
+        if (!pools.has(poolKey)) {
+          const detalle = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+          const pool = detalle.sublotes
+            .filter((sublote) => sublote.pesoActual > 0)
+            .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
+            .map((sublote) => ({
+              subloteId: sublote.id,
+              disponibleKg: round2(sublote.pesoActual),
+            }));
+
+          pools.set(poolKey, pool);
+        }
+
+        const pool = pools.get(poolKey) ?? [];
+        let restante = round2(lote.cantidad);
+
+        for (const entry of pool) {
+          if (restante <= 0) break;
+          if (entry.disponibleKg <= 0) continue;
+
+          const asignado = round2(Math.min(restante, entry.disponibleKg));
+          if (asignado <= 0) continue;
+
+          detalles.push({
+            subloteId: entry.subloteId,
+            pesoVendido: asignado,
+            precioKg: round2(lote.precio),
+          });
+
+          entry.disponibleKg = round2(entry.disponibleKg - asignado);
+          restante = round2(restante - asignado);
+        }
+
+        if (restante > 0.001) {
+          throw new Error(`La cantidad supera el disponible en ${lote.codigo}.`);
+        }
+      }
+
       const respuesta = await crearVenta({
-        deviceId: obtenerDeviceId(),
+        ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
+        deviceId: await obtenerDeviceId(),
         localId: ventaLocalIdRef.current,
-        cliente: {
-          nombre: clienteSeleccionado.nombre,
-          documento: clienteSeleccionado.documento,
-          telefono: clienteSeleccionado.telefono,
-          detalle: clienteSeleccionado.detalle,
-          rapido: clienteSeleccionado.rapido,
-        },
-        items: lotesConCantidad.map((lote) => ({
-          tipoCafeId: lote.tipoCafeId,
-          calidadId: lote.calidadId,
-          cantidadKg: lote.cantidad,
-          precioKg: lote.precio,
-        })),
+        detalles,
       });
 
-      clearVentaDraft();
-      setVentaGuardada(crearResumenVentaGuardada(respuesta));
+      setVentaGuardada({
+        ...crearResumenVentaGuardada(respuesta),
+        clienteNombre: clienteSeleccionado.nombre,
+        clienteDocumento: clienteSeleccionado.documento,
+        totalKg,
+        totalVenta: totalEstimado,
+        items: lotesConCantidad.map((item) => ({
+          codigo: item.codigo,
+          tipoCafe: item.tipoCafe,
+          calidad: item.calidad,
+          cantidadKg: item.cantidad,
+          subtotal: item.cantidad * item.precio,
+        })),
+      });
       await cargarLotes();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'No fue posible registrar la venta.');
     } finally {
       setGuardandoVenta(false);
+      setBotonConfirmarPresionado(false);
     }
-  }, [cargarLotes, clearVentaDraft, clienteSeleccionado, guardandoVenta, lotesConCantidad, validarPasoVenta]);
+  }, [
+    cargarLotes,
+    clienteSeleccionado,
+    guardandoVenta,
+    lotesConCantidad,
+    totalEstimado,
+    totalKg,
+    validarPasoVenta,
+  ]);
 
   const reiniciar = React.useCallback(() => {
     setPaso(1);
@@ -501,9 +490,8 @@ export default function Ventas() {
     setIntentoPaso2(false);
     setLoadError(null);
     ventaLocalIdRef.current = uid();
-    clearVentaDraft();
     void cargarLotes();
-  }, [cargarLotes, clearVentaDraft]);
+  }, [cargarLotes]);
 
   const updateLote = (id: string, campo: 'cantidadKg' | 'precioKg', valor: string) =>
     setLotesVenta((prev) => prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l)));
@@ -526,59 +514,113 @@ export default function Ventas() {
     toNum(precioGlobal) <= 0;
   const parcialSinSeleccion = paso === 2 && modoVenta === 'PARCIAL' && !hayCantidadParcial;
 
-  const guardarCliente = () => {
+  const volverPasoAnterior = () => {
+    if (paso > 1) {
+      anterior();
+      return;
+    }
+
+    navigate(-1);
+  };
+
+  React.useEffect(() => {
+    if (clienteFormError) {
+      setFloatingError(getVentasGuidance(clienteFormError));
+      return;
+    }
+
+    if (clienteInvalido) {
+      setFloatingError(getVentasGuidance('Selecciona un cliente para continuar.'));
+      return;
+    }
+
+    if (submitError) {
+      setFloatingError(getVentasGuidance(submitError));
+      return;
+    }
+
+    if (modoInvalido) {
+      setFloatingError(getVentasGuidance('Selecciona como deseas realizar la venta.'));
+      return;
+    }
+
+    if (precioTotalInvalido) {
+      setFloatingError(getVentasGuidance('Ingresa un precio por kg valido para venta total.'));
+      return;
+    }
+
+    if (parcialSinSeleccion) {
+      setFloatingError(
+        getVentasGuidance('Ingresa una cantidad en al menos un lote para continuar.'),
+      );
+      return;
+    }
+
+    setFloatingError(null);
+  }, [
+    clienteFormError,
+    clienteInvalido,
+    modoInvalido,
+    parcialSinSeleccion,
+    precioTotalInvalido,
+    submitError,
+  ]);
+
+  const guardarCliente = async () => {
     const nombre = clienteForm.nombre.trim();
     const telefono = clienteForm.telefono.trim();
     const documento = clienteForm.documento.trim();
-    if (!nombre) return setClienteFormError('Escribe el nombre del cliente para guardarlo.');
-    if (telefono && !isValidColombianPhone(telefono, true)) {
-      return setClienteFormError('El celular parece incompleto. Escribe los 10 digitos o dejalo vacio.');
+    if (!nombre) return setClienteFormError('Escribe al menos el nombre del cliente.');
+
+    try {
+      const clienteGuardado = await crearCliente({
+        nombre,
+        documento: documento || undefined,
+        telefono: telefono || undefined,
+      });
+      const nuevo = mapClienteToOption(clienteGuardado);
+      setClientes((actual) => [nuevo, ...actual.filter((cliente) => cliente.id !== nuevo.id)]);
+      setClienteSeleccionado(nuevo);
+      setIntentoPaso1(false);
+      setBusquedaCliente(nombre);
+      setBusquedaAplicada(nombre);
+      setMostrarModal(false);
+      setClienteFormError(null);
+      setSubmitError(null);
+    } catch (error) {
+      setClienteFormError(
+        error instanceof Error ? error.message : 'No fue posible registrar el cliente.',
+      );
     }
-    const nuevo: ClienteOption = {
-      id: uid(),
-      nombre,
-      telefono,
-      documento: documento || 'Documento pendiente',
-      detalle: telefono || 'Cliente agregado manualmente',
-    };
-    const next = [nuevo, ...clientesLocales];
-    setClientesLocales(next);
-    setClienteSeleccionado(nuevo);
-    setIntentoPaso1(false);
-    setBusquedaCliente(nombre);
-    setBusquedaAplicada(nombre);
-    setMostrarModal(false);
-    setClienteFormError(null);
-    setSubmitError(null);
   };
 
   if (ventaGuardada) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[145px] text-slate-900">
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-10 text-slate-900">
         <div className="mx-auto max-w-[520px] space-y-4">
           <section className="rounded-[22px] border border-[#daf0e3] bg-white p-5 text-center shadow-sm">
-            <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-black text-[#0d7b67]">Venta exitosa</span>
+            <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-semibold text-[#0d7b67]">Venta exitosa</span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
-            <h2 className="mt-3 text-[1.35rem] font-black text-[#102d92]">Venta exitosa</h2>
-            <p className="mt-2 text-sm text-slate-600">Tu venta fue registrada correctamente. Ahora puedes verla reflejada en el inventario.</p>
+            <h2 className="mt-3 text-[1.35rem] font-semibold text-[#102d92]">Venta exitosa</h2>
+            <p className="mt-2 text-sm text-slate-600">La venta se registro y el inventario quedo actualizado.</p>
             <div className="mt-4 rounded-[14px] border border-[#e1e6f3] bg-[#f8f9ff] p-4 text-left">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Cliente</p>
-              <p className="mt-1 text-lg font-black text-slate-900">
+              <p className="text-xs font-medium text-slate-500">Cliente</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
                 {ventaGuardada.clienteNombre}
               </p>
               <p className="text-xs text-slate-600">{ventaGuardada.clienteDocumento}</p>
               <p className="mt-2 text-sm text-slate-600">Total: {kg(ventaGuardada.totalKg)}</p>
-              <p className="text-sm font-black text-[#102d92]">{money(ventaGuardada.totalVenta)}</p>
+              <p className="text-sm font-semibold text-[#102d92]">{money(ventaGuardada.totalVenta)}</p>
             </div>
             <div className="mt-3 rounded-[14px] border border-[#e1e6f3] bg-[#fcfcff] p-4 text-left">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Detalle</p>
+              <p className="text-xs font-medium text-slate-500">Detalle</p>
               <div className="mt-2 space-y-2">
                 {ventaGuardada.items.map((item) => (
                   <div
                     key={`${ventaGuardada.referenciaId}-${item.codigo}`}
                     className="rounded-[12px] border border-[#e7ebf7] bg-white px-3 py-2"
                   >
-                    <p className="text-sm font-black text-slate-900">{item.codigo}</p>
+                    <p className="text-sm font-semibold text-slate-900">{item.codigo}</p>
                     <p className="text-xs text-slate-600">
                       {item.tipoCafe} - {item.calidad}
                     </p>
@@ -590,12 +632,11 @@ export default function Ventas() {
               </div>
             </div>
             <div className="mt-4 grid gap-2">
-              <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-sm font-black text-[#102d92]">Nueva venta</button>
-              <button type="button" onClick={() => navigate('/inventario')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-black text-white">Ir a inventario</button>
+              <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-sm font-semibold text-[#102d92]">Nueva venta</button>
+              <button type="button" onClick={() => navigate('/inventario')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-semibold text-white">Ir a inventario</button>
             </div>
           </section>
         </div>
-        <AppBottomNav />
       </div>
     );
   }
@@ -603,46 +644,41 @@ export default function Ventas() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900">
       <div className="mx-auto max-w-[520px] space-y-4">
-        <header className="rounded-[22px] border border-white/80 bg-white/90 px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.06)]">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-[#eef2ff] p-3 text-[#102d92]"><Banknote size={18} /></div>
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Cafe Smart</p>
-                <h1 className="mt-1 text-[1.35rem] font-black text-[#102d92]">{pasoActual.titulo}</h1>
-                <p className="mt-1 text-sm text-slate-600">{pasoActual.descripcion}</p>
-              </div>
+        <header className="px-4 py-4 pt-6">
+          <div className="relative flex items-center justify-center">
+            <button
+              type="button"
+              onClick={volverPasoAnterior}
+              className="absolute left-0 text-slate-900 transition hover:opacity-75"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Venta</h1>
+          </div>
+
+          <div className="mt-8">
+            <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
+              <span>Paso {paso}: {pasoActual.titulo}</span>
+              <span className="text-[1.05rem] text-[#002f6c]">{paso} de 3</span>
             </div>
-            <CloudStatusBadge compact className="max-w-[190px]" />
+            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
+              <div
+                className="h-full rounded-full bg-[#04337b] transition-all duration-300"
+                style={{ width: `${pasoActual.progreso}%` }}
+              />
+            </div>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <span className="rounded-full bg-[#ccf5ef] px-3 py-1 text-xs font-black text-[#0b7664]">
-              {pasoActual.chip}
-            </span>
-            <span className="text-xs font-black text-[#102d92]">{pasoActual.progreso}%</span>
-          </div>
-          <div className="mt-2 h-2 rounded-full bg-[#d6e0f0]">
-            <div
-              className="h-full rounded-full bg-[#102d92] transition-all duration-300"
-              style={{ width: `${pasoActual.progreso}%` }}
-            />
-          </div>
-          {lastSavedAt ? (
-            <p className="mt-2 text-xs font-semibold text-slate-500">
-              Borrador guardado automaticamente a las {formatoHoraBorrador(lastSavedAt)}.
-            </p>
-          ) : null}
         </header>
         {cargando ? (
           <CardMsg text="Cargando lotes para venta..." />
         ) : loadError ? (
           <section className="rounded-[22px] border border-[#ffd5d5] bg-[#fff6f6] p-4 shadow-sm">
-            <p className="text-sm font-black text-[#a22424]">No se pudo cargar inventario de venta.</p>
+            <p className="text-sm font-semibold text-[#a22424]">No se pudo cargar inventario de venta.</p>
             <p className="mt-1 text-sm text-[#8c3838]">{loadError}</p>
             <button
               type="button"
               onClick={() => void cargarLotes()}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#f4a7a7] bg-white px-3 py-2 text-xs font-black text-[#a22424]"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#f4a7a7] bg-white px-3 py-2 text-xs font-semibold text-[#a22424]"
             >
               <RefreshCw size={14} />
               Reintentar
@@ -652,18 +688,18 @@ export default function Ventas() {
           <>
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-[11px] font-medium text-slate-500">
                   Seleccionar cafe
                 </p>
-                <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
+                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Como deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                  <p className="text-xs font-medium text-slate-500">
                     Cliente seleccionado
                   </p>
-                  <p className="mt-1 text-sm font-black text-slate-900">{clienteSeleccionado?.nombre ?? 'Sin cliente'}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{clienteSeleccionado?.nombre ?? 'Sin cliente'}</p>
                   <p className="text-xs text-slate-600">{clienteSeleccionado?.documento ?? 'Seleccion pendiente'}</p>
                 </div>
 
@@ -679,7 +715,7 @@ export default function Ventas() {
                         : 'border-[#e3e7f3] bg-white'
                     }`}
                   >
-                    <p className="text-base font-black text-slate-900">Vender una parte del inventario</p>
+                    <p className="text-base font-semibold text-slate-900">Vender una parte del inventario</p>
                     <p className="mt-1 text-sm text-slate-600">
                       Selecciona lotes especificos y ajusta cantidades.
                     </p>
@@ -696,19 +732,20 @@ export default function Ventas() {
                         : 'border-[#e3e7f3] bg-white'
                     }`}
                   >
-                    <p className="text-base font-black text-slate-900">Vender todo el inventario</p>
+                    <p className="text-base font-semibold text-slate-900">Vender todo el inventario</p>
                     <p className="mt-1 text-sm text-slate-600">Usa todos los lotes disponibles de una vez.</p>
                   </button>
                 </div>
                 {modoInvalido ? (
-                  <p className="mt-2 text-xs font-semibold text-[#9a5a00]">
-                    Elige un modo de venta para continuar.
-                  </p>
+                  <InlineGuidedError
+                    message={getVentasGuidance('Selecciona como deseas realizar la venta.')}
+                    className="mt-2"
+                  />
                 ) : null}
 
                 {modoVenta === 'TOTAL' ? (
                   <div className="mt-4 rounded-[16px] border border-[#e5e8f3] bg-[#f8f9ff] p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                    <p className="text-xs font-medium text-slate-500">
                       Precio por kg (COP)
                     </p>
                     <input
@@ -717,16 +754,17 @@ export default function Ventas() {
                       value={precioGlobal}
                       onChange={(event) => setPrecioGlobal(event.target.value)}
                       placeholder="Ej: 12500"
-                      className={`mt-2 w-full rounded-xl border px-3 py-3 text-lg font-black outline-none focus:border-[#102d92] ${
+                      className={`mt-2 w-full rounded-xl border px-3 py-3 text-lg font-semibold outline-none focus:border-[#102d92] ${
                         precioTotalInvalido
                           ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
                           : 'border-[#d7dcec] bg-white text-[#102d92]'
                       }`}
                     />
                     {precioTotalInvalido ? (
-                      <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                        Ingresa un precio por kg valido.
-                      </p>
+                      <InlineGuidedError
+                        message={getVentasGuidance('Ingresa un precio por kg valido para venta total.')}
+                        className="mt-2"
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -745,11 +783,11 @@ export default function Ventas() {
                       key={lote.id}
                       className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-4"
                     >
-                      <p className="text-lg font-black text-[#102d92]">{lote.codigo}</p>
+                      <p className="text-lg font-semibold text-[#102d92]">{lote.codigo}</p>
                       <p className="text-sm text-slate-600">
                         {lote.tipoCafe} - {lote.calidad}
                       </p>
-                      <p className="mt-1 text-sm font-black text-slate-900">
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
                         Disponible: {kg(lote.disponibleKg)}
                       </p>
 
@@ -805,9 +843,10 @@ export default function Ventas() {
                   })}
                 </div>
                 {parcialSinSeleccion ? (
-                  <p className="mt-2 rounded-xl border border-[#f2c17b] bg-[#fff9ef] px-3 py-2 text-xs font-semibold text-[#9a5a00]">
-                    Ingresa una cantidad en al menos un lote para continuar.
-                  </p>
+                  <InlineGuidedError
+                    message={getVentasGuidance('Ingresa una cantidad en al menos un lote para continuar.')}
+                    className="mt-2"
+                  />
                 ) : null}
 
                 <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
@@ -821,25 +860,22 @@ export default function Ventas() {
                   </div>
                 </article>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={anterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-black text-slate-600"
-                  >
-                    <ArrowLeft size={16} />
-                    Atras
-                  </button>
+                <div className="mt-4 grid gap-3">
                   <button
                     type="button"
                     onClick={siguiente}
-                    disabled={!puedeAvanzarPaso2}
-                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-black text-white ${
-                      puedeAvanzarPaso2 ? 'bg-[#102d92]' : 'bg-[#9aa9d8] cursor-not-allowed'
-                    }`}
+                    className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.35rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)]"
                   >
-                    Siguiente paso
-                    <ArrowRight size={16} />
+                    Siguiente Paso
+                    <ArrowRight size={22} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={anterior}
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
+                  >
+                    <ArrowLeft size={16} />
+                    Regresar
                   </button>
                 </div>
               </section>
@@ -847,10 +883,10 @@ export default function Ventas() {
 
             {paso === 1 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-[11px] font-medium text-slate-500">
                   Seleccionar cliente
                 </p>
-                <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
+                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Elige quien recibe la venta
                 </h2>
 
@@ -869,13 +905,13 @@ export default function Ventas() {
                         <User size={18} />
                       </span>
                       <div>
-                        <p className="text-base font-black text-[#102d92]">Cliente General</p>
+                        <p className="text-base font-semibold text-[#102d92]">Cliente General</p>
                         <p className="mt-1 text-sm text-slate-600">
                           Venta rapida para cliente ocasional.
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full bg-[#dbe5ff] px-2.5 py-1 text-[11px] font-black text-[#102d92]">
+                    <span className="rounded-full bg-[#dbe5ff] px-2.5 py-1 text-[11px] font-semibold text-[#102d92]">
                       Rapido
                     </span>
                   </div>
@@ -883,7 +919,7 @@ export default function Ventas() {
 
                 <div className="mt-5 flex items-center gap-3">
                   <div className="h-px flex-1 bg-[#e0e6f4]" />
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  <p className="text-[11px] font-medium text-slate-400">
                     O busca un cliente
                   </p>
                   <div className="h-px flex-1 bg-[#e0e6f4]" />
@@ -923,21 +959,19 @@ export default function Ventas() {
                     setClienteFormError(null);
                     setMostrarModal(true);
                   }}
-                  className="mt-3 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[#b7c6ef] bg-[#f8f9ff] px-4 py-3 text-sm font-black text-[#102d92]"
+                  className="mt-3 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[#b7c6ef] bg-[#f8f9ff] px-4 py-3 text-sm font-semibold text-[#102d92]"
                 >
                   <Plus size={16} />
                   Registrar nuevo cliente
                 </button>
 
                 <div className="mt-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-[11px] font-medium text-slate-500">
                     Clientes recientes
                   </p>
                   {clientesRecientes.length === 0 ? (
                     <div className="mt-2 rounded-[14px] border border-dashed border-[#d5dced] bg-[#fbfcff] px-4 py-5 text-center text-sm text-slate-500">
-                      {busquedaAplicadaActiva
-                        ? 'No se encontraron clientes con esa búsqueda. Intenta con otro dato o registra uno nuevo.'
-                        : 'Aún no hay clientes recientes para mostrar. Puedes usar Cliente General o registrar uno nuevo.'}
+                      No se encontraron clientes con esa busqueda.
                     </div>
                   ) : (
                     <div className="mt-2 space-y-2">
@@ -957,12 +991,12 @@ export default function Ventas() {
                                 <User size={15} />
                               </span>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-black text-slate-900">{cliente.nombre}</p>
+                                <p className="truncate text-sm font-semibold text-slate-900">{cliente.nombre}</p>
                                 <p className="mt-0.5 truncate text-xs text-slate-600">{cliente.documento}</p>
                                 <p className="mt-0.5 truncate text-xs text-slate-500">{cliente.detalle}</p>
                               </div>
                               {selected ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#102d92] px-2.5 py-1 text-[11px] font-black text-white">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#102d92] px-2.5 py-1 text-[11px] font-semibold text-white">
                                   <CheckCircle2 size={12} />
                                   Seleccionado
                                 </span>
@@ -976,22 +1010,20 @@ export default function Ventas() {
                 </div>
 
                 {clienteInvalido ? (
-                  <p
-                    className="mt-4 rounded-[12px] border border-[#f1b7b7] bg-[#fff5f5] px-3 py-2 text-sm font-semibold text-[#b42318]"
-                    role="alert"
-                  >
-                    Selecciona un cliente para continuar.
-                  </p>
+                  <InlineGuidedError
+                    message={getVentasGuidance('Selecciona un cliente para continuar.')}
+                    className="mt-4"
+                  />
                 ) : null}
 
                 <div className="mt-4">
                   <button
                     type="button"
                     onClick={siguiente}
-                    className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-black text-white"
+                    className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.35rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)]"
                   >
-                    Siguiente paso
-                    <ArrowRight size={16} />
+                    Siguiente Paso
+                    <ArrowRight size={22} />
                   </button>
                 </div>
 
@@ -1000,24 +1032,25 @@ export default function Ventas() {
 
             {paso === 3 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-[11px] font-medium text-slate-500">
                   Revision final
                 </p>
-                <h2 className="mt-2 text-[1.3rem] font-black text-[#102d92]">
+                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Confirma los datos de la venta
                 </h2>
 
                 {submitError ? (
-                  <div className="mt-4 rounded-[14px] border border-[#f1b7b7] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
-                    {submitError}
-                  </div>
+                  <InlineGuidedError
+                    message={getVentasGuidance(submitError)}
+                    className="mt-4"
+                  />
                 ) : null}
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                  <p className="text-xs font-medium text-slate-500">
                     Cliente
                   </p>
-                  <p className="mt-1 text-lg font-black text-slate-900">
+                  <p className="mt-1 text-lg font-semibold text-slate-900">
                     {clienteSeleccionado?.nombre ?? 'Sin cliente'}
                   </p>
                   <p className="text-xs text-slate-600">
@@ -1032,7 +1065,7 @@ export default function Ventas() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-black text-slate-900">{lote.codigo}</p>
+                          <p className="text-sm font-semibold text-slate-900">{lote.codigo}</p>
                           <p className="text-xs text-slate-600">
                             {lote.tipoCafe} - {lote.calidad}
                           </p>
@@ -1080,20 +1113,20 @@ export default function Ventas() {
                   <button
                     type="button"
                     onClick={anterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-black text-slate-600"
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
                   >
                     <ArrowLeft size={16} />
-                    Atras
+                    Regresar
                   </button>
                   <button
                     type="button"
                     onClick={confirmar}
-                    disabled={guardandoVenta}
-                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-black text-white ${
-                      guardandoVenta ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
+                    disabled={guardandoVenta || botonConfirmarPresionado}
+                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
+                      guardandoVenta || botonConfirmarPresionado ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
                     }`}
                   >
-                    {guardandoVenta ? (
+                    {guardandoVenta || botonConfirmarPresionado ? (
                       <>
                         <RefreshCw size={16} className="animate-spin" />
                         Guardando venta...
@@ -1118,7 +1151,7 @@ export default function Ventas() {
             <div className="px-6 pb-6 pt-4">
               <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
               <div className="mt-5 flex items-start justify-between gap-4">
-                <h2 className="text-[1.7rem] font-black leading-tight text-[#111827]">
+                <h2 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">
                   Registrar cliente
                 </h2>
                 <button
@@ -1132,7 +1165,7 @@ export default function Ventas() {
 
               <div className="mt-8 space-y-5">
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">
+                  <label className="mb-2 block text-base font-semibold text-slate-900">
                     Nombre del cliente
                   </label>
                   <label className="flex items-center gap-3 rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4">
@@ -1140,9 +1173,11 @@ export default function Ventas() {
                     <input
                       type="text"
                       value={clienteForm.nombre}
-                      onChange={(event) =>
-                        setClienteForm((actual) => ({ ...actual, nombre: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setClienteForm((actual) => ({ ...actual, nombre: event.target.value }));
+                        setClienteFormError(null);
+                        setFloatingError(null);
+                      }}
                       placeholder="Ej. Juan Perez Rodriguez"
                       className="w-full bg-transparent text-base text-slate-900 outline-none"
                     />
@@ -1150,18 +1185,27 @@ export default function Ventas() {
                 </div>
 
                 <div>
-                  <FormattedPhoneInput
-                    label="Telefono"
-                    optional
-                    value={clienteForm.telefono}
-                    onChange={(telefono) =>
-                      setClienteForm((actual) => ({ ...actual, telefono }))
-                    }
-                  />
+                  <label className="mb-2 block text-base font-semibold text-slate-900">
+                    Telefono (opcional)
+                  </label>
+                  <label className="flex items-center gap-3 rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4">
+                    <Phone size={18} className="text-slate-400" />
+                    <input
+                      type="text"
+                      value={clienteForm.telefono}
+                      onChange={(event) => {
+                        setClienteForm((actual) => ({ ...actual, telefono: event.target.value }));
+                        setClienteFormError(null);
+                        setFloatingError(null);
+                      }}
+                      placeholder="+57 000 000 000"
+                      className="w-full bg-transparent text-base text-slate-900 outline-none"
+                    />
+                  </label>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">
+                  <label className="mb-2 block text-base font-semibold text-slate-900">
                     Documento o NIT
                   </label>
                   <label className="flex items-center gap-3 rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4">
@@ -1169,9 +1213,11 @@ export default function Ventas() {
                     <input
                       type="text"
                       value={clienteForm.documento}
-                      onChange={(event) =>
-                        setClienteForm((actual) => ({ ...actual, documento: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        setClienteForm((actual) => ({ ...actual, documento: event.target.value }));
+                        setClienteFormError(null);
+                        setFloatingError(null);
+                      }}
                       placeholder="1029384756"
                       className="w-full bg-transparent text-base text-slate-900 outline-none"
                     />
@@ -1179,9 +1225,7 @@ export default function Ventas() {
                 </div>
 
                 {clienteFormError ? (
-                  <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {clienteFormError}
-                  </div>
+                  <InlineGuidedError message={getVentasGuidance(clienteFormError)} />
                 ) : null}
               </div>
             </div>
@@ -1190,7 +1234,7 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={guardarCliente}
-                className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-black text-white"
+                className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white"
               >
                 Guardar cliente
               </button>
@@ -1206,7 +1250,14 @@ export default function Ventas() {
         </div>
       ) : null}
 
-      <AppBottomNav hidden={mostrarModal} />
+      {floatingError ? (
+        <FloatingGuidedNotice
+          message={floatingError}
+          onClose={() => setFloatingError(null)}
+        />
+      ) : null}
+
+      <AppBottomNav hidden={mostrarModal || paso >= 1} />
     </div>
   );
 }
@@ -1214,7 +1265,7 @@ export default function Ventas() {
 function CardMsg({ text }: { text: string }) {
   return (
     <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-5 text-center shadow-sm">
-      <p className="text-sm font-black text-[#102d92]">{text}</p>
+      <p className="text-sm font-semibold text-[#102d92]">{text}</p>
     </section>
   );
 }

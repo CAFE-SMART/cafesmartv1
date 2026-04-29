@@ -27,6 +27,10 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * Resuelve los Client ID validos para Google OAuth.
+   * Prioriza la lista multiple y, si no existe, usa el Client ID unico.
+   */
   private getGoogleAudiences(): string | string[] {
     const list = (this.configService.get<string>('GOOGLE_CLIENT_IDS') ?? '')
       .split(',')
@@ -51,6 +55,9 @@ export class AuthService {
     return new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
   }
 
+  /**
+   * Registra un administrador nuevo junto con su organizacion inicial.
+   */
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.correo.trim().toLowerCase();
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
@@ -85,6 +92,9 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Registro exitoso');
   }
 
+  /**
+   * Registra o vincula una cuenta usando el token emitido por Google.
+   */
   async registerGoogle(dto: RegisterGoogleDto) {
     const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: dto.googleToken,
@@ -104,8 +114,22 @@ export class AuthService {
 
     const existingUser = await this.usersService.findByEmail(googleEmail);
     if (existingUser) {
-      void googleSubject;
-      return this.buildAuthResponse(existingUser, 'Cuenta validada con Google');
+      if (existingUser.googleId && existingUser.googleId !== googleSubject) {
+        throw new HttpException(
+          {
+            message: 'Este correo ya esta vinculado con otra cuenta de Google',
+            field: 'email',
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      const linkedUser =
+        existingUser.googleId === googleSubject
+          ? existingUser
+          : await this.usersService.linkGoogleAccount(existingUser.id, googleSubject);
+
+      return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -119,6 +143,7 @@ export class AuthService {
         correo: googleEmail,
         telefono: dto.telefono,
         password: hashedPassword,
+        googleId: googleSubject,
       });
     } catch (error) {
       this.throwIfUniqueConstraint(error);
@@ -128,6 +153,9 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Registro con Google exitoso');
   }
 
+  /**
+   * Valida credenciales tradicionales y devuelve el contrato unificado de sesion.
+   */
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email.trim().toLowerCase());
 
@@ -156,6 +184,11 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Login exitoso');
   }
 
+  /**
+   * Autentica una cuenta existente a partir de un token valido de Google.
+   * Si el usuario no existe, retorna un error con action:'register' para permitir que el
+   * frontend rediriga al flujo de registro.
+   */
   async loginWithGoogle(googleData: { idToken: string }) {
     const ticket = await this.getGoogleClient().verifyIdToken({
       idToken: googleData.idToken,
@@ -176,20 +209,37 @@ export class AuthService {
       });
     }
 
-    const user = await this.usersService.findByEmail(payload.email.trim().toLowerCase());
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
 
+    // Si el usuario no existe, lanzar error con accion de registro
     if (!user) {
       throw new UnauthorizedException({
-        message: 'No encontramos tu cuenta en Google',
+        message: 'No encontramos tu cuenta. Por favor, registrate primero.',
         action: 'register',
       });
     }
 
-    void googleSubject;
+    // Si el usuario ya está vinculado a otra cuenta de Google, lanzar error
+    if (user.googleId && user.googleId !== googleSubject) {
+      throw new UnauthorizedException({
+        message: 'Esta cuenta ya esta vinculada con otra cuenta de Google',
+        field: 'email',
+      });
+    }
 
-    return this.buildAuthResponse(user, 'Login con Google exitoso');
+    // Vincular Google si aún no está vinculado, o simplemente devolver el usuario si ya lo está
+    const linkedUser =
+      user.googleId === googleSubject
+        ? user
+        : await this.usersService.linkGoogleAccount(user.id, googleSubject);
+
+    return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
   }
 
+  /**
+   * Traduce errores de unicidad de Prisma a mensajes funcionales para el cliente.
+   */
   private throwIfUniqueConstraint(error: unknown): never | void {
     if (
       !error ||
@@ -228,22 +278,37 @@ export class AuthService {
     }
   }
 
-  private async buildAuthResponse(user: AuthResponseUser, message: string) {
+  private async buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
-    const sessionUser = await this.usersService.findSessionById(user.id);
+    
+    // Intentar cargar datos adicionales de sesión (organización, tipo, etc.)
+    // pero usar los datos del usuario como fuente de verdad principal
+    let sessionData: { organizacion?: { tipo?: string; otroTipoDetalle?: string | null } } = {};
+    try {
+      const sessionUser = await this.usersService.findSessionById(user.id);
+      if (sessionUser?.organizacion) {
+        sessionData.organizacion = sessionUser.organizacion;
+      }
+    } catch {
+      // Silenciar errores en sesión auxiliar
+    }
+
+    // hasCompany se basa SIEMPRE en si el usuario tiene una organizacionId
+    // El usuario.organizacionId es la fuente de verdad
+    const hasCompany = Boolean(user.organizacionId);
 
     return {
       message,
       access_token: token,
-      hasCompany: Boolean(sessionUser?.organizacionId ?? user.organizacionId),
+      hasCompany,
       user: {
         id: user.id,
         email: user.correo,
         name: user.nombre,
-        organizacionId: sessionUser?.organizacionId ?? user.organizacionId ?? null,
-        tipoOrganizacion: sessionUser?.organizacion?.tipo ?? null,
-        otroTipoDetalle: sessionUser?.organizacion?.otroTipoDetalle ?? null,
+        organizacionId: user.organizacionId ?? null,
+        tipoOrganizacion: (sessionData.organizacion as any)?.tipo ?? null,
+        otroTipoDetalle: (sessionData.organizacion as any)?.otroTipoDetalle ?? null,
       },
     };
   }

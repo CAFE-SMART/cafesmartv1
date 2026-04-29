@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Info, Save } from 'lucide-react';
+import {
+  createGuidedError,
+  FloatingGuidedNotice,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
 import { formatDateLabel } from '../utils/date';
 import { getSecadoSession, saveSecadoResults } from '../utils/secadoFlow';
 
@@ -13,6 +19,33 @@ function kg(value: number) {
 
 function dateLabel(value: string) {
   return formatDateLabel(value);
+}
+
+function getSecadoGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('salida seca')) {
+    return createGuidedError(
+      message,
+      'Falta el peso final.',
+      'El proceso requiere la cantidad de café seco.',
+      'Escribe la salida seca en kilos.',
+    );
+  }
+
+  if (message.includes('no puede superar')) {
+    return createGuidedError(
+      message,
+      'La salida supera la entrada.',
+      'El café seco debe pesar menos que el verde.',
+      'Verifica y corrige el peso final.',
+    );
+  }
+
+  return createGuidedError(
+    message,
+    'Falta la humedad.',
+    'Necesitamos saber qué tan seco quedó el lote.',
+    'Ingresa la humedad final en porcentaje.',
+  );
 }
 
 export default function SecadoProceso() {
@@ -37,6 +70,8 @@ export default function SecadoProceso() {
     session && session.outputRegularHumedad !== null ? session.outputRegularHumedad.toString() : '',
   );
   const [error, setError] = useState<string | null>(null);
+  const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(null);
+  const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
 
   const totalEntrada = useMemo(
     () => (session ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0) : 0),
@@ -56,19 +91,27 @@ export default function SecadoProceso() {
     const humedad = outputHumedadText.trim() ? Number(outputHumedadText) : null;
 
     if (outputKg <= 0) {
-      setError('Registra la salida seca del lote antes de continuar.');
+      const message = 'Registra la salida seca del lote antes de continuar.';
+      setError(message);
+      setFloatingError(getSecadoGuidance(message));
       return;
     }
 
     if (totalSalida > totalEntrada) {
-      setError('La salida no puede superar el peso total que entro a secado.');
+      const message = 'La salida no puede superar el peso total que entro a secado.';
+      setError(message);
+      setFloatingError(getSecadoGuidance(message));
       return;
     }
 
     if (humedad === null || !Number.isFinite(humedad)) {
-      setError('Registra la humedad final del lote seco.');
+      const message = 'Registra la humedad final del lote seco.';
+      setError(message);
+      setFloatingError(getSecadoGuidance(message));
       return;
     }
+
+    setBotonRegistrarPresionado(true);
 
     saveSecadoResults(sessionId, {
       outputBuenoKg: outputQuality === 'BUENO' ? outputKg : 0,
@@ -157,8 +200,8 @@ export default function SecadoProceso() {
                 value={outputQuality === 'BUENO' ? buenoKg : regularKg}
                 onChange={(event) =>
                   outputQuality === 'BUENO'
-                    ? setBuenoKg(event.target.value)
-                    : setRegularKg(event.target.value)
+                    ? (setBuenoKg(event.target.value), setError(null), setFloatingError(null))
+                    : (setRegularKg(event.target.value), setError(null), setFloatingError(null))
                 }
                 className="w-full rounded-[20px] border border-[#cfe0ff] bg-white px-5 py-4 text-[2rem] font-black text-slate-900 outline-none focus:border-[#2155da]"
                 placeholder="0.00"
@@ -170,8 +213,8 @@ export default function SecadoProceso() {
                 value={outputQuality === 'BUENO' ? buenoHumedad : regularHumedad}
                 onChange={(event) =>
                   outputQuality === 'BUENO'
-                    ? setBuenoHumedad(event.target.value)
-                    : setRegularHumedad(event.target.value)
+                    ? (setBuenoHumedad(event.target.value), setError(null), setFloatingError(null))
+                    : (setRegularHumedad(event.target.value), setError(null), setFloatingError(null))
                 }
                 className="w-full rounded-[20px] border border-[#cfe0ff] bg-white px-5 py-4 text-xl font-black text-slate-900 outline-none focus:border-[#2155da]"
                 placeholder="Humedad"
@@ -223,20 +266,26 @@ export default function SecadoProceso() {
         </section>
 
         {error ? (
-          <section className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            {error}
-          </section>
+          <InlineGuidedError message={getSecadoGuidance(error)} />
         ) : null}
 
         <button
           type="button"
           onClick={continuar}
-          className="inline-flex w-full items-center justify-center gap-3 rounded-[22px] bg-[#2155da] px-5 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(33,85,218,0.22)]"
+          disabled={botonRegistrarPresionado}
+          className="inline-flex w-full items-center justify-center gap-3 rounded-[22px] bg-[#2155da] px-5 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(33,85,218,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save size={20} />
-          Registrar secado
+          {botonRegistrarPresionado ? 'Guardando secado...' : 'Registrar secado'}
         </button>
       </main>
+
+      {floatingError ? (
+        <FloatingGuidedNotice
+          message={floatingError}
+          onClose={() => setFloatingError(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,9 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 
+/**
+ * Normaliza la URL de base de datos para asegurar SSL en entornos como Supabase.
+ */
 function normalizeDatabaseUrl(value: string) {
   const trimmed = value.trim();
   const url = new URL(trimmed);
@@ -39,6 +42,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     this.retryDelayMs = Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 3000;
   }
 
+  /**
+   * Intenta conectar Prisma al iniciar el modulo y reintenta si el error es transitorio.
+   */
   async onModuleInit() {
     let lastError: unknown;
 

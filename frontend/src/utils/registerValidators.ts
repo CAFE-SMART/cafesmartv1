@@ -7,7 +7,7 @@ export type RegisterLocationState = {
   };
 };
 
-export type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+export type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 export type TipoOrgSelection = TipoOrg | '';
 
 export type StepOneErrors = {

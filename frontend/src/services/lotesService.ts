@@ -19,6 +19,11 @@ export type LoteResumen = {
   diasEnBodegaMin: number;
   diasEnBodegaMax: number;
   creadoEn: string;
+  totalVentas: number;
+  totalGastos: number;
+  utilidadNeta: number;
+  mermaValor: number;
+  mermaKg: number;
 };
 
 export type SubloteDetalle = {
@@ -32,9 +37,19 @@ export type SubloteDetalle = {
   pesoActual: number;
   precioKg: number;
   humedad: number | null;
+  factor: number | null;
   fechaIngreso: string;
   diasEnBodega: number;
   creadoEn: string;
+  costoTotal: number;
+  totalVentas: number;
+  pesoVendido: number;
+  totalGastos: number;
+  mermaKg: number;
+  mermaPorcentaje: number;
+  mermaValor: number;
+  utilidadNeta: number;
+  costoPorKg: number;
 };
 
 export type LoteDetalle = {
@@ -45,6 +60,11 @@ export type LoteDetalle = {
 export type ActualizarHumedadPayload = {
   id: string;
   humedad: number | null;
+};
+
+export type ActualizarFactorPayload = {
+  id: string;
+  factor: number | null;
 };
 
 export async function obtenerLotes() {
@@ -63,6 +83,15 @@ export async function guardarHumedadesSublotes(
   sublotes: ActualizarHumedadPayload[],
 ) {
   return apiFetch('/lotes/sublotes/humedad', {
+    method: 'PATCH',
+    body: JSON.stringify({ sublotes }),
+  }) as Promise<{ totalActualizados: number }>;
+}
+
+export async function guardarFactoresSublotes(
+  sublotes: ActualizarFactorPayload[],
+) {
+  return apiFetch('/lotes/sublotes/factor', {
     method: 'PATCH',
     body: JSON.stringify({ sublotes }),
   }) as Promise<{ totalActualizados: number }>;

@@ -12,11 +12,11 @@ import { CreateVentaDto } from './dto/crear-venta.dto';
 import { VentasService } from './ventas.service';
 
 @Controller('ventas')
-@UseGuards(JwtAuthGuard)
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async crear(
     @Body() dto: CreateVentaDto,

@@ -1,13 +1,28 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, LogIn, Loader, X, ChevronRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import {
+  createGuidedError,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function normalizeTipoOrganizacion(
+  value: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null | undefined,
+): 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | null {
+  if (value === 'OTRO') {
+    return 'PERSONALIZADO' as const;
+  }
+
+  return value ?? null;
 }
 
 export default function Login() {
@@ -21,6 +36,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   const navigate = useNavigate();
   const { setSession } = useUser();
@@ -33,6 +50,58 @@ export default function Login() {
     setPasswordFieldError(null);
   };
 
+  const handleExitApp = async () => {
+    const capacitorApp = (window as any)?.Capacitor?.Plugins?.App;
+    if (capacitorApp?.exitApp) {
+      await capacitorApp.exitApp();
+      return;
+    }
+
+    const electronApi = (window as any)?.electronAPI;
+    if (electronApi?.closeApp) {
+      electronApi.closeApp();
+      return;
+    }
+
+    window.close();
+    if (!window.closed) {
+      resetForm();
+      navigate('/login', { replace: true });
+    }
+  };
+
+  const getEmailGuidance = (message: string): GuidedErrorMessage =>
+    createGuidedError(
+      message,
+      'Revisa tu correo.',
+      'El formato no es correcto o está vacío (ej: juan@correo.com).',
+      'Corrige tu correo e intenta de nuevo.',
+    );
+
+  const getPasswordGuidance = (message: string): GuidedErrorMessage =>
+    createGuidedError(
+      message,
+      'Revisa tu contraseña.',
+      'Puede estar incorrecta o vacía.',
+      'Escribe tu contraseña correcta.',
+    );
+
+  const getGlobalGuidance = (message: string): GuidedErrorMessage =>
+    createGuidedError(
+      message,
+      'Problema al iniciar.',
+      'Verifica tus credenciales o conexión.',
+      'Revisa los datos e intenta entrar.',
+    );
+
+  const focusEmail = () => {
+    emailInputRef.current?.focus();
+  };
+
+  const focusPassword = () => {
+    passwordInputRef.current?.focus();
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -40,21 +109,31 @@ export default function Login() {
     setPasswordFieldError(null);
 
     let hasValidationError = false;
+    let nextEmailError: string | null = null;
+    let nextPasswordError: string | null = null;
 
     if (!email.trim()) {
-      setEmailFieldError('El correo es obligatorio.');
+      nextEmailError = 'El correo es obligatorio.';
       hasValidationError = true;
     } else if (!isValidEmail(email)) {
-      setEmailFieldError('Ingresa un correo valido.');
+      nextEmailError = 'Ingresa un correo valido.';
       hasValidationError = true;
     }
 
     if (!password.trim()) {
-      setPasswordFieldError('La contrasena es obligatoria.');
+      nextPasswordError = 'La contraseña es obligatoria.';
       hasValidationError = true;
     }
 
+    setEmailFieldError(nextEmailError);
+    setPasswordFieldError(nextPasswordError);
+
     if (hasValidationError) {
+      if (nextEmailError) {
+        window.setTimeout(focusEmail, 80);
+      } else if (nextPasswordError) {
+        window.setTimeout(focusPassword, 80);
+      }
       return;
     }
 
@@ -68,7 +147,7 @@ export default function Login() {
           email: data.user.email,
           name: data.user.name,
           organizacionId: data.user.organizacionId ?? null,
-          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
@@ -80,7 +159,7 @@ export default function Login() {
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No se pudo iniciar sesion. Intenta nuevamente.';
+      const message = authError.message || 'No se pudo iniciar sesión. Intenta nuevamente.';
       const details = authError.details ?? {};
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
@@ -96,12 +175,19 @@ export default function Login() {
 
       if (emailDetail || passwordDetail) {
         setError(null);
+        if (emailDetail) {
+          window.setTimeout(focusEmail, 80);
+        } else if (passwordDetail) {
+          window.setTimeout(focusPassword, 80);
+        }
       } else if (field === 'email' || field === 'correo') {
         setEmailFieldError(message);
         setError(null);
+        window.setTimeout(focusEmail, 80);
       } else if (field === 'password' || field === 'contrasena') {
         setPasswordFieldError(message);
         setError(null);
+        window.setTimeout(focusPassword, 80);
       } else {
         setError(message);
       }
@@ -118,7 +204,8 @@ export default function Login() {
 
     const idToken = credentialResponse?.credential;
     if (!idToken) {
-      setError('No se pudo iniciar sesion con Google. Intenta nuevamente.');
+      const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.';
+      setError(message);
       setGoogleLoading(false);
       return;
     }
@@ -131,7 +218,7 @@ export default function Login() {
           email: data.user.email,
           name: data.user.name,
           organizacionId: data.user.organizacionId ?? null,
-          tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
@@ -154,14 +241,16 @@ export default function Login() {
         return;
       }
 
-      setError(loginError.message || 'No se pudo iniciar sesion con Google.');
+      const message = loginError.message || 'No se pudo iniciar sesión con Google.';
+      setError(message);
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleGoogleError = () => {
-    setError('No se pudo iniciar sesion con Google.');
+    const message = 'No se pudo iniciar sesión con Google.';
+    setError(message);
     setEmailFieldError(null);
     setPasswordFieldError(null);
     setGoogleLoading(false);
@@ -169,57 +258,47 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      <header className="flex justify-between items-center p-6 bg-gray-50">
-        <div className="flex items-center gap-3">
-          <div className="bg-[#1e3a8a] text-white p-2 rounded-lg">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-              <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-[#0f172a]">Cafe Smart</h1>
-        </div>
-
-        <button
-          type="button"
-          onClick={resetForm}
-          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          Limpiar <X size={16} />
-        </button>
-      </header>
-
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-[480px]">
-<div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-[#1e3a8a] to-[#1e40af] bg-clip-text text-transparent mb-6 leading-tight">
-            Cafe Smart
-          </h1>
-          <p className="text-xl text-gray-600 max-w-md mx-auto leading-relaxed">
-            Gestión inteligente para el negocio cafetero del siglo XXI
-          </p>
-        </div>
-        <div className="text-center mb-12">
-          <h2 className="text-2xl md:text-3xl font-bold text-[#0f172a] mb-4">Iniciar Sesión</h2>
-          <p className="text-gray-500 max-w-lg mx-auto">
-            Accede a tu panel de control con tu cuenta
-          </p>
-        </div>
-
-          {error && (
-          <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl mb-6 text-sm text-center">
-              {error}
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-[#1e3a8a] p-2 text-white">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
+                  <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
+                </svg>
+              </div>
+              <p className="text-[1.45rem] font-semibold text-[#0f172a]">Cafe Smart</p>
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={() => void handleExitApp()}
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
+              aria-label="Salir de la aplicacion"
+            >
+              Salir
+              <LogOut size={16} className="text-gray-500" />
+            </button>
+          </div>
+
+          <h2 className="text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
+          <p className="text-center text-gray-500 mb-8 mx-auto" style={{ maxWidth: '300px' }}>
+            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
+          </p>
+
+          {error ? (
+            <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
+          ) : null}
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
@@ -231,6 +310,7 @@ export default function Login() {
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
+                  ref={emailInputRef}
                   type="email"
                   required
                   className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
@@ -245,21 +325,26 @@ export default function Login() {
                 />
               </div>
               {emailFieldError && (
-                <p className="mt-2 text-xs font-medium text-red-600">{emailFieldError}</p>
+                <InlineGuidedError
+                  id="login-email-error"
+                  message={getEmailGuidance(emailFieldError)}
+                  className="mt-2"
+                />
               )}
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-slate-700">Contrasena</label>
+                <label className="block text-sm font-bold text-slate-700">Contraseña</label>
                 <button
                   type="button"
-                  onClick={() =>
-                    setError('La recuperacion de contrasena aun no esta disponible.')
-                  }
+                  onClick={() => {
+                    const message = 'La recuperacion de contraseña aun no esta disponible.';
+                    setError(message);
+                  }}
                   className="text-sm font-semibold text-[#1e3a8a] hover:underline"
                 >
-                  Olvidaste tu contrasena?
+                  Olvidaste tu contraseña?
                 </button>
               </div>
               <div className="relative">
@@ -267,6 +352,7 @@ export default function Login() {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
+                  ref={passwordInputRef}
                   type={showPassword ? 'text' : 'password'}
                   required
                   className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
@@ -292,7 +378,11 @@ export default function Login() {
                 </button>
               </div>
               {passwordFieldError && (
-                <p className="mt-2 text-xs font-medium text-red-600">{passwordFieldError}</p>
+                <InlineGuidedError
+                  id="login-password-error"
+                  message={getPasswordGuidance(passwordFieldError)}
+                  className="mt-2"
+                />
               )}
             </div>
 
@@ -359,7 +449,7 @@ export default function Login() {
                 text="signin_with"
                 theme="outline"
                 size="large"
-                width={320}
+                width="100%"
               />
             </div>
           )}
@@ -372,14 +462,12 @@ export default function Login() {
             </div>
           )}
 
-<div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100">
-            <p className="text-center text-sm font-medium text-slate-700 mb-4">
-              ¿Nuevo en Cafe Smart? 
-              <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline ml-1 block mt-1">
-                Crear cuenta gratis
-              </Link>
-            </p>
-          </div>
+          <p className="mt-8 text-center text-sm text-slate-600">
+            ¿No tienes una cuenta?{' '}
+            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
+              Registrate gratis
+            </Link>
+          </p>
         </div>
       </main>
 

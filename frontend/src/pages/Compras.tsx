@@ -11,31 +11,29 @@ import {
   Frown,
   Leaf,
   Meh,
-  Pencil,
   Plus,
-  RefreshCcw,
   Search,
   Save,
   ShoppingBag,
   Smile,
   SunMedium,
   Trash2,
-  Warehouse,
+  User,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
-import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
-  FormattedPhoneInput,
-  isValidColombianPhone,
-} from '../components/FormattedPhoneInput';
-import { useUser } from '../context/UserContext';
-import { useFormPersistence } from '../hooks/useFormPersistence';
+  createGuidedError,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
 import {
   formatDateLabel,
   getTodayLocalDateValue,
   toIsoDateAtUtcNoon,
 } from '../utils/date';
+import { obtenerDeviceId } from '../utils/deviceId';
 import {
   crearCompra,
   listarCompras,
@@ -44,6 +42,12 @@ import {
   type CatalogosCompra,
   type CompraListadoItem,
 } from '../services/comprasService';
+import { obtenerInventarioResumen } from '../services/inventarioService';
+import {
+  crearProductor,
+  listarProductores,
+  type ProductorItem,
+} from '../services/productoresService';
 
 type Step = 1 | 2 | 3;
 type SubloteForm = {
@@ -64,7 +68,6 @@ type CompraGuardadaResumen = {
     tipoCafe: string;
     calidad: string;
     pesoInicial: number;
-    subtotal: number;
   }>;
 };
 type ProductorOption = {
@@ -80,47 +83,17 @@ type ProductorForm = {
   telefono: string;
   documento: string;
 };
-type CompraDraft = {
-  fecha: string;
-  sublotes: SubloteForm[];
-  productorSeleccionado: ProductorOption | null;
-  busquedaProductor: string;
-  busquedaAplicada: string;
-  step: Step;
-};
+type ProductorSelectionMode = 'buscar' | 'generico' | null;
 
-const DEVICE_STORAGE_KEY = 'cafesmart-device-id';
-const PRODUCTORES_STORAGE_KEY = 'cafesmart-productores-locales-v1';
-const COMPRA_DRAFT_STORAGE_KEY = 'cafesmart-compra-draft-v1';
 const ORDEN_TIPOS = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const ORDEN_CALIDADES = ['BUENO', 'REGULAR', 'MALO'];
 const PRODUCTOR_GENERAL: ProductorOption = {
   id: 'general',
-  nombre: 'Productor General',
-  documento: 'Compra rápida',
+  nombre: 'Productor Generico',
+  documento: 'Compra rapida',
   detalle: 'Para compras rápidas o productores ocasionales no registrados en el sistema.',
   rapido: true,
 };
-const PRODUCTORES_RECIENTES: ProductorOption[] = [
-  {
-    id: 'reciente-1',
-    nombre: 'Juan Arango Montoya',
-    documento: 'C.C. 1.054.882.XXX',
-    detalle: 'Finca La Esperanza',
-  },
-  {
-    id: 'reciente-2',
-    nombre: 'Maria Elena Giraldo',
-    documento: 'C.C. 24.331.XXX',
-    detalle: 'Finca El Oasis',
-  },
-  {
-    id: 'reciente-3',
-    nombre: 'Humberto de J. Castro',
-    documento: 'C.C. 70.122.XXX',
-    detalle: 'Finca San José',
-  },
-];
 const LIMITE_PRODUCTORES_RECIENTES = 5;
 
 function generarId() {
@@ -128,33 +101,6 @@ function generarId() {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function obtenerDeviceId() {
-  const existente = window.localStorage.getItem(DEVICE_STORAGE_KEY);
-  if (existente) return existente;
-  const nuevo = generarId();
-  window.localStorage.setItem(DEVICE_STORAGE_KEY, nuevo);
-  return nuevo;
-}
-
-function cargarProductoresLocales() {
-  if (typeof window === 'undefined') return [] as ProductorOption[];
-
-  try {
-    const raw = window.localStorage.getItem(PRODUCTORES_STORAGE_KEY);
-    if (!raw) return [] as ProductorOption[];
-
-    const parsed = JSON.parse(raw) as ProductorOption[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [] as ProductorOption[];
-  }
-}
-
-function guardarProductoresLocales(productores: ProductorOption[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(PRODUCTORES_STORAGE_KEY, JSON.stringify(productores));
 }
 
 function normalizeSearchText(value: string) {
@@ -191,55 +137,14 @@ function formatoMoneda(valor: number) {
   }).format(valor);
 }
 
-function formatoHoraBorrador(value: string | null) {
-  if (!value) return null;
-
-  return new Date(value).toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function construirMensajeAmigableCompra(error: unknown) {
-  const fallback =
-    'No pudimos registrar la compra en este momento. Revisa la información e inténtalo nuevamente.';
-
-  if (!(error instanceof Error)) return fallback;
-
-  const mensaje = error.message.trim();
-  const mensajeNormalizado = normalizeSearchText(mensaje);
-
-  if (
-    mensajeNormalizado.includes('fecha') ||
-    mensajeNormalizado.includes('iso 8601') ||
-    mensajeNormalizado.includes('invalid date')
-  ) {
-    return 'No pudimos registrar la fecha de la compra. Verifica que la fecha exista, vuelve a seleccionarla en el calendario y luego intenta guardar de nuevo.';
-  }
-
-  if (mensajeNormalizado.includes('token')) {
-    return 'Tu sesión ya no está activa. Ingresa nuevamente para poder registrar la compra.';
-  }
-
-  return mensaje || fallback;
-}
-
-function esCompraDraftVacio(draft: CompraDraft) {
-  const subloteUnicoVacio =
-    draft.sublotes.length === 1 &&
-    !draft.sublotes[0].tipoCafeId &&
-    !draft.sublotes[0].calidadId &&
-    !draft.sublotes[0].pesoInicial &&
-    !draft.sublotes[0].precioKg;
-
-  return (
-    draft.step === 1 &&
-    draft.fecha === hoyLocal() &&
-    !draft.productorSeleccionado &&
-    !draft.busquedaProductor &&
-    !draft.busquedaAplicada &&
-    subloteUnicoVacio
-  );
+function mapProductorToOption(productor: ProductorItem): ProductorOption {
+  return {
+    id: productor.id,
+    nombre: productor.nombre,
+    documento: productor.documento?.trim() || 'Documento pendiente',
+    detalle: productor.telefono?.trim() || 'Productor registrado en sistema',
+    telefono: productor.telefono ?? undefined,
+  };
 }
 
 function clave(nombre: string) {
@@ -323,7 +228,7 @@ function datosPaso(step: Step) {
   if (step === 1) {
     return {
       chip: 'Paso 1 de 3',
-      titulo: 'Registro de Compra',
+      titulo: 'Productor',
       descripcion: 'Seleccione el productor para iniciar el pesaje del café.',
       progreso: 33,
     };
@@ -331,30 +236,110 @@ function datosPaso(step: Step) {
   if (step === 2) {
     return {
       chip: 'Paso 2 de 3',
-      titulo: 'Agregar Producto',
+      titulo: 'Seleccionar café',
       descripcion: 'Completa tipo de café, calidad, peso y precio por kilo.',
       progreso: 66,
     };
   }
   return {
     chip: 'Paso 3 de 3',
-    titulo: 'Revisión Final',
+    titulo: 'Finalizar Registro',
     descripcion: 'Confirma el resumen antes de registrar la compra.',
     progreso: 100,
   };
 }
 
+function getComprasGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('nombre del productor')) {
+    return createGuidedError(
+      message,
+      'Falta identificar al productor.',
+      'Necesitamos el nombre para registrar la compra.',
+      'Toca la casilla y escribe al menos su nombre.',
+    );
+  }
+
+  if (message.includes('al menos un producto')) {
+    return createGuidedError(
+      message,
+      'No hay productos.',
+      'La compra debe tener café.',
+      'Agrega un producto para continuar.',
+    );
+  }
+
+  if (message.includes('catalogos disponibles')) {
+    return createGuidedError(
+      message,
+      'Faltan datos base en tu celular.',
+      'No logramos cargar los tipos de café.',
+      'Recarga la aplicación e intenta de nuevo.',
+    );
+  }
+
+  if (message.includes('tipo de cafe')) {
+    return createGuidedError(
+      message,
+      'Falta seleccionar el tipo de café.',
+      'Debes elegir una opción para poder pagar.',
+      'Toca "Tipo de Café" y elige uno.',
+    );
+  }
+
+  if (message.includes('calidad')) {
+    return createGuidedError(
+      message,
+      'Falta la calidad.',
+      'Saber la calidad ayuda a validar el precio.',
+      'Toca las caritas para seleccionar la calidad.',
+    );
+  }
+
+  if (message.includes('peso valido')) {
+    return createGuidedError(
+      message,
+      'El peso está vacío o en cero.',
+      'Necesitamos saber cuántos kilos entraron.',
+      'Ingresa el peso exacto del café.',
+    );
+  }
+
+  if (message.includes('precio valido')) {
+    return createGuidedError(
+      message,
+      'Falta el precio por kilo.',
+      'El precio es necesario para dar el total.',
+      'Toca la casilla e ingresa el valor a pagar.',
+    );
+  }
+
+  if (message.includes('Selecciona un productor')) {
+    return createGuidedError(
+      message,
+      'Falta seleccionar el productor.',
+      'Debemos saber a quién corresponde la compra.',
+      'Selecciona Productor Generico o uno de la lista.',
+    );
+  }
+
+  return createGuidedError(
+    message,
+    'Problema guardando.',
+    'Hubo un fallo con los datos o la conexión.',
+    'Revisa si marcaste algún campo mal, o intenta de nuevo.',
+  );
+}
+
 export default function Compras() {
   const navigate = useNavigate();
-  const { user } = useUser();
   const [catalogos, setCatalogos] = useState<CatalogosCompra>({ tiposCafe: [], calidades: [] });
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
   const [fecha, setFecha] = useState(hoyLocal());
   const [sublotes, setSublotes] = useState<SubloteForm[]>([crearSubloteVacio()]);
   const [productorSeleccionado, setProductorSeleccionado] = useState<ProductorOption | null>(null);
-  const [productoresLocales, setProductoresLocales] = useState<ProductorOption[]>(() => cargarProductoresLocales());
+  const [productorSelectionMode, setProductorSelectionMode] = useState<ProductorSelectionMode>(null);
+  const [productores, setProductores] = useState<ProductorOption[]>([]);
   const [busquedaProductor, setBusquedaProductor] = useState('');
-  const [busquedaAplicada, setBusquedaAplicada] = useState('');
   const [mostrarModalProductor, setMostrarModalProductor] = useState(false);
   const [productorForm, setProductorForm] = useState<ProductorForm>({ nombre: '', telefono: '', documento: '' });
   const [productorFormError, setProductorFormError] = useState<string | null>(null);
@@ -362,45 +347,41 @@ export default function Compras() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
+  const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
+  const [mostrarModalCapacidad, setMostrarModalCapacidad] = useState(false);
+  const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
+  const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
+  const [registroErrorMensaje, setRegistroErrorMensaje] = useState<string | null>(null);
+  const [datosCapacidad, setDatosCapacidad] = useState<{
+    capacidadKg: number;
+    inventarioActual: number;
+    nuevoTotal: number;
+  } | null>(null);
+  const [datosAlerta80, setDatosAlerta80] = useState<{
+    capacidadKg: number;
+    inventarioActual: number;
+    nuevoTotal: number;
+    porcentaje: number;
+  } | null>(null);
+
   const [step, setStep] = useState<Step>(1);
   const [compraGuardada, setCompraGuardada] = useState<CompraGuardadaResumen | null>(null);
-  const [editingProductorId, setEditingProductorId] = useState<string | null>(null);
-  const [highlightedSubloteId, setHighlightedSubloteId] = useState<string | null>(null);
-  const compraDraft = useMemo<CompraDraft>(
-    () => ({
-      fecha,
-      sublotes,
-      productorSeleccionado,
-      busquedaProductor,
-      busquedaAplicada,
-      step,
-    }),
-    [busquedaAplicada, busquedaProductor, fecha, productorSeleccionado, step, sublotes],
-  );
-  const { clearDraft: clearCompraDraft, lastSavedAt } = useFormPersistence<CompraDraft>({
-    key: COMPRA_DRAFT_STORAGE_KEY,
-    value: compraDraft,
-    isEmpty: esCompraDraftVacio,
-    onRestore: (draft) => {
-      setFecha(draft.fecha || hoyLocal());
-      setSublotes(Array.isArray(draft.sublotes) && draft.sublotes.length > 0 ? draft.sublotes : [crearSubloteVacio()]);
-      setProductorSeleccionado(draft.productorSeleccionado ?? null);
-      setBusquedaProductor(draft.busquedaProductor ?? '');
-      setBusquedaAplicada(draft.busquedaAplicada ?? '');
-      setStep([1, 2, 3].includes(draft.step) ? draft.step : 1);
-    },
-  });
+  const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
+  const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] = useState(false);
 
   const cargarTodo = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [catalogosData, comprasData] = await Promise.all([
+      const [catalogosData, comprasData, productoresData] = await Promise.all([
         obtenerCatalogosCompra(),
         listarCompras(),
+        listarProductores(),
       ]);
       setCatalogos(catalogosData);
       setCompras(comprasData);
+      setProductores(productoresData.map(mapProductorToOption));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar la informacion de compras.');
     } finally {
@@ -412,11 +393,6 @@ export default function Compras() {
     void cargarTodo();
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    guardarProductoresLocales(productoresLocales);
-  }, [productoresLocales]);
-
   const tiposCafe = useMemo(() => ordenarCatalogos(catalogos.tiposCafe, ORDEN_TIPOS), [catalogos.tiposCafe]);
   const calidades = useMemo(() => ordenarCatalogos(catalogos.calidades, ORDEN_CALIDADES), [catalogos.calidades]);
   const nombreTipoCafePorId = useMemo(() => new Map(catalogos.tiposCafe.map((item) => [item.id, item.nombre])), [catalogos.tiposCafe]);
@@ -426,13 +402,35 @@ export default function Compras() {
     const totalCompra = sublotes.reduce((acc, sublote) => acc + (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0), 0);
     return { totalKg, totalCompra };
   }, [sublotes]);
-  const comprasHoy = useMemo(() => {
-    const hoy = hoyLocal();
-    return compras.filter((compra) => compra.fecha.slice(0, 10) === hoy).length;
-  }, [compras]);
-  const productoresRecientes = useMemo(() => {
-    const base = productoresLocales.length > 0 ? [...productoresLocales] : [...PRODUCTORES_RECIENTES];
-    const termino = normalizeSearchText(busquedaAplicada.trim());
+  const paso2Completo = useMemo(() => {
+    if (!fecha.trim()) {
+      return false;
+    }
+
+    return sublotes.every((sublote) => {
+      const peso = Number(sublote.pesoInicial);
+      const precio = Number(sublote.precioKg);
+      return (
+        Boolean(sublote.tipoCafeId) &&
+        Boolean(sublote.calidadId) &&
+        Number.isFinite(peso) &&
+        peso > 0 &&
+        Number.isFinite(precio) &&
+        precio > 0
+      );
+    });
+  }, [fecha, sublotes]);
+  const puedeRegistrarCompra =
+    Boolean(productorSeleccionado) &&
+    paso2Completo &&
+    sublotes.length > 0 &&
+    catalogos.tiposCafe.length > 0 &&
+    catalogos.calidades.length > 0 &&
+    !saving &&
+    !loading;
+  const productoresFiltrados = useMemo(() => {
+    const base = [...productores];
+    const termino = normalizeSearchText(busquedaProductor.trim());
 
     if (!termino) {
       return base.slice(0, LIMITE_PRODUCTORES_RECIENTES);
@@ -443,24 +441,19 @@ export default function Compras() {
         normalizeSearchText(valor).includes(termino),
       ),
     );
-  }, [busquedaAplicada, productoresLocales]);
-  const busquedaAplicadaActiva = busquedaAplicada.trim().length > 0;
-  const busquedaPendiente = busquedaProductor.trim() !== busquedaAplicada.trim();
+  }, [busquedaProductor, productores]);
   const pasoActual = datosPaso(step);
-  const inicialesUsuario = useMemo(() => {
-    const nombreBase = user?.name?.trim() ?? '';
-    if (!nombreBase) return 'PC';
-    return nombreBase
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((segmento) => segmento[0]?.toUpperCase() ?? '')
-      .join('');
-  }, [user?.name]);
+
+  const volverPasoAnterior = () => {
+    if (step > 1) {
+      irPasoAnterior();
+      return;
+    }
+
+    navigate(-1);
+  };
 
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
-    if (highlightedSubloteId === id) {
-      setHighlightedSubloteId(null);
-    }
     setSublotes((actual) => actual.map((sublote) => (sublote.id === id ? { ...sublote, [campo]: valor } : sublote)));
   };
 
@@ -478,96 +471,111 @@ export default function Compras() {
     });
   };
 
-  const abrirModalProductor = (productor?: ProductorOption) => {
+  const abrirModalProductor = () => {
     setError(null);
     setProductorFormError(null);
-    setEditingProductorId(productor?.id ?? null);
-    setProductorForm(
-      productor
-        ? {
-            nombre: productor.nombre,
-            telefono: productor.telefono ?? '',
-            documento: productor.documento === 'Documento pendiente' ? '' : productor.documento,
-          }
-        : { nombre: '', telefono: '', documento: '' },
-    );
+    setProductorForm({ nombre: '', telefono: '', documento: '' });
     setMostrarModalProductor(true);
   };
 
   const cerrarModalProductor = () => {
     setMostrarModalProductor(false);
-    setEditingProductorId(null);
     setProductorForm({ nombre: '', telefono: '', documento: '' });
     setProductorFormError(null);
-  };
-
-  const buscarProductor = () => {
-    setBusquedaAplicada(busquedaProductor.trim());
   };
 
   const seleccionarProductor = (productor: ProductorOption) => {
     setProductorSeleccionado(productor);
+    setProductorSelectionMode(productor.rapido ? 'generico' : 'buscar');
     setError(null);
   };
 
-  const guardarProductorLocal = () => {
+  const refrescarProductores = async () => {
+    try {
+      const productoresData = await listarProductores();
+      setProductores(productoresData.map(mapProductorToOption));
+    } catch {
+      // No interrumpe el flujo si falla la recarga del autocomplete.
+    }
+  };
+
+  const seleccionarBusqueda = () => {
+    setProductorSelectionMode('buscar');
+    if (productorSeleccionado?.id === PRODUCTOR_GENERAL.id) {
+      setProductorSeleccionado(null);
+    }
+    void refrescarProductores();
+    setError(null);
+  };
+
+  const seleccionarGenerico = () => {
+    setProductorSelectionMode('generico');
+    setProductorSeleccionado(PRODUCTOR_GENERAL);
+    setError(null);
+  };
+
+  const guardarProductorLocal = async () => {
     const nombre = productorForm.nombre.trim();
     const documento = productorForm.documento.trim();
+    const telefono = productorForm.telefono.trim();
 
     if (!nombre) {
-      setProductorFormError('Escribe el nombre del productor para guardarlo.');
+      setProductorFormError('Escribe al menos el nombre del productor.');
       return;
     }
 
-    if (productorForm.telefono && !isValidColombianPhone(productorForm.telefono, true)) {
-      setProductorFormError('El celular parece incompleto. Escribe los 10 digitos o dejalo vacio.');
+    if (!documento) {
+      setProductorFormError('La cédula o NIT es obligatoria.');
       return;
     }
 
-    const productorBase: ProductorOption = {
-      id: editingProductorId ?? generarId(),
-      nombre,
-      telefono: productorForm.telefono.trim(),
-      documento: documento || 'Documento pendiente',
-      detalle: productorForm.telefono.trim() || 'Productor agregado manualmente',
-    };
+    setBotonGuardarProductorPresionado(true);
 
-    const siguientes = editingProductorId
-      ? productoresLocales.map((productor) =>
-          productor.id === editingProductorId ? productorBase : productor,
-        )
-      : [productorBase, ...productoresLocales];
+    try {
+      const productorGuardado = await crearProductor({
+        nombre,
+        documento,
+        telefono: telefono || undefined,
+      });
 
-    guardarProductoresLocales(siguientes);
-    setProductoresLocales(siguientes);
-    setProductorSeleccionado(productorBase);
-    setBusquedaProductor(nombre);
-    setBusquedaAplicada(nombre);
-    setMostrarModalProductor(false);
-    setEditingProductorId(null);
-    setProductorForm({ nombre: '', telefono: '', documento: '' });
-    setProductorFormError(null);
-    setError(null);
+      const productorBase = mapProductorToOption(productorGuardado);
+
+      setProductores((actual) => [
+        productorBase,
+        ...actual.filter((productor) => productor.id !== productorBase.id),
+      ]);
+      setProductorSeleccionado(productorBase);
+      setProductorSelectionMode('buscar');
+      setBusquedaProductor(nombre);
+      setMostrarModalProductor(false);
+      setProductorForm({ nombre: '', telefono: '', documento: '' });
+      setProductorFormError(null);
+      setError(null);
+    } catch (err) {
+      setProductorFormError(
+        err instanceof Error ? err.message : 'No se pudo guardar el productor.',
+      );
+    } finally {
+      setBotonGuardarProductorPresionado(false);
+    }
   };
 
   const resetFormulario = () => {
     setFecha(hoyLocal());
     setSublotes([crearSubloteVacio()]);
     setProductorSeleccionado(null);
+    setProductorSelectionMode(null);
     setBusquedaProductor('');
-    setBusquedaAplicada('');
     setProductorFormError(null);
-    setEditingProductorId(null);
-    setHighlightedSubloteId(null);
+    setRegistroErrorMensaje(null);
+    setMostrarModalCancelar(false);
+    setMostrarModalConfirmar(false);
+    setMostrarModalAlerta80(false);
+    setAlerta80Mostrada(false);
+    setDatosAlerta80(null);
     setStep(1);
     setError(null);
     setWarning(null);
-  };
-
-  const editarSubloteDesdeRevision = (id: string) => {
-    setHighlightedSubloteId(id);
-    setStep(2);
-    setError(null);
   };
 
   const eliminarSubloteDesdeRevision = (id: string) => {
@@ -581,6 +589,10 @@ export default function Compras() {
   };
 
   const validarSublotes = () => {
+    if (!fecha.trim()) {
+      return 'Selecciona la fecha de compra.';
+    }
+
     if (catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0) {
       return 'Aun no hay catalogos disponibles para registrar la compra.';
     }
@@ -590,8 +602,8 @@ export default function Compras() {
       if (!Number.isFinite(Number(sublote.pesoInicial)) || Number(sublote.pesoInicial) <= 0) {
         return `Ingresa un peso valido para el sublote ${index + 1}.`;
       }
-      if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) <= 0) {
-        return `Ingresa un precio valido para el sublote ${index + 1}.`;
+      if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) < 1000) {
+        return `El precio por kilo debe ser mínimo $1,000 para el sublote ${index + 1}.`;
       }
     }
     return null;
@@ -601,9 +613,7 @@ export default function Compras() {
     setError(null);
     if (step === 1) {
       if (!productorSeleccionado) {
-        setError(
-          'Selecciona un productor o usa Productor genérico para continuar con una compra rápida.',
-        );
+        setError('Selecciona un productor para continuar.');
         return;
       }
       setStep(2);
@@ -625,23 +635,77 @@ export default function Compras() {
     setStep((actual) => Math.max(1, actual - 1) as Step);
   };
 
+  const validarCapacidadBodega = async (): Promise<boolean> => {
+    try {
+      const inventarioResumen = await obtenerInventarioResumen();
+      const capacidadKg = inventarioResumen.kgCapacidad;
+      const inventarioActual = inventarioResumen.kgActual;
+      const nuevoTotal = inventarioActual + resumen.totalKg;
+      const limiteWarning = capacidadKg * 0.8;
+      
+      if (nuevoTotal > capacidadKg) {
+        setDatosCapacidad({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+        });
+        setMostrarModalCapacidad(true);
+        return false; // No continuar automáticamente
+      }
+      
+      // Warning informativo al 80% - mostrar modal y bloquear solo si no se ha mostrado antes
+      if (nuevoTotal >= limiteWarning && !alerta80Mostrada) {
+        setDatosAlerta80({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+          porcentaje: Math.round((nuevoTotal / capacidadKg) * 100),
+        });
+        setMostrarModalAlerta80(true);
+        setAlerta80Mostrada(true);
+        return false; // No continuar automáticamente hasta cerrar modal
+      }
+      
+      return true; // Puede continuar directamente
+    } catch (error) {
+      // Si falla la validación, permitir continuar (offline-first)
+      console.warn('No se pudo validar capacidad, permitiendo continuar:', error);
+      return true;
+    }
+  };
+
   const guardarCompra = async () => {
+    setRegistroErrorMensaje(null);
+    if (!productorSeleccionado) {
+      setError('Selecciona un productor para continuar.');
+      setStep(1);
+      return;
+    }
     const mensajeValidacion = validarSublotes();
     if (mensajeValidacion) {
       setError(mensajeValidacion);
       return;
     }
+    
+    // Validar capacidad antes de mostrar modal de confirmación
+    const puedeContinuar = await validarCapacidadBodega();
+    if (!puedeContinuar) {
+      return; // El modal de capacidad se mostrará
+    }
+    
     setSaving(true);
+    setBotonRegistrarPresionado(true);
     setError(null);
     setWarning(null);
     try {
       const compraLocalId = generarId();
-      const deviceId = obtenerDeviceId();
+      const deviceId = await obtenerDeviceId();
       const fechaActual = fecha.trim() || hoyLocal();
       setFecha(fechaActual);
       const fechaNormalizada = toIsoDateAtUtcNoon(fechaActual);
       const payload = {
         ...(fechaNormalizada ? { fecha: fechaNormalizada } : {}),
+        ...(!productorSeleccionado.rapido ? { productorId: productorSeleccionado.id } : {}),
         deviceId,
         localId: compraLocalId,
         sublotes: sublotes.map((sublote) => ({
@@ -656,419 +720,392 @@ export default function Compras() {
       const respuesta = await crearCompra(payload);
       if (respuesta.warning) setWarning(respuesta.warning);
       setCompraGuardada({
-        fecha: respuesta.compra?.fecha ?? fechaNormalizada ?? new Date().toISOString(),
-        productorNombre: productorSeleccionado?.nombre ?? PRODUCTOR_GENERAL.nombre,
-        productorDocumento: productorSeleccionado?.documento ?? PRODUCTOR_GENERAL.documento,
+        fecha: respuesta.compra.fecha,
+        productorNombre: productorSeleccionado.nombre,
+        productorDocumento: productorSeleccionado.documento,
         totalKg: resumen.totalKg,
         totalCompra: Number(respuesta.compra.totalCompra),
         sublotes: sublotes.map((sublote) => {
           const peso = Number(sublote.pesoInicial) || 0;
-          const precio = Number(sublote.precioKg) || 0;
           return {
             id: sublote.id,
             tipoCafe: nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café',
             calidad: nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad',
             pesoInicial: peso,
-            subtotal: peso * precio,
           };
         }),
       });
       const comprasActualizadas = await listarCompras();
       setCompras(comprasActualizadas);
-      clearCompraDraft();
       resetFormulario();
     } catch (err) {
-      setError(construirMensajeAmigableCompra(err));
+      const mensaje = err instanceof Error ? err.message : 'No se pudo guardar la compra.';
+      setRegistroErrorMensaje(mensaje);
+      setError(null);
     } finally {
       setSaving(false);
+      setBotonRegistrarPresionado(false);
+      setMostrarModalConfirmar(false);
     }
+  };
+
+  const confirmarCompraConAdvertencia = async () => {
+    setMostrarModalCapacidad(false);
+    setMostrarModalConfirmar(true);
+  };
+
+  const cerrarModalConfirmar = () => {
+    setMostrarModalConfirmar(false);
+    setBotonRegistrarPresionado(false);
+  };
+
+  const confirmarCancelarCompra = () => {
+    resetFormulario();
+    navigate(-1);
+  };
+
+  const volverDesdeError = () => {
+    setRegistroErrorMensaje(null);
+    setStep(3);
   };
 
   if (compraGuardada) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
-        <div className="mx-auto flex w-full max-w-[520px] flex-col gap-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setCompraGuardada(null)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm" title="Volver atrás">
-                <ArrowLeft size={18} />
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
+          <div className="w-full rounded-[28px] border border-[#dfe5f3] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
+            <div className="text-center">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#edf3ff]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#19b881] text-white">
+                  <Check size={30} strokeWidth={3} />
+                </div>
+              </div>
+              <h1 className="mt-6 text-[2rem] font-semibold text-[#1f3f97]">Compra registrada</h1>
+              <p className="mt-2 text-[1.04rem] text-slate-500">La compra se guardó correctamente.</p>
+            </div>
+
+            <section className="mt-7 rounded-[18px] border border-[#dfe5f3] bg-[#fbfcff] p-4">
+              <p className="text-[0.92rem] font-semibold text-slate-600">Resumen de compra</p>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
+                  <span className="text-[0.98rem] text-slate-600">Productor</span>
+                  <span className="text-[1.02rem] font-semibold text-slate-900">{compraGuardada.productorNombre}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
+                  <span className="text-[0.98rem] text-slate-600">Total kg</span>
+                  <span className="text-[1.02rem] font-semibold text-slate-900">{Math.round(compraGuardada.totalKg)} kg</span>
+                </div>
+                <div className="flex items-center justify-between rounded-[12px] bg-[#eef3ff] px-3 py-2.5">
+                  <span className="text-[0.98rem] font-black uppercase tracking-[0.03em] text-slate-700">Total pagado</span>
+                  <span className="text-[1.8rem] font-black text-[#1f3f97]">{formatoMoneda(compraGuardada.totalCompra)}</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="mt-7 grid gap-3">
+              <button type="button" onClick={() => setCompraGuardada(null)} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)]">
+                Registrar nueva compra
               </button>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Café Smart</p>
-                <p className="text-base font-black text-[#102d92]">Compra registrada</p>
-              </div>
+              <button type="button" onClick={() => navigate('/inventario')} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]">
+                Ir a inventario
+              </button>
             </div>
-            <CloudStatusBadge />
-          </div>
-
-          <section className="px-4 pt-2 text-center">
-            <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-white shadow-[0_16px_40px_rgba(16,45,146,0.08)]">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#102d92] text-white">
-                <Check size={28} strokeWidth={3} />
-              </div>
-            </div>
-            <h1 className="mt-8 text-[1.85rem] font-black uppercase tracking-[0.03em] text-[#102d92]">Compra registrada</h1>
-            <p className="mt-3 text-base leading-7 text-slate-600">Tu compra fue registrada correctamente. Ahora puedes verla reflejada en el inventario.</p>
-          </section>
-
-          <section className="rounded-[28px] border border-[#e6e8f3] bg-[#f7f8ff] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">Productor</p>
-            <p className="mt-3 text-[1.6rem] font-black leading-tight text-[#102d92]">{compraGuardada.productorNombre}</p>
-            <p className="mt-1 text-sm text-slate-500">{compraGuardada.productorDocumento}</p>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-[22px] bg-white p-4 shadow-sm">
-                <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-500">Total kg</p>
-                <p className="mt-3 text-[1.75rem] font-black text-slate-900">{Math.round(compraGuardada.totalKg)}</p>
-                <p className="text-lg font-semibold text-slate-500">kg</p>
-              </div>
-              <div className="rounded-[22px] bg-white p-4 shadow-sm">
-                <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-500">Total pagado</p>
-                <p className="mt-3 text-[1.35rem] font-black leading-tight text-slate-900">{formatoMoneda(compraGuardada.totalCompra)}</p>
-              </div>
-            </div>
-          </section>
-
-          <div className="grid gap-3">
-            <button type="button" onClick={() => setCompraGuardada(null)} className="inline-flex items-center justify-center gap-3 rounded-[22px] bg-[#102d92] px-5 py-4 text-sm font-black uppercase tracking-[0.03em] text-white shadow-[0_18px_45px_rgba(16,45,146,0.22)]">
-              <ShoppingBag size={20} />
-              Registrar nueva compra
-            </button>
-            <button type="button" onClick={() => navigate('/inventario')} className="inline-flex items-center justify-center gap-3 rounded-[22px] bg-[#8ee7e3] px-5 py-4 text-sm font-black uppercase tracking-[0.03em] text-[#0b565d]">
-              <Warehouse size={20} />
-              Ir a inventario
-            </button>
-            <button type="button" onClick={() => navigate('/inicio')} className="inline-flex items-center justify-center gap-3 px-5 py-3 text-lg font-black text-[#102d92]">
-              Volver al inicio
-            </button>
           </div>
         </div>
-      <AppBottomNav />
-    </div>
+      </div>
   );
 }
 
+  if (registroErrorMensaje) {
+    return (
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
+          <div className="w-full rounded-[28px] border border-[#f0d6da] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
+            <div className="text-center">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#fff0f2]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e24c5a] text-white">
+                  <AlertTriangle size={30} strokeWidth={2.8} />
+                </div>
+              </div>
+              <h1 className="mt-6 text-[1.8rem] font-semibold text-[#a02936]">Error al registrar la compra</h1>
+              <p className="mt-2 text-[1rem] text-slate-500">Ocurrió un problema al guardar la información. Intenta nuevamente.</p>
+              <p className="mt-3 rounded-[12px] bg-[#fff5f6] px-3 py-2 text-[0.92rem] text-[#a02936]">{registroErrorMensaje}</p>
+            </div>
+
+            <div className="mt-7 grid gap-3">
+              <button type="button" onClick={() => void guardarCompra()} disabled={saving} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+                {saving ? 'Reintentando...' : 'Reintentar'}
+              </button>
+              <button type="button" onClick={volverDesdeError} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]">
+                Volver a editar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
-      <header className="border-b border-white/80 bg-[rgba(247,245,255,0.86)] px-4 py-4 backdrop-blur">
-        <div className="mx-auto w-full max-w-[520px]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#173ea6] text-sm font-black text-white">
-              {inicialesUsuario}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[1.2rem] font-black leading-tight text-[#111827]">Gestión de Café</p>
-              <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Registro de compra</p>
-            </div>
+      <header className="mx-auto w-full max-w-[520px] px-4 py-4 pt-6">
+        <div className="relative flex items-center justify-center">
+          <button
+            type="button"
+            onClick={volverPasoAnterior}
+            className="absolute left-0 text-slate-900 transition hover:opacity-75"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Compra</h1>
+        </div>
+
+        <div className="mt-8">
+          <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
+            <span>{step === 2 ? 'Paso 2: Seleccionar café' : `Paso ${step}: ${pasoActual.titulo}`}</span>
+            <span>{step} de 3</span>
           </div>
-          <div>
-            <CloudStatusBadge compact className="max-w-[220px]" />
+          <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
+            <div
+              className="h-full rounded-full bg-[#04337b] transition-all duration-300"
+              style={{ width: `${pasoActual.progreso}%` }}
+            />
           </div>
+          {step === 1 ? (
+            <p className="mt-3 text-[0.98rem] text-slate-500">Selecciona cómo deseas elegir el productor</p>
+          ) : null}
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[520px] flex-col gap-5 py-6">
-        <section className="space-y-3 px-1">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-[1.55rem] font-black leading-[1.02] text-[#102d92]">{pasoActual.titulo}</h1>
-              <p className="mt-2 text-[0.92rem] leading-6 text-slate-600">{pasoActual.descripcion}</p>
-            </div>
-            <div className="inline-flex rounded-full bg-[#86e7e2] px-3 py-2 text-[11px] font-black text-[#0b565d]">{pasoActual.chip}</div>
-          </div>
-          <div className="h-3 overflow-hidden rounded-full bg-[#dfe6f4]">
-          <div 
-            className="h-full rounded-full bg-[#173ea6] transition-all duration-300"
-            style={{ width: `${pasoActual.progreso}%` }}
-          />
-          </div>
-          {lastSavedAt ? (
-            <p className="text-xs font-semibold text-slate-500">
-              Borrador guardado automaticamente a las {formatoHoraBorrador(lastSavedAt)}.
-            </p>
-          ) : null}
-        </section>
+      <main className="mx-auto flex w-full max-w-[520px] flex-col gap-5 py-2">
 
         {step === 1 ? (
           <section className="flex flex-col gap-4">
-            <div className="order-2 flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={busquedaProductor}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setBusquedaProductor(value);
-                    if (!value.trim()) {
-                      setBusquedaAplicada('');
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      buscarProductor();
-                    }
-                  }}
-                  placeholder="Buscar por nombre, cédula o código..."
-                  className="w-full rounded-[18px] border border-[#e3e7f2] bg-white px-12 py-3.5 text-base text-slate-900 outline-none transition focus:border-[#173ea6]"
-                />
+            <button
+              type="button"
+              onClick={seleccionarBusqueda}
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
+                productorSelectionMode === 'buscar'
+                  ? 'border-[#1f3fa7] bg-[#f4f7ff]'
+                  : 'border-[#e3e7f3] bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                    productorSelectionMode === 'buscar'
+                      ? 'bg-[#1f3fa7] text-white'
+                      : 'bg-[#eef2f7] text-slate-500'
+                  }`}
+                >
+                  <Search size={20} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Buscar productor</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Selecciona un productor registrado</p>
+                </div>
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+                    productorSelectionMode === 'buscar'
+                      ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+                      : 'border-[#cad2e2] bg-white text-transparent'
+                  }`}
+                >
+                  <Check size={14} />
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={buscarProductor}
-                className="inline-flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] border border-[#dfe5f2] bg-white text-[#102d92] shadow-sm"
-                title="Buscar productor"
-              >
-                <Search size={18} />
-              </button>
-            </div>
-            {busquedaPendiente ? (
-              <p className="order-3 text-sm text-slate-500">Pulsa la lupa para buscar el productor escrito.</p>
+            </button>
+
+            {productorSelectionMode === 'buscar' ? (
+              <div className="space-y-3 rounded-[18px] border border-[#e4e9f5] bg-white p-3">
+                <div className="relative">
+                  <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={busquedaProductor}
+                    onChange={(event) => setBusquedaProductor(event.target.value)}
+                    placeholder="Nombre o identificación..."
+                    className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-11 py-3 text-[0.98rem] text-slate-900 outline-none transition focus:border-[#1f3fa7]"
+                  />
+                </div>
+
+                <div className="max-h-[230px] space-y-2 overflow-y-auto pr-1">
+                  {productoresFiltrados.map((productor) => {
+                    const activo = productorSeleccionado?.id === productor.id;
+
+                    return (
+                      <button
+                        key={productor.id}
+                        type="button"
+                        onClick={() => seleccionarProductor(productor)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-[14px] border px-3 py-3 text-left transition ${
+                          activo
+                            ? 'border-[#1f3fa7] bg-[#f4f7ff]'
+                            : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[0.98rem] font-medium text-slate-900">{productor.nombre}</p>
+                          <p className="mt-0.5 text-[0.86rem] text-slate-500">{productor.documento}</p>
+                        </div>
+                        <span
+                          className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border ${
+                            activo
+                              ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+                              : 'border-[#cad2e2] bg-white text-transparent'
+                          }`}
+                        >
+                          <Check size={12} />
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {productoresFiltrados.length === 0 ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
+                      No se encontraron productores con ese criterio.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
 
             <button
               type="button"
-              onClick={() => seleccionarProductor(PRODUCTOR_GENERAL)}
-              className={`order-1 w-full rounded-[20px] border px-4 py-4 text-left shadow-sm transition ${
-                productorSeleccionado?.id === PRODUCTOR_GENERAL.id
-                  ? 'border-[#173ea6] bg-[#eef3ff] text-[#102d92] shadow-[0_0_0_2px_rgba(23,62,166,0.08)]'
-                  : 'border-[#d6e2ff] bg-[#eef3ff] text-[#102d92]'
+              onClick={seleccionarGenerico}
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
+                productorSelectionMode === 'generico'
+                  ? 'border-[#1f3fa7] bg-[#f4f7ff]'
+                  : 'border-[#e3e7f3] bg-white'
               }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[1.08rem] font-black leading-tight">Productor General</p>
-                  <p className="mt-2 max-w-[260px] text-[0.9rem] leading-6 text-slate-600">
-                    Úsalo cuando la persona no tiene tiempo de registrar sus datos en este momento.
-                  </p>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                    productorSelectionMode === 'generico'
+                      ? 'bg-[#1f3fa7] text-white'
+                      : 'bg-[#eef2f7] text-slate-500'
+                  }`}
+                >
+                  <User size={20} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Productor genérico</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Compra rápida sin registrar productor</p>
                 </div>
-                <div className="rounded-full bg-[#dce8ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">
-                  {productorSeleccionado?.id === PRODUCTOR_GENERAL.id ? 'Seleccionado' : 'Rápido'}
-                </div>
-              </div>
-              <div className="mt-4 inline-flex items-center gap-2 text-sm font-black text-[#102d92]">
-                Compra rápida sin registrar productor
-                <ArrowRight size={16} />
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+                    productorSelectionMode === 'generico'
+                      ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+                      : 'border-[#cad2e2] bg-white text-transparent'
+                  }`}
+                >
+                  <Check size={14} />
+                </span>
               </div>
             </button>
 
             <button
               type="button"
-              onClick={() => abrirModalProductor()}
-              className="order-4 inline-flex w-full items-center justify-center gap-3 rounded-[18px] border border-dashed border-[#b7c6ef] bg-white px-5 py-3.5 text-[0.95rem] font-black text-[#102d92]"
+              onClick={abrirModalProductor}
+              className="w-full rounded-[20px] border border-[#e3e7f3] bg-white px-4 py-3.5 text-left transition hover:border-[#ccd6ea]"
             >
-              <Plus size={18} />
-              Registrar Productor
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-slate-600">
+                  <UserPlus size={20} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Registrar productor</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Crear un nuevo productor</p>
+                </div>
+              </div>
             </button>
 
-            <div className="order-5">
-              <p className="text-sm font-black uppercase tracking-[0.24em] text-slate-400">Productores recientes</p>
-              <div className="mt-4 space-y-3">
-                {productoresRecientes.map((productor) => {
-                  const esLocal = productoresLocales.some((item) => item.id === productor.id);
-
-                  return (
-                    <div key={productor.id} className="flex items-center gap-3 rounded-[22px] border border-[#eceffa] bg-[#f8f8ff] px-4 py-4 shadow-sm">
-                      <button type="button" onClick={() => seleccionarProductor(productor)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
-                        <div className="flex min-w-0 items-center gap-4">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[#102d92] shadow-sm">
-                            {productor.nombre.slice(0, 1).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[1.05rem] font-black leading-tight text-[#102d92]">{productor.nombre}</p>
-                            <p className="mt-1 text-sm text-slate-600">{productor.documento}</p>
-                            <p className="text-sm text-slate-500">{productor.detalle}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={18} className="shrink-0 text-slate-400" />
-                      </button>
-
-                      {esLocal ? (
-                        <button
-                          type="button"
-                          onClick={() => abrirModalProductor(productor)}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
-                          title="Editar productor"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      ) : null}
-                    </div>
-                  );
-                })}
-
-                {productoresRecientes.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-[#d7dcec] bg-white px-4 py-10 text-center text-sm text-slate-500">
-                    {busquedaAplicadaActiva
-                      ? 'No encontré productores con esa búsqueda. Prueba con otro dato o registra uno nuevo.'
-                      : 'Aún no hay productores recientes para mostrar. Puedes usar Productor General o registrar uno nuevo.'}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <article className="order-6 rounded-[24px] border border-[#eceffa] bg-[#f4f5ff] p-5 shadow-sm">
-              <div className="mb-5 rounded-[18px] border border-[#d9e4ff] bg-white px-4 py-4">
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">
+            {productorSeleccionado ? (
+              <article className="mt-2 rounded-[16px] border border-[#e4e9f5] bg-white px-4 py-3.5">
+                <p className="text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-slate-500">
                   Productor seleccionado
                 </p>
-                {productorSeleccionado ? (
-                  <div className="mt-3 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-black text-[#102d92]">{productorSeleccionado.nombre}</p>
-                      <p className="mt-1 text-sm text-slate-500">{productorSeleccionado.documento}</p>
-                      <p className="mt-1 text-sm text-slate-500">{productorSeleccionado.detalle}</p>
-                    </div>
-                    <span className="rounded-full bg-[#eef3ff] px-3 py-1 text-[11px] font-black text-[#173ea6]">
-                      Listo
-                    </span>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1f3fa7] text-white">
+                    <User size={16} />
+                  </span>
+                  <div>
+                    <p className="text-[1rem] font-semibold text-slate-900">{productorSeleccionado.nombre}</p>
+                    <p className="text-[0.88rem] text-slate-500">
+                      {productorSeleccionado.rapido ? 'Compra rápida' : productorSeleccionado.documento}
+                    </p>
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-500">
-                    Selecciona un productor, usa Productor genérico o registra uno nuevo para continuar.
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Total productores</p>
-                  <p className="mt-3 text-[2rem] font-black leading-none text-[#102d92]">{productoresLocales.length + 1}</p>
                 </div>
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Compras hoy</p>
-                  <p className="mt-3 text-[2rem] font-black leading-none text-[#102d92]">{loading ? '...' : comprasHoy}</p>
-                </div>
-              </div>
-              <div className="mt-5 flex items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-3">
-                <div>
-                  <p className="text-base font-black text-[#0f766e]">Base de datos actualizada</p>
-                  <p className="text-sm text-slate-500">Catalogos y compras recientes listos.</p>
-                </div>
-                <button type="button" onClick={() => void cargarTodo()} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]" title="Actualizar base de datos">
-                  <RefreshCcw size={16} />
-                </button>
-              </div>
-            </article>
+              </article>
+            ) : null}
 
             {error ? (
-              <div className="order-7 rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                {error}
-              </div>
+              <InlineGuidedError message={getComprasGuidance(error)} />
             ) : null}
 
             <button
               type="button"
               onClick={irSiguientePaso}
-              className="order-8 inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]"
+              disabled={!productorSeleccionado}
+              className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.1rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Siguiente paso
-              <ArrowRight size={18} />
+              <ArrowRight size={20} />
             </button>
           </section>
         ) : null}
 
         {step === 2 ? (
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={irPasoAnterior} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm" title="Ir al paso anterior">
-                <ArrowLeft size={18} />
-              </button>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Productor seleccionado</p>
-                <p className="text-[1.05rem] font-semibold text-slate-600">
-                  {productorSeleccionado?.nombre ?? 'Sin productor seleccionado'}
-                </p>
-              </div>
-            </div>
-
             {sublotes.map((sublote, index) => {
-              const tipoNombre = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? `Producto ${index + 1}`;
-              const calidadNombre = nombreCalidadPorId.get(sublote.calidadId) ?? 'Sin calidad';
-              const subtotal = (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0);
+              const tipoNombre = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? `Café ${index + 1}`;
 
               return (
                 <article
                   key={sublote.id}
-                  className={`rounded-[26px] border bg-[#f6f7ff] p-5 shadow-sm ${
-                    highlightedSubloteId === sublote.id
-                      ? 'border-[#173ea6] shadow-[0_0_0_2px_rgba(23,62,166,0.08)]'
-                      : 'border-[#eceffa]'
-                  }`}
+                  className="rounded-[26px] border border-[#eceffa] bg-[#f6f7ff] p-5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[1.6rem] font-black leading-tight text-[#102d92]">Producto {index + 1}</p>
-                      <p className="mt-1 text-base text-slate-500">Carga de la compra</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => eliminarSublote(sublote.id)}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
-                      title={sublotes.length === 1 ? 'Limpiar producto' : 'Eliminar producto'}
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
 
-                  <div className="mt-5 rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Fecha de compra</p>
-                    <div className="mt-3 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
+                  <div className="rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
+                    <p className="text-[0.9rem] font-semibold tracking-[0.04em] text-slate-500">Fecha de compra</p>
+                    <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
                       <CalendarDays size={18} className="text-[#102d92]" />
-                      <label className="block text-sm font-bold text-slate-600">
-                        Fecha de compra
-                      </label>
                       <input
                         type="date"
                         value={fecha}
                         max={hoyLocal()}
                         onChange={(event) => setFecha(event.target.value)}
-                        className="w-full bg-transparent text-sm font-black text-[#102d92] outline-none"
-                        aria-label="Fecha de compra"
+                        className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
                       />
                     </div>
                   </div>
 
-                  <div className="mt-6">
-                    <p className="mb-3 text-[1.05rem] font-black text-slate-900">Tipo de Café</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {tiposCafe.map((tipoCafe) => {
-                        const activo = sublote.tipoCafeId === tipoCafe.id;
-                        const visualTipo = iconoTipoCafe(tipoCafe.nombre);
-                        return (
-                          <button
-                            key={tipoCafe.id}
-                            type="button"
-                            onClick={() =>
-                              actualizarSublote(sublote.id, 'tipoCafeId', tipoCafe.id)
-                            }
-                            className={`rounded-[18px] border px-3 py-3 text-sm font-black transition ${
-                              activo
-                                ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]'
-                                : `${visualTipo.borde} bg-white/85 text-slate-700 hover:bg-white`
-                            }`}
-                          >
-                            <span className="flex flex-col items-center gap-1.5">
-                              <span
-                                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${
-                                  activo ? 'bg-[#e8efff] text-[#173ea6]' : visualTipo.fondo
-                                }`}
-                              >
-                                {visualTipo.icono}
-                              </span>
-                              <span className="text-xs font-black uppercase tracking-[0.08em]">
-                                {tipoCafe.nombre}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })}
+                  <div className="mt-5">
+                    <p className="mb-2.5 text-[0.95rem] font-semibold text-slate-600">Tipo de café</p>
+                    <div className="relative">
+                      <select
+                        value={sublote.tipoCafeId}
+                        onChange={(event) =>
+                          actualizarSublote(sublote.id, 'tipoCafeId', event.target.value)
+                        }
+                          className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${
+                          sublote.tipoCafeId ? 'border-[#dfe5f2] font-semibold text-slate-900' : 'border-[#dfe5f2] font-medium text-slate-400'
+                        }`}
+                      >
+                        <option value="">Seleccione tipo (ej. Verde, Seco)</option>
+                        {tiposCafe.map((tipoCafe) => (
+                          <option key={tipoCafe.id} value={tipoCafe.id}>
+                            {tipoCafe.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      <ArrowRight size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-slate-400" />
                     </div>
                   </div>
 
-                  <div className="mt-6">
-                    <p className="mb-3 text-[1.05rem] font-black text-slate-900">Calidad</p>
+                  <div className="mt-5">
+                    <p className="mb-2.5 text-[0.95rem] font-semibold text-slate-600">Calidad</p>
                     <div className="grid grid-cols-3 gap-3">
                       {calidades.map((calidad) => {
                         const activo = sublote.calidadId === calidad.id;
@@ -1080,21 +1117,21 @@ export default function Compras() {
                             onClick={() =>
                               actualizarSublote(sublote.id, 'calidadId', calidad.id)
                             }
-                            className={`rounded-[18px] border px-2 py-3 text-sm font-black transition ${
+                            className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
                               activo
-                                ? 'border-[#173ea6] bg-white text-[#173ea6] shadow-[0_8px_20px_rgba(16,45,146,0.1)]'
+                                ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white shadow-[0_8px_20px_rgba(16,45,146,0.18)]'
                                 : `${visual.borde} bg-white/85 text-slate-700 hover:bg-white`
                             }`}
                           >
                             <span className="flex flex-col items-center gap-1.5">
                               <span
                                 className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
-                                  activo ? 'bg-[#e8efff] text-[#173ea6]' : visual.fondo
+                                  activo ? 'bg-white/20 text-white' : visual.fondo
                                 }`}
                               >
                                 {visual.icono}
                               </span>
-                              <span className="text-[11px] font-black uppercase tracking-[0.08em]">
+                              <span className={`text-[11px] font-semibold ${activo ? 'text-white' : ''}`}>
                                 {calidad.nombre}
                               </span>
                             </span>
@@ -1104,137 +1141,108 @@ export default function Compras() {
                     </div>
                   </div>
 
-<div className="mt-6 rounded-[22px] bg-white p-5">
-  <label className="block text-base font-black text-slate-900">Peso (kg)</label>
-  <input 
-    type="number" 
-    min="0.01" 
-    step="0.01" 
-    value={sublote.pesoInicial} 
-    onChange={(event) => actualizarSublote(sublote.id, 'pesoInicial', event.target.value)} 
-    className="mt-3 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.8rem] font-black text-slate-900 outline-none focus:border-[#102d92]" 
-    placeholder="0.00 kg" 
-    title="Ingresa el peso en kilogramos"
-    aria-label="Peso en kilogramos" 
-  />
-
-                    <div className="mt-5 grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="mb-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">Tipo elegido</p>
-                        <div className="rounded-[16px] bg-[#f5f6fb] px-4 py-4 text-lg font-black text-slate-700">{tipoNombre}</div>
-                      </div>
-                      <div>
-                        <p className="mb-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">Calidad</p>
-                        <div className="rounded-[16px] bg-[#f5f6fb] px-4 py-4 text-lg font-black text-slate-700">{calidadNombre}</div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="mt-5 rounded-[22px] bg-white p-5">
-                    <div>
-                      <p className="text-base font-black text-slate-900">Precio a pagar (kg)</p>
-                      <p className="mt-1 text-sm text-slate-500">Precio sugerido: $14.500</p>
-                    </div>
-                    <input 
-                      type="number" 
-                      min="0.1" 
-                      step="0.01" 
-                      value={sublote.precioKg} 
-                      onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)} 
-                      className="mt-4 w-full rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4 text-[1.85rem] font-black text-[#173ea6] outline-none focus:border-[#102d92]" 
-                      placeholder="14500" 
-                      title="Ingresa el precio en pesos por kilogramo"
-                      aria-label="Precio a pagar por kilogramo" 
-                    />
-                  </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[0.95rem] font-semibold text-slate-600">Peso (kg)</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={sublote.pesoInicial}
+                          onChange={(event) => actualizarSublote(sublote.id, 'pesoInicial', event.target.value)}
+                          className="mt-2.5 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none focus:border-[#102d92] placeholder:text-slate-300"
+                          placeholder="ej. 25"
+                        />
+                      </div>
 
-                  <div className="mt-5 rounded-[22px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92]">
-                    <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Subtotal del producto</p>
-                    <p className="mt-3 text-[2rem] font-black leading-none">{formatoMoneda(subtotal)}</p>
+                      <div>
+                        <label className="block text-[0.95rem] font-semibold text-slate-600">Precio x kg</label>
+                        <div className="mt-2.5 flex items-center rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4">
+                          <span className="mr-3 text-[1.6rem] font-semibold text-[#173ea6]">$</span>
+                          <input
+                            type="number"
+                            min="0.1"
+                            step="0.01"
+                            value={sublote.precioKg}
+                            onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)}
+                            className="w-full bg-transparent text-[1.6rem] font-semibold text-[#173ea6] outline-none placeholder:text-slate-300"
+                            placeholder="ej. 14.000"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </article>
               );
             })}
 
-            <button type="button" onClick={agregarSublote} className="inline-flex w-full min-h-[56px] items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#ccd4e8] bg-white px-5 py-4 text-sm font-black text-[#102d92]">
+            <button type="button" onClick={agregarSublote} className="inline-flex w-full min-h-[56px] items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#ccd4e8] bg-white px-5 py-4 text-sm font-semibold text-[#102d92]">
               <Plus size={20} />
-              Agregar Producto
+              Agregar más café
             </button>
 
             <article className="rounded-[24px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92] shadow-sm">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Resumen de peso</p>
-              <p className="mt-4 text-[2.1rem] font-black leading-none">{resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</p>
-              <p className="mt-2 text-lg font-semibold text-[#5b6f9d]">kg totales</p>
-              <div className="mt-6 border-t border-[#d6e2ff] pt-5">
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#5b6f9d]">Total estimado</p>
-                <p className="mt-3 text-[1.9rem] font-black leading-none">{formatoMoneda(resumen.totalCompra)}</p>
+              <p className="text-sm font-black text-[#5b6f9d]">Resumen de peso</p>
+              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[#d6e2ff] pt-5">
+                <div>
+                  <p className="text-sm font-black text-[#5b6f9d]">Total kg:</p>
+                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">
+                    {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-[#5b6f9d]">Total estimado:</p>
+                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">{formatoMoneda(resumen.totalCompra)}</p>
+                </div>
               </div>
             </article>
 
-            {error ? <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{error}</div> : null}
+            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={irPasoAnterior} className="inline-flex min-h-[56px] items-center justify-center rounded-[20px] bg-[#edf1fa] px-5 py-4 text-sm font-black text-slate-500">Atrás</button>
-              <button type="button" onClick={irSiguientePaso} className="inline-flex min-h-[56px] items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)]">
-                Siguiente paso
-                <ArrowRight size={18} />
+            <div className="grid gap-3">
+              <button type="button" onClick={irSiguientePaso} disabled={!paso2Completo} className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] disabled:cursor-not-allowed disabled:opacity-50">
+                Siguiente Paso
+                <ArrowRight size={22} />
               </button>
+              <button type="button" onClick={irPasoAnterior} className="inline-flex min-h-[56px] w-full items-center justify-center rounded-[20px] bg-[#edf1fa] px-5 py-4 text-sm font-semibold text-slate-500">Regresar</button>
             </div>
           </section>
         ) : null}
 
         {step === 3 ? (
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={irPasoAnterior} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm" title="Ir al paso anterior">
-                <ArrowLeft size={18} />
-              </button>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Paso 3 de 3</p>
-                <p className="text-[1.05rem] font-semibold text-slate-600">Finalizar registro</p>
+            <article className="rounded-[24px] border border-[#e2e8f4] bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2 text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                <CalendarDays size={14} />
+                <span>Datos de la compra</span>
               </div>
-            </div>
-
-            <article className="rounded-[24px] border border-[#e6e8f3] bg-white p-5 shadow-sm">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Datos del productor</p>
-              <div className="mt-4 space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-500">Nombre</p>
-                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">
-                    {productorSeleccionado?.nombre ?? 'Sin productor seleccionado'}
-                  </p>
+              <div className="space-y-4 rounded-[16px] border border-[#e6eaf3] bg-[#fbfcff] px-4 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Productor</span>
+                  <span className="text-[1.25rem] font-semibold text-slate-900">{productorSeleccionado?.nombre ?? 'Sin productor'}</span>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-500">Cédula / ID</p>
-                  <p className="mt-1 text-[1.45rem] font-black leading-tight text-slate-900">
-                    {productorSeleccionado?.documento ?? 'Sin documento'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-500">Fecha</p>
-                  <div className="mt-2 flex items-center gap-3 rounded-[18px] border border-[#dfe5f2] bg-[#f8f9ff] px-4 py-3">
-                    <CalendarDays size={18} className="text-[#102d92]" />
-                    <input
-                      type="date"
-                      value={fecha}
-                      max={hoyLocal()}
-                      onChange={(event) => setFecha(event.target.value)}
-                      className="w-full bg-transparent text-[1rem] font-black text-[#102d92] outline-none"
-                      title="Seleccionar fecha de compra"
-                    />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-500">Se registra por defecto con la fecha de hoy, pero puedes corregirla si es una compra anterior.</p>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Fecha</span>
+                  <span className="text-[1.25rem] font-semibold text-slate-900">{formatoFecha(fecha)}</span>
                 </div>
               </div>
             </article>
 
-            <div>
-              <p className="px-1 text-sm font-black uppercase tracking-[0.24em] text-slate-400">Carrito de compra</p>
-              <div className="mt-4 space-y-3">
+            <section>
+              <div className="mb-2 flex items-center gap-2 px-1 text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                <ShoppingBag size={14} />
+                <span>Historial de la compra</span>
+              </div>
+              <p className="px-1 text-[0.85rem] text-slate-500">
+                Si necesitas editar la información de un sublote, regresa al paso anterior
+              </p>
+              <div className="mt-3 space-y-3">
                 {sublotes.map((sublote) => {
                   const tipoCafe = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
                   const calidad = nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
-                  const subtotal = (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0);
+                  const peso = Number(sublote.pesoInicial || 0);
+                  const totalItem = peso * (Number(sublote.precioKg || 0));
                   const visual = iconoTipoCafe(tipoCafe);
 
                   return (
@@ -1243,21 +1251,13 @@ export default function Compras() {
                         <div className="flex items-start gap-4">
                           <div className={`rounded-2xl p-3 ${visual.fondo}`}>{visual.icono}</div>
                           <div>
-                            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#173ea6]">{tipoCafe}</p>
-                            <p className="mt-1 text-[1.2rem] font-black leading-tight text-slate-900">Calidad: {calidad}</p>
-                            <p className="mt-2 text-base font-semibold text-slate-700">Peso: {Number(sublote.pesoInicial || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg</p>
-                            <p className="mt-1 text-base font-black text-[#173ea6]">Subtotal: {formatoMoneda(subtotal)}</p>
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#173ea6]">{tipoCafe}</p>
+                            <p className="mt-1 text-[1.2rem] font-semibold leading-tight text-slate-900">Calidad: {calidad}</p>
+                            <p className="mt-1 text-base font-semibold text-slate-700">Peso: {peso.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg</p>
+                            <p className="mt-1 text-base font-semibold text-slate-700">Total: {formatoMoneda(totalItem)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => editarSubloteDesdeRevision(sublote.id)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
-                            title="Editar producto"
-                          >
-                            <Pencil size={16} />
-                          </button>
                           <button
                             type="button"
                             onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
@@ -1272,80 +1272,267 @@ export default function Compras() {
                   );
                 })}
               </div>
-            </div>
+            </section>
 
             <article className="rounded-[24px] border border-[#d9e2f5] bg-white p-5 shadow-sm">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Resumen financiero</p>
-              <div className="mt-4 flex items-center justify-between gap-3 text-[1.02rem] font-bold text-slate-700">
-                <span>Total kg ({resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })})</span>
-                <span>{formatoMoneda(resumen.totalCompra)}</span>
-              </div>
-              <div className="mt-5 rounded-[20px] bg-[#f7f8ff] px-4 py-4">
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Total final a recibir</p>
-                <p className="mt-2 text-[2rem] font-black text-[#173ea6]">{formatoMoneda(resumen.totalCompra)}</p>
+              <p className="text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">Resumen financiero</p>
+              <div className="mt-4 space-y-4 rounded-[16px] bg-[#f7f8ff] px-4 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-700">Total kg</span>
+                  <span className="text-[2rem] font-black text-[#173ea6]">
+                    {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-700">Total a pagar</span>
+                  <span className="text-[2rem] font-black text-[#173ea6]">{formatoMoneda(resumen.totalCompra)}</span>
+                </div>
               </div>
             </article>
 
-            {error ? <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{error}</div> : null}
-            {warning ? <div className="flex items-start gap-3 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><span>{warning}</span></div> : null}
+            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
             <div className="grid gap-3">
-              <button type="button" onClick={() => void guardarCompra()} disabled={saving || loading || catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-black uppercase tracking-[0.03em] text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={() => setMostrarModalConfirmar(true)} disabled={!puedeRegistrarCompra} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
                 <Save size={20} />
-                {saving ? 'Guardando compra...' : 'Finalizar compra'}
+                Registrar compra
               </button>
-              <button type="button" onClick={irPasoAnterior} className="inline-flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-black text-slate-700">
-                <ArrowLeft size={18} />
-                Atrás
+              <button type="button" onClick={() => setMostrarModalCancelar(true)} className="inline-flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700">
+                Cancelar
               </button>
             </div>
           </section>
         ) : null}
       </main>
 
+      {mostrarModalCancelar ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#ffecef] text-[#b12937]">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="mt-5 text-[2rem] font-semibold leading-tight text-slate-900">¿Cancelar compra?</h2>
+              <p className="mt-3 text-[1.05rem] leading-7 text-slate-500">
+                Se perderán los datos ingresados y tendrás que iniciar el proceso nuevamente.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={confirmarCancelarCompra}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ffe1e5] px-5 py-3 text-[1.15rem] font-semibold text-[#b12937]"
+              >
+                Sí, cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalCancelar(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
+              >
+                Seguir editando
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalCapacidad && datosCapacidad ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
+                Estás superando la capacidad de la bodega
+              </h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                Con esta compra tendrás más café del que tu bodega puede almacenar.
+              </p>
+              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
+                Puedes continuar, pero es recomendable revisar esta decisión para evitar pérdidas o problemas de almacenamiento.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Capacidad máxima</span>
+                <span className="font-semibold text-slate-900">
+                  {datosCapacidad.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
+                <span className="font-semibold text-[#ea580c]">
+                  {datosCapacidad.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={confirmarCompraConAdvertencia}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+              >
+                Continuar de todas formas
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalCapacidad(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
+              >
+                Revisar compra
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalAlerta80 && datosAlerta80 ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
+                Bodega en nivel de alerta
+              </h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                La compra dejará la bodega al {datosAlerta80.porcentaje}% de su capacidad.
+              </p>
+              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
+                Es recomendable considerar vender parte del inventario para evitar problemas de almacenamiento.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Capacidad total</span>
+                <span className="font-semibold text-slate-900">
+                  {datosAlerta80.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Antes de la compra</span>
+                <span className="font-semibold text-slate-900">
+                  {datosAlerta80.inventarioActual.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
+                <span className="font-semibold text-[#ea580c]">
+                  {datosAlerta80.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => setMostrarModalAlerta80(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalConfirmar ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
+                <Check size={24} />
+              </div>
+              <h2 className="mt-5 text-[2rem] font-semibold leading-tight text-slate-900">¿Registrar compra?</h2>
+              <p className="mt-3 text-[1.05rem] leading-7 text-slate-500">Verifica la información antes de continuar.</p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#e2e8f4] bg-[#f8faff] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Productor</span>
+                <span className="font-semibold text-slate-900">{productorSeleccionado?.nombre ?? '-'}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Total kg</span>
+                <span className="font-semibold text-slate-900">
+                  {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Total a pagar</span>
+                <span className="text-[1.4rem] font-black text-[#1f3fa7]">{formatoMoneda(resumen.totalCompra)}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => void guardarCompra()}
+                disabled={!puedeRegistrarCompra || saving}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? 'Guardando compra...' : 'Confirmar compra'}
+              </button>
+              <button
+                type="button"
+                onClick={cerrarModalConfirmar}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarModalProductor ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/45 px-4 py-8 backdrop-blur-sm">
-          <div className="mx-auto mt-12 w-full max-w-[430px] overflow-hidden rounded-[30px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.2)]">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 px-3 pt-8 backdrop-blur-md">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-t-[30px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.2)]">
             <div className="px-6 pb-6 pt-4">
               <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
               <div className="mt-5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[1.7rem] font-black leading-tight text-[#111827]">
-                    {editingProductorId ? 'Editar Productor' : 'Registrar Productor'}
-                  </h2>
+                  <h2 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">Registrar Productor</h2>
                 </div>
-                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500" title="Cerrar modal">
+                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500">
                   <X size={24} />
                 </button>
               </div>
 
               <div className="mt-8 space-y-5">
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">Nombre completo</label>
+                  <label className="mb-2 block text-base font-semibold text-slate-900">Nombre completo</label>
                   <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Pérez Rodríguez" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <FormattedPhoneInput
-                    label="Telefono"
-                    optional
-                    value={productorForm.telefono}
-                    onChange={(telefono) =>
-                      setProductorForm((actual) => ({ ...actual, telefono }))
-                    }
-                  />
+                  <label className="mb-2 block text-base font-semibold text-slate-900">Cédula o NIT</label>
+                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="Ej. 123456789 o 900123456" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-2 block text-base font-black text-slate-900">Documento o NIT</label>
-                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="1029384756" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-base font-semibold text-slate-900">Teléfono (opcional)</label>
+                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="Ej. 3001234567" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
 
-                {productorFormError ? <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{productorFormError}</div> : null}
+                {productorFormError ? (
+                  <InlineGuidedError message={getComprasGuidance(productorFormError)} />
+                ) : null}
               </div>
             </div>
 
             <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-6 py-5">
-              <button type="button" onClick={guardarProductorLocal} className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-black text-white">
-                {editingProductorId ? 'Guardar cambios' : 'Guardar productor'}
+              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                {botonGuardarProductorPresionado ? 'Guardando productor...' : 'Guardar Productor'}
               </button>
               <button type="button" onClick={cerrarModalProductor} className="mt-4 inline-flex w-full items-center justify-center px-5 py-2 text-base font-semibold text-slate-500">
                 Cancelar
@@ -1355,7 +1542,9 @@ export default function Compras() {
         </div>
       ) : null}
 
-      <AppBottomNav hidden={mostrarModalProductor} />
+
+
+      <AppBottomNav hidden={mostrarModalProductor || step >= 1} />
     </div>
   );
 }

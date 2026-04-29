@@ -8,10 +8,9 @@ export type VentaClientePayload = {
   rapido?: boolean;
 };
 
-export type VentaItemPayload = {
-  tipoCafeId: string;
-  calidadId: string;
-  cantidadKg: number;
+export type VentaDetallePayload = {
+  subloteId: string;
+  pesoVendido: number;
   precioKg: number;
 };
 
@@ -19,31 +18,23 @@ export type CreateVentaPayload = {
   fecha?: string;
   deviceId: string;
   localId: string;
-  cliente: VentaClientePayload;
-  items: VentaItemPayload[];
+  clienteId?: string;
+  detalles: VentaDetallePayload[];
 };
 
 export type CreateVentaResponse = {
   venta: {
-    referenciaId: string;
+    id: string;
     fecha: string;
-    totalKg: number;
     totalVenta: number;
-    cliente: {
-      nombre: string;
-      documento: string;
-      telefono: string | null;
-      detalle: string | null;
-      rapido: boolean;
-    };
+    localId: string;
+    deviceId: string;
+    clienteId: string | null;
   };
-  items: Array<{
-    tipoCafeId: string;
-    calidadId: string;
-    codigo: string;
-    tipoCafe: string;
-    calidad: string;
-    cantidadKg: number;
+  detalles: Array<{
+    id: string;
+    subloteId: string;
+    pesoVendido: number;
     precioKg: number;
     subtotal: number;
   }>;

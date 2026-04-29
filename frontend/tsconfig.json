@@ -24,9 +24,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    "ignoreDeprecations": "5.0",
     "allowSyntheticDefaultImports": true,
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]

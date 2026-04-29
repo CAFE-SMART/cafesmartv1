@@ -12,7 +12,7 @@ import {
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
 
-type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
 type SuccessStage = 'confirm' | 'welcome';
 

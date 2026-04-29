@@ -19,6 +19,7 @@ export type CompraProcesada = {
     pesoInicial: number;
     pesoActual: number;
     precioKg: number;
+    costoTotal: number;
     subtotal: number;
   }>;
   warning?: string;
@@ -29,6 +30,9 @@ type SubloteInput = CreateCompraDto['sublotes'][number];
 type SubloteProcesado = CompraProcesada['sublotes'][number];
 type ResumenCompra = CompraProcesada['compra'];
 
+/**
+ * Utilidades numericas para operar montos y pesos con precision estable a dos decimales.
+ */
 function aCentiUnidades(valor: number): number {
   return Math.round((valor + Number.EPSILON) * 100);
 }
@@ -50,6 +54,9 @@ function resolverFechaCompra(fecha?: string): string {
   return new Date().toISOString();
 }
 
+/**
+ * Calcula los valores normalizados de un sublote antes de persistirlo.
+ */
 function procesarSublote(sublote: SubloteInput): SubloteProcesado {
   const pesoInicialCenti = aCentiUnidades(sublote.pesoInicial);
   const precioKgCenti = aCentiUnidades(sublote.precioKg);
@@ -63,10 +70,14 @@ function procesarSublote(sublote: SubloteInput): SubloteProcesado {
     pesoInicial: desdeCentiUnidades(pesoInicialCenti),
     pesoActual: desdeCentiUnidades(pesoInicialCenti),
     precioKg: desdeCentiUnidades(precioKgCenti),
+    costoTotal: desdeCentiUnidades(subtotalCenti),
     subtotal: desdeCentiUnidades(subtotalCenti),
   };
 }
 
+/**
+ * Construye el resumen consolidado de la compra a partir de sus sublotes.
+ */
 function construirCompra(
   input: CreateCompraDto,
   sublotes: SubloteProcesado[],
@@ -89,6 +100,9 @@ function construirCompra(
   };
 }
 
+/**
+ * Evalua si la compra deja la bodega en alerta o excede la capacidad registrada.
+ */
 export function evaluarCapacidadCompra(
   totalKg: number,
   contextoCapacidad: ContextoCapacidadCompra,
@@ -105,7 +119,6 @@ export function evaluarCapacidadCompra(
   const limiteWarningCenti = Math.round(capacidadCenti * 0.8);
   const capacidadBodegaKg = desdeCentiUnidades(capacidadCenti);
   const nuevoTotalKg = desdeCentiUnidades(nuevoTotalCenti);
-
   if (nuevoTotalCenti > capacidadCenti) {
     return {
       warning: `La compra supera la capacidad de bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`,
@@ -122,6 +135,9 @@ export function evaluarCapacidadCompra(
   return {};
 }
 
+/**
+ * Prepara la compra en memoria y devuelve resumen, sublotes y alertas de capacidad.
+ */
 export function procesarCompra(
   input: CreateCompraDto,
   contextoCapacidad?: ContextoCapacidadCompra | null,

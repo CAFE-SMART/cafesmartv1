@@ -1,148 +1,247 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParametrosService } from '../parametros/parametros.service';
 
-function toNumber(value: unknown) {
-  return Number(value ?? 0);
-}
+type DashboardMovimiento = {
+  id: string;
+  tipo: 'COMPRA' | 'VENTA';
+  nombre: string;
+  kg: number;
+  valor: number;
+  fecha: string;
+};
 
-function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
+type DashboardSummaryResponse = {
+  comprasHoy: number;
+  ventasHoy: number;
+  kgCompradosHoy: number;
+  totalProductores: number;
+  kgActual: number;
+  kgCapacidad: number;
+  movimientosRecientes: DashboardMovimiento[];
+};
+
+const LIMITE_MOVIMIENTOS_RECIENTES = 3;
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly parametrosService: ParametrosService,
+  ) {}
 
-  async getSummary(userId: string) {
+  async obtenerResumen(userId: string): Promise<DashboardSummaryResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+    const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
 
     const [
-      inventarios,
-      comprasAgg,
-      ventasAgg,
-      gastosAgg,
-      mermaAgg,
-      primeraCompra,
-      primeraVenta,
-      primerGasto,
-    ] = await this.prisma.$transaction([
-      this.prisma.inventario.findMany({
-        where: { organizacionId },
-        include: {
-          tipoCafe: {
-            select: { id: true, nombre: true },
+      comprasHoy,
+      ventasHoy,
+      kgCompradosHoy,
+      totalProductores,
+      kgActual,
+      kgCapacidad,
+      comprasRecientes,
+      ventasRecientes,
+    ] = await Promise.all([
+      this.prisma.compra.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
           },
         },
-        orderBy: [{ tipoCafe: { nombre: 'asc' } }],
       }),
-      this.prisma.compra.aggregate({
+      this.prisma.venta.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
+      this.prisma.sublote.aggregate({
+        _sum: { pesoInicial: true },
+        where: {
+          deletedAt: null,
+          compra: {
+            deletedAt: null,
+            organizacionId,
+            fecha: {
+              gte: inicioDia,
+              lt: finDia,
+            },
+          },
+        },
+      }),
+      this.prisma.productor.count({
         where: {
           organizacionId,
           deletedAt: null,
         },
-        _sum: { totalCompra: true },
       }),
-      this.prisma.venta.aggregate({
-        where: {
-          id_organizacion: organizacionId,
-          deleted_at: null,
-        },
-        _sum: { total_venta: true },
+      this.prisma.inventario.aggregate({
+        _sum: { pesoTotal: true },
+        where: { organizacionId },
       }),
-      this.prisma.gasto_operativo.aggregate({
-        where: {
-          id_organizacion: organizacionId,
-          deleted_at: null,
-        },
-        _sum: { monto_gasto: true },
-      }),
-      this.prisma.inventarioMovimiento.aggregate({
-        where: {
-          organizacionId,
-          tipoMovimiento: 'SECADO',
-        },
-        _sum: { cantidad: true },
-      }),
-      this.prisma.compra.findFirst({
+      this.obtenerCapacidadBodegaKg(organizacionId),
+      this.prisma.compra.findMany({
         where: {
           organizacionId,
           deletedAt: null,
         },
-        select: { id: true },
-      }),
-      this.prisma.venta.findFirst({
-        where: {
-          id_organizacion: organizacionId,
-          deleted_at: null,
+        orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }],
+        take: LIMITE_MOVIMIENTOS_RECIENTES,
+        select: {
+          id: true,
+          fecha: true,
+          creadoEn: true,
+          totalCompra: true,
+          productor: {
+            select: {
+              nombre: true,
+            },
+          },
+          sublotes: {
+            where: { deletedAt: null },
+            select: {
+              pesoInicial: true,
+            },
+          },
         },
-        select: { id_venta: true },
       }),
-      this.prisma.gasto_operativo.findFirst({
+      this.prisma.venta.findMany({
         where: {
-          id_organizacion: organizacionId,
-          deleted_at: null,
+          organizacionId,
+          deletedAt: null,
         },
-        select: { id_gasto: true },
+        orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
+        take: LIMITE_MOVIMIENTOS_RECIENTES,
+        select: {
+          id: true,
+          fecha: true,
+          createdAt: true,
+          totalVenta: true,
+          cliente: {
+            select: {
+              nombre: true,
+            },
+          },
+          detalles: {
+            where: { deletedAt: null },
+            select: {
+              pesoVendido: true,
+            },
+          },
+        },
       }),
     ]);
 
-    const inventoryByTypeMap = new Map<
-      string,
-      { tipoCafeId: string; tipoCafe: string; kg: number }
-    >();
-
-    for (const inventario of inventarios) {
-      const tipoCafeId = inventario.tipoCafeId;
-      const actual = inventoryByTypeMap.get(tipoCafeId) ?? {
-        tipoCafeId,
-        tipoCafe: inventario.tipoCafe.nombre,
-        kg: 0,
-      };
-
-      actual.kg += toNumber(inventario.pesoTotal);
-      inventoryByTypeMap.set(tipoCafeId, actual);
-    }
-
-    const inventoryByType = [...inventoryByTypeMap.values()].map((item) => ({
-      ...item,
-      kg: round2(item.kg),
+    const movimientosCompras = comprasRecientes.map((compra) => ({
+      id: compra.id,
+      tipo: 'COMPRA' as const,
+      nombre: compra.productor?.nombre?.trim() || 'Productor no registrado',
+      kg: compra.sublotes.reduce(
+        (total, sublote) => total + Number(sublote.pesoInicial),
+        0,
+      ),
+      valor: Number(compra.totalCompra),
+      fecha: compra.fecha.toISOString(),
+      orden: compra.creadoEn.getTime(),
     }));
 
-    const inventoryAvailableKg = round2(
-      inventoryByType.reduce((sum, item) => sum + item.kg, 0),
-    );
-    const totalVentas = round2(toNumber(ventasAgg._sum.total_venta));
-    const totalCompras = round2(toNumber(comprasAgg._sum.totalCompra));
-    const totalGastos = round2(toNumber(gastosAgg._sum.monto_gasto));
-    const totalProfit = round2(totalVentas - totalCompras - totalGastos);
-    const totalWasteKg = round2(Math.abs(Math.min(0, toNumber(mermaAgg._sum.cantidad))));
-    const hasRecords =
-      inventoryAvailableKg > 0 ||
-      Boolean(primeraCompra) ||
-      Boolean(primeraVenta) ||
-      Boolean(primerGasto);
+    const movimientosVentas = ventasRecientes.map((venta) => ({
+      id: venta.id,
+      tipo: 'VENTA' as const,
+      nombre: venta.cliente?.nombre?.trim() || 'Cliente no registrado',
+      kg: venta.detalles.reduce(
+        (total, detalle) => total + Number(detalle.pesoVendido),
+        0,
+      ),
+      valor: Number(venta.totalVenta),
+      fecha: venta.fecha.toISOString(),
+      orden: venta.createdAt.getTime(),
+    }));
+
+    const movimientosRecientes = [...movimientosCompras, ...movimientosVentas]
+      .sort((a, b) => {
+        const fechaA = new Date(a.fecha).getTime();
+        const fechaB = new Date(b.fecha).getTime();
+        if (fechaA !== fechaB) {
+          return fechaB - fechaA;
+        }
+
+        return b.orden - a.orden;
+      })
+      .slice(0, LIMITE_MOVIMIENTOS_RECIENTES)
+      .map(({ orden, ...movimiento }) => movimiento);
 
     return {
-      inventoryAvailableKg,
-      inventoryByType,
-      totalRevenue: totalVentas,
-      totalExpenses: round2(totalCompras + totalGastos),
-      totalProfit,
-      totalWasteKg,
-      hasRecords,
+      comprasHoy,
+      ventasHoy,
+      kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
+      totalProductores,
+      kgActual: Number(kgActual._sum.pesoTotal ?? 0),
+      kgCapacidad,
+      movimientosRecientes,
     };
   }
 
-  private async obtenerOrganizacionId(userId: string) {
-    const user = await this.prisma.user.findUnique({
+  private async obtenerOrganizacionId(userId: string): Promise<string> {
+    const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
     });
 
-    if (!user?.organizacionId) {
-      throw new BadRequestException('Usuario sin organización');
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    return user.organizacionId;
+    if (!usuario.organizacionId) {
+      throw new BadRequestException('El usuario no tiene organizacion asignada');
+    }
+
+    return usuario.organizacionId;
+  }
+
+  private async obtenerCapacidadBodegaKg(organizacionId: string): Promise<number> {
+    const capacidadKgStr = await this.parametrosService.getParametroString(
+      'capacidad_bodega',
+      organizacionId,
+    );
+    const capacidadKg = Number(capacidadKgStr);
+
+    if (Number.isFinite(capacidadKg) && capacidadKg > 0) {
+      return capacidadKg;
+    }
+
+    return 3000;
+  }
+
+  private obtenerRangoHoyBogota(): { inicioDia: Date; finDia: Date } {
+    const partes = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = Number(partes.find((parte) => parte.type === 'year')?.value);
+    const month = Number(partes.find((parte) => parte.type === 'month')?.value);
+    const day = Number(partes.find((parte) => parte.type === 'day')?.value);
+    const inicioDia = new Date(
+      `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00-05:00`,
+    );
+    const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
+
+    return { inicioDia, finDia };
   }
 }

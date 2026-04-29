@@ -30,6 +30,7 @@ export type CompraListadoItem = {
 
 export type CreateCompraPayload = {
   fecha?: string;
+  productorId?: string;
   deviceId: string;
   localId: string;
   sublotes: {
