@@ -1,7 +1,7 @@
 FROM node:22-alpine
 WORKDIR /app
 RUN apk add --no-cache openssl
-RUN npm install -g pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install
 COPY . .

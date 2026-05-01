@@ -1,6 +1,7 @@
 # Dependencias
 node_modules/
 .pnpm-store/
+package-lock.json
 
 # Construcción
 dist/
