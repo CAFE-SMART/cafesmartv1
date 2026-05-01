@@ -24,7 +24,7 @@ export type DashboardSummary = {
 };
 
 export async function obtenerDashboardSummary() {
-  return apiFetch('/dashboard/summary') as Promise<DashboardSummary>;
+  return apiFetch('/dashboard/summary', { cache: 'no-store' }) as Promise<DashboardSummary>;
 }
 
 export const obtenerResumenDashboard = obtenerDashboardSummary;

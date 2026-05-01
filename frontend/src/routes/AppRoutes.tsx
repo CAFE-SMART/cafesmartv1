@@ -1,4 +1,5 @@
 import React from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Login from '../pages/Login';
 import Landing from '../pages/Landing';
@@ -18,11 +19,28 @@ import Gastos from '../pages/Gastos';
 import SystemStatus from '../pages/SystemStatus';
 import GastosOperativos from '../pages/GastosOperativos';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { useUser } from '../context/UserContext';
+
+function RootRoute({ showLanding }: { showLanding: boolean }) {
+  const { token, hasCompany, hydrated } = useUser();
+
+  if (!hydrated) {
+    return null;
+  }
+
+  if (token) {
+    return <Navigate to={hasCompany ? '/inicio' : '/crear-empresa'} replace />;
+  }
+
+  return showLanding ? <Landing /> : <Navigate to="/login" replace />;
+}
 
 export default function AppRoutes() {
+  const showLanding = Capacitor.getPlatform() === 'web';
+
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<RootRoute showLanding={showLanding} />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/crear-empresa" element={<Register />} />

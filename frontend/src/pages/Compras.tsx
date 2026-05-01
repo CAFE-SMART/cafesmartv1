@@ -23,6 +23,8 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { EmptyState } from '../components/EmptyState';
+import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
   InlineGuidedError,
@@ -353,6 +355,7 @@ export default function Compras() {
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
   const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
   const [registroErrorMensaje, setRegistroErrorMensaje] = useState<string | null>(null);
+  const [registroErrorDetalle, setRegistroErrorDetalle] = useState<unknown>(null);
   const [datosCapacidad, setDatosCapacidad] = useState<{
     capacidadKg: number;
     inventarioActual: number;
@@ -676,6 +679,7 @@ export default function Compras() {
 
   const guardarCompra = async () => {
     setRegistroErrorMensaje(null);
+    setRegistroErrorDetalle(null);
     if (!productorSeleccionado) {
       setError('Selecciona un productor para continuar.');
       setStep(1);
@@ -739,8 +743,8 @@ export default function Compras() {
       setCompras(comprasActualizadas);
       resetFormulario();
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'No se pudo guardar la compra.';
-      setRegistroErrorMensaje(mensaje);
+      setRegistroErrorMensaje('No pudimos guardar la información en este momento.');
+      setRegistroErrorDetalle(err);
       setError(null);
     } finally {
       setSaving(false);
@@ -766,6 +770,7 @@ export default function Compras() {
 
   const volverDesdeError = () => {
     setRegistroErrorMensaje(null);
+    setRegistroErrorDetalle(null);
     setStep(3);
   };
 
@@ -820,27 +825,14 @@ export default function Compras() {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
-          <div className="w-full rounded-[28px] border border-[#f0d6da] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
-            <div className="text-center">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#fff0f2]">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e24c5a] text-white">
-                  <AlertTriangle size={30} strokeWidth={2.8} />
-                </div>
-              </div>
-              <h1 className="mt-6 text-[1.8rem] font-semibold text-[#a02936]">Error al registrar la compra</h1>
-              <p className="mt-2 text-[1rem] text-slate-500">Ocurrió un problema al guardar la información. Intenta nuevamente.</p>
-              <p className="mt-3 rounded-[12px] bg-[#fff5f6] px-3 py-2 text-[0.92rem] text-[#a02936]">{registroErrorMensaje}</p>
-            </div>
-
-            <div className="mt-7 grid gap-3">
-              <button type="button" onClick={() => void guardarCompra()} disabled={saving} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
-                {saving ? 'Reintentando...' : 'Reintentar'}
-              </button>
-              <button type="button" onClick={volverDesdeError} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]">
-                Volver a editar
-              </button>
-            </div>
-          </div>
+          <SystemSaveError
+            operation="Registrar compra"
+            error={registroErrorDetalle ?? registroErrorMensaje}
+            onRetry={() => void guardarCompra()}
+            onHome={() => navigate('/inicio', { replace: true })}
+            retrying={saving}
+            className="w-full"
+          />
         </div>
       </div>
     );
@@ -962,9 +954,12 @@ export default function Compras() {
                   })}
 
                   {productoresFiltrados.length === 0 ? (
-                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
-                      No se encontraron productores con ese criterio.
-                    </div>
+                    <EmptyState
+                      icon={UserPlus}
+                      title="No encontramos productores"
+                      description="Prueba otra búsqueda o registra un productor nuevo para usarlo en esta compra."
+                      className="py-5"
+                    />
                   ) : null}
                 </div>
               </div>

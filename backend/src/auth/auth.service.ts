@@ -278,15 +278,21 @@ export class AuthService {
     }
   }
 
-  private async buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
+  private async buildAuthResponse(user: { id: string; correo: string; nombre: string; telefono?: string | null; organizacionId: string | null }, message: string) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
     
     // Intentar cargar datos adicionales de sesión (organización, tipo, etc.)
     // pero usar los datos del usuario como fuente de verdad principal
-    let sessionData: { organizacion?: { tipo?: string; otroTipoDetalle?: string | null } } = {};
+    let sessionData: {
+      telefono?: string | null;
+      organizacion?: { nombre?: string; tipo?: string; otroTipoDetalle?: string | null };
+    } = {};
     try {
       const sessionUser = await this.usersService.findSessionById(user.id);
+      if (sessionUser?.telefono) {
+        sessionData.telefono = sessionUser.telefono;
+      }
       if (sessionUser?.organizacion) {
         sessionData.organizacion = sessionUser.organizacion;
       }
@@ -306,7 +312,9 @@ export class AuthService {
         id: user.id,
         email: user.correo,
         name: user.nombre,
+        telefono: sessionData.telefono ?? user.telefono ?? null,
         organizacionId: user.organizacionId ?? null,
+        nombreOrganizacion: (sessionData.organizacion as any)?.nombre ?? null,
         tipoOrganizacion: (sessionData.organizacion as any)?.tipo ?? null,
         otroTipoDetalle: (sessionData.organizacion as any)?.otroTipoDetalle ?? null,
       },

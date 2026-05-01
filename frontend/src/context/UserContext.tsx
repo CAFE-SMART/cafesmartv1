@@ -3,6 +3,7 @@ import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
   getAuthStorageValue,
+  setRuntimeAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
 import { parseJwtPayload } from '../utils/jwt';
@@ -13,7 +14,9 @@ type User = {
   id: number | string;
   email: string;
   name: string;
+  telefono?: string | null;
   organizacionId?: string | null;
+  nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
 };
@@ -24,7 +27,9 @@ type StoredUserShape = {
   name?: string;
   correo?: string;
   nombre?: string;
+  telefono?: string | null;
   organizacionId?: string | null;
+  nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
 };
@@ -103,7 +108,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           id: parsed.id,
           email: parsed.email ?? parsed.correo ?? '',
           name: parsed.name ?? parsed.nombre ?? '',
+          telefono: parsed.telefono ?? null,
           organizacionId: parsed.organizacionId ?? null,
+          nombreOrganizacion: parsed.nombreOrganizacion ?? null,
           tipoOrganizacion: parsed.tipoOrganizacion ?? null,
           otroTipoDetalle: parsed.otroTipoDetalle ?? null,
         });
@@ -153,6 +160,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     if (data.persist === false) {
       await clearAuthStorage();
+      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token);
+      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user));
+      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(data.hasCompany));
       return;
     }
 
@@ -160,6 +170,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
       setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(data.hasCompany)),
+      setAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession, 'true'),
     ]);
   };
 

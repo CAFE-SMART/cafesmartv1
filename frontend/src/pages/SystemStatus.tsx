@@ -206,7 +206,10 @@ export default function SystemStatus() {
             id: response.user.id,
             email: response.user.email,
             name: response.user.name,
+            telefono: response.user.telefono ?? processState.telefono,
             organizacionId: response.user.organizacionId ?? null,
+            nombreOrganizacion:
+              response.user.nombreOrganizacion ?? processState.nombreOrganizacion,
             tipoOrganizacion: response.user.tipoOrganizacion ?? null,
             otroTipoDetalle: response.user.otroTipoDetalle ?? null,
           },

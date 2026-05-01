@@ -28,9 +28,13 @@ export class ApiRequestError extends Error {
 function traducirMensajeError(message: string | null | undefined, status: number) {
   const texto = (message || '').trim();
 
+  if (/database|prisma|sql|internal server error|error 500/i.test(texto) || status >= 500) {
+    return 'No pudimos guardar la información en este momento.';
+  }
+
   if (!texto) {
     if (status >= 500) {
-      return 'Intenta guardar de nuevo. Tuvimos un inconveniente, pero tus datos están a salvo.';
+      return 'No pudimos guardar la información en este momento.';
     }
 
     if (status === 401) {
@@ -49,7 +53,7 @@ function traducirMensajeError(message: string | null | undefined, status: number
   }
 
   const mapa: Record<string, string> = {
-    'Internal server error': 'Guarda tu progreso de nuevo. Tuvimos un inconveniente técnico, pero nada se ha perdido.',
+    'Internal server error': 'No pudimos guardar la información en este momento.',
     Unauthorized: 'Ingresa de nuevo a tu cuenta. La sesión se cerró por tu seguridad.',
     Forbidden: 'Solicita acceso para esto. Tu cuenta no tiene permisos para usar esta función.',
     'Forbidden resource': 'Solicita acceso para esto. Tu cuenta no tiene permisos para esta opción.',

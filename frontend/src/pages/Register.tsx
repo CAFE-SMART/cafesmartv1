@@ -44,6 +44,10 @@ type RegisterField =
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
+  const googleButtonWidth =
+    typeof window !== 'undefined'
+      ? String(Math.min(360, Math.max(240, window.innerWidth - 64)))
+      : '320';
   const isGoogleAuthEnabled = Boolean(
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
@@ -816,7 +820,7 @@ export default function Register() {
                             text="continue_with"
                             theme="outline"
                             size="large"
-                            width="100%"
+                            width={googleButtonWidth}
                           />
                         </div>
                       )}

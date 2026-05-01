@@ -589,7 +589,17 @@ export default function Inventario() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
               <Package2 size={22} />
             </div>
-            <p className="mt-4 text-lg text-slate-600">Todavía no hay lotes registrados en este tipo de café.</p>
+            <p className="mt-4 text-lg font-black text-slate-900">No hay lotes en este filtro</p>
+            <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">
+              Cambia el tipo de café o registra una compra para crear los primeros lotes.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/compras')}
+              className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+            >
+              Registrar compra
+            </button>
           </section>
         ) : null}
 

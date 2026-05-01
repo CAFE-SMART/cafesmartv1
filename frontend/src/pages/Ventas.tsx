@@ -17,6 +17,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { EmptyState } from '../components/EmptyState';
+import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
   FloatingGuidedNotice,
@@ -215,6 +217,7 @@ export default function Ventas() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guardandoVenta, setGuardandoVenta] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [submitErrorDetail, setSubmitErrorDetail] = React.useState<unknown>(null);
   const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
   const [paso, setPaso] = React.useState<Step>(1);
   const [botonConfirmarPresionado, setBotonConfirmarPresionado] = React.useState(false);
@@ -387,6 +390,7 @@ export default function Ventas() {
     setGuardandoVenta(true);
     setBotonConfirmarPresionado(true);
     setSubmitError(null);
+    setSubmitErrorDetail(null);
 
     try {
       type PoolEntry = {
@@ -461,7 +465,8 @@ export default function Ventas() {
       });
       await cargarLotes();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'No fue posible registrar la venta.');
+      setSubmitError('No pudimos guardar la información en este momento.');
+      setSubmitErrorDetail(error);
     } finally {
       setGuardandoVenta(false);
       setBotonConfirmarPresionado(false);
@@ -480,6 +485,7 @@ export default function Ventas() {
     setPaso(1);
     setGuardandoVenta(false);
     setSubmitError(null);
+    setSubmitErrorDetail(null);
     setVentaGuardada(null);
     setClienteSeleccionado(null);
     setBusquedaCliente('');
@@ -534,11 +540,6 @@ export default function Ventas() {
       return;
     }
 
-    if (submitError) {
-      setFloatingError(getVentasGuidance(submitError));
-      return;
-    }
-
     if (modoInvalido) {
       setFloatingError(getVentasGuidance('Selecciona como deseas realizar la venta.'));
       return;
@@ -563,7 +564,6 @@ export default function Ventas() {
     modoInvalido,
     parcialSinSeleccion,
     precioTotalInvalido,
-    submitError,
   ]);
 
   const guardarCliente = async () => {
@@ -970,9 +970,12 @@ export default function Ventas() {
                     Clientes recientes
                   </p>
                   {clientesRecientes.length === 0 ? (
-                    <div className="mt-2 rounded-[14px] border border-dashed border-[#d5dced] bg-[#fbfcff] px-4 py-5 text-center text-sm text-slate-500">
-                      No se encontraron clientes con esa busqueda.
-                    </div>
+                    <EmptyState
+                      icon={User}
+                      title="No hay clientes para mostrar"
+                      description="Prueba otra búsqueda o registra un cliente nuevo para completar la venta."
+                      className="mt-2 py-5"
+                    />
                   ) : (
                     <div className="mt-2 space-y-2">
                       {clientesRecientes.map((cliente) => {
@@ -1040,8 +1043,12 @@ export default function Ventas() {
                 </h2>
 
                 {submitError ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(submitError)}
+                  <SystemSaveError
+                    operation="Registrar venta"
+                    error={submitErrorDetail ?? submitError}
+                    onRetry={() => void confirmar()}
+                    onHome={() => navigate('/inicio', { replace: true })}
+                    retrying={guardandoVenta}
                     className="mt-4"
                   />
                 ) : null}

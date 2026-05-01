@@ -14,11 +14,12 @@ import {
   Truck,
   UtensilsCrossed,
   WalletCards,
-  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { EmptyState } from '../components/EmptyState';
+import { SystemSaveError } from '../components/SystemSaveError';
 import { registrarGastoLocal, type GastoAplicaA, type GastoEstadoPago, type GastoTipo } from '../services/gastosService';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getTodayLocalDateValue } from '../utils/date';
@@ -78,7 +79,9 @@ function formatoMoneda(valor: number) {
 
 function formatoMontoInput(valor: string) {
   const numero = Number(valor);
-  return Number.isFinite(numero) && numero > 0 ? formatoMoneda(numero) : '$ 0';
+  return Number.isFinite(numero) && numero > 0
+    ? formatoMoneda(numero)
+    : 'Ingresa el valor del gasto para ver el total.';
 }
 
 function resumenLote(lote: LoteResumen) {
@@ -92,6 +95,7 @@ export default function Gastos() {
   const [form, setForm] = React.useState<GastoForm>(FORM_INICIAL);
   const [modal, setModal] = React.useState<ModalState>('none');
   const [error, setError] = React.useState<string | null>(null);
+  const [saveErrorDetail, setSaveErrorDetail] = React.useState<unknown>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [lotes, setLotes] = React.useState<LoteResumen[]>([]);
   const [loadingLotes, setLoadingLotes] = React.useState(false);
@@ -154,6 +158,7 @@ export default function Gastos() {
   const guardarGasto = async () => {
     setSubmitting(true);
     setError(null);
+    setSaveErrorDetail(null);
 
     try {
       await registrarGastoLocal({
@@ -169,7 +174,8 @@ export default function Gastos() {
       });
 
       setModal('success');
-    } catch {
+    } catch (err) {
+      setSaveErrorDetail(err);
       setModal('error');
     } finally {
       setSubmitting(false);
@@ -352,7 +358,12 @@ export default function Gastos() {
                   ) : loadLotesError ? (
                     <p className="text-sm text-rose-600">{loadLotesError}</p>
                   ) : lotes.length === 0 ? (
-                    <p className="text-sm text-slate-500">No hay lotes disponibles para asociar en este momento.</p>
+                    <EmptyState
+                      icon={PackageSearch}
+                      title="No hay lotes disponibles"
+                      description="Registra una compra primero o guarda este gasto como general si no aplica a un lote específico."
+                      className="border-[#e2e6f1] bg-white"
+                    />
                   ) : (
                     <div className="space-y-2">
                       {lotes.map((lote) => {
@@ -450,29 +461,14 @@ export default function Gastos() {
             ) : null}
 
             {modal === 'error' ? (
-              <>
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-rose-50 text-rose-600">
-                  <X size={22} />
-                </div>
-                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">Error al registrar</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  No se pudo guardar el gasto. Intenta de nuevo.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setModal('confirm')}
-                  className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-[#2558e5] px-4 py-3 text-sm font-black text-white"
-                >
-                  Reintentar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModal('none')}
-                  className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-[16px] border border-[#e3e7f3] px-4 py-3 text-sm font-semibold text-slate-500"
-                >
-                  Cancelar
-                </button>
-              </>
+              <SystemSaveError
+                operation="Registrar gasto"
+                error={saveErrorDetail}
+                onRetry={() => void guardarGasto()}
+                onHome={() => navigate('/inicio', { replace: true })}
+                retrying={submitting}
+                className="border-0 p-0 shadow-none"
+              />
             ) : null}
 
             {modal === 'success' ? (

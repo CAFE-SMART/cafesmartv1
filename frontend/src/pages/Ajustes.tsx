@@ -12,6 +12,7 @@ import {
   FlaskConical,
   Lock,
   LogOut,
+  ReceiptText,
   ScanSearch,
   RefreshCcw,
   Save,
@@ -26,6 +27,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { EmptyState } from '../components/EmptyState';
 import {
   createGuidedError,
   FloatingGuidedNotice,
@@ -88,6 +90,42 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function getPhoneDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function getPhoneValidationMessage(value: string) {
+  const digits = getPhoneDigits(value);
+
+  if (!digits) {
+    return {
+      tone: 'neutral' as const,
+      text: 'Escribe un número de 10 dígitos.',
+    };
+  }
+
+  if (digits.length < 10) {
+    const missing = 10 - digits.length;
+    return {
+      tone: 'warning' as const,
+      text: `Falta${missing === 1 ? '' : 'n'} ${missing} número${missing === 1 ? '' : 's'}.`,
+    };
+  }
+
+  if (digits.length > 10) {
+    const extra = digits.length - 10;
+    return {
+      tone: 'warning' as const,
+      text: `Sobran ${extra} número${extra === 1 ? '' : 's'}. Debe tener 10 dígitos.`,
+    };
+  }
+
+  return {
+    tone: 'success' as const,
+    text: 'El número tiene 10 dígitos.',
+  };
+}
+
 function getStoredProfile(): ProfileSettings | null {
   try {
     const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
@@ -129,7 +167,9 @@ function saveCompany(company: CompanySettings) {
 function getAjustesErrorSection(message: string): AjustesErrorSection | null {
   if (
     message === 'Escribe el nombre del usuario.' ||
-    message === 'Escribe el correo del usuario.'
+    message === 'Escribe el correo del usuario.' ||
+    message === 'El teléfono debe tener 10 números.' ||
+    message === 'No realizaste cambios en el perfil.'
   ) {
     return 'profile';
   }
@@ -168,6 +208,24 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
       'Falta el correo.',
       'Necesitamos un correo valido.',
       'Escribe el correo del usuario.',
+    );
+  }
+
+  if (message === 'El teléfono debe tener 10 números.') {
+    return createGuidedError(
+      message,
+      'Revisa el teléfono.',
+      'El número debe tener exactamente 10 dígitos.',
+      'Corrige el teléfono antes de guardar.',
+    );
+  }
+
+  if (message === 'No realizaste cambios en el perfil.') {
+    return createGuidedError(
+      message,
+      'Sin cambios.',
+      'Los datos del perfil siguen iguales.',
+      'Modifica algún dato antes de guardar.',
     );
   }
 
@@ -252,12 +310,19 @@ export default function Ajustes() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [isViewingProfile, setIsViewingProfile] = useState(false);
+  const [phoneWasEdited, setPhoneWasEdited] = useState(false);
+  const [profileEditBaseline, setProfileEditBaseline] = useState<ProfileSettings | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(null);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
+  const phoneValidation = useMemo(
+    () => getPhoneValidationMessage(profile.telefono),
+    [profile.telefono],
+  );
 
   const clearFeedback = () => {
     setError(null);
@@ -270,6 +335,7 @@ export default function Ajustes() {
     setIsEditingBodega(true);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
+    setIsViewingProfile(false);
   };
 
   const cerrarEditorBodega = () => {
@@ -277,30 +343,57 @@ export default function Ajustes() {
     setIsEditingBodega(false);
   };
 
+  const abrirPerfilUsuario = () => {
+    clearFeedback();
+    setIsViewingProfile(true);
+    setIsEditingProfile(false);
+    setIsEditingCompany(false);
+    setIsEditingBodega(false);
+  };
+
   useEffect(() => {
     const nextNombre = profile.nombre || user?.name || '';
     const nextCorreo = profile.correo || user?.email || '';
+    const nextTelefono = profile.telefono || user?.telefono || '';
+    const nextEmpresa = company.nombreEmpresa || user?.nombreOrganizacion || '';
     const nextTipo =
       company.tipoEmpresa ||
       (user?.tipoOrganizacion ? user.tipoOrganizacion.charAt(0) + user.tipoOrganizacion.slice(1).toLowerCase() : 'Compraventa');
 
-    if (nextNombre !== profile.nombre || nextCorreo !== profile.correo) {
+    if (
+      nextNombre !== profile.nombre ||
+      nextCorreo !== profile.correo ||
+      nextTelefono !== profile.telefono
+    ) {
       setProfile((prev) => ({
         ...prev,
         nombre: nextNombre,
         correo: nextCorreo,
+        telefono: nextTelefono,
       }));
     }
 
     if (!company.nombreEmpresa || !company.tipoEmpresa) {
       setCompany((prev) => ({
-        nombreEmpresa: prev.nombreEmpresa || 'Mi empresa cafetera',
+        nombreEmpresa: prev.nombreEmpresa || nextEmpresa || 'Mi empresa cafetera',
         tipoEmpresa: nextTipo,
         descripcion:
-          prev.descripcion || 'Configuración base para operar compras, inventario y ventas.',
+          prev.descripcion || user?.otroTipoDetalle || '',
       }));
     }
-  }, [company.nombreEmpresa, company.tipoEmpresa, company.descripcion, profile.nombre, profile.correo, user?.name, user?.email, user?.tipoOrganizacion]);
+  }, [
+    company.nombreEmpresa,
+    company.tipoEmpresa,
+    profile.nombre,
+    profile.correo,
+    profile.telefono,
+    user?.name,
+    user?.email,
+    user?.telefono,
+    user?.nombreOrganizacion,
+    user?.tipoOrganizacion,
+    user?.otroTipoDetalle,
+  ]);
 
   const cargarInventario = async () => {
     setLoadingStock(true);
@@ -384,21 +477,50 @@ export default function Ajustes() {
 
   const guardarPerfil = () => {
     clearFeedback();
-    if (!profile.nombre.trim()) {
-      const message = 'Escribe el nombre del usuario.';
+    if (phoneWasEdited && profile.telefono.trim() && getPhoneDigits(profile.telefono).length !== 10) {
+      const message = 'El teléfono debe tener 10 números.';
+      setError(message);
+      setFloatingError(
+        createGuidedError(
+          message,
+          'Revisa el teléfono.',
+          'El número debe tener exactamente 10 dígitos.',
+          'Corrige el teléfono antes de guardar.',
+        ),
+      );
+      return;
+    }
+
+    const baseline = profileEditBaseline ?? getStoredProfile() ?? {
+      nombre: user?.name ?? '',
+      correo: user?.email ?? '',
+      telefono: user?.telefono ?? '',
+    };
+
+    const nextProfile: ProfileSettings = {
+      nombre: profile.nombre.trim() || baseline.nombre,
+      correo: profile.correo.trim() || baseline.correo,
+      telefono: profile.telefono.trim() || baseline.telefono,
+    };
+
+    const hasChanges =
+      nextProfile.nombre !== baseline.nombre ||
+      nextProfile.correo !== baseline.correo ||
+      nextProfile.telefono !== baseline.telefono;
+
+    if (!hasChanges) {
+      const message = 'No realizaste cambios en el perfil.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
       return;
     }
-    if (!profile.correo.trim()) {
-      const message = 'Escribe el correo del usuario.';
-      setError(message);
-      setFloatingError(getAjustesGuidance(message));
-      return;
-    }
-    saveProfile(profile);
+
+    saveProfile(nextProfile);
+    setProfile(nextProfile);
     setSuccess('Perfil actualizado correctamente.');
     setIsEditingProfile(false);
+    setPhoneWasEdited(false);
+    setProfileEditBaseline(null);
   };
 
   const guardarEmpresa = () => {
@@ -500,7 +622,13 @@ export default function Ajustes() {
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => setIsEditingCompany(true),
+      onClick: () => {
+        clearFeedback();
+        setIsEditingCompany(true);
+        setIsViewingProfile(false);
+        setIsEditingProfile(false);
+        setIsEditingBodega(false);
+      },
     },
     {
       id: 'tipos-cafe',
@@ -536,7 +664,7 @@ export default function Ajustes() {
       icon: UserCog,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => setIsEditingProfile(true),
+      onClick: abrirPerfilUsuario,
     },
     {
       id: 'gestion-usuarios',
@@ -600,7 +728,18 @@ export default function Ajustes() {
             </div>
             <button
               type="button"
-              onClick={() => setIsEditingProfile((prev) => !prev)}
+              onClick={() => {
+                clearFeedback();
+                setIsEditingProfile((prev) => {
+                  const next = !prev;
+                  setProfileEditBaseline(next ? profile : null);
+                  return next;
+                });
+                setPhoneWasEdited(false);
+                setIsViewingProfile(false);
+                setIsEditingCompany(false);
+                setIsEditingBodega(false);
+              }}
               className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#102d92]"
             >
               Editar
@@ -634,11 +773,25 @@ export default function Ajustes() {
                 value={profile.telefono}
                 onChange={(event) => {
                   setProfile((prev) => ({ ...prev, telefono: event.target.value }));
+                  setPhoneWasEdited(true);
                   clearFeedback();
                 }}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 placeholder="Teléfono"
               />
+              {phoneWasEdited ? (
+                <p
+                  className={`rounded-[12px] px-3 py-2 text-xs font-semibold ${
+                    phoneValidation.tone === 'success'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : phoneValidation.tone === 'warning'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-slate-50 text-slate-500'
+                  }`}
+                >
+                  {phoneValidation.text}
+                </p>
+              ) : null}
               {error && activeErrorSection === 'profile' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
@@ -702,6 +855,88 @@ export default function Ajustes() {
             })}
           </div>
 
+          {isViewingProfile ? (
+            <section className="rounded-[18px] border border-[#dbe4fb] bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#2c57cc]">
+                    Perfil de usuario
+                  </p>
+                  <h3 className="mt-1 text-[1.15rem] font-semibold text-slate-900">
+                    Datos guardados
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsViewingProfile(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar perfil"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-2.5">
+                {[
+                  ['Nombre', profile.nombre || user?.name || 'Sin nombre guardado'],
+                  ['Teléfono', profile.telefono || user?.telefono || 'Sin teléfono guardado'],
+                  ['Correo', profile.correo || user?.email || 'Sin correo guardado'],
+                  [
+                    'Empresa',
+                    company.nombreEmpresa || user?.nombreOrganizacion || 'Sin empresa guardada',
+                  ],
+                  [
+                    'Descripción',
+                    company.descripcion ||
+                      user?.otroTipoDetalle ||
+                      'Sin descripción registrada',
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-[14px] border border-[#edf0f7] bg-[#fbfcff] px-3 py-2.5"
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                      {label}
+                    </p>
+                    <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearFeedback();
+                    setIsEditingProfile(true);
+                    setProfileEditBaseline(profile);
+                    setPhoneWasEdited(false);
+                    setIsEditingCompany(false);
+                    setIsViewingProfile(false);
+                  }}
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-semibold text-white"
+                >
+                  Editar perfil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearFeedback();
+                    setIsEditingCompany(true);
+                    setIsEditingProfile(false);
+                    setIsViewingProfile(false);
+                  }}
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d6deef] bg-[#f9fbff] px-3 text-sm font-semibold text-[#102d92]"
+                >
+                  Editar empresa
+                </button>
+              </div>
+            </section>
+          ) : null}
+
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Gestión de personas</p>
           <div className="grid grid-cols-2 gap-2.5">
             {gestionPersonas.map((item) => {
@@ -761,7 +996,13 @@ export default function Ajustes() {
             {loadingMovimientos ? (
               <p className="px-1 py-2 text-sm text-slate-500">Cargando movimientos...</p>
             ) : movimientosRecientes.length === 0 ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Aún no hay movimientos recientes.</p>
+              <EmptyState
+                icon={ReceiptText}
+                title="Sin movimientos recientes"
+                description="Cuando registres compras o gastos, aparecerán aquí para revisar la actividad del negocio."
+                actionLabel="Registrar compra"
+                onAction={() => navigate('/compras')}
+              />
             ) : (
               <div className="space-y-2">
                 {movimientosRecientes.map((movimiento) => {

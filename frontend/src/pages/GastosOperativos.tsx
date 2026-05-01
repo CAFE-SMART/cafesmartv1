@@ -18,6 +18,8 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import { EmptyState } from '../components/EmptyState';
+import { SystemSaveError } from '../components/SystemSaveError';
 import { ApiRequestError } from '../services/apiService';
 import { listarCompras, type CompraListadoItem } from '../services/comprasService';
 import { crearGasto, type CrearGastoPayload } from '../services/gastosService';
@@ -241,6 +243,7 @@ export default function GastosOperativos() {
   const [botonGuardarPresionado, setBotonGuardarPresionado] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(null);
+  const [systemSaveError, setSystemSaveError] = useState<unknown>(null);
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -460,6 +463,7 @@ export default function GastosOperativos() {
     setSaving(true);
     setBotonGuardarPresionado(true);
     setShowConfirmModal(false);
+    setSystemSaveError(null);
 
     try {
       const payload: CrearGastoPayload = {
@@ -511,12 +515,7 @@ export default function GastosOperativos() {
         }
       }
 
-      const feedback = getSaveErrorGuidance(error instanceof Error ? error.message : '');
-      setFloatingNotice({
-        ...feedback,
-        primaryLabel: 'Reintentar',
-        primaryAction: 'retry-save',
-      });
+      setSystemSaveError(error);
     } finally {
       setSaving(false);
       setBotonGuardarPresionado(false);
@@ -809,9 +808,12 @@ export default function GastosOperativos() {
               {showSublotesSelector ? (
                 <div className="max-h-[220px] w-full overflow-y-auto rounded-[14px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
                   {todosSublotes.length === 0 && !loading ? (
-                    <div className="p-4 text-center text-sm text-slate-500">
-                      No hay sublotes disponibles en el sistema.
-                    </div>
+                    <EmptyState
+                      icon={Layers}
+                      title="No hay sublotes disponibles"
+                      description="Registra una compra primero o cambia el gasto a general si no necesitas asociarlo a inventario."
+                      className="m-3 py-5"
+                    />
                   ) : null}
 
                   {todosSublotes.map((sublote) => {
@@ -959,6 +961,20 @@ export default function GastosOperativos() {
           onClose={() => setFloatingNotice(null)}
           onPrimaryAction={handleFloatingNoticeAction}
         />
+      ) : null}
+
+      {systemSaveError ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px]">
+            <SystemSaveError
+              operation="Registrar gasto operativo"
+              error={systemSaveError}
+              onRetry={() => void handleGuardar()}
+              onHome={() => navigate('/inicio', { replace: true })}
+              retrying={saving}
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   );

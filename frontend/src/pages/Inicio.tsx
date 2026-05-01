@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { LoaderCircle, RefreshCcw } from 'lucide-react';
+import { LoaderCircle, ReceiptText, RefreshCcw } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { EmptyState } from '../components/EmptyState';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import {
   obtenerDashboardSummary,
@@ -309,9 +310,12 @@ export default function Inicio() {
                 Cargando movimientos...
               </div>
             ) : movimientos.length === 0 ? (
-              <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                A&uacute;n no hay movimientos recientes.
-              </div>
+              <EmptyState
+                icon={ReceiptText}
+                title="Todavía no hay movimientos"
+                description="Registra una compra o una venta para que el resumen del día empiece a mostrar actividad."
+                className="m-4"
+              />
             ) : (
               <div>
                 {movimientos.map((movimiento, index) => (

@@ -22,7 +22,9 @@ export type AuthResponse = {
     id: number | string;
     email: string;
     name: string;
+    telefono?: string | null;
     organizacionId?: string | null;
+    nombreOrganizacion?: string | null;
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
     otroTipoDetalle?: string | null;
   };
