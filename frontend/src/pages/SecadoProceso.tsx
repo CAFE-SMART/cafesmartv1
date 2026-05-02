@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, CheckCircle2, Play, Save, SunMedium } from 'lucide-react';
 import { getSecadoSession, saveSecadoResults } from '../utils/secadoFlow';
 
@@ -33,9 +33,10 @@ function QualityDot({ color }: { color: string }) {
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
+  const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
   const [step, setStep] = useState<'config' | 'active' | 'finish'>(
-    session?.estado === 'READY' ? 'finish' : 'config',
+    searchParams.get('step') === 'finish' || session?.estado === 'READY' ? 'finish' : 'config',
   );
   const [startDate, setStartDate] = useState(session ? dateInput(session.startedAt) : dateInput(''));
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));

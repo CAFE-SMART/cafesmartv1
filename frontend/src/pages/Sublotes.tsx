@@ -1069,38 +1069,36 @@ export default function Sublotes() {
       </main>
 
       {subloteActivo ? (
-      <footer className="border-t border-[#ededed] bg-white px-3 pb-3 pt-2">
-        <div className="mx-auto grid w-full max-w-[340px] gap-1.5">
-          <button
-            type="button"
-            onClick={() => navigate('/ventas')}
-            className="flex h-[34px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f4aa4] text-[0.64rem] font-black text-white shadow-[0_8px_18px_rgba(47,74,164,0.16)]"
-          >
-            <Tag size={14} strokeWidth={2.2} />
-            Vender sublote
-          </button>
+        <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1">
+          <div className="mx-auto grid w-full max-w-[340px] gap-1.5">
+            <button
+              type="button"
+              onClick={() => navigate('/ventas')}
+              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f4aa4] text-[0.68rem] font-black text-white shadow-[0_6px_14px_rgba(47,74,164,0.14)]"
+            >
+              <Tag size={13} strokeWidth={2.25} />
+              Vender sublote
+            </button>
 
-          <button
-            type="button"
-            onClick={handleOpenWeightModal}
-            className="flex h-[34px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e9e9e9] bg-[#f7f7f7] text-[0.64rem] font-black text-[#5a5a5a]"
-          >
-            <Scale size={14} strokeWidth={2.15} />
-            Ajustar peso
-          </button>
+            <button
+              type="button"
+              onClick={handleOpenWeightModal}
+              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e1e1e1] bg-white text-[0.68rem] font-black text-[#4f4f4f]"
+            >
+              <Scale size={13} strokeWidth={2.2} />
+              Ajustar peso
+            </button>
 
-          {subloteActivo ? (
             <button
               type="button"
               onClick={() => navigate(`/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`)}
-              className="flex h-[34px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e9e9e9] bg-white text-[0.64rem] font-black text-[#5a5a5a]"
+              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e1e1e1] bg-white text-[0.68rem] font-black text-[#4f4f4f]"
             >
-              <Tag size={14} strokeWidth={2.15} />
+              <Tag size={13} strokeWidth={2.2} />
               Ver gastos
             </button>
-          ) : null}
-        </div>
-      </footer>
+          </div>
+        </footer>
       ) : null}
 
       {editModal ? (

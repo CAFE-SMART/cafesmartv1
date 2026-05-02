@@ -416,14 +416,6 @@ export default function Inventario() {
       : null;
   const secadoTarget = ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0 ? orderedLots[0] : null;
   const showGlobalEmptyState = !loading && !error && lots.length === 0;
-  const secadoProcessPath =
-    typeKey === 'VERDE'
-      ? activeSession
-        ? `/inventario/secado/${activeSession.id}/finalizar`
-        : secadoTarget
-          ? `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`
-          : null
-      : null;
 
   return (
     <div
@@ -534,59 +526,25 @@ export default function Inventario() {
         ) : null}
 
         {typeKey === 'VERDE' && activeSession ? (
-          <section className="rounded-[28px] border border-[#cdeef1] bg-[#dff8fb] p-5 shadow-sm">
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#0f6b6d]">
-              Monitoreo activo
-            </p>
-            <h2 className="mt-4 text-[1.9rem] font-black leading-tight text-[#102d92]">
-              Secado en proceso
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Proceso
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">{activeSession.loteCodigo}</p>
-              </div>
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Sublotes seleccionados
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
-                  {activeSession.sublotes.length}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(`/inventario/secado/${activeSession.id}/finalizar`)}
-              className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white"
-            >
-              Finalizar secado
-            </button>
-          </section>
+          <button
+            type="button"
+            onClick={() => navigate('/inventario/secados')}
+            className="inline-flex w-full items-center justify-center gap-2 text-[0.82rem] font-semibold text-[#647cb8]"
+          >
+            <CircleDashed size={15} />
+            Ver secados activos
+            <ArrowRight size={15} />
+          </button>
         ) : null}
 
         {typeKey === 'VERDE' && secadoTarget ? (
           <button
             type="button"
             onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
           >
-            <SunMedium size={20} />
+            <SunMedium size={17} />
             Iniciar secado
-          </button>
-        ) : null}
-
-        {secadoProcessPath ? (
-          <button
-            type="button"
-            onClick={() => navigate(secadoProcessPath)}
-            className="inline-flex w-full items-center justify-center gap-2 text-[1.05rem] font-semibold text-[#647cb8]"
-          >
-            <CircleDashed size={18} />
-            Ver procesos de secado
-            <ArrowRight size={18} />
           </button>
         ) : null}
 

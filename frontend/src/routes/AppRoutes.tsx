@@ -8,6 +8,7 @@ import Inventario from '../pages/Inventario';
 import Ventas from '../pages/Ventas';
 import Sublotes from '../pages/Sublotes';
 import SecadoSeleccion from '../pages/SecadoSeleccion';
+import SecadosActivos from '../pages/SecadosActivos';
 import SecadoProceso from '../pages/SecadoProceso';
 import SecadoResumen from '../pages/SecadoResumen';
 import Ajustes from '../pages/Ajustes';
@@ -34,6 +35,10 @@ export default function AppRoutes() {
         <Route path="/ajustes" element={<Ajustes />} />
         {ENABLE_SECADO_PROTOTYPE ? (
           <>
+            <Route
+              path="/inventario/secados"
+              element={<SecadosActivos />}
+            />
             <Route
               path="/inventario/:tipoCafeId/:calidadId/secado"
               element={<SecadoSeleccion />}
