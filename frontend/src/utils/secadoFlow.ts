@@ -557,7 +557,7 @@ export function applySecadoToDetalle(
   tipoCafeId: string,
   calidadId: string,
 ) {
-  const sessions = getCompletedSecadoSessions();
+  const sessions = getInventorySecadoSessions();
 
   if (baseDetail) {
     let nextSublotes = [...baseDetail.sublotes];

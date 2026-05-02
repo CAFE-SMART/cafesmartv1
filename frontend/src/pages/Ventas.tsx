@@ -30,6 +30,8 @@ import {
 } from '../services/clientesService';
 import { LoteResumen, obtenerDetalleLote, obtenerLotes } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import { applySecadoToDetalle, applySecadoToLots } from '../utils/secadoFlow';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -275,7 +277,8 @@ export default function Ventas() {
         obtenerLotes(),
         listarClientes(),
       ]);
-      setLotesVenta(mkLotes(lotes));
+      const lotesDisponibles = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes) : lotes;
+      setLotesVenta(mkLotes(lotesDisponibles));
       setClientes(clientesData.map(mapClienteToOption));
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'No fue posible cargar el inventario para venta.');
@@ -437,8 +440,12 @@ export default function Ventas() {
         const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
 
         if (!pools.has(poolKey)) {
-          const detalle = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
-          const pool = detalle.sublotes
+          const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+          const detalle =
+            ENABLE_SECADO_PROTOTYPE
+              ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId)
+              : detalleBase;
+          const pool = (detalle?.sublotes ?? [])
             .filter((sublote) => sublote.pesoActual > 0)
             .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
             .map((sublote) => ({

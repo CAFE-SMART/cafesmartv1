@@ -105,11 +105,20 @@ export default function SecadoProceso() {
     navigate(`/inventario/secado/${sessionId}/resumen`);
   };
 
+  const handleBack = () => {
+    if (step === 'finish') {
+      setStep('active');
+      return;
+    }
+
+    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+  };
+
   if (!session) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
         <div className="mx-auto w-full max-w-[340px] rounded-[20px] bg-white p-6 text-center shadow-sm">
-          <p className="text-sm font-bold">No encontre el secado en proceso.</p>
+          <p className="text-sm font-bold">No encontré el secado en proceso.</p>
           <button
             type="button"
             onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
@@ -128,7 +137,7 @@ export default function SecadoProceso() {
         <header className="relative flex h-12 items-center justify-center px-4">
           <button
             type="button"
-            onClick={() => (step === 'finish' ? setStep('active') : navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } }))}
+            onClick={handleBack}
             className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
             aria-label="Volver"
           >
@@ -144,7 +153,7 @@ export default function SecadoProceso() {
             <section className="relative h-36 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#294730,#d7b46a)] p-4 text-white shadow-sm">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_35%,rgba(255,255,255,.22),transparent_24%),linear-gradient(135deg,rgba(6,29,19,.12),rgba(5,18,45,.55))]" />
               <div className="relative flex h-full items-end">
-                <p className="text-lg font-black drop-shadow">Configuracion de Secado</p>
+                <p className="text-lg font-black drop-shadow">Configuración de secado</p>
               </div>
             </section>
 
@@ -161,7 +170,7 @@ export default function SecadoProceso() {
                   className="w-full bg-transparent text-sm font-black outline-none"
                 />
               </div>
-              <p className="mt-3 text-[0.68rem] text-slate-400">Registra cuando inicio el proceso.</p>
+              <p className="mt-3 text-[0.68rem] text-slate-400">Registra cuándo inició el proceso.</p>
             </section>
 
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
@@ -204,7 +213,7 @@ export default function SecadoProceso() {
             <div className="mt-8">
               <h2 className="text-2xl font-black leading-tight">El secado ha iniciado correctamente</h2>
               <p className="mt-4 text-sm leading-6 text-slate-500">
-                Cuando el proceso finalice, regresa aqui para registrar el resultado del secado.
+                Cuando el proceso finalice, regresa aquí para registrar el resultado del secado.
               </p>
             </div>
 
@@ -232,7 +241,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <label className="text-[0.62rem] font-black uppercase text-slate-500">Fecha de inicio</label>
               <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">{startDate}</div>
-              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">Fecha de finalizacion</label>
+              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">Fecha de finalización</label>
               <input
                 type="date"
                 value={endDate}
@@ -244,7 +253,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida para cafe verde {titleCase(session.calidad)}.
+                Registra la salida para café verde {titleCase(session.calidad)}.
               </p>
               {outputFields.map((field) => (
                 <label key={field.quality} className="mt-4 block">
@@ -310,7 +319,7 @@ export default function SecadoProceso() {
                   onClick={() => setWithExpense(true)}
                   className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
                 >
-                  Si
+                  Sí
                 </button>
               </div>
             </section>
