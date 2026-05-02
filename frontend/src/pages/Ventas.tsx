@@ -232,9 +232,9 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('modo de venta')) {
     return createGuidedError(
       message,
-      'Falta el modo de venta.',
-      'Debemos saber si vendes todo o solo una parte.',
-      'Selecciona una de las dos opciones de venta.',
+      'Ups, falta elegir una opción.',
+      'Por favor selecciona una de las dos opciones marcadas para continuar.',
+      'Elige si vas a vender una parte o todo el inventario.',
     );
   }
 
