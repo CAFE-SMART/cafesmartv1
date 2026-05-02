@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
-  Leaf,
   LoaderCircle,
   RefreshCcw,
   ShieldCheck,
@@ -14,6 +14,7 @@ import { obtenerDashboardSummary, type DashboardSummary } from '../services/dash
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 const sectionTitleClass =
   'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
@@ -190,7 +191,35 @@ function BodegaCoffeeRow({
   );
 }
 
+function EmptyDashboardState({ onRegisterPurchase }: { onRegisterPurchase: () => void }) {
+  return (
+    <section className="px-5 pt-3">
+      <div className="rounded-[28px] border border-dashed border-[#c9d6ea] bg-white px-5 py-8 text-center shadow-[0_16px_38px_rgba(15,23,42,0.06)]">
+        <img
+          src="/imagenes-de-proyecto/granito-inteligente.png"
+          alt=""
+          className="mx-auto h-14 w-14 object-contain"
+        />
+        <h2 className="mt-5 text-[1.18rem] font-black text-[#101828]">
+          Bienvenido a Cafe Smart
+        </h2>
+        <p className="mx-auto mt-2 max-w-[270px] text-[0.84rem] font-semibold leading-6 text-[#52627a]">
+          Registra tu primera compra para ver el inventario y empezar a vender.
+        </p>
+        <button
+          type="button"
+          onClick={onRegisterPurchase}
+          className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-[#173b9c] px-4 text-[0.84rem] font-black text-white shadow-[0_12px_24px_rgba(23,59,156,0.22)]"
+        >
+          Registrar compra
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Inicio() {
+  const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
@@ -219,7 +248,7 @@ export default function Inicio() {
       }
 
       if (lotesResult.status === 'fulfilled') {
-        setLotesBodega(applySecadoToLots(lotesResult.value));
+        setLotesBodega(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotesResult.value) : lotesResult.value);
       } else {
         setLotesBodega([]);
       }
@@ -291,16 +320,28 @@ export default function Inicio() {
       .filter((section) => section.totalKg > 0);
   }, [lotesBodega]);
 
+  const isEmptyDashboard =
+    !loading &&
+    !error &&
+    summary !== null &&
+    summary.comprasHoy === 0 &&
+    summary.ventasHoy === 0 &&
+    summary.gastosHoy === 0 &&
+    summary.totalVentasHoy === 0 &&
+    summary.totalGastosHoy === 0 &&
+    summary.kgActual === 0 &&
+    lotesBodega.length === 0;
+
   return (
-    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-28 text-slate-900">
-      <div className="mx-auto max-w-[340px] overflow-hidden rounded-[28px] border border-[#d9e1ec] bg-[#f6f7f9] shadow-[0_20px_48px_rgba(15,23,42,0.08)]">
-        <header className="border-b border-[#dde4ef] bg-white px-4 py-3">
+    <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
+      <div className="mx-auto w-full max-w-[430px]">
+        <header className="px-5 pb-4 pt-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-[1.08rem] font-black text-[#1f2937]">
+              <h1 className="text-[1.35rem] font-black text-[#111827]">
                 Caf&eacute; Smart
               </h1>
-              <div className="mt-1 inline-flex items-center gap-2 text-[0.56rem] font-black uppercase tracking-[0.14em] text-[#93a1b6]">
+              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm">
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${resolveCloudDotClass(tone)}`}
                   aria-hidden="true"
@@ -313,7 +354,7 @@ export default function Inicio() {
               type="button"
               onClick={() => void handleReload()}
               disabled={refreshing}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[12px] border border-[#dde4ef] bg-white px-3 text-[0.68rem] font-semibold text-[#4b5c77] shadow-sm transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
+              className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
             >
               {refreshing ? (
                 <LoaderCircle size={13} className="animate-spin text-[#4b5c77]" />
@@ -326,90 +367,109 @@ export default function Inicio() {
 
         </header>
 
-        <section className="border-b border-[#dde4ef] px-4 py-3">
-          <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
-
-          <div className={`mt-3 ${cardClass}`}>
-            <div className="space-y-2.5">
-              <MetricRow
-                label="Compras hoy:"
-                value={formatMetric(loading, summary?.comprasHoy ?? null, formatInteger)}
-              />
-              <MetricRow
-                label="Ventas hoy:"
-                value={formatMetric(loading, summary?.ventasHoy ?? null, formatInteger)}
-              />
-              <MetricRow
-                label="Kg comprados hoy:"
-                value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)}
-              />
-              <MetricRow
-                label="Productores registrados:"
-                value={formatMetric(
-                  loading,
-                  summary?.totalProductores ?? null,
-                  formatInteger,
-                )}
-              />
+        {error ? (
+          <section className="px-5 pb-3">
+            <div className="rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-3">
+              <p className="text-[0.76rem] font-black text-[#1f2937]">
+                No se pudo cargar el resumen
+              </p>
+              <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
+                Presiona Recargar para intentarlo otra vez.
+              </p>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
-        <section className="border-b border-[#dde4ef] px-4 py-3">
-          <p className={sectionTitleClass}>Capacidad en bodega</p>
+        {isEmptyDashboard ? (
+          <EmptyDashboardState onRegisterPurchase={() => navigate('/compras')} />
+        ) : (
+          <>
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
 
-          <div className={`mt-3 ${cardClass}`}>
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-[0.9rem] font-black text-[#1f2937]">Ocupaci&oacute;n actual</h2>
-              <span className="text-[1rem] font-black text-[#18479d]">
-                {ocupacion.etiqueta}
-              </span>
-            </div>
-
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
-              <div
-                className="h-full rounded-full bg-[#17489c] transition-[width] duration-500"
-                style={{ width: `${ocupacion.porcentaje}%` }}
-              />
-            </div>
-
-            <div className="mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black text-[#74839a]">
-              <span>
-                {formatMetric(loading, summary?.kgActual ?? null, formatKg)} usados
-              </span>
-              <span>
-                {formatMetric(loading, summary?.kgCapacidad ?? null, formatKg)} total
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-4 py-3">
-          <p className={sectionTitleClass}>Inventario en bodega</p>
-
-          <div className={`mt-3 overflow-hidden ${cardClass} p-0`}>
-            {loading && !summary ? (
-              <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                Cargando bodega...
+              <div className={`mt-3 ${cardClass}`}>
+                <div className="space-y-2.5">
+                  <MetricRow
+                    label="Compras hoy:"
+                    value={formatMetric(loading, summary?.comprasHoy ?? null, formatInteger)}
+                  />
+                  <MetricRow
+                    label="Ventas hoy:"
+                    value={formatMetric(loading, summary?.ventasHoy ?? null, formatInteger)}
+                  />
+                  <MetricRow
+                    label="Kg comprados hoy:"
+                    value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)}
+                  />
+                  <MetricRow
+                    label="Productores registrados:"
+                    value={formatMetric(
+                      loading,
+                      summary?.totalProductores ?? null,
+                      formatInteger,
+                    )}
+                  />
+                </div>
               </div>
-            ) : cafeEnBodega.length === 0 ? (
-              <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                Aun no hay cafe disponible en bodega.
-              </div>
-            ) : (
-              <div>
-                {cafeEnBodega.map((item, index) => (
+            </section>
+
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Capacidad en bodega</p>
+
+              <div className={`mt-3 ${cardClass}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-[0.9rem] font-black text-[#1f2937]">Ocupaci&oacute;n actual</h2>
+                  <span className="text-[1rem] font-black text-[#18479d]">
+                    {ocupacion.etiqueta}
+                  </span>
+                </div>
+
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
                   <div
-                    key={item.key}
-                    className={index > 0 ? 'border-t border-[#edf1f7]' : ''}
-                  >
-                    <BodegaCoffeeRow item={item} />
-                  </div>
-                ))}
+                    className="h-full rounded-full bg-[#17489c] transition-[width] duration-500"
+                    style={{ width: `${ocupacion.porcentaje}%` }}
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black text-[#74839a]">
+                  <span>
+                    {formatMetric(loading, summary?.kgActual ?? null, formatKg)} usados
+                  </span>
+                  <span>
+                    {formatMetric(loading, summary?.kgCapacidad ?? null, formatKg)} total
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
-        </section>
+            </section>
+
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Inventario en bodega</p>
+
+              <div className={`mt-3 overflow-hidden ${cardClass} p-0`}>
+                {loading && !summary ? (
+                  <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
+                    Cargando bodega...
+                  </div>
+                ) : cafeEnBodega.length === 0 ? (
+                  <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
+                    Aun no hay cafe disponible en bodega.
+                  </div>
+                ) : (
+                  <div>
+                    {cafeEnBodega.map((item, index) => (
+                      <div
+                        key={item.key}
+                        className={index > 0 ? 'border-t border-[#edf1f7]' : ''}
+                      >
+                        <BodegaCoffeeRow item={item} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </div>
 
       <AppBottomNav />

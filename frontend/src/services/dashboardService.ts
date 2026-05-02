@@ -2,7 +2,7 @@ import { apiFetch } from './apiService';
 
 export type DashboardMovimiento = {
   id: string;
-  tipo: 'COMPRA' | 'VENTA';
+  tipo: 'COMPRA' | 'VENTA' | 'GASTO';
   nombre: string;
   kg: number;
   valor: number;
@@ -12,7 +12,10 @@ export type DashboardMovimiento = {
 export type DashboardSummary = {
   comprasHoy: number;
   ventasHoy: number;
+  gastosHoy: number;
   kgCompradosHoy: number;
+  totalVentasHoy: number;
+  totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number;

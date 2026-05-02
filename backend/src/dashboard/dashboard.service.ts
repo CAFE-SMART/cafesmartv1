@@ -9,7 +9,7 @@ import { ParametrosService } from '../parametros/parametros.service';
 
 type DashboardMovimiento = {
   id: string;
-  tipo: 'COMPRA' | 'VENTA';
+  tipo: 'COMPRA' | 'VENTA' | 'GASTO';
   nombre: string;
   kg: number;
   valor: number;
@@ -19,7 +19,10 @@ type DashboardMovimiento = {
 type DashboardSummaryResponse = {
   comprasHoy: number;
   ventasHoy: number;
+  gastosHoy: number;
   kgCompradosHoy: number;
+  totalVentasHoy: number;
+  totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number;
@@ -49,14 +52,16 @@ export class DashboardService {
     const [
       comprasHoy,
       ventasHoy,
+      gastosHoy,
       kgCompradosHoy,
+      totalVentasHoy,
+      totalGastosHoy,
       totalProductores,
       kgActual,
-      kgCapacidad,
-      resumenFinanciero,
       comprasRecientes,
       ventasRecientes,
-    ] = await Promise.all([
+      gastosRecientes,
+    ] = await this.prisma.$transaction([
       this.prisma.compra.count({
         where: {
           organizacionId,
@@ -77,6 +82,16 @@ export class DashboardService {
           },
         },
       }),
+      this.prisma.gastoOperativo.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
       this.prisma.sublote.aggregate({
         _sum: { pesoInicial: true },
         where: {
@@ -91,6 +106,28 @@ export class DashboardService {
           },
         },
       }),
+      this.prisma.venta.aggregate({
+        _sum: { totalVenta: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
+      this.prisma.gastoOperativo.aggregate({
+        _sum: { montoGasto: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
       this.prisma.productor.count({
         where: {
           organizacionId,
@@ -101,8 +138,6 @@ export class DashboardService {
         _sum: { pesoTotal: true },
         where: { organizacionId },
       }),
-      this.obtenerCapacidadBodegaKg(organizacionId),
-      this.obtenerResumenFinanciero(organizacionId),
       this.prisma.compra.findMany({
         where: {
           organizacionId,
@@ -153,7 +188,24 @@ export class DashboardService {
           },
         },
       }),
+      this.prisma.gastoOperativo.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+        orderBy: [{ fechaGasto: 'desc' }, { createdAt: 'desc' }],
+        take: LIMITE_MOVIMIENTOS_RECIENTES,
+        select: {
+          id: true,
+          conceptoGasto: true,
+          fechaGasto: true,
+          createdAt: true,
+          montoGasto: true,
+        },
+      }),
     ]);
+    const kgCapacidad = await this.obtenerCapacidadBodegaKg(organizacionId);
+    const resumenFinanciero = await this.obtenerResumenFinanciero(organizacionId);
 
     const movimientosCompras = comprasRecientes.map((compra) => ({
       id: compra.id,
@@ -181,7 +233,21 @@ export class DashboardService {
       orden: venta.createdAt.getTime(),
     }));
 
-    const movimientosRecientes = [...movimientosCompras, ...movimientosVentas]
+    const movimientosGastos = gastosRecientes.map((gasto) => ({
+      id: gasto.id,
+      tipo: 'GASTO' as const,
+      nombre: gasto.conceptoGasto.trim() || 'Gasto operativo',
+      kg: 0,
+      valor: Number(gasto.montoGasto),
+      fecha: gasto.fechaGasto.toISOString(),
+      orden: gasto.createdAt.getTime(),
+    }));
+
+    const movimientosRecientes = [
+      ...movimientosCompras,
+      ...movimientosVentas,
+      ...movimientosGastos,
+    ]
       .sort((a, b) => {
         const fechaA = new Date(a.fecha).getTime();
         const fechaB = new Date(b.fecha).getTime();
@@ -197,7 +263,10 @@ export class DashboardService {
     return {
       comprasHoy,
       ventasHoy,
+      gastosHoy,
       kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
+      totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
+      totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
       totalProductores,
       kgActual: Number(kgActual._sum.pesoTotal ?? 0),
       kgCapacidad,

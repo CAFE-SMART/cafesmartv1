@@ -73,3 +73,9 @@ export async function crearCompra(payload: CreateCompraPayload) {
     body: JSON.stringify(payload),
   }) as Promise<CreateCompraResponse>;
 }
+
+export async function eliminarCompra(id: string) {
+  return apiFetch(`/compras/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
+}

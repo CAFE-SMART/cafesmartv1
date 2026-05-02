@@ -16,6 +16,7 @@ import GastosOperativos from '../pages/GastosOperativos';
 import GastosListado from '../pages/GastosListado';
 import ResumenFinanciero from '../pages/ResumenFinanciero';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 export default function AppRoutes() {
   return (
@@ -31,18 +32,22 @@ export default function AppRoutes() {
         <Route path="/ventas" element={<Ventas />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/ajustes" element={<Ajustes />} />
-        <Route
-          path="/inventario/:tipoCafeId/:calidadId/secado"
-          element={<SecadoSeleccion />}
-        />
-        <Route
-          path="/inventario/secado/:sessionId/finalizar"
-          element={<SecadoProceso />}
-        />
-        <Route
-          path="/inventario/secado/:sessionId/resumen"
-          element={<SecadoResumen />}
-        />
+        {ENABLE_SECADO_PROTOTYPE ? (
+          <>
+            <Route
+              path="/inventario/:tipoCafeId/:calidadId/secado"
+              element={<SecadoSeleccion />}
+            />
+            <Route
+              path="/inventario/secado/:sessionId/finalizar"
+              element={<SecadoProceso />}
+            />
+            <Route
+              path="/inventario/secado/:sessionId/resumen"
+              element={<SecadoResumen />}
+            />
+          </>
+        ) : null}
         <Route
           path="/inventario/:tipoCafeId/:calidadId/sublotes"
           element={<Sublotes />}

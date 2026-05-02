@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Lock, RefreshCcw, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Lock, PackageCheck, Receipt, RefreshCcw, ShoppingCart, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerDashboardSummary, type DashboardSummary } from '../services/dashboardService';
+import { obtenerDashboardSummary, type DashboardMovimiento, type DashboardSummary } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 
 function formatCurrency(value: number) {
@@ -14,6 +14,50 @@ function formatKg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
     maximumFractionDigits: value % 1 === 0 ? 0 : 1,
   }).format(value)} kg`;
+}
+
+function formatDate(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return parsed.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function getMovimientoCopy(item: DashboardMovimiento) {
+  if (item.tipo === 'VENTA') {
+    return {
+      title: 'Venta registrada',
+      detail: item.kg > 0 ? `${formatKg(item.kg)} vendidos` : item.nombre,
+      icon: ShoppingCart,
+      tone: 'bg-[#e9f7ef] text-[#118444]',
+      amountTone: 'text-[#118444]',
+      sign: '+',
+    };
+  }
+
+  if (item.tipo === 'COMPRA') {
+    return {
+      title: 'Compra registrada',
+      detail: item.kg > 0 ? `${formatKg(item.kg)} comprados` : item.nombre,
+      icon: PackageCheck,
+      tone: 'bg-[#eef4ff] text-[#0f58bd]',
+      amountTone: 'text-[#0f58bd]',
+      sign: '-',
+    };
+  }
+
+  return {
+    title: item.nombre || 'Gasto registrado',
+    detail: 'Gasto operativo',
+    icon: Receipt,
+    tone: 'bg-[#fff1f2] text-[#be123c]',
+    amountTone: 'text-[#be123c]',
+    sign: '-',
+  };
 }
 
 export default function ResumenFinanciero() {
@@ -66,28 +110,45 @@ export default function ResumenFinanciero() {
   };
 
   const utilidad = summary?.utilidadTotalAcumulada ?? 0;
+  const movimientosRecientes = useMemo(() => {
+    const seen = new Set<string>();
+
+    return [...(summary?.movimientosRecientes ?? [])]
+      .filter((item) => {
+        const key = item.id || `${item.tipo}-${item.fecha}-${item.valor}-${item.nombre}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+      .slice(0, 5);
+  }, [summary?.movimientosRecientes]);
+
+  const ingresosTotal = useMemo(
+    () => movimientosRecientes.filter((item) => item.tipo === 'VENTA').reduce((sum, item) => sum + item.valor, 0),
+    [movimientosRecientes],
+  );
+  const comprasTotal = useMemo(
+    () => movimientosRecientes.filter((item) => item.tipo === 'COMPRA').reduce((sum, item) => sum + item.valor, 0),
+    [movimientosRecientes],
+  );
+
   const chartBars = useMemo(() => {
-    const ingresos = summary?.movimientosRecientes
-      .filter((item) => item.tipo === 'VENTA')
-      .reduce((sum, item) => sum + item.valor, 0) ?? 0;
-    const compras = summary?.movimientosRecientes
-      .filter((item) => item.tipo === 'COMPRA')
-      .reduce((sum, item) => sum + item.valor, 0) ?? 0;
-    const maxValue = Math.max(1, ingresos, compras, Math.abs(utilidad));
+    const maxValue = Math.max(1, ingresosTotal, comprasTotal, Math.abs(utilidad));
 
     return [
-      { label: 'Ingresos', value: ingresos, tone: 'bg-[#9ec5ee]' },
-      { label: 'Compras', value: compras, tone: 'bg-[#d7e3f2]' },
+      { label: 'Ingresos', value: ingresosTotal, tone: 'bg-[#9ec5ee]' },
+      { label: 'Compras', value: comprasTotal, tone: 'bg-[#d7e3f2]' },
       { label: 'Utilidad', value: Math.max(0, utilidad), tone: 'bg-[#0f58bd]' },
     ].map((item) => ({
       ...item,
       height: Math.max(10, Math.round((item.value / maxValue) * 112)),
     }));
-  }, [summary?.movimientosRecientes, utilidad]);
+  }, [comprasTotal, ingresosTotal, utilidad]);
 
   return (
-    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
-      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-white px-4 py-4 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
+      <main className="mx-auto w-full max-w-[340px] rounded-[24px] border border-[#dbe2ee] bg-white px-4 py-4 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <header className="grid h-10 grid-cols-[36px_1fr_36px] items-center">
           <button
             type="button"
@@ -150,11 +211,11 @@ export default function ResumenFinanciero() {
           </section>
         ) : (
           <>
-            <section className="mt-4 rounded-[18px] bg-[#0f58bd] px-4 py-5 text-white shadow-[0_16px_34px_rgba(15,88,189,0.24)]">
+            <section className="mt-4 rounded-[16px] bg-[#0f58bd] px-4 py-4 text-white shadow-[0_14px_28px_rgba(15,88,189,0.22)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.7rem] font-semibold text-white/75">Utilidad neta realizada</p>
-                  <p className="mt-2 text-[1.85rem] font-black leading-none">
+                  <p className="mt-2 text-[1.55rem] font-black leading-none">
                     {loading ? '...' : formatCurrency(utilidad)}
                   </p>
                 </div>
@@ -165,6 +226,25 @@ export default function ResumenFinanciero() {
               <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
                 Calculada sobre ventas realizadas, gastos registrados y merma valorizada.
               </p>
+            </section>
+
+            <section className="mt-3 grid grid-cols-2 gap-2">
+              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
+                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+                  Ventas
+                </p>
+                <p className="mt-2 text-[1rem] font-black text-[#111827]">
+                  {loading ? '...' : formatCurrency(ingresosTotal)}
+                </p>
+              </article>
+              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
+                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+                  Compras
+                </p>
+                <p className="mt-2 text-[1rem] font-black text-[#111827]">
+                  {loading ? '...' : formatCurrency(comprasTotal)}
+                </p>
+              </article>
             </section>
 
             <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-3">
@@ -178,7 +258,7 @@ export default function ResumenFinanciero() {
                 </p>
               </div>
 
-              <div className="mt-4 flex h-[150px] items-end justify-around border-b border-[#e6ecf4] px-2">
+              <div className="mt-4 flex h-[128px] items-end justify-around border-b border-[#e6ecf4] px-2">
                 {chartBars.map((bar) => (
                   <div key={bar.label} className="flex flex-col items-center gap-2">
                     <div
@@ -193,31 +273,42 @@ export default function ResumenFinanciero() {
               </div>
             </section>
 
-            <section className="mt-3 grid grid-cols-2 gap-2">
-              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
-                  Merma
-                </p>
-                <p className="mt-2 text-[1rem] font-black text-[#111827]">
-                  {loading ? '...' : formatKg(summary?.mermaTotalKg ?? 0)}
-                </p>
-              </article>
-              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
-                  Ventas hoy
-                </p>
-                <p className="mt-2 text-[1rem] font-black text-[#111827]">
-                  {loading ? '...' : summary?.ventasHoy ?? 0}
-                </p>
-              </article>
-            </section>
+            <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[0.72rem] font-black text-[#111827]">Movimientos recientes</p>
+                <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
+                  {movimientosRecientes.length}
+                </span>
+              </div>
 
-            <section className="mt-4 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-3">
-              <p className="text-[0.72rem] font-black text-[#111827]">Lectura rapida</p>
-              <p className="mt-2 text-[0.64rem] font-semibold leading-5 text-slate-500">
-                La utilidad puede ser negativa solo cuando los gastos o la merma superan el margen
-                vendido. El inventario sin vender no se descuenta como perdida.
-              </p>
+              {movimientosRecientes.length === 0 ? (
+                <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
+                  No hay movimientos recientes.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {movimientosRecientes.map((item) => {
+                    const copy = getMovimientoCopy(item);
+                    const Icon = copy.icon;
+                    return (
+                      <article key={`${item.tipo}-${item.id}`} className="flex items-center gap-2.5 rounded-[12px] bg-[#f8fafc] px-3 py-2.5">
+                        <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${copy.tone}`}>
+                          <Icon size={14} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[0.72rem] font-black text-[#111827]">{copy.title}</p>
+                          <p className="truncate text-[0.58rem] font-semibold text-slate-500">
+                            {copy.detail} · {formatDate(item.fecha)}
+                          </p>
+                        </div>
+                        <p className={`shrink-0 text-[0.62rem] font-black ${copy.amountTone}`}>
+                          {copy.sign} {formatCurrency(item.valor)}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </>
         )}

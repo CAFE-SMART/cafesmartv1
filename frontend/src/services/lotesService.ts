@@ -80,6 +80,12 @@ export type ActualizarFactorPayload = {
   factor: number | null;
 };
 
+export type ActualizarPesoPayload = {
+  id: string;
+  pesoActual: number;
+  motivo?: string;
+};
+
 export async function obtenerLotes() {
   return apiFetch('/lotes') as Promise<LoteResumen[]>;
 }
@@ -105,6 +111,15 @@ export async function guardarFactoresSublotes(
   sublotes: ActualizarFactorPayload[],
 ) {
   return apiFetch('/lotes/sublotes/factor', {
+    method: 'PATCH',
+    body: JSON.stringify({ sublotes }),
+  }) as Promise<{ totalActualizados: number }>;
+}
+
+export async function guardarPesosSublotes(
+  sublotes: ActualizarPesoPayload[],
+) {
+  return apiFetch('/lotes/sublotes/peso', {
     method: 'PATCH',
     body: JSON.stringify({ sublotes }),
   }) as Promise<{ totalActualizados: number }>;

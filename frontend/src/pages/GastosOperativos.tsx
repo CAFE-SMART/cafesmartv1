@@ -542,8 +542,8 @@ export default function GastosOperativos() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-[#f4f4f4] pb-20 font-sans text-slate-900">
-      <main className="mx-auto min-h-screen max-w-[340px] space-y-3 bg-[#fbfbfb] px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 font-sans text-slate-900">
+      <main className="mx-auto max-w-[340px] space-y-3 rounded-[24px] border border-[#dbe2ee] bg-[#fbfbfb] px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <div className="relative min-h-[28px]">
           <button
             type="button"

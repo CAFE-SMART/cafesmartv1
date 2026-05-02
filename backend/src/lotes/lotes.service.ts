@@ -104,6 +104,12 @@ type FactorUpdateInput = {
   factor?: number | null;
 };
 
+type PesoUpdateInput = {
+  id: string;
+  pesoActual: number;
+  motivo?: string;
+};
+
 const SUBLOTE_INVENTARIO_SELECT = {
   id: true,
   pesoInicial: true,
@@ -959,6 +965,70 @@ export class LotesService {
     return { totalActualizados: sublotes.length };
   }
 
+  async actualizarPesos(
+    userId: string,
+    sublotes: PesoUpdateInput[],
+  ): Promise<{ totalActualizados: number }> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const ids = sublotes.map((sublote) => sublote.id);
+    const idsUnicos = [...new Set(ids)];
+
+    if (ids.length !== idsUnicos.length) {
+      throw new BadRequestException('Hay sublotes repetidos. Revisa la selección e intenta guardar de nuevo.');
+    }
+
+    const existentes = await this.prisma.sublote.findMany({
+      where: {
+        id: { in: idsUnicos },
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        id: true,
+        pesoInicial: true,
+      },
+    });
+
+    if (existentes.length !== idsUnicos.length) {
+      const encontrados = new Set(existentes.map((sublote) => sublote.id));
+      const faltantes = idsUnicos.filter((id) => !encontrados.has(id));
+      throw new NotFoundException(
+        `No encontramos algunos sublotes de esta solicitud: ${faltantes.join(', ')}. Actualiza el inventario e intenta nuevamente.`,
+      );
+    }
+
+    const existentesPorId = new Map(existentes.map((sublote) => [sublote.id, sublote]));
+
+    for (const sublote of sublotes) {
+      const existente = existentesPorId.get(sublote.id);
+      const pesoActual = Number(sublote.pesoActual);
+
+      if (!existente || !Number.isFinite(pesoActual) || pesoActual < 0) {
+        throw new BadRequestException('El peso ingresado no es válido. Revisa que sea un número mayor o igual a cero.');
+      }
+
+      if (pesoActual > Number(existente.pesoInicial)) {
+        throw new BadRequestException('El peso actual no puede superar el peso inicial del sublote. Ajusta el valor e intenta de nuevo.');
+      }
+    }
+
+    await this.prisma.$transaction(
+      sublotes.map((sublote) =>
+        this.prisma.sublote.update({
+          where: { id: sublote.id },
+          data: {
+            pesoActual: sublote.pesoActual,
+          },
+        }),
+      ),
+    );
+
+    return { totalActualizados: sublotes.length };
+  }
+
   private async obtenerOrganizacionId(userId: string): Promise<string> {
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -970,7 +1040,7 @@ export class LotesService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException('Tu usuario no tiene una organización asignada. Contacta al administrador para continuar.');
     }
 
     return usuario.organizacionId;

@@ -67,8 +67,8 @@ export default function GastosListado() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f4f4f4] pb-20 text-slate-900">
-      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
+      <main className="mx-auto w-full max-w-[340px] rounded-[24px] border border-[#dbe2ee] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <header className="grid h-10 grid-cols-[36px_1fr_36px] items-center">
           <button
             type="button"
@@ -91,7 +91,7 @@ export default function GastosListado() {
           </button>
         </header>
 
-        <section className="mt-3 rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3">
+        <section className="mt-3 rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3">
           <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
             Total acumulado
           </p>
@@ -103,7 +103,7 @@ export default function GastosListado() {
         <button
           type="button"
           onClick={() => navigate('/gastos/registro')}
-          className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2051e5] px-4 text-[0.68rem] font-black text-white shadow-[0_8px_18px_rgba(32,81,229,0.2)]"
+          className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#2051e5] px-4 text-[0.72rem] font-black text-white shadow-[0_8px_18px_rgba(32,81,229,0.2)]"
         >
           <Plus size={14} />
           Registrar gasto
@@ -117,16 +117,16 @@ export default function GastosListado() {
 
         <section className="mt-3 space-y-2">
           {loading ? (
-            <div className="rounded-[8px] border border-[#eeeeee] bg-white px-3 py-5 text-center text-[0.72rem] font-semibold text-slate-500">
+            <div className="rounded-[12px] border border-[#eeeeee] bg-white px-3 py-5 text-center text-[0.72rem] font-semibold text-slate-500">
               Cargando gastos...
             </div>
           ) : null}
 
           {!loading && gastos.length === 0 && !error ? (
-            <div className="rounded-[8px] border border-dashed border-[#d7dce8] bg-[#fafafa] px-4 py-8 text-center">
+            <div className="rounded-[12px] border border-dashed border-[#d7dce8] bg-[#fafafa] px-4 py-6 text-center">
               <Receipt size={22} className="mx-auto text-slate-300" />
               <p className="mt-2 text-[0.72rem] font-semibold text-slate-500">
-                No hay gastos registrados para este contexto.
+                No hay gastos registrados.
               </p>
             </div>
           ) : null}
@@ -135,7 +135,7 @@ export default function GastosListado() {
             ? gastos.map((gasto) => (
                 <article
                   key={gasto.id}
-                  className="rounded-[8px] border border-[#eeeeee] bg-white px-3 py-3 shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
+                  className="rounded-[12px] border border-[#eeeeee] bg-white px-3 py-3 shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

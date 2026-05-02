@@ -2,12 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  ArrowUpRight,
   BarChart3,
   Building2,
   CalendarDays,
   ChevronRight,
-  CircleDollarSign,
   Droplets,
   FlaskConical,
   Lock,
@@ -33,14 +31,13 @@ import {
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { useUser } from '../context/UserContext';
-import { listarCompras } from '../services/comprasService';
-import { listarGastos } from '../services/gastosService';
 import { obtenerLotes } from '../services/lotesService';
 import {
   obtenerConfiguracionBodega,
   guardarConfiguracionBodega,
 } from '../services/bodegaApi';
 import { applySecadoToLots } from '../utils/secadoFlow';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 type ProfileSettings = {
   nombre: string;
@@ -52,15 +49,6 @@ type CompanySettings = {
   nombreEmpresa: string;
   tipoEmpresa: string;
   descripcion: string;
-};
-
-type MovimientoReciente = {
-  id: string;
-  tipo: 'COMPRA' | 'GASTO';
-  titulo: string;
-  detalle: string;
-  fecha: string;
-  monto: number;
 };
 
 const PROFILE_STORAGE_KEY = 'cafesmart_profile_settings_v1';
@@ -78,14 +66,6 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 function getStoredProfile(): ProfileSettings | null {
@@ -218,9 +198,9 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 
   return createGuidedError(
     message,
-    'Problema guardando.',
-    'Hubo un problema con tus datos.',
-    'Verifica y vuelve a intentar.',
+    'Ups, no se pudo guardar.',
+    'Revisa los campos señalados.',
+    'Vuelve a intentar.',
   );
 }
 
@@ -246,9 +226,6 @@ export default function Ajustes() {
   const [updatedAt, setUpdatedAt] = useState(initialConfig.updatedAt);
   const [inventarioActualKg, setInventarioActualKg] = useState(0);
   const [loadingStock, setLoadingStock] = useState(true);
-  const [movimientosRecientes, setMovimientosRecientes] = useState<MovimientoReciente[]>([]);
-  const [loadingMovimientos, setLoadingMovimientos] = useState(true);
-
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
@@ -306,7 +283,7 @@ export default function Ajustes() {
     setLoadingStock(true);
     try {
       const lotes = await obtenerLotes();
-      const visual = applySecadoToLots(lotes);
+      const visual = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes) : lotes;
       setInventarioActualKg(visual.reduce((sum, lote) => sum + lote.pesoActual, 0));
     } catch {
       setInventarioActualKg(0);
@@ -335,45 +312,6 @@ export default function Ajustes() {
     };
 
     void cargarConfiguracionBodega();
-  }, []);
-
-  useEffect(() => {
-    const cargarMovimientos = async () => {
-      setLoadingMovimientos(true);
-      try {
-        const [compras, gastos] = await Promise.all([listarCompras(), listarGastos()]);
-
-        const itemsCompras: MovimientoReciente[] = compras.map((compra) => ({
-          id: `compra-${compra.id}`,
-          tipo: 'COMPRA',
-          titulo: 'Compra registrada',
-          detalle: `${compra.totalSublotes} sublotes`,
-          fecha: compra.fecha || compra.creadoEn,
-          monto: compra.totalCompra,
-        }));
-
-        const itemsGastos: MovimientoReciente[] = gastos.map((gasto) => ({
-          id: `gasto-${gasto.id}`,
-          tipo: 'GASTO',
-          titulo: gasto.conceptoGasto || 'Gasto operativo',
-          detalle: gasto.esGastoGeneral ? 'Gasto general' : `Sublotes: ${gasto.sublotes.length}`,
-          fecha: gasto.fechaGasto || gasto.createdAt,
-          monto: gasto.montoGasto,
-        }));
-
-        const merged = [...itemsCompras, ...itemsGastos]
-          .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-          .slice(0, 3);
-
-        setMovimientosRecientes(merged);
-      } catch {
-        setMovimientosRecientes([]);
-      } finally {
-        setLoadingMovimientos(false);
-      }
-    };
-
-    void cargarMovimientos();
   }, []);
 
   const capacidadRestante = useMemo(() => {
@@ -745,45 +683,6 @@ export default function Ajustes() {
             </button>
           </article>
 
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Movimientos recientes</p>
-            <button
-              type="button"
-              onClick={() => navigate('/inventario')}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2a4fb5]"
-            >
-              Ver todos
-              <ArrowUpRight size={13} />
-            </button>
-          </div>
-
-          <div className="rounded-[16px] border border-[#e5e9f5] bg-white p-3 shadow-sm">
-            {loadingMovimientos ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Cargando movimientos...</p>
-            ) : movimientosRecientes.length === 0 ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Aún no hay movimientos recientes.</p>
-            ) : (
-              <div className="space-y-2">
-                {movimientosRecientes.map((movimiento) => {
-                  const esCompra = movimiento.tipo === 'COMPRA';
-                  return (
-                    <article key={movimiento.id} className="flex items-center gap-3 rounded-[12px] bg-[#f8faff] px-3 py-2.5">
-                      <span className={`inline-flex rounded-full p-2 ${esCompra ? 'bg-[#e8f7ef] text-[#1d8d4f]' : 'bg-[#ffecef] text-[#c43b54]'}`}>
-                        {esCompra ? <Warehouse size={14} /> : <CircleDollarSign size={14} />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{movimiento.titulo}</p>
-                        <p className="truncate text-[11px] text-slate-500">{movimiento.detalle} · {formatDate(movimiento.fecha)}</p>
-                      </div>
-                      <p className={`text-xs font-semibold ${esCompra ? 'text-[#1d8d4f]' : 'text-[#c43b54]'}`}>
-                        {esCompra ? '+' : '-'} {formatMoney(movimiento.monto)}
-                      </p>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </section>
 
         {isEditingCompany ? (
@@ -860,24 +759,24 @@ export default function Ajustes() {
       </div>
 
       {isEditingBodega ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
-          <div className="w-full max-w-[340px] rounded-t-[16px] border border-[#e6e8f3] bg-white px-4 pb-4 pt-3 shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-[380px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
             <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[0.95rem] font-black leading-tight text-[#111827]">Capacidad de bodega</h3>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827]">Capacidad de bodega</h3>
               <button
                 type="button"
                 onClick={cerrarEditorBodega}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 aria-label="Cerrar"
               >
-                <X size={16} />
+                <X size={20} />
               </button>
             </div>
 
             <div className="mt-4 space-y-3">
               <div>
-                <p className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">Nombre</p>
+                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">Nombre</p>
                 <input
                   type="text"
                   value={nombreBodega}
@@ -885,13 +784,13 @@ export default function Ajustes() {
                     setNombreBodega(event.target.value);
                     clearFeedback();
                   }}
-                  className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2.5 text-[0.72rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="Bodega principal"
                 />
               </div>
 
               <div>
-                <p className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">Capacidad max. (kg)</p>
+                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">Capacidad max. (kg)</p>
                 <input
                   type="number"
                   min="1"
@@ -901,7 +800,7 @@ export default function Ajustes() {
                     setCapacidadKg(event.target.value);
                     clearFeedback();
                   }}
-                  className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2.5 text-[0.72rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="6000"
                 />
               </div>
@@ -926,7 +825,7 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={guardarBodega}
-                  className="inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#102d92] px-4 py-2 text-[0.68rem] font-black text-white"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white"
                 >
                   <Save size={14} />
                   Guardar cambios

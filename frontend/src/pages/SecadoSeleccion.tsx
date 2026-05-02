@@ -4,9 +4,9 @@ import { ArrowLeft, CalendarDays, Check, ChevronRight, Scale, X } from 'lucide-r
 import { obtenerDetalleLote, type LoteDetalle, type SubloteDetalle } from '../services/lotesService';
 import {
   applySecadoToDetalle,
-  getActiveSecadoSession,
-  getActiveSecadoSessionForLot,
+  getActiveSecadoSessions,
   startSecadoWithWeights,
+  type SecadoSession,
 } from '../utils/secadoFlow';
 
 function kg(value: number) {
@@ -27,6 +27,12 @@ function qualityTone(value: string) {
   return 'bg-rose-500';
 }
 
+function daysSince(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 0;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+}
+
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
   const { tipoCafeId, calidadId } = useParams<{ tipoCafeId: string; calidadId: string }>();
@@ -36,8 +42,7 @@ export default function SecadoSeleccion() {
   const [draftWeight, setDraftWeight] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [blockingSessionId, setBlockingSessionId] = useState<string | null>(null);
+  const [activeSessions, setActiveSessions] = useState<SecadoSession[]>([]);
 
   useEffect(() => {
     const cargar = async () => {
@@ -57,15 +62,8 @@ export default function SecadoSeleccion() {
         if (!visual) throw new Error('No se encontraron sublotes disponibles para este lote.');
 
         setDetalle(visual);
-        setSelectedWeights(
-          Object.fromEntries(visual.sublotes.map((sublote) => [sublote.id, sublote.pesoActual])),
-        );
-
-        const active = getActiveSecadoSessionForLot(visual.lote.id);
-        setActiveSessionId(active?.id ?? null);
-
-        const anyActive = getActiveSecadoSession();
-        setBlockingSessionId(anyActive && anyActive.loteId !== visual.lote.id ? anyActive.id : null);
+        setSelectedWeights({});
+        setActiveSessions(getActiveSecadoSessions());
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo abrir el proceso de secado.');
       } finally {
@@ -86,15 +84,35 @@ export default function SecadoSeleccion() {
     [selectedIds, selectedWeights],
   );
 
+  const activeSubloteIds = useMemo(
+    () => new Set(activeSessions.flatMap((session) => session.sublotes.map((sublote) => sublote.id))),
+    [activeSessions],
+  );
+
+  const availableSublotes = useMemo(
+    () => (detalle?.sublotes ?? []).filter((sublote) => !activeSubloteIds.has(sublote.id)),
+    [activeSubloteIds, detalle?.sublotes],
+  );
+
+  const latestActiveSession = useMemo(
+    () =>
+      [...activeSessions].sort(
+        (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      )[0] ?? null,
+    [activeSessions],
+  );
+
   const grouped = useMemo(() => {
     const groups = ['BUENO', 'REGULAR', 'MALO'];
     return groups.map((quality) => ({
       quality,
-      items: (detalle?.sublotes ?? []).filter((sublote) => qualityKey(detalle?.lote.calidad ?? '') === quality || quality === qualityKey(detalle?.lote.calidad ?? '')),
+      items: availableSublotes.filter((sublote) => qualityKey(sublote.calidad) === quality),
     }));
-  }, [detalle]);
+  }, [availableSublotes]);
 
   const toggleSublote = (sublote: SubloteDetalle) => {
+    if (activeSubloteIds.has(sublote.id)) return;
+
     setSelectedWeights((current) => {
       if ((current[sublote.id] ?? 0) > 0) {
         const next = { ...current };
@@ -107,6 +125,7 @@ export default function SecadoSeleccion() {
   };
 
   const openAdjust = (sublote: SubloteDetalle) => {
+    if (activeSubloteIds.has(sublote.id)) return;
     setEditing(sublote);
     setDraftWeight(String(selectedWeights[sublote.id] || sublote.pesoActual));
   };
@@ -148,15 +167,15 @@ export default function SecadoSeleccion() {
             </p>
           </section>
 
-          {activeSessionId || blockingSessionId ? (
+          {latestActiveSession ? (
             <section className="rounded-[16px] border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900">
-              Ya hay un secado activo. Finalizalo antes de iniciar otro proceso.
+              Tienes un secado activo desde hace {daysSince(latestActiveSession.startedAt)} dias. Puedes revisarlo sin perder lo que ya guardaste.
               <button
                 type="button"
-                onClick={() => navigate(`/inventario/secado/${activeSessionId ?? blockingSessionId}/finalizar`)}
+                onClick={() => navigate(`/inventario/secado/${latestActiveSession.id}/finalizar`)}
                 className="mt-3 w-full rounded-[14px] bg-[#1747d4] py-3 text-xs font-black text-white"
               >
-                Ir al proceso activo
+                Revisar secado activo
               </button>
             </section>
           ) : null}
@@ -173,7 +192,13 @@ export default function SecadoSeleccion() {
             </section>
           ) : null}
 
-          {!loading && detalle ? (
+          {!loading && detalle && availableSublotes.length === 0 ? (
+            <section className="rounded-[16px] border border-slate-200 bg-white p-4 text-center text-xs font-semibold leading-5 text-slate-500 shadow-sm">
+              No hay sublotes disponibles para iniciar otro secado. Los sublotes de este lote ya estan en proceso o no tienen peso disponible.
+            </section>
+          ) : null}
+
+          {!loading && detalle && availableSublotes.length > 0 ? (
             <section className="space-y-4">
               {grouped.map(({ quality, items }) =>
                 items.length > 0 ? (
@@ -248,7 +273,7 @@ export default function SecadoSeleccion() {
           <button
             type="button"
             onClick={iniciarSecado}
-            disabled={selectedIds.length === 0 || Boolean(activeSessionId) || Boolean(blockingSessionId)}
+            disabled={selectedIds.length === 0}
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)] disabled:bg-slate-300"
           >
             Continuar <ChevronRight size={16} />

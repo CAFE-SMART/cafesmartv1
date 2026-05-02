@@ -7,10 +7,10 @@ import {
   BadgeAlert,
   CalendarDays,
   Check,
-  ChevronDown,
   Coffee,
   Frown,
   Leaf,
+  LoaderCircle,
   Meh,
   Pencil,
   Plus,
@@ -46,7 +46,6 @@ import {
 } from '../services/comprasService';
 import { obtenerInventarioResumen } from '../services/inventarioService';
 import {
-  actualizarProductor,
   crearProductor,
   listarProductores,
   type ProductorItem,
@@ -138,6 +137,17 @@ function formatoMoneda(valor: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(valor);
+}
+
+function esperarPintadoInterfaz() {
+  return new Promise<void>((resolve) => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      resolve();
+      return;
+    }
+
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function mapProductorToOption(productor: ProductorItem): ProductorOption {
@@ -271,6 +281,15 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
     );
   }
 
+  if (message.includes('Completa este cafe')) {
+    return createGuidedError(
+      message,
+      'Producto incompleto.',
+      'Antes de agregar otro cafe, termina los datos actuales.',
+      'Completa tipo, calidad, peso y precio.',
+    );
+  }
+
   if (message.includes('catalogos disponibles')) {
     return createGuidedError(
       message,
@@ -327,30 +346,33 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
 
   return createGuidedError(
     message,
-    'Problema guardando.',
-    'Hubo un fallo con los datos o la conexión.',
-    'Revisa si marcaste algún campo mal, o intenta de nuevo.',
+    'Ups, no se pudo guardar.',
+    'Revisa los campos señalados.',
+    'Vuelve a intentar.',
   );
 }
 
 export default function Compras() {
   const navigate = useNavigate();
+  const savingRef = useRef(false);
+  const compraLocalIdRef = useRef<string | null>(null);
   const [catalogos, setCatalogos] = useState<CatalogosCompra>({ tiposCafe: [], calidades: [] });
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
   const [fecha, setFecha] = useState(hoyLocal());
   const [sublotes, setSublotes] = useState<SubloteForm[]>([crearSubloteVacio()]);
+  const [subloteActivoId, setSubloteActivoId] = useState<string | null>(null);
   const [productorSeleccionado, setProductorSeleccionado] = useState<ProductorOption | null>(null);
   const [productorSelectionMode, setProductorSelectionMode] = useState<ProductorSelectionMode>(null);
   const [productores, setProductores] = useState<ProductorOption[]>([]);
   const [busquedaProductor, setBusquedaProductor] = useState('');
-  const busquedaProductorRef = useRef<HTMLInputElement | null>(null);
   const [mostrarModalProductor, setMostrarModalProductor] = useState(false);
-  const [productorEditandoId, setProductorEditandoId] = useState<string | null>(null);
   const [productorForm, setProductorForm] = useState<ProductorForm>({ nombre: '', telefono: '', documento: '' });
   const [productorFormError, setProductorFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [checkingConfirmacion, setCheckingConfirmacion] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarErrorFormulario, setMostrarErrorFormulario] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
@@ -374,10 +396,12 @@ export default function Compras() {
   const [compraGuardada, setCompraGuardada] = useState<CompraGuardadaResumen | null>(null);
   const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
   const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] = useState(false);
+  const [productorCreadoToast, setProductorCreadoToast] = useState<ProductorOption | null>(null);
 
   const cargarTodo = async () => {
     setLoading(true);
     setError(null);
+    setMostrarErrorFormulario(false);
     try {
       const [catalogosData, comprasData, productoresData] = await Promise.all([
         obtenerCatalogosCompra(),
@@ -388,7 +412,7 @@ export default function Compras() {
       setCompras(comprasData);
       setProductores(productoresData.map(mapProductorToOption));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la informacion de compras.');
+      console.warn('No se pudo cargar toda la informacion de compras:', err);
     } finally {
       setLoading(false);
     }
@@ -397,6 +421,18 @@ export default function Compras() {
   useEffect(() => {
     void cargarTodo();
   }, []);
+
+  useEffect(() => {
+    if (!productorCreadoToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setProductorCreadoToast(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [productorCreadoToast]);
 
   const tiposCafe = useMemo(() => ordenarCatalogos(catalogos.tiposCafe, ORDEN_TIPOS), [catalogos.tiposCafe]);
   const calidades = useMemo(() => ordenarCatalogos(catalogos.calidades, ORDEN_CALIDADES), [catalogos.calidades]);
@@ -432,6 +468,7 @@ export default function Compras() {
     catalogos.tiposCafe.length > 0 &&
     catalogos.calidades.length > 0 &&
     !saving &&
+    !checkingConfirmacion &&
     !loading;
   const productoresFiltrados = useMemo(() => {
     const base = [...productores];
@@ -447,9 +484,13 @@ export default function Compras() {
       ),
     );
   }, [busquedaProductor, productores]);
+  const busquedaProductorActiva = busquedaProductor.trim().length > 0;
+  const sinProductoresRegistrados = productores.length === 0;
+  const subloteActual =
+    sublotes.find((sublote) => sublote.id === subloteActivoId) ?? sublotes[sublotes.length - 1] ?? null;
+  const sublotesVisibles = subloteActual ? [subloteActual] : [];
+  const sublotesGuardados = Math.max(0, sublotes.length - 1);
   const pasoActual = datosPaso(step);
-  const hayBusquedaProductor = busquedaProductor.trim().length > 0;
-  const subloteActual = sublotes[sublotes.length - 1] ?? crearSubloteVacio();
 
   const volverPasoAnterior = () => {
     if (step > 1) {
@@ -461,48 +502,33 @@ export default function Compras() {
   };
 
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
+    setMostrarErrorFormulario(false);
+    setError(null);
     setSublotes((actual) => actual.map((sublote) => (sublote.id === id ? { ...sublote, [campo]: valor } : sublote)));
   };
 
   const agregarSublote = () => {
-    const ultimo = sublotes[sublotes.length - 1];
+    const actual = sublotes[sublotes.length - 1];
+    if (!actual) return;
 
-    if (ultimo) {
-      if (!ultimo.tipoCafeId) {
-        setError('Elige si el café es verde o seco antes de agregar otro.');
-        return;
-      }
-
-      if (!ultimo.calidadId) {
-        setError('Elige la calidad del café antes de agregar otro.');
-        return;
-      }
-
-      if (!Number.isFinite(Number(ultimo.pesoInicial)) || Number(ultimo.pesoInicial) <= 0) {
-        setError('Escribe el peso en kilos antes de agregar otro café.');
-        return;
-      }
-
-      if (!Number.isFinite(Number(ultimo.precioKg)) || Number(ultimo.precioKg) < 1000) {
-        setError('Escribe el precio por kilo antes de agregar otro café.');
-        return;
-      }
+    if (
+      !actual.tipoCafeId ||
+      !actual.calidadId ||
+      !Number.isFinite(Number(actual.pesoInicial)) ||
+      Number(actual.pesoInicial) <= 0 ||
+      !Number.isFinite(Number(actual.precioKg)) ||
+      Number(actual.precioKg) < 1000
+    ) {
+      setMostrarErrorFormulario(true);
+      setError('Completa este cafe antes de agregar otro.');
+      return;
     }
 
+    const nuevoSublote = crearSubloteVacio();
     setError(null);
-    setSublotes((actual) => [...actual, crearSubloteVacio()]);
-  };
-
-  const editarSubloteDesdeRevision = (id: string) => {
-    const index = sublotes.findIndex((sublote) => sublote.id === id);
-    if (index <= -1) return;
-
-    setSublotes((actual) => {
-      const seleccionado = actual[index];
-      return [...actual.filter((sublote) => sublote.id !== id), seleccionado];
-    });
-    setError(null);
-    setStep(2);
+    setMostrarErrorFormulario(false);
+    setSubloteActivoId(nuevoSublote.id);
+    setSublotes((items) => [...items, nuevoSublote]);
   };
 
   const eliminarSublote = (id: string) => {
@@ -520,35 +546,21 @@ export default function Compras() {
   const abrirModalProductor = () => {
     setError(null);
     setProductorFormError(null);
-    setProductorEditandoId(null);
     setProductorForm({ nombre: '', telefono: '', documento: '' });
-    setMostrarModalProductor(true);
-  };
-
-  const abrirEditarProductor = (productor: ProductorOption) => {
-    if (productor.rapido) return;
-    setError(null);
-    setProductorFormError(null);
-    setProductorEditandoId(productor.id);
-    setProductorForm({
-      nombre: productor.nombre,
-      telefono: productor.telefono ?? '',
-      documento: productor.documento === 'Documento pendiente' ? '' : productor.documento,
-    });
     setMostrarModalProductor(true);
   };
 
   const cerrarModalProductor = () => {
     setMostrarModalProductor(false);
-    setProductorEditandoId(null);
     setProductorForm({ nombre: '', telefono: '', documento: '' });
     setProductorFormError(null);
   };
 
   const seleccionarProductor = (productor: ProductorOption) => {
     setProductorSeleccionado(productor);
-    setProductorSelectionMode(productor.rapido ? 'generico' : null);
+    setProductorSelectionMode(productor.rapido ? 'generico' : 'buscar');
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const refrescarProductores = async () => {
@@ -566,14 +578,15 @@ export default function Compras() {
       setProductorSeleccionado(null);
     }
     void refrescarProductores();
-    window.setTimeout(() => busquedaProductorRef.current?.focus(), 0);
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const seleccionarGenerico = () => {
     setProductorSelectionMode('generico');
     setProductorSeleccionado(PRODUCTOR_GENERAL);
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const guardarProductorLocal = async () => {
@@ -587,24 +600,18 @@ export default function Compras() {
     }
 
     if (!documento) {
-      setProductorFormError('La Cedula o NIT es obligatoria.');
+      setProductorFormError('La cédula o NIT es obligatoria.');
       return;
     }
 
     setBotonGuardarProductorPresionado(true);
 
     try {
-      const productorGuardado = productorEditandoId
-        ? await actualizarProductor(productorEditandoId, {
-            nombre,
-            documento,
-            telefono: telefono || undefined,
-          })
-        : await crearProductor({
-            nombre,
-            documento,
-            telefono: telefono || undefined,
-          });
+      const productorGuardado = await crearProductor({
+        nombre,
+        documento,
+        telefono: telefono || undefined,
+      });
 
       const productorBase = mapProductorToOption(productorGuardado);
 
@@ -612,13 +619,10 @@ export default function Compras() {
         productorBase,
         ...actual.filter((productor) => productor.id !== productorBase.id),
       ]);
-      setProductorSeleccionado(productorBase);
-      setProductorSelectionMode(null);
-      setBusquedaProductor(nombre);
       setMostrarModalProductor(false);
-      setProductorEditandoId(null);
       setProductorForm({ nombre: '', telefono: '', documento: '' });
       setProductorFormError(null);
+      setProductorCreadoToast(productorBase);
       setError(null);
     } catch (err) {
       setProductorFormError(
@@ -630,31 +634,54 @@ export default function Compras() {
   };
 
   const resetFormulario = () => {
+    savingRef.current = false;
+    compraLocalIdRef.current = null;
     setFecha(hoyLocal());
     setSublotes([crearSubloteVacio()]);
+    setSubloteActivoId(null);
     setProductorSeleccionado(null);
     setProductorSelectionMode(null);
     setBusquedaProductor('');
     setProductorFormError(null);
+    setProductorCreadoToast(null);
     setRegistroErrorMensaje(null);
     setMostrarModalCancelar(false);
     setMostrarModalConfirmar(false);
+    setCheckingConfirmacion(false);
     setMostrarModalAlerta80(false);
     setAlerta80Mostrada(false);
     setDatosAlerta80(null);
     setStep(1);
     setError(null);
+    setMostrarErrorFormulario(false);
     setWarning(null);
+  };
+
+  const iniciarNuevaCompra = () => {
+    setCompraGuardada(null);
+    resetFormulario();
   };
 
   const eliminarSubloteDesdeRevision = (id: string) => {
     if (sublotes.length === 1) {
+      setMostrarErrorFormulario(true);
       setError('Debe quedar al menos un producto antes de finalizar la compra.');
       return;
     }
 
     setSublotes((actual) => actual.filter((sublote) => sublote.id !== id));
+    if (subloteActivoId === id) {
+      setSubloteActivoId(null);
+    }
     setError(null);
+    setMostrarErrorFormulario(false);
+  };
+
+  const editarSubloteDesdeRevision = (id: string) => {
+    setSubloteActivoId(id);
+    setError(null);
+    setMostrarErrorFormulario(false);
+    setStep(2);
   };
 
   const validarSublotes = () => {
@@ -680,8 +707,10 @@ export default function Compras() {
 
   const irSiguientePaso = () => {
     setError(null);
+    setMostrarErrorFormulario(false);
     if (step === 1) {
       if (!productorSeleccionado) {
+        setMostrarErrorFormulario(true);
         setError('Selecciona un productor para continuar.');
         return;
       }
@@ -691,6 +720,7 @@ export default function Compras() {
     if (step === 2) {
       const mensajeValidacion = validarSublotes();
       if (mensajeValidacion) {
+        setMostrarErrorFormulario(true);
         setError(mensajeValidacion);
         return;
       }
@@ -700,6 +730,7 @@ export default function Compras() {
 
   const irPasoAnterior = () => {
     setError(null);
+    setMostrarErrorFormulario(false);
     setWarning(null);
     setStep((actual) => Math.max(1, actual - 1) as Step);
   };
@@ -743,31 +774,73 @@ export default function Compras() {
     }
   };
 
-  const guardarCompra = async () => {
+  const abrirConfirmacionCompra = async () => {
     setRegistroErrorMensaje(null);
+    setError(null);
+    setMostrarErrorFormulario(false);
+
     if (!productorSeleccionado) {
+      setMostrarErrorFormulario(true);
+      setError('Selecciona un productor para continuar.');
+      setStep(1);
+      return;
+    }
+
+    const mensajeValidacion = validarSublotes();
+    if (mensajeValidacion) {
+      setMostrarErrorFormulario(true);
+      setError(mensajeValidacion);
+      return;
+    }
+
+    setCheckingConfirmacion(true);
+    try {
+      const puedeContinuar = await validarCapacidadBodega();
+      if (puedeContinuar) {
+        setMostrarModalConfirmar(true);
+      }
+    } finally {
+      setCheckingConfirmacion(false);
+    }
+  };
+
+  const guardarCompra = async () => {
+    if (savingRef.current) {
+      return;
+    }
+
+    savingRef.current = true;
+    setRegistroErrorMensaje(null);
+    setSaving(true);
+    setBotonRegistrarPresionado(true);
+    setError(null);
+    setMostrarErrorFormulario(false);
+    setWarning(null);
+
+    if (!productorSeleccionado) {
+      savingRef.current = false;
+      setSaving(false);
+      setBotonRegistrarPresionado(false);
+      setMostrarErrorFormulario(true);
       setError('Selecciona un productor para continuar.');
       setStep(1);
       return;
     }
     const mensajeValidacion = validarSublotes();
     if (mensajeValidacion) {
+      savingRef.current = false;
+      setSaving(false);
+      setBotonRegistrarPresionado(false);
+      setMostrarErrorFormulario(true);
       setError(mensajeValidacion);
       return;
     }
-    
-    // Validar capacidad antes de mostrar modal de confirmación
-    const puedeContinuar = await validarCapacidadBodega();
-    if (!puedeContinuar) {
-      return; // El modal de capacidad se mostrará
-    }
-    
-    setSaving(true);
-    setBotonRegistrarPresionado(true);
-    setError(null);
-    setWarning(null);
+
+    await esperarPintadoInterfaz();
+
     try {
-      const compraLocalId = generarId();
+      const compraLocalId = compraLocalIdRef.current ?? generarId();
+      compraLocalIdRef.current = compraLocalId;
       const deviceId = await obtenerDeviceId();
       const fechaActual = fecha.trim() || hoyLocal();
       setFecha(fechaActual);
@@ -783,7 +856,7 @@ export default function Compras() {
           pesoInicial: Number(sublote.pesoInicial),
           precioKg: Number(sublote.precioKg),
           deviceId,
-          localId: generarId(),
+          localId: sublote.id,
         })),
       };
       const respuesta = await crearCompra(payload);
@@ -806,21 +879,16 @@ export default function Compras() {
       });
       const comprasActualizadas = await listarCompras();
       setCompras(comprasActualizadas);
-      resetFormulario();
+      setMostrarModalConfirmar(false);
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : 'No se pudo guardar la compra.';
       setRegistroErrorMensaje(mensaje);
       setError(null);
     } finally {
+      savingRef.current = false;
       setSaving(false);
       setBotonRegistrarPresionado(false);
-      setMostrarModalConfirmar(false);
     }
-  };
-
-  const confirmarCompraConAdvertencia = async () => {
-    setMostrarModalCapacidad(false);
-    setMostrarModalConfirmar(true);
   };
 
   const cerrarModalConfirmar = () => {
@@ -840,42 +908,42 @@ export default function Compras() {
 
   if (compraGuardada) {
     return (
-      <div className="min-h-screen bg-[#f7f7f8] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[340px] items-center">
-          <div className="w-full bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
+          <div className="w-full rounded-[28px] border border-[#dfe5f3] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
             <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#d9f7ef]">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#19b881] text-white">
-                  <Check size={22} strokeWidth={3} />
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#edf3ff]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#19b881] text-white">
+                  <Check size={30} strokeWidth={3} />
                 </div>
               </div>
-              <h1 className="mt-5 text-[1rem] font-black text-[#1f3f97]">Compra registrada</h1>
-              <p className="mt-1 text-[0.72rem] text-slate-500">La compra se guardo correctamente.</p>
+              <h1 className="mt-6 text-[2rem] font-semibold text-[#1f3f97]">Compra registrada</h1>
+              <p className="mt-2 text-[1.04rem] text-slate-500">La compra se guardó correctamente.</p>
             </div>
 
-            <section className="mt-5 rounded-[8px] border border-[#dfe5f3] bg-[#fbfcff] p-3">
-              <p className="text-[0.72rem] font-semibold text-slate-600">Resumen de compra</p>
+            <section className="mt-7 rounded-[18px] border border-[#dfe5f3] bg-[#fbfcff] p-4">
+              <p className="text-[0.92rem] font-semibold text-slate-600">Resumen de compra</p>
               <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between gap-3 rounded-[6px] bg-white px-3 py-2">
-                  <span className="text-[0.68rem] text-slate-600">Productor</span>
-                  <span className="truncate text-[0.72rem] font-semibold text-slate-900">{compraGuardada.productorNombre}</span>
+                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
+                  <span className="text-[0.98rem] text-slate-600">Productor</span>
+                  <span className="text-[1.02rem] font-semibold text-slate-900">{compraGuardada.productorNombre}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-[6px] bg-white px-3 py-2">
-                  <span className="text-[0.68rem] text-slate-600">Total kg</span>
-                  <span className="text-[0.72rem] font-semibold text-slate-900">{Math.round(compraGuardada.totalKg)} kg</span>
+                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
+                  <span className="text-[0.98rem] text-slate-600">Total kg</span>
+                  <span className="text-[1.02rem] font-semibold text-slate-900">{Math.round(compraGuardada.totalKg)} kg</span>
                 </div>
-                <div className="flex items-center justify-between rounded-[6px] bg-[#eef3ff] px-3 py-2">
-                  <span className="text-[0.68rem] font-black uppercase text-slate-700">Total pagado</span>
-                  <span className="text-[0.95rem] font-black text-[#1f3f97]">{formatoMoneda(compraGuardada.totalCompra)}</span>
+                <div className="flex items-center justify-between rounded-[12px] bg-[#eef3ff] px-3 py-2.5">
+                  <span className="text-[0.98rem] font-black uppercase tracking-[0.03em] text-slate-700">Total pagado</span>
+                  <span className="text-[1.8rem] font-black text-[#1f3f97]">{formatoMoneda(compraGuardada.totalCompra)}</span>
                 </div>
               </div>
             </section>
 
-            <div className="mt-5 grid gap-2">
-              <button type="button" onClick={() => setCompraGuardada(null)} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[8px] bg-[#1f3fa7] px-4 py-3 text-[0.72rem] font-semibold text-white shadow-[0_10px_22px_rgba(16,45,146,0.2)]">
+            <div className="mt-7 grid gap-3">
+              <button type="button" onClick={iniciarNuevaCompra} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)]">
                 Registrar nueva compra
               </button>
-              <button type="button" onClick={() => navigate('/inventario')} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[8px] bg-[#edf1f8] px-4 py-3 text-[0.72rem] font-semibold text-[#1f3f97]">
+              <button type="button" onClick={() => navigate('/inventario')} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]">
                 Ir a inventario
               </button>
             </div>
@@ -888,24 +956,22 @@ export default function Compras() {
   if (registroErrorMensaje) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[340px] items-center">
-          <div className="w-full rounded-[14px] border border-[#f0d6da] bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[420px] items-center">
+          <div className="w-full rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
             <div className="text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff0f2]">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e24c5a] text-white">
-                  <AlertTriangle size={16} strokeWidth={2.8} />
-                </div>
+              <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]">
+                <AlertTriangle size={24} strokeWidth={2.8} />
               </div>
-              <h1 className="mt-3 text-[0.95rem] font-black text-[#a02936]">No se guardo la compra</h1>
-              <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">Revisa los datos o intenta otra vez.</p>
-              <p className="mt-2 rounded-[8px] bg-[#fff5f6] px-2.5 py-2 text-[0.66rem] leading-5 text-[#a02936]">{registroErrorMensaje}</p>
+              <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">No se pudo guardar la compra</h1>
+              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">Intenta otra vez.</p>
             </div>
 
-            <div className="mt-4 grid gap-2">
-              <button type="button" onClick={() => void guardarCompra()} disabled={saving} className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[8px] bg-[#1f3fa7] px-4 py-2 text-[0.68rem] font-black text-white shadow-[0_10px_22px_rgba(16,45,146,0.18)] disabled:cursor-not-allowed disabled:opacity-60">
+            <div className="mt-6 grid gap-3">
+              <button type="button" onClick={() => void guardarCompra()} disabled={saving} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
                 {saving ? 'Reintentando...' : 'Reintentar'}
               </button>
-              <button type="button" onClick={volverDesdeError} className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[8px] bg-[#edf1f8] px-4 py-2 text-[0.68rem] font-black text-[#1f3f97]">
+              <button type="button" onClick={volverDesdeError} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]">
                 Volver a editar
               </button>
             </div>
@@ -916,44 +982,45 @@ export default function Compras() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f7f8] px-4 py-4 pb-[92px] text-slate-900">
-      <header className="mx-auto w-full max-w-[340px] bg-white px-4 pb-3 pt-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
+      <header className="mx-auto w-full max-w-[520px] px-4 py-4 pt-6">
         <div className="relative flex items-center justify-center">
           <button
             type="button"
             onClick={volverPasoAnterior}
-            className="absolute left-0 text-slate-900 transition hover:opacity-75"
+            className="absolute left-0 inline-flex items-center gap-1.5 text-slate-900 transition hover:opacity-75"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={22} />
+            <span className="text-[0.95rem] font-semibold">Inicio</span>
           </button>
-          <h1 className="text-[0.78rem] font-black text-slate-950">Registro de Compra</h1>
+          <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Compra</h1>
         </div>
 
-        <div className="mt-7">
-          <div className="flex items-center justify-between text-[0.66rem] font-bold text-slate-900">
+        <div className="mt-8">
+          <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
             <span>{step === 2 ? 'Paso 2: Seleccionar café' : `Paso ${step}: ${pasoActual.titulo}`}</span>
             <span>{step} de 3</span>
           </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#d0dbeb]">
+          <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
             <div
               className="h-full rounded-full bg-[#04337b] transition-all duration-300"
               style={{ width: `${pasoActual.progreso}%` }}
             />
           </div>
           {step === 1 ? (
-            <p className="mt-3 text-[0.62rem] text-slate-500">Selecciona como deseas elegir el productor</p>
+            <p className="mt-3 text-[0.98rem] text-slate-500">Selecciona cómo deseas elegir el productor</p>
           ) : null}
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[340px] flex-col gap-4 bg-white px-4 py-4">
+      <main className="mx-auto flex w-full max-w-[520px] flex-col gap-5 py-2">
 
         {step === 1 ? (
-          <section className="flex flex-col gap-3">
+          <section className="flex flex-col gap-4">
             <button
               type="button"
               onClick={seleccionarBusqueda}
-              className={`w-full rounded-[8px] border px-3 py-3 text-left transition ${
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
                 productorSelectionMode === 'buscar'
                   ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
@@ -961,104 +1028,90 @@ export default function Compras() {
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
                     productorSelectionMode === 'buscar'
                       ? 'bg-[#1f3fa7] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
                   }`}
                 >
-                  <Search size={15} />
+                  <Search size={20} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.78rem] font-semibold leading-tight text-slate-900">Buscar productor</p>
-                  <p className="mt-0.5 text-[0.62rem] text-slate-500">Selecciona un productor registrado</p>
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Buscar productor</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Selecciona un productor registrado</p>
                 </div>
                 <span
-                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
                     productorSelectionMode === 'buscar'
                       ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
                   }`}
                 >
-                  <Check size={11} />
+                  <Check size={14} />
                 </span>
               </div>
             </button>
 
             {productorSelectionMode === 'buscar' ? (
-              <div className="space-y-2 rounded-[8px] border border-[#e4e9f5] bg-white p-2.5">
-                <div className="flex items-center gap-2">
+              <div className="space-y-3 rounded-[18px] border border-[#e4e9f5] bg-white p-3">
+                <div className="relative">
+                  <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    ref={busquedaProductorRef}
                     type="text"
                     value={busquedaProductor}
                     onChange={(event) => setBusquedaProductor(event.target.value)}
-                    placeholder="Nombre o identificacion..."
-                    className="min-w-0 flex-1 rounded-[999px] border border-[#dbe2f0] bg-[#f8faff] px-4 py-2.5 text-[0.72rem] text-slate-900 outline-none transition focus:border-[#1f3fa7]"
+                    placeholder="Nombre o identificación..."
+                    className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-11 py-3 text-[0.98rem] text-slate-900 outline-none transition focus:border-[#1f3fa7]"
                   />
-                  <button
-                    type="button"
-                    onClick={() => busquedaProductorRef.current?.focus()}
-                    aria-label="Buscar productor"
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1f3fa7] text-white shadow-[0_6px_14px_rgba(31,63,167,0.18)]"
-                  >
-                    <Search size={14} strokeWidth={2.5} />
-                  </button>
                 </div>
 
-                <div className="max-h-[190px] space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-[230px] space-y-2 overflow-y-auto pr-1">
                   {productoresFiltrados.map((productor) => {
                     const activo = productorSeleccionado?.id === productor.id;
 
                     return (
-                      <div
+                      <button
                         key={productor.id}
-                        className={`flex w-full items-start justify-between gap-3 rounded-[8px] border px-3 py-2.5 text-left transition ${
+                        type="button"
+                        onClick={() => seleccionarProductor(productor)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-[14px] border px-3 py-3 text-left transition ${
                           activo
                             ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                             : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => seleccionarProductor(productor)}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <p className="truncate text-[0.72rem] font-medium text-slate-900">{productor.nombre}</p>
-                          <p className="mt-0.5 text-[0.62rem] text-slate-500">{productor.documento}</p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => abrirEditarProductor(productor)}
-                          aria-label={`Editar productor ${productor.nombre}`}
-                          className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f3f6fb] text-[#1f3fa7]"
-                        >
-                          <Pencil size={12} strokeWidth={2.3} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => seleccionarProductor(productor)}
-                          className={`mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                        <div className="min-w-0">
+                          <p className="truncate text-[0.98rem] font-medium text-slate-900">{productor.nombre}</p>
+                          <p className="mt-0.5 text-[0.86rem] text-slate-500">{productor.documento}</p>
+                        </div>
+                        <span
+                          className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border ${
                             activo
                               ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                               : 'border-[#cad2e2] bg-white text-transparent'
                           }`}
-                          aria-label={`Seleccionar productor ${productor.nombre}`}
                         >
                           <Check size={12} />
-                        </button>
-                      </div>
+                        </span>
+                      </button>
                     );
                   })}
 
-                  {hayBusquedaProductor && productoresFiltrados.length === 0 ? (
-                    <div className="rounded-[8px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-3 text-center text-[0.68rem] font-semibold text-slate-600">
-                      Sin resultados para "{busquedaProductor.trim()}". Verifica o registra el productor.
+                  {productoresFiltrados.length === 0 && sinProductoresRegistrados ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
+                      <p className="font-semibold text-slate-700">
+                        Aun no hay productores registrados
+                      </p>
+                      <p className="mt-1">Registra uno para comenzar.</p>
                     </div>
                   ) : null}
-                  {!hayBusquedaProductor && productores.length === 0 ? (
-                    <div className="rounded-[8px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-3 text-center text-[0.68rem] font-semibold text-slate-600">
-                      Aun no hay productores registrados.
+
+                  {productoresFiltrados.length === 0 && !sinProductoresRegistrados && busquedaProductorActiva ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
+                      <p className="font-semibold text-slate-700">
+                        No se encontraron resultados
+                      </p>
+                      <p className="mt-1">Intenta con otro nombre o identificacion.</p>
                     </div>
                   ) : null}
                 </div>
@@ -1068,7 +1121,7 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarGenerico}
-              className={`w-full rounded-[8px] border px-3 py-3 text-left transition ${
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
                 productorSelectionMode === 'generico'
                   ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
@@ -1076,26 +1129,26 @@ export default function Compras() {
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
                     productorSelectionMode === 'generico'
                       ? 'bg-[#1f3fa7] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
                   }`}
                 >
-                  <User size={15} />
+                  <User size={20} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.78rem] font-semibold leading-tight text-slate-900">Productor generico</p>
-                  <p className="mt-0.5 text-[0.62rem] text-slate-500">Compra rapida sin registrar productor</p>
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Productor genérico</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Compra rápida sin registrar productor</p>
                 </div>
                 <span
-                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
                     productorSelectionMode === 'generico'
                       ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
                   }`}
                 >
-                  <Check size={11} />
+                  <Check size={14} />
                 </span>
               </div>
             </button>
@@ -1103,42 +1156,31 @@ export default function Compras() {
             <button
               type="button"
               onClick={abrirModalProductor}
-              className="w-full rounded-[8px] border border-[#e3e7f3] bg-white px-3 py-3 text-left transition hover:border-[#ccd6ea]"
+              className="w-full rounded-[20px] border border-[#e3e7f3] bg-white px-4 py-3.5 text-left transition hover:border-[#ccd6ea]"
             >
               <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-slate-600">
-                  <UserPlus size={15} />
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-slate-600">
+                  <UserPlus size={20} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.78rem] font-semibold leading-tight text-slate-900">Registrar productor</p>
-                  <p className="mt-0.5 text-[0.62rem] text-slate-500">Crear un nuevo productor</p>
+                  <p className="text-[1.15rem] font-semibold leading-tight text-slate-900">Registrar productor</p>
+                  <p className="mt-1 text-[0.95rem] text-slate-500">Crear un nuevo productor</p>
                 </div>
               </div>
             </button>
 
-            {!productorSeleccionado ? (
-              <article className="mt-5 border-t border-[#eef1f6] pt-4">
-                <p className="text-[0.55rem] font-black uppercase tracking-[0.08em] text-[#7a8699]">
-                  Productor seleccionado
-                </p>
-                <p className="mt-3 text-[0.62rem] text-slate-500">
-                  Selecciona a quién le harás la compra
-                </p>
-              </article>
-            ) : null}
-
             {productorSeleccionado ? (
-              <article className="mt-2 rounded-[8px] border border-[#e4e9f5] bg-[#fafafa] px-3 py-2.5">
-                <p className="text-[0.55rem] font-semibold uppercase text-slate-500">
+              <article className="mt-2 rounded-[16px] border border-[#e4e9f5] bg-white px-4 py-3.5">
+                <p className="text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-slate-500">
                   Productor seleccionado
                 </p>
                 <div className="mt-2 flex items-center gap-3">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1f3fa7] text-white">
-                    <User size={13} />
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#1f3fa7] text-white">
+                    <User size={16} />
                   </span>
                   <div>
-                    <p className="text-[0.72rem] font-semibold text-slate-900">{productorSeleccionado.nombre}</p>
-                    <p className="text-[0.62rem] text-slate-500">
+                    <p className="text-[1rem] font-semibold text-slate-900">{productorSeleccionado.nombre}</p>
+                    <p className="text-[0.88rem] text-slate-500">
                       {productorSeleccionado.rapido ? 'Compra rápida' : productorSeleccionado.documento}
                     </p>
                   </div>
@@ -1146,7 +1188,7 @@ export default function Compras() {
               </article>
             ) : null}
 
-            {error ? (
+            {error && mostrarErrorFormulario ? (
               <InlineGuidedError message={getComprasGuidance(error)} />
             ) : null}
 
@@ -1154,46 +1196,57 @@ export default function Compras() {
               type="button"
               onClick={irSiguientePaso}
               disabled={!productorSeleccionado}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f3fa7] px-4 py-3 text-[0.72rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.22)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.1rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Siguiente paso
-              <ArrowRight size={14} />
+              <ArrowRight size={20} />
             </button>
           </section>
         ) : null}
 
         {step === 2 ? (
-          <section className="space-y-3">
-            {[subloteActual].map((sublote) => {
+          <section className="space-y-4">
+            {sublotesGuardados > 0 ? (
+              <div className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3 text-sm font-semibold text-[#102d92]">
+                {sublotesGuardados} cafe{sublotesGuardados === 1 ? '' : 's'} agregado{sublotesGuardados === 1 ? '' : 's'} a esta compra.
+              </div>
+            ) : null}
+
+            {sublotesVisibles.map((sublote) => {
+              const index = sublotes.findIndex((item) => item.id === sublote.id);
+              const tipoNombre = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? `Café ${index + 1}`;
+
               return (
                 <article
                   key={sublote.id}
-                  className="rounded-[8px] border border-[#eceffa] bg-white p-0"
+                  className="rounded-[26px] border border-[#eceffa] bg-[#f6f7ff] p-5 shadow-sm"
                 >
 
-                  <div className="rounded-[8px] bg-white px-0 py-0">
-                    <p className="text-[0.62rem] font-semibold tracking-[0.02em] text-slate-600">Fecha de compra</p>
-                    <div className="mt-2 flex items-center gap-2 rounded-[8px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-2.5">
-                      <CalendarDays size={14} className="text-[#102d92]" />
+                  <div className="rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
+                    <p className="text-[0.9rem] font-semibold tracking-[0.04em] text-slate-500">Fecha de compra</p>
+                    <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
+                      <CalendarDays size={18} className="text-[#102d92]" />
                       <input
                         type="date"
                         value={fecha}
                         max={hoyLocal()}
                         onChange={(event) => setFecha(event.target.value)}
-                        className="w-full bg-transparent text-[0.78rem] font-semibold text-[#102d92] outline-none"
+                        className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
                       />
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <p className="mb-2 text-[0.62rem] font-semibold text-slate-600">Tipo de café</p>
-                    <label className="relative block">
+                  <div className="mt-5">
+                    <p className="mb-2.5 text-[0.95rem] font-semibold text-slate-600">Tipo de café</p>
+                    <div className="relative">
                       <select
                         value={sublote.tipoCafeId}
                         onChange={(event) =>
                           actualizarSublote(sublote.id, 'tipoCafeId', event.target.value)
                         }
-                        className="min-h-[42px] w-full appearance-none rounded-[8px] border border-[#dfe5f2] bg-white px-3 py-2.5 pr-9 text-[0.68rem] font-semibold text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:ring-2 focus:ring-[#1f3fa7]/10"
+                          className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${
+                          sublote.tipoCafeId ? 'border-[#dfe5f2] font-semibold text-slate-900' : 'border-[#dfe5f2] font-medium text-slate-400'
+                        }`}
                       >
                         <option value="">Seleccione tipo (ej. Verde, Seco)</option>
                         {tiposCafe.map((tipoCafe) => (
@@ -1202,20 +1255,12 @@ export default function Compras() {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown
-                        size={15}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      />
-                    </label>
-                    {tiposCafe.length === 0 ? (
-                      <div className="mt-2 rounded-[8px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-3 text-center text-[0.68rem] text-slate-500">
-                        No hay tipos de café disponibles.
-                      </div>
-                    ) : null}
+                      <ArrowRight size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-slate-400" />
+                    </div>
                   </div>
 
-                  <div className="mt-4">
-                    <p className="mb-2 text-[0.62rem] font-semibold text-slate-600">Calidad</p>
+                  <div className="mt-5">
+                    <p className="mb-2.5 text-[0.95rem] font-semibold text-slate-600">Calidad</p>
                     <div className="grid grid-cols-3 gap-3">
                       {calidades.map((calidad) => {
                         const activo = sublote.calidadId === calidad.id;
@@ -1227,7 +1272,7 @@ export default function Compras() {
                             onClick={() =>
                               actualizarSublote(sublote.id, 'calidadId', calidad.id)
                             }
-                            className={`rounded-[8px] border px-2 py-2.5 text-sm font-semibold transition ${
+                            className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
                               activo
                                 ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white shadow-[0_8px_20px_rgba(16,45,146,0.18)]'
                                 : `${visual.borde} bg-white/85 text-slate-700 hover:bg-white`
@@ -1241,7 +1286,7 @@ export default function Compras() {
                               >
                                 {visual.icono}
                               </span>
-                              <span className={`text-[0.55rem] font-black uppercase ${activo ? 'text-white' : ''}`}>
+                              <span className={`text-[11px] font-semibold ${activo ? 'text-white' : ''}`}>
                                 {calidad.nombre}
                               </span>
                             </span>
@@ -1251,32 +1296,32 @@ export default function Compras() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[8px] bg-white p-0">
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="mt-5 rounded-[22px] bg-white p-5">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="block text-[0.62rem] font-semibold text-slate-600">Peso (kg)</label>
+                        <label className="block text-[0.95rem] font-semibold text-slate-600">Peso (kg)</label>
                         <input
                           type="number"
                           min="0.01"
                           step="0.01"
                           value={sublote.pesoInicial}
                           onChange={(event) => actualizarSublote(sublote.id, 'pesoInicial', event.target.value)}
-                          className="mt-2 w-full rounded-[8px] border border-[#e4e8f3] bg-[#fbfcff] px-3 py-3 text-[0.86rem] font-semibold text-slate-900 outline-none focus:border-[#102d92] placeholder:text-slate-300"
+                          className="mt-2.5 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none focus:border-[#102d92] placeholder:text-slate-300"
                           placeholder="ej. 25"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[0.62rem] font-semibold text-slate-600">Precio x kg</label>
-                        <div className="mt-2 flex items-center rounded-[8px] border border-[#173ea6] bg-white px-3 py-3">
-                          <span className="mr-2 text-[0.86rem] font-semibold text-[#173ea6]">$</span>
+                        <label className="block text-[0.95rem] font-semibold text-slate-600">Precio x kg</label>
+                        <div className="mt-2.5 flex items-center rounded-[18px] border-2 border-[#173ea6] bg-white px-4 py-4">
+                          <span className="mr-3 text-[1.6rem] font-semibold text-[#173ea6]">$</span>
                           <input
                             type="number"
                             min="0.1"
                             step="0.01"
                             value={sublote.precioKg}
                             onChange={(event) => actualizarSublote(sublote.id, 'precioKg', event.target.value)}
-                            className="w-full bg-transparent text-[0.86rem] font-semibold text-[#173ea6] outline-none placeholder:text-slate-300"
+                            className="w-full bg-transparent text-[1.6rem] font-semibold text-[#173ea6] outline-none placeholder:text-slate-300"
                             placeholder="ej. 14.000"
                           />
                         </div>
@@ -1287,73 +1332,67 @@ export default function Compras() {
               );
             })}
 
-            <button type="button" onClick={agregarSublote} className="inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[8px] border border-dashed border-[#1f3fa7]/40 bg-white px-4 py-2 text-[0.64rem] font-semibold text-[#102d92]">
-              <Plus size={14} />
+            <button type="button" onClick={agregarSublote} className="inline-flex w-full min-h-[56px] items-center justify-center gap-3 rounded-[22px] border border-dashed border-[#ccd4e8] bg-white px-5 py-4 text-sm font-semibold text-[#102d92]">
+              <Plus size={20} />
               Agregar más café
             </button>
 
-            {sublotes.length > 1 ? (
-              <p className="text-center text-[0.62rem] font-semibold text-[#5b6f9d]">
-                Ya guardaste {sublotes.length - 1} café{sublotes.length - 1 === 1 ? '' : 's'} para esta compra.
-              </p>
-            ) : null}
-
-            <article className="rounded-[8px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
-              <p className="text-[0.62rem] font-black text-[#5b6f9d]">Resumen de peso</p>
-              <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[#d6e2ff] pt-3">
+            <article className="rounded-[24px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92] shadow-sm">
+              <p className="text-sm font-black text-[#5b6f9d]">Resumen de peso</p>
+              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[#d6e2ff] pt-5">
                 <div>
-                  <p className="text-[0.62rem] font-black text-[#5b6f9d]">Total kg:</p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-none text-[#102d92]">
+                  <p className="text-sm font-black text-[#5b6f9d]">Total kg:</p>
+                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">
                     {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[0.62rem] font-black text-[#5b6f9d]">Total estimado:</p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-none text-[#102d92]">{formatoMoneda(resumen.totalCompra)}</p>
+                  <p className="text-sm font-black text-[#5b6f9d]">Total estimado:</p>
+                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">{formatoMoneda(resumen.totalCompra)}</p>
                 </div>
               </div>
             </article>
 
-            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
+            {error && mostrarErrorFormulario ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
             <div className="grid gap-3">
-              <button type="button" onClick={irSiguientePaso} disabled={!paso2Completo} className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#1f3fa7] px-4 py-3 text-[0.72rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.22)] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={irSiguientePaso} disabled={!paso2Completo} className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] disabled:cursor-not-allowed disabled:opacity-50">
                 Siguiente Paso
-                <ArrowRight size={14} />
+                <ArrowRight size={22} />
               </button>
-              <button type="button" onClick={irPasoAnterior} className="inline-flex min-h-[36px] w-full items-center justify-center rounded-[8px] bg-white px-4 py-2 text-[0.68rem] font-semibold text-slate-500">Regresar</button>
+              <button type="button" onClick={irPasoAnterior} className="inline-flex min-h-[56px] w-full items-center justify-center rounded-[20px] bg-[#edf1fa] px-5 py-4 text-sm font-semibold text-slate-500">Regresar</button>
             </div>
           </section>
         ) : null}
 
         {step === 3 ? (
-          <section className="space-y-3">
-            <article className="rounded-[8px] border border-[#e2e8f4] bg-white p-3">
-              <div className="mb-3 flex items-center gap-2 text-[0.58rem] font-black uppercase text-[#6a7c98]">
-                <CalendarDays size={11} />
+          <section className="space-y-4">
+            <article className="rounded-[24px] border border-[#e2e8f4] bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2 text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                <CalendarDays size={14} />
                 <span>Datos de la compra</span>
               </div>
-              <div className="space-y-2 rounded-[6px] border border-[#e6eaf3] bg-[#fbfcff] px-3 py-3">
+              <div className="space-y-4 rounded-[16px] border border-[#e6eaf3] bg-[#fbfcff] px-4 py-4">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.55rem] font-black uppercase text-[#6f809a]">Productor</span>
-                  <span className="truncate text-[0.68rem] font-semibold text-slate-900">{productorSeleccionado?.nombre ?? 'Sin productor'}</span>
+                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Productor</span>
+                <span className="text-[1.25rem] font-semibold text-slate-900">{productorSeleccionado?.nombre ?? 'Sin productor'}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.55rem] font-black uppercase text-[#6f809a]">Fecha</span>
-                  <span className="text-[0.68rem] font-semibold text-slate-900">{formatoFecha(fecha)}</span>
+                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Fecha</span>
+                  <span className="text-[1.25rem] font-semibold text-slate-900">{formatoFecha(fecha)}</span>
                 </div>
               </div>
             </article>
 
             <section>
-              <div className="mb-1.5 flex items-center gap-2 px-1 text-[0.58rem] font-black uppercase text-[#6a7c98]">
-                <ShoppingBag size={11} />
+              <div className="mb-2 flex items-center gap-2 px-1 text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                <ShoppingBag size={14} />
                 <span>Historial de la compra</span>
               </div>
-              <p className="px-1 text-[0.58rem] text-slate-500">
+              <p className="px-1 text-[0.85rem] text-slate-500">
                 Si necesitas editar la información de un sublote, regresa al paso anterior
               </p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-3 space-y-3">
                 {sublotes.map((sublote) => {
                   const tipoCafe = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
                   const calidad = nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
@@ -1362,33 +1401,35 @@ export default function Compras() {
                   const visual = iconoTipoCafe(tipoCafe);
 
                   return (
-                    <article key={sublote.id} className="rounded-[8px] border border-[#e6e8f3] bg-white px-3 py-3">
+                    <article key={sublote.id} className="rounded-[22px] border border-[#e6e8f3] bg-white px-4 py-4 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                          <div className={`rounded-full p-2 ${visual.fondo}`}>{visual.icono}</div>
+                        <div className="flex items-start gap-4">
+                          <div className={`rounded-2xl p-3 ${visual.fondo}`}>{visual.icono}</div>
                           <div>
-                            <p className="text-[0.58rem] font-black uppercase text-[#173ea6]">{tipoCafe}</p>
-                            <p className="mt-0.5 text-[0.72rem] font-semibold leading-tight text-slate-900">Calidad: {calidad}</p>
-                            <p className="mt-0.5 text-[0.64rem] font-semibold text-slate-700">Peso: {peso.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg</p>
-                            <p className="mt-0.5 text-[0.64rem] font-semibold text-slate-700">Total: {formatoMoneda(totalItem)}</p>
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#173ea6]">{tipoCafe}</p>
+                            <p className="mt-1 text-[1.2rem] font-semibold leading-tight text-slate-900">Calidad: {calidad}</p>
+                            <p className="mt-1 text-base font-semibold text-slate-700">Peso: {peso.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg</p>
+                            <p className="mt-1 text-base font-semibold text-slate-700">Total: {formatoMoneda(totalItem)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => editarSubloteDesdeRevision(sublote.id)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#edf3ff] text-[#173ea6]"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
                             title="Editar producto"
+                            aria-label={`Editar ${tipoCafe}`}
                           >
-                            <Pencil size={12} />
+                            <Pencil size={16} />
                           </button>
                           <button
                             type="button"
                             onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#fff0f2] text-[#e24c5a]"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
                             title="Eliminar producto"
+                            aria-label={`Eliminar ${tipoCafe}`}
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -1398,30 +1439,30 @@ export default function Compras() {
               </div>
             </section>
 
-            <article className="rounded-[8px] border border-[#d9e2f5] bg-white p-3">
-              <p className="text-[0.58rem] font-black uppercase text-[#6a7c98]">Resumen financiero</p>
-              <div className="mt-3 space-y-2 rounded-[6px] bg-[#f7f8ff] px-3 py-3">
+            <article className="rounded-[24px] border border-[#d9e2f5] bg-white p-5 shadow-sm">
+              <p className="text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">Resumen financiero</p>
+              <div className="mt-4 space-y-4 rounded-[16px] bg-[#f7f8ff] px-4 py-4">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.64rem] font-black uppercase text-slate-700">Total kg</span>
-                  <span className="text-[1rem] font-black text-[#173ea6]">
+                  <span className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-700">Total kg</span>
+                  <span className="text-[2rem] font-black text-[#173ea6]">
                     {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.64rem] font-black uppercase text-slate-700">Total a pagar</span>
-                  <span className="text-[1rem] font-black text-[#173ea6]">{formatoMoneda(resumen.totalCompra)}</span>
+                  <span className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-700">Total a pagar</span>
+                  <span className="text-[2rem] font-black text-[#173ea6]">{formatoMoneda(resumen.totalCompra)}</span>
                 </div>
               </div>
             </article>
 
-            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
+            {error && mostrarErrorFormulario ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
             <div className="grid gap-3">
-              <button type="button" onClick={() => setMostrarModalConfirmar(true)} disabled={!puedeRegistrarCompra} className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[8px] bg-[#102d92] px-4 py-3 text-[0.72rem] font-semibold text-white shadow-[0_12px_26px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
-                <Save size={14} />
-                Registrar compra
+              <button type="button" onClick={() => void abrirConfirmacionCompra()} disabled={!puedeRegistrarCompra} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+                {checkingConfirmacion ? <LoaderCircle size={20} className="animate-spin" /> : <Save size={20} />}
+                {checkingConfirmacion ? 'Revisando bodega...' : 'Registrar compra'}
               </button>
-              <button type="button" onClick={() => setMostrarModalCancelar(true)} className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-[0.68rem] font-semibold text-slate-700">
+              <button type="button" onClick={() => setMostrarModalCancelar(true)} className="inline-flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700">
                 Cancelar
               </button>
             </div>
@@ -1431,30 +1472,30 @@ export default function Compras() {
 
       {mostrarModalCancelar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] bg-white p-4 shadow-[0_20px_44px_rgba(15,23,42,0.2)]">
-            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7deeb]" />
-            <div className="mt-4 text-center">
-              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#ffecef] text-[#b12937]">
-                <AlertTriangle size={16} />
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#ffecef] text-[#b12937]">
+                <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-3 text-[0.95rem] font-black leading-tight text-slate-900">Cancelar compra</h2>
-              <p className="mt-2 text-[0.68rem] leading-5 text-slate-500">
-                Se perderan los datos ingresados.
+              <h2 className="mt-5 text-[2rem] font-semibold leading-tight text-slate-900">¿Cancelar compra?</h2>
+              <p className="mt-3 text-[1.05rem] leading-7 text-slate-500">
+                Se perderán los datos ingresados y tendrás que iniciar el proceso nuevamente.
               </p>
             </div>
 
-            <div className="mt-4 grid gap-2">
+            <div className="mt-6 grid gap-3">
               <button
                 type="button"
                 onClick={confirmarCancelarCompra}
-                className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] bg-[#ffe1e5] px-4 py-2 text-[0.68rem] font-black text-[#b12937]"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ffe1e5] px-5 py-3 text-[1.15rem] font-semibold text-[#b12937]"
               >
-                Si, cancelar
+                Sí, cancelar
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(false)}
-                className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] px-4 py-2 text-[0.68rem] font-black text-[#1f56dd]"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
               >
                 Seguir editando
               </button>
@@ -1465,49 +1506,37 @@ export default function Compras() {
 
       {mostrarModalCapacidad && datosCapacidad ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] bg-white p-4 shadow-[0_20px_44px_rgba(15,23,42,0.2)]">
-            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7deeb]" />
-            <div className="mt-4 text-center">
-              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
-                <AlertTriangle size={16} />
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-3 text-[0.95rem] font-black leading-tight text-slate-900">
-                Bodega sin espacio
-              </h2>
-              <p className="mt-2 text-[0.68rem] leading-5 text-slate-500">
-                Esta compra supera la capacidad.
-              </p>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">No hay espacio suficiente</h2><p className="mt-3 text-[1rem] leading-7 text-slate-500">Esta compra supera la capacidad de tu bodega. Ajusta el peso o libera espacio antes de guardar.</p>
             </div>
 
-            <div className="mt-4 rounded-[10px] border border-[#fed7aa] bg-[#fff7ed] p-4">
-              <div className="flex items-center justify-between gap-3 text-[0.68rem] text-slate-600">
-                <span>Capacidad</span>
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Capacidad máxima</span>
                 <span className="font-semibold text-slate-900">
                   {datosCapacidad.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.68rem] text-slate-600">
-                <span>Con compra</span>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
                 <span className="font-semibold text-[#ea580c]">
                   {datosCapacidad.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={confirmarCompraConAdvertencia}
-                className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] bg-[#ea580c] px-4 py-2 text-[0.68rem] font-black text-white"
-              >
-                Continuar
-              </button>
+            <div className="mt-6 grid gap-3">
               <button
                 type="button"
                 onClick={() => setMostrarModalCapacidad(false)}
-                className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] px-4 py-2 text-[0.68rem] font-black text-[#1f56dd]"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
               >
-                Revisar compra
+                Entendido, revisar compra
               </button>
             </div>
           </div>
@@ -1516,46 +1545,49 @@ export default function Compras() {
 
       {mostrarModalAlerta80 && datosAlerta80 ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] bg-white p-4 shadow-[0_20px_44px_rgba(15,23,42,0.2)]">
-            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#d7deeb]" />
-            <div className="mt-4 text-center">
-              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
-                <AlertTriangle size={16} />
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-3 text-[0.95rem] font-black leading-tight text-slate-900">
-                Bodega al {datosAlerta80.porcentaje}%
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
+                Bodega en nivel de alerta
               </h2>
-              <p className="mt-2 text-[0.68rem] leading-5 text-slate-500">
-                Revisa el espacio disponible.
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                La compra dejará la bodega al {datosAlerta80.porcentaje}% de su capacidad.
+              </p>
+              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
+                Es recomendable considerar vender parte del inventario para evitar problemas de almacenamiento.
               </p>
             </div>
 
-            <div className="mt-4 rounded-[10px] border border-[#fed7aa] bg-[#fff7ed] p-4">
-              <div className="flex items-center justify-between gap-3 text-[0.68rem] text-slate-600">
+            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
                 <span>Capacidad total</span>
                 <span className="font-semibold text-slate-900">
                   {datosAlerta80.capacidadKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.68rem] text-slate-600">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
                 <span>Antes de la compra</span>
                 <span className="font-semibold text-slate-900">
                   {datosAlerta80.inventarioActual.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.68rem] text-slate-600">
-                <span>Con compra</span>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Después de la compra</span>
                 <span className="font-semibold text-[#ea580c]">
                   {datosAlerta80.nuevoTotal.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2">
+            <div className="mt-6 grid gap-3">
               <button
                 type="button"
                 onClick={() => setMostrarModalAlerta80(false)}
-                className="inline-flex min-h-[38px] items-center justify-center rounded-[8px] bg-[#ea580c] px-4 py-2 text-[0.68rem] font-black text-white"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
               >
                 Entendido
               </button>
@@ -1566,90 +1598,97 @@ export default function Compras() {
 
       {mostrarModalConfirmar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] bg-white p-4 shadow-[0_18px_38px_rgba(15,23,42,0.18)]">
-            <div className="mx-auto h-1.5 w-10 rounded-full bg-[#d7deeb]" />
-            {saving ? (
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dce5f7]">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1f3fa7]" />
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
+                <Check size={24} />
               </div>
-            ) : null}
-            <div className="mt-3 text-center">
-              <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
-                <Check size={14} />
-              </div>
-              <h2 className="mt-2.5 text-[0.88rem] font-black leading-tight text-slate-900">Registrar compra</h2>
-              <p className="mt-1.5 text-[0.64rem] leading-5 text-slate-500">
-                {saving ? 'Guardando la compra...' : 'Revisa antes de guardar.'}
-              </p>
+              <h2 className="mt-5 text-[2rem] font-semibold leading-tight text-slate-900">¿Registrar compra?</h2>
+              <p className="mt-3 text-[1.05rem] leading-7 text-slate-500">Verifica la información antes de continuar.</p>
             </div>
 
-            <div className="mt-3 rounded-[8px] border border-[#e2e8f4] bg-[#f8faff] p-3">
-              <div className="flex items-center justify-between gap-3 text-[0.64rem] text-slate-600">
+            <div className="mt-5 rounded-[16px] border border-[#e2e8f4] bg-[#f8faff] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
                 <span>Productor</span>
                 <span className="font-semibold text-slate-900">{productorSeleccionado?.nombre ?? '-'}</span>
               </div>
-              <div className="mt-1.5 flex items-center justify-between gap-3 text-[0.64rem] text-slate-600">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
                 <span>Total kg</span>
                 <span className="font-semibold text-slate-900">
                   {resumen.totalKg.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} kg
                 </span>
               </div>
-              <div className="mt-1.5 flex items-center justify-between gap-3 text-[0.64rem] text-slate-600">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
                 <span>Total a pagar</span>
-                <span className="text-[0.82rem] font-black text-[#1f3fa7]">{formatoMoneda(resumen.totalCompra)}</span>
+                <span className="text-[1.4rem] font-black text-[#1f3fa7]">{formatoMoneda(resumen.totalCompra)}</span>
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2">
+            <div className="mt-6 grid gap-3">
               <button
                 type="button"
                 onClick={() => void guardarCompra()}
                 disabled={!puedeRegistrarCompra || saving}
-                className="inline-flex min-h-[36px] items-center justify-center rounded-[8px] bg-[#1f3fa7] px-4 py-2 text-[0.66rem] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-80"
               >
-                {saving ? 'Guardando compra...' : 'Confirmar compra'}
+                {saving ? (
+                  <>
+                    <LoaderCircle size={20} className="animate-spin" />
+                    Guardando compra...
+                  </>
+                ) : (
+                  'Confirmar compra'
+                )}
               </button>
               <button
                 type="button"
                 onClick={cerrarModalConfirmar}
                 disabled={saving}
-                className="inline-flex min-h-[34px] items-center justify-center rounded-[8px] px-4 py-2 text-[0.64rem] font-black text-[#1f56dd] disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
               >
                 Cancelar
               </button>
             </div>
           </div>
+          {saving ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/10 px-4">
+              <div className="rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
+                <LoaderCircle size={28} className="mx-auto animate-spin text-[#1f3fa7]" />
+                <p className="mt-2 text-sm font-black text-slate-900">Guardando compra</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Espera un momento...</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       {mostrarModalProductor ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/35 px-3 pt-8 backdrop-blur-sm">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-t-[14px] bg-white shadow-[0_16px_38px_rgba(15,23,42,0.16)]">
-            <div className="px-3.5 pb-3 pt-2.5">
-              <div className="mx-auto h-1.5 w-10 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-3 flex items-center justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="px-5 pb-5 pt-3">
+              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+              <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[0.84rem] font-black leading-tight text-[#111827]">
-                    {productorEditandoId ? 'Editar productor' : 'Registrar productor'}
-                  </h2>
+                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">Registrar Productor</h2>
                 </div>
-                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500">
-                  <X size={13} />
+                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500">
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="mt-3 space-y-2.5">
+              <div className="mt-5 space-y-4">
                 <div>
-                  <label className="mb-1 block text-[0.58rem] font-black text-slate-900">Nombre completo</label>
-                  <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Perez Rodriguez" className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2 text-[0.64rem] text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Nombre completo</label>
+                  <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Pérez Rodríguez" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[0.58rem] font-black text-slate-900">Cedula o NIT</label>
-                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="Ej. 123456789 o 900123456" className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2 text-[0.64rem] text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Cédula o NIT</label>
+                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="Ej. 123456789 o 900123456" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[0.58rem] font-black text-slate-900">Telefono (opcional)</label>
-                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="Ej. 3001234567" className="w-full rounded-[8px] border border-[#dde4f1] bg-[#f7f9fd] px-3 py-2 text-[0.64rem] text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Teléfono (opcional)</label>
+                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="Ej. 3001234567" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
 
                 {productorFormError ? (
@@ -1658,15 +1697,11 @@ export default function Compras() {
               </div>
             </div>
 
-            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-3.5 py-3">
-              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex min-h-[36px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 py-2 text-[0.64rem] font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
-                {botonGuardarProductorPresionado
-                  ? 'Guardando...'
-                  : productorEditandoId
-                    ? 'Guardar cambios'
-                    : 'Guardar productor'}
+            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
+              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                {botonGuardarProductorPresionado ? 'Guardando productor...' : 'Guardar Productor'}
               </button>
-              <button type="button" onClick={cerrarModalProductor} className="mt-2 inline-flex w-full items-center justify-center px-4 py-1.5 text-[0.6rem] font-semibold text-slate-500">
+              <button type="button" onClick={cerrarModalProductor} className="mt-3 inline-flex w-full items-center justify-center px-5 py-2 text-[0.9rem] font-semibold text-slate-500">
                 Cancelar
               </button>
             </div>
@@ -1674,13 +1709,37 @@ export default function Compras() {
         </div>
       ) : null}
 
+      {productorCreadoToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 bottom-6 z-40 px-4"
+        >
+          <div className="mx-auto flex w-full max-w-[520px] items-center justify-between gap-3 rounded-[18px] border border-[#d9e2f5] bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_18px_46px_rgba(15,23,42,0.18)]">
+            <div className="min-w-0">
+              <p className="font-bold text-slate-900">Productor creado</p>
+              <p className="truncate text-xs text-slate-500">{productorCreadoToast.nombre}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                seleccionarProductor(productorCreadoToast);
+                setProductorCreadoToast(null);
+              }}
+              className="shrink-0 rounded-full bg-[#eef2ff] px-3 py-2 text-xs font-bold text-[#102d92] transition hover:bg-[#dfe7ff]"
+            >
+              Usar este
+            </button>
+          </div>
+        </div>
+      ) : null}
 
 
-      <AppBottomNav hidden={mostrarModalProductor} />
+
+      <AppBottomNav hidden={mostrarModalProductor || step >= 1} />
     </div>
   );
 }
-
 
 
 

@@ -7,12 +7,14 @@ import { getDaysInBodega } from '../utils/date';
 import {
   guardarFactoresSublotes,
   guardarHumedadesSublotes,
+  guardarPesosSublotes,
   obtenerDetalleLote,
   obtenerResultadosFinancierosSublote,
   type LoteDetalle,
   type ResultadosFinancierosSublote,
 } from '../services/lotesService';
 import { applySecadoToDetalle } from '../utils/secadoFlow';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
@@ -34,9 +36,20 @@ type PendingFactorEdit = {
   updatedAt: number;
 };
 
+type PendingWeightEdit = {
+  tipoCafeId: string;
+  calidadId: string;
+  subloteId: string;
+  pesoActual: number;
+  motivo?: string;
+  updatedAt: number;
+};
+
 const DETAIL_CACHE_KEY = 'cafesmart-sublote-detail-cache-v1';
 const PENDING_HUMIDITY_KEY = 'cafesmart-sublote-humedad-queue-v1';
 const PENDING_FACTOR_KEY = 'cafesmart-sublote-factor-queue-v1';
+const PENDING_WEIGHT_KEY = 'cafesmart-sublote-peso-queue-v1';
+const SUBLOTES_PREVIEW_LIMIT = 4;
 
 function titleCase(value: string) {
   const trimmed = value.trim();
@@ -242,6 +255,65 @@ function readPendingFactorForSublote(tipoCafeId: string, calidadId: string, subl
   return pending?.factor ?? null;
 }
 
+function readPendingWeightEdits() {
+  if (typeof window === 'undefined') return [] as PendingWeightEdit[];
+
+  try {
+    const raw = window.localStorage.getItem(PENDING_WEIGHT_KEY);
+    if (!raw) return [] as PendingWeightEdit[];
+
+    const parsed = JSON.parse(raw) as PendingWeightEdit[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [] as PendingWeightEdit[];
+  }
+}
+
+function writePendingWeightEdits(edits: PendingWeightEdit[]) {
+  if (typeof window === 'undefined') return;
+
+  window.localStorage.setItem(PENDING_WEIGHT_KEY, JSON.stringify(edits));
+}
+
+function upsertPendingWeightEdit(edit: PendingWeightEdit) {
+  const current = readPendingWeightEdits();
+  const next = current.filter(
+    (item) =>
+      !(
+        item.tipoCafeId === edit.tipoCafeId &&
+        item.calidadId === edit.calidadId &&
+        item.subloteId === edit.subloteId
+      ),
+  );
+
+  next.push(edit);
+  writePendingWeightEdits(next);
+}
+
+function removePendingWeightEdit(tipoCafeId: string, calidadId: string, subloteId: string) {
+  const next = readPendingWeightEdits().filter(
+    (item) =>
+      !(
+        item.tipoCafeId === tipoCafeId &&
+        item.calidadId === calidadId &&
+        item.subloteId === subloteId
+      ),
+  );
+
+  writePendingWeightEdits(next);
+}
+
+function readPendingWeightForSublote(tipoCafeId: string, calidadId: string, subloteId: string) {
+  const pending = readPendingWeightEdits().find(
+    (item) =>
+      item.tipoCafeId === tipoCafeId &&
+      item.calidadId === calidadId &&
+      item.subloteId === subloteId,
+  );
+
+  return pending?.pesoActual ?? null;
+}
+
 function getDaysForSublote(sublote: { fechaIngreso: string; diasEnBodega: number }) {
   return Math.max(getDaysInBodega(sublote.fechaIngreso), sublote.diasEnBodega || 0);
 }
@@ -297,6 +369,7 @@ export default function Sublotes() {
   const [editModal, setEditModal] = useState<{ field: EditField; value: string } | null>(null);
   const [weightModal, setWeightModal] = useState<{ value: string; reason: string } | null>(null);
   const [selectedSubloteId, setSelectedSubloteId] = useState<string | null>(null);
+  const [showAllSublotes, setShowAllSublotes] = useState(false);
   const [resultadosFinancieros, setResultadosFinancieros] =
     useState<ResultadosFinancierosSublote | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -306,6 +379,13 @@ export default function Sublotes() {
     if (!selectedSubloteId) return null;
     return detalle.sublotes.find((sublote) => sublote.id === selectedSubloteId) ?? null;
   }, [detalle, selectedSubloteId]);
+
+  const sublotesPreview = useMemo(() => {
+    if (!detalle) return [];
+    return showAllSublotes ? detalle.sublotes : detalle.sublotes.slice(0, SUBLOTES_PREVIEW_LIMIT);
+  }, [detalle, showAllSublotes]);
+
+  const hiddenSublotesCount = detalle ? Math.max(0, detalle.sublotes.length - sublotesPreview.length) : 0;
 
   const cargar = useCallback(async () => {
     if (!tipoCafeId || !calidadId) {
@@ -332,6 +412,7 @@ export default function Sublotes() {
         const cached = readCachedDetail(tipoCafeId, calidadId);
         if (cached) {
           setDetalle(cached);
+          setShowAllSublotes(false);
           setOfflineNoticeVisible(!isOnline);
           return;
         }
@@ -339,7 +420,9 @@ export default function Sublotes() {
         throw new Error('No se pudo cargar el detalle del sublote.');
       }
 
-      const visual = applySecadoToDetalle(raw, tipoCafeId, calidadId) as LoteDetalleVisual | null;
+      const visual = (
+        ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(raw, tipoCafeId, calidadId) : raw
+      ) as LoteDetalleVisual | null;
       if (!visual) {
         throw new Error('No se pudo cargar el detalle del sublote.');
       }
@@ -348,6 +431,8 @@ export default function Sublotes() {
         ...visual,
         sublotes: visual.sublotes.map((sublote) => ({
           ...sublote,
+          pesoActual:
+            readPendingWeightForSublote(tipoCafeId, calidadId, sublote.id) ?? sublote.pesoActual,
           humedad:
             readPendingHumidityForSublote(tipoCafeId, calidadId, sublote.id) ?? sublote.humedad,
           factor: readPendingFactorForSublote(tipoCafeId, calidadId, sublote.id) ?? sublote.factor,
@@ -355,6 +440,7 @@ export default function Sublotes() {
       };
 
       setDetalle(hydrated);
+      setShowAllSublotes(false);
       writeCachedDetail(tipoCafeId, calidadId, hydrated);
       setOfflineNoticeVisible(false);
     } catch (err) {
@@ -408,6 +494,33 @@ export default function Sublotes() {
         );
 
         pending.forEach((item) => removePendingFactorEdit(item.tipoCafeId, item.calidadId, item.subloteId));
+        await cargar();
+      } catch {
+        // La cola se mantiene para un nuevo intento cuando vuelva a haber conexion.
+      }
+    })();
+  }, [calidadId, cargar, detalle, isOnline, tipoCafeId]);
+
+  useEffect(() => {
+    if (!isOnline || !detalle || !tipoCafeId || !calidadId) return;
+
+    const pending = readPendingWeightEdits().filter(
+      (item) => item.tipoCafeId === tipoCafeId && item.calidadId === calidadId,
+    );
+
+    if (pending.length === 0) return;
+
+    void (async () => {
+      try {
+        await guardarPesosSublotes(
+          pending.map((item) => ({
+            id: item.subloteId,
+            pesoActual: item.pesoActual,
+            motivo: item.motivo,
+          })),
+        );
+
+        pending.forEach((item) => removePendingWeightEdit(item.tipoCafeId, item.calidadId, item.subloteId));
         await cargar();
       } catch {
         // La cola se mantiene para un nuevo intento cuando vuelva a haber conexion.
@@ -499,6 +612,12 @@ export default function Sublotes() {
     }
 
     const nextWeight = Number(parsed.toFixed(2));
+    if (nextWeight > subloteActivo.pesoInicial) {
+      setError('El peso no puede superar el peso inicial del sublote.');
+      return;
+    }
+
+    const reason = weightModal.reason.trim();
     setError(null);
     setWeightModal(null);
 
@@ -520,7 +639,48 @@ export default function Sublotes() {
       writeCachedDetail(tipoCafeId, calidadId, nextDetail);
       return nextDetail;
     });
-  }, [calidadId, subloteActivo, tipoCafeId, weightModal]);
+
+    if (subloteActivo.id.startsWith('secado-')) {
+      return;
+    }
+
+    if (!isOnline) {
+      upsertPendingWeightEdit({
+        tipoCafeId,
+        calidadId,
+        subloteId: subloteActivo.id,
+        pesoActual: nextWeight,
+        motivo: reason || undefined,
+        updatedAt: Date.now(),
+      });
+      setOfflineNoticeVisible(true);
+      return;
+    }
+
+    void (async () => {
+      try {
+        await guardarPesosSublotes([
+          {
+            id: subloteActivo.id,
+            pesoActual: nextWeight,
+            motivo: reason || undefined,
+          },
+        ]);
+        removePendingWeightEdit(tipoCafeId, calidadId, subloteActivo.id);
+        await cargar();
+      } catch (err) {
+        upsertPendingWeightEdit({
+          tipoCafeId,
+          calidadId,
+          subloteId: subloteActivo.id,
+          pesoActual: nextWeight,
+          motivo: reason || undefined,
+          updatedAt: Date.now(),
+        });
+        setError(err instanceof Error ? err.message : 'No se pudo guardar el ajuste de peso.');
+      }
+    })();
+  }, [calidadId, cargar, isOnline, subloteActivo, tipoCafeId, weightModal]);
 
   const handleConfirmEdit = useCallback(() => {
     if (!editModal || !subloteActivo || !tipoCafeId || !calidadId) return;
@@ -723,10 +883,10 @@ export default function Sublotes() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
-                  Sublotes
+                  {titleCase(detalle.lote.tipoCafe)} {titleCase(detalle.lote.calidad)}
                 </p>
                 <p className="mt-1 text-[0.58rem] font-semibold text-[#8a8a8a]">
-                  {detalle.lote.codigo}
+                  Sublotes disponibles
                 </p>
               </div>
               <span className="text-[0.58rem] font-black text-[#8a8a8a]">
@@ -735,7 +895,7 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3 grid gap-2">
-              {detalle.sublotes.map((sublote, index) => (
+              {sublotesPreview.map((sublote, index) => (
                 <button
                   key={sublote.id}
                   type="button"
@@ -760,6 +920,16 @@ export default function Sublotes() {
                 </button>
               ))}
             </div>
+
+            {hiddenSublotesCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowAllSublotes(true)}
+                className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e3e8f5] bg-[#f7f9ff] text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4]"
+              >
+                Ver {hiddenSublotesCount} sublotes mas
+              </button>
+            ) : null}
           </section>
         ) : null}
 
