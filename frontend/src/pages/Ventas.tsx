@@ -682,7 +682,7 @@ export default function Ventas() {
               <div className="min-w-0 flex-1">
                 <p className="text-[0.95rem] font-semibold text-slate-900">No se pudo cargar el inventario</p>
                 <p className="mt-1 text-[0.82rem] leading-5 text-slate-500">
-                  Revisa tu conexión e intenta otra vez.
+                  Revisa tu conexión e intenta de nuevo.
                 </p>
               </div>
             </div>

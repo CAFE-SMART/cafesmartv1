@@ -343,7 +343,7 @@ function getSublotesGuidance(message: string): GuidedErrorMessage {
       message,
       'La humedad no es valida.',
       'Debes escribir un numero entre 0 y 100.',
-      'Revisa el valor e intenta otra vez.',
+      'Revisa el valor e intenta de nuevo.',
     );
   }
 

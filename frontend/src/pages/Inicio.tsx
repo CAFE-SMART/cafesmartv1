@@ -73,7 +73,7 @@ function resolveDashboardErrorMessage(error: unknown) {
   }
 
   if (/failed to fetch|networkerror|load failed/i.test(message)) {
-    return 'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.';
+    return 'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.';
   }
 
   return message || 'No pudimos cargar el inicio.';
@@ -374,7 +374,7 @@ export default function Inicio() {
                 No se pudo cargar el resumen
               </p>
               <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
-                Presiona Recargar para intentarlo otra vez.
+                Presiona Recargar para intentarlo de nuevo.
               </p>
             </div>
           </section>

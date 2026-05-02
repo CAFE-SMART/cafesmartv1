@@ -150,7 +150,7 @@ async function postAuth<TResponse>(
         status: 'error',
         source: cloudTracking.source ?? 'sync',
         message:
-          knownError.message || 'Surgio un problema interno. Intenta nuevamente.',
+          knownError.message || 'Surgió un problema interno. Intenta de nuevo.',
       });
     }
 
@@ -162,7 +162,7 @@ async function postAuth<TResponse>(
     throw {
       message:
         knownError.message ||
-        'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.',
+        'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.',
       field: knownError.field ?? null,
       details: knownError.details,
       action: knownError.action ?? null,

@@ -964,7 +964,7 @@ export default function Compras() {
                 <AlertTriangle size={24} strokeWidth={2.8} />
               </div>
               <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">No se pudo guardar la compra</h1>
-              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">Intenta otra vez.</p>
+              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">Intenta de nuevo.</p>
             </div>
 
             <div className="mt-6 grid gap-3">

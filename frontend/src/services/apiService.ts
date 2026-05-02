@@ -37,7 +37,7 @@ function traducirMensajeError(message: unknown, status: number) {
 
   if (!texto) {
     if (status >= 500) {
-      return 'Surgio un problema interno. Intenta nuevamente.';
+      return 'Surgió un problema interno. Intenta de nuevo.';
     }
 
     if (status === 401) {
@@ -60,14 +60,14 @@ function traducirMensajeError(message: unknown, status: number) {
   }
 
   const mapa: Record<string, string> = {
-    'Internal server error': 'Surgio un problema interno. Intenta nuevamente.',
+    'Internal server error': 'Surgió un problema interno. Intenta de nuevo.',
     Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
     Forbidden: 'No tienes permiso para esta accion.',
     'Forbidden resource': 'No tienes permiso para esta opcion.',
     'Not Found': 'No encontramos esa informacion.',
     'Bad Request': 'Revisa los datos e intenta de nuevo.',
     'Failed to fetch':
-      'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.',
+      'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.',
   };
 
   return mapa[texto] || texto;
@@ -111,7 +111,7 @@ function traducirErrorConexion(error: unknown) {
     if (mensaje) return mensaje;
   }
 
-  return 'Surgio un problema interno. Intenta nuevamente. Si el problema continua, comunicate con el encargado.';
+  return 'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.';
 }
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {

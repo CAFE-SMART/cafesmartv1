@@ -131,7 +131,7 @@ function getFieldGuidance(
 function getSaveErrorGuidance(message: string): GuidanceMessage {
   return {
     what: 'No pude guardar el gasto.',
-    why: message || 'Surgio un problema interno. Intenta nuevamente.',
+    why: message || 'Surgió un problema interno. Intenta de nuevo.',
     how: 'Revisa tus datos y vuelve a intentarlo.',
     action: 'Toca "Reintentar" para guardar de nuevo.',
   };
