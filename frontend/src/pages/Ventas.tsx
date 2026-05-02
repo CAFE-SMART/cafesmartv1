@@ -502,7 +502,7 @@ export default function Ventas() {
           subtotal: item.cantidad * item.precio,
         })),
       });
-      await cargarLotes();
+      void cargarLotes();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'No fue posible registrar la venta.');
     } finally {
@@ -679,7 +679,7 @@ export default function Ventas() {
           </div>
         </header>
         {cargando ? (
-          <CardMsg text="Cargando lotes para venta..." />
+          <LoadingCard text="Cargando inventario para venta..." />
         ) : loadError ? (
           <section className="rounded-[18px] border border-[#f3d7dc] bg-white px-4 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
             <div className="flex items-start gap-3">
@@ -1295,15 +1295,34 @@ export default function Ventas() {
         </div>
       ) : null}
 
+      {guardandoVenta || botonConfirmarPresionado ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">
+          <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
+            <RefreshCw size={28} className="mx-auto animate-spin text-[#1f3fa7]" />
+            <p className="mt-2 text-sm font-black text-slate-900">Guardando venta</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">Actualizando inventario...</p>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#102d92]" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <AppBottomNav hidden={mostrarModal || paso >= 1} />
     </div>
   );
 }
 
-function CardMsg({ text }: { text: string }) {
+function LoadingCard({ text }: { text: string }) {
   return (
-    <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-5 text-center shadow-sm">
-      <p className="text-sm font-semibold text-[#102d92]">{text}</p>
+    <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <RefreshCw size={18} className="animate-spin text-[#102d92]" />
+        <p className="text-sm font-semibold text-[#102d92]">{text}</p>
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#d0dbeb]">
+        <div className="h-full w-2/3 animate-pulse rounded-full bg-[#04337b]" />
+      </div>
     </section>
   );
 }
