@@ -131,7 +131,7 @@ function getFieldGuidance(
 function getSaveErrorGuidance(message: string): GuidanceMessage {
   return {
     what: 'No pude guardar el gasto.',
-    why: message || 'Surgió un problema interno. Intenta de nuevo.',
+    why: message || 'Hubo un problema interno. Intenta de nuevo.',
     how: 'Revisa tus datos y vuelve a intentarlo.',
     action: 'Toca "Reintentar" para guardar de nuevo.',
   };
@@ -553,7 +553,7 @@ export default function GastosOperativos() {
           >
             <ArrowLeft size={14} className="text-[#102d92]" />
           </button>
-          <h1 className="text-center text-[0.78rem] font-black text-black">Registro de Gastos</h1>
+          <h1 className="text-center text-[0.78rem] font-black text-black">Registro de gastos</h1>
         </div>
 
         <div className="space-y-2.5">
@@ -578,9 +578,9 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Descripcion breve</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Descripción breve</label>
             <textarea
-              placeholder="Detalles adicionales..."
+              placeholder="Ej: Pago transporte lote octubre"
               rows={2}
               className={getInputClassName(false, 'resize-none px-3 py-2 text-[0.66rem] font-semibold')}
               value={descripcion}
@@ -657,13 +657,13 @@ export default function GastosOperativos() {
                     onClick={() => setTipoGasto(opcion.value)}
                     className={`flex min-h-[42px] flex-col items-center justify-center gap-1 rounded-[8px] border p-1.5 transition-colors ${
                       isSelected
-                        ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                        ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                         : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     <Icon
                       size={12}
-                      className={isSelected ? 'text-[#102d92]' : 'text-slate-400'}
+                      className={isSelected ? 'text-white' : 'text-slate-400'}
                     />
                     <span className="text-[0.42rem] font-black uppercase tracking-normal">
                       {opcion.label}
@@ -675,14 +675,14 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Estado del pago</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Estado de pago</label>
             <div className="flex rounded-full bg-slate-100 p-0.5">
               <button
                 type="button"
                 onClick={() => setEstadoPago('PAGADO')}
                 className={`flex-1 rounded-full py-1.5 text-[0.58rem] font-bold transition-all ${
                   estadoPago === 'PAGADO'
-                    ? 'bg-white text-[#102d92] shadow'
+                    ? 'bg-[#102d92] text-white shadow-[0_6px_14px_rgba(16,45,146,0.2)]'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -693,17 +693,17 @@ export default function GastosOperativos() {
                 onClick={() => setEstadoPago('PENDIENTE')}
                 className={`flex-1 rounded-full py-1.5 text-[0.58rem] font-bold transition-all ${
                   estadoPago === 'PENDIENTE'
-                    ? 'bg-white text-[#102d92] shadow'
+                    ? 'bg-[#102d92] text-white shadow-[0_6px_14px_rgba(16,45,146,0.2)]'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                Pendiente
+                Pendiente de pago
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">A que aplica este gasto?</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">A qué aplica este gasto?</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -713,16 +713,16 @@ export default function GastosOperativos() {
                 }}
                 className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
                   aplicaA === 'GENERAL'
-                    ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                     : 'border-slate-200 bg-white text-slate-500'
                 }`}
               >
                 <Wallet
                   size={12}
-                  className={aplicaA === 'GENERAL' ? 'text-[#102d92]' : 'text-slate-400'}
+                  className={aplicaA === 'GENERAL' ? 'text-white' : 'text-slate-400'}
                 />
                 <span className="text-[0.44rem] font-black uppercase tracking-normal">
-                  Gasto General
+                  Gasto general
                 </span>
               </button>
 
@@ -731,16 +731,16 @@ export default function GastosOperativos() {
                 onClick={() => setAplicaA('SUBLOTES')}
                 className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
                   aplicaA === 'SUBLOTES'
-                    ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                     : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >
                 <Layers
                   size={12}
-                  className={aplicaA === 'SUBLOTES' ? 'text-[#102d92]' : 'text-slate-400'}
+                  className={aplicaA === 'SUBLOTES' ? 'text-white' : 'text-slate-400'}
                 />
                 <span className="text-[0.44rem] font-black uppercase tracking-normal">
-                  Asociar a Sublotes
+                  Asociar a sublotes
                 </span>
               </button>
             </div>

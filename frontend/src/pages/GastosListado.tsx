@@ -20,6 +20,25 @@ function formatDate(value: string) {
   });
 }
 
+function formatRelativeDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatDate(value);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  const days = Math.round((today.getTime() - target.getTime()) / 86_400_000);
+
+  if (days === 0) return 'Hoy';
+  if (days === 1) return 'Ayer';
+  if (days > 1 && days <= 6) return `${days} días`;
+
+  return formatDate(value);
+}
+
 function titleCase(value: string) {
   return value
     .toLowerCase()
@@ -98,6 +117,9 @@ export default function GastosListado() {
           <p className="mt-1 text-[1.25rem] font-black text-[#102d92]">
             {loading ? '...' : formatCurrency(totalAcumulado)}
           </p>
+          <p className="mt-1 text-[0.58rem] font-semibold leading-4 text-slate-500">
+            Suma de todos tus gastos registrados.
+          </p>
         </section>
 
         <button
@@ -116,6 +138,17 @@ export default function GastosListado() {
         ) : null}
 
         <section className="mt-3 space-y-2">
+          {!loading && gastos.length > 0 ? (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+                Gastos recientes
+              </p>
+              <span className="text-[0.56rem] font-bold text-slate-400">
+                {gastos.length} {gastos.length === 1 ? 'registro' : 'registros'}
+              </span>
+            </div>
+          ) : null}
+
           {loading ? (
             <div className="rounded-[12px] border border-[#eeeeee] bg-white px-3 py-5 text-center text-[0.72rem] font-semibold text-slate-500">
               Cargando gastos...
@@ -123,10 +156,15 @@ export default function GastosListado() {
           ) : null}
 
           {!loading && gastos.length === 0 && !error ? (
-            <div className="rounded-[12px] border border-dashed border-[#d7dce8] bg-[#fafafa] px-4 py-6 text-center">
-              <Receipt size={22} className="mx-auto text-slate-300" />
-              <p className="mt-2 text-[0.72rem] font-semibold text-slate-500">
-                No hay gastos registrados.
+            <div className="rounded-[14px] border border-[#dbe2ee] bg-white px-4 py-6 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#eef4ff] text-[#2051e5]">
+                <Receipt size={18} />
+              </div>
+              <p className="mt-3 text-[0.76rem] font-black text-slate-900">
+                Aún no has registrado gastos
+              </p>
+              <p className="mx-auto mt-1 max-w-[230px] text-[0.64rem] font-semibold leading-5 text-slate-500">
+                Empieza registrando uno para llevar control de tus costos.
               </p>
             </div>
           ) : null}
@@ -151,7 +189,7 @@ export default function GastosListado() {
                     </p>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-[0.6rem] font-semibold text-slate-500">
-                    <span>{formatDate(gasto.fechaGasto)}</span>
+                    <span>{formatRelativeDate(gasto.fechaGasto)}</span>
                     <span
                       className={`rounded-full px-2 py-1 text-[0.52rem] font-black uppercase ${
                         gasto.estadoPago === 'PAGADO'

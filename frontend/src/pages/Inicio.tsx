@@ -193,18 +193,18 @@ function BodegaCoffeeRow({
 
 function EmptyDashboardState({ onRegisterPurchase }: { onRegisterPurchase: () => void }) {
   return (
-    <section className="px-5 pt-3">
-      <div className="rounded-[28px] border border-dashed border-[#c9d6ea] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,246,253,0.7))] px-5 py-8 text-center shadow-[0_16px_38px_rgba(15,23,42,0.05)] backdrop-blur-sm">
+    <section className="px-5 pt-6">
+      <div className="rounded-[28px] border border-[#e1e8f3] bg-white px-6 py-9 text-center shadow-[0_18px_44px_rgba(15,23,42,0.09)]">
         <img
           src="/imagenes-de-proyecto/granito-inteligente.png"
           alt=""
           className="mx-auto h-14 w-14 object-contain"
         />
         <h2 className="mt-5 text-[1.18rem] font-black text-[#101828]">
-          Bienvenido a Cafe Smart
+          Registra tu primera compra
         </h2>
         <p className="mx-auto mt-2 max-w-[270px] text-[0.84rem] font-semibold leading-6 text-[#52627a]">
-          Registra tu primera compra para ver el inventario y empezar a vender.
+          Para ver tu inventario y empezar a vender.
         </p>
         <button
           type="button"
