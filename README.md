@@ -331,6 +331,39 @@ pnpm test .
 
 Este comando ejecutará todos los tests disponibles en el proyecto.
 
+## Linting y Formateo de Código
+
+El proyecto ya tiene configurados **ESLint** y **Prettier** para mantener el código limpio y consistente. Los archivos de configuración (`.eslintrc.json` y `.prettierrc`) ya existen en la raíz del proyecto.
+
+### Comandos para usar
+
+Antes de commitear código, ejecuta estos comandos desde la raíz:
+
+```bash
+# Formatear todo el código
+pnpm format
+
+# Verificar si hay errores de lint
+pnpm lint
+```
+
+### Si falla el lint
+
+Si `pnpm lint` falla por dependencias faltantes:
+
+```bash
+pnpm add -D -w eslint-plugin-prettier eslint-config-prettier prettier
+```
+
+### Variables no usadas
+
+Si lint marca una variable como no usada, puedes:
+- Eliminarla si no la necesitas
+- Usar prefijo `_` si es intencional:
+  ```typescript
+  const [_variable, setVariable] = useState<tipo[]>([]);
+  ```
+
 ## Problemas comunes
 
 - Error Prisma `P1000`:
