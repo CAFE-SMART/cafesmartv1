@@ -395,6 +395,7 @@ export class DashboardService {
       const costoVendido = pesoVendido * costoPorKg;
       const mermaValor = mermaKg * costoPorKg;
       const pesoBase = pesoActual + pesoVendido;
+      const proporcionVendida = pesoBase > 0 ? pesoVendido / pesoBase : pesoVendido > 0 ? 1 : 0;
       const gastoGeneralAsignado =
         totalGastosGenerales > 0
           ? pesoBaseTotal > 0
@@ -403,8 +404,9 @@ export class DashboardService {
           : 0;
       const totalGastos =
         (gastosPorSublote.get(sublote.id) ?? 0) + gastoGeneralAsignado;
+      const gastosRealizados = totalGastos * proporcionVendida;
 
-      utilidadTotalAcumulada += totalVentas - costoVendido - totalGastos - mermaValor;
+      utilidadTotalAcumulada += totalVentas - costoVendido - gastosRealizados - mermaValor;
       mermaTotalKg += mermaKg;
 
       const actual = inventarioPorTipoMap.get(sublote.tipoCafeId) ?? {

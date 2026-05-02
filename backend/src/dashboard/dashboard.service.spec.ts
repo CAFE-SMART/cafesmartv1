@@ -137,4 +137,80 @@ describe('DashboardService', () => {
       expect.objectContaining({ id: 'compra-1', tipo: 'COMPRA', kg: 120 }),
     ]);
   });
+
+  it('no descuenta gastos de inventario no vendido en la utilidad realizada', async () => {
+    const { service, prisma } = crearServicioConMocks();
+
+    prisma.compra.count.mockResolvedValue(1);
+    prisma.venta.count.mockResolvedValue(0);
+    prisma.gastoOperativo.count.mockResolvedValue(1);
+    prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
+    prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: null } });
+    prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
+    prisma.productor.count.mockResolvedValue(1);
+    prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 100 } });
+    prisma.compra.findMany.mockResolvedValue([]);
+    prisma.venta.findMany.mockResolvedValue([]);
+    prisma.gastoOperativo.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ montoGasto: 100000 }]);
+    prisma.sublote.findMany.mockResolvedValue([
+      {
+        id: 'sublote-1',
+        pesoInicial: 100,
+        pesoActual: 100,
+        costoTotal: 900000,
+        tipoCafeId: 'tipo-verde',
+        tipoCafe: { nombre: 'VERDE' },
+      },
+    ]);
+    prisma.ventaDetalle.findMany.mockResolvedValue([]);
+    prisma.gastoSublote.findMany.mockResolvedValue([]);
+
+    const resumen = await service.obtenerResumen('user-1');
+
+    expect(resumen.utilidadTotalAcumulada).toBe(0);
+    expect(resumen.mermaTotalKg).toBe(0);
+  });
+
+  it('calcula utilidad realizada con ventas, costo vendido y gasto proporcional', async () => {
+    const { service, prisma } = crearServicioConMocks();
+
+    prisma.compra.count.mockResolvedValue(1);
+    prisma.venta.count.mockResolvedValue(1);
+    prisma.gastoOperativo.count.mockResolvedValue(1);
+    prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
+    prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: 1904000 } });
+    prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
+    prisma.productor.count.mockResolvedValue(1);
+    prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 40 } });
+    prisma.compra.findMany.mockResolvedValue([]);
+    prisma.venta.findMany.mockResolvedValue([]);
+    prisma.gastoOperativo.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ montoGasto: 100000 }]);
+    prisma.sublote.findMany.mockResolvedValue([
+      {
+        id: 'sublote-1',
+        pesoInicial: 100,
+        pesoActual: 40,
+        costoTotal: 900000,
+        tipoCafeId: 'tipo-verde',
+        tipoCafe: { nombre: 'VERDE' },
+      },
+    ]);
+    prisma.ventaDetalle.findMany.mockResolvedValue([
+      {
+        subloteId: 'sublote-1',
+        pesoVendido: 60,
+        subtotal: 1904000,
+      },
+    ]);
+    prisma.gastoSublote.findMany.mockResolvedValue([]);
+
+    const resumen = await service.obtenerResumen('user-1');
+
+    expect(resumen.utilidadTotalAcumulada).toBe(1304000);
+    expect(resumen.mermaTotalKg).toBe(0);
+  });
 });

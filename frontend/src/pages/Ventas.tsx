@@ -28,7 +28,12 @@ import {
   listarClientes,
   type ClienteItem,
 } from '../services/clientesService';
-import { LoteResumen, obtenerDetalleLote, obtenerLotes } from '../services/lotesService';
+import {
+  LoteResumen,
+  obtenerDetalleLote,
+  obtenerLotes,
+  guardarPesosSublotes,
+} from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import { applySecadoToDetalle, applySecadoToLots } from '../utils/secadoFlow';
@@ -56,6 +61,7 @@ type LoteVenta = {
   disponibleKg: number;
   cantidadKg: string;
   precioKg: string;
+  pesoVerificadoKg: string;
 };
 type VentaGuardadaResumen = {
   referenciaId: string;
@@ -103,6 +109,7 @@ function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
       disponibleKg: l.pesoActual,
       cantidadKg: '',
       precioKg: String(Math.round(l.precioPromedioKg || 0)),
+      pesoVerificadoKg: '',
     }));
 }
 
@@ -135,6 +142,44 @@ function crearResumenVentaGuardada(respuesta: CreateVentaResponse): VentaGuardad
 
 function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getPesoVerificado(lote: LoteVenta) {
+  if (!lote.pesoVerificadoKg.trim()) return null;
+  return round2(toNum(lote.pesoVerificadoKg));
+}
+
+function getDisponibleVenta(lote: LoteVenta) {
+  const verificado = getPesoVerificado(lote);
+  if (verificado === null) return lote.disponibleKg;
+  return Math.max(0, Math.min(lote.disponibleKg, verificado));
+}
+
+function pesoVerificadoInvalido(lote: LoteVenta) {
+  const verificado = getPesoVerificado(lote);
+  return verificado !== null && (verificado < 0 || verificado > lote.disponibleKg);
+}
+
+function distribuirPesoVerificado(
+  pool: Array<{ subloteId: string; disponibleKg: number }>,
+  pesoVerificado: number,
+) {
+  const totalActual = round2(pool.reduce((sum, item) => sum + item.disponibleKg, 0));
+  if (pesoVerificado >= totalActual || totalActual <= 0) return pool;
+
+  let acumulado = 0;
+  return pool.map((item, index) => {
+    const disponibleKg =
+      index === pool.length - 1
+        ? round2(Math.max(0, pesoVerificado - acumulado))
+        : round2((item.disponibleKg / totalActual) * pesoVerificado);
+    acumulado = round2(acumulado + disponibleKg);
+
+    return {
+      ...item,
+      disponibleKg,
+    };
+  });
 }
 
 function datosPasoVenta(step: Step) {
@@ -229,12 +274,14 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
 }
 
 function getCantidadLoteGuidance(lote: LoteVenta, cantidad: number): GuidedErrorMessage {
-  if (cantidad > lote.disponibleKg) {
+  const disponible = getDisponibleVenta(lote);
+
+  if (cantidad > disponible) {
     return createGuidedError(
       `La cantidad supera el disponible en ${lote.codigo}.`,
       'Cantidad excedida',
       'Solo puedes vender hasta lo disponible.',
-      `Disponible: ${kg(lote.disponibleKg)}.`,
+      `Disponible: ${kg(disponible)}.`,
     );
   }
 
@@ -242,7 +289,7 @@ function getCantidadLoteGuidance(lote: LoteVenta, cantidad: number): GuidedError
     `La cantidad debe ser mayor a 0 en ${lote.codigo}.`,
     'Cantidad invalida',
     'Ingresa una cantidad mayor a 0.',
-    `Disponible: ${kg(lote.disponibleKg)}.`,
+    `Disponible: ${kg(disponible)}.`,
   );
 }
 
@@ -302,7 +349,9 @@ export default function Ventas() {
 
   const lotesConCantidad = React.useMemo(() => {
     if (modoVenta === 'TOTAL') {
-      return lotesVenta.filter((l) => l.disponibleKg > 0).map((l) => ({ ...l, cantidad: l.disponibleKg, precio: toNum(precioGlobal) }));
+      return lotesVenta
+        .filter((l) => getDisponibleVenta(l) > 0)
+        .map((l) => ({ ...l, cantidad: getDisponibleVenta(l), precio: toNum(precioGlobal) }));
     }
     if (modoVenta !== 'PARCIAL') {
       return [];
@@ -324,7 +373,8 @@ export default function Ventas() {
     }
     if (!lotesConCantidad.length) return 'Ingresa al menos una cantidad para continuar.';
     for (const l of lotesConCantidad) {
-      if (l.cantidad > l.disponibleKg) return `La cantidad supera el disponible en ${l.codigo}.`;
+      if (pesoVerificadoInvalido(l)) return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
+      if (l.cantidad > getDisponibleVenta(l)) return `La cantidad supera el disponible en ${l.codigo}.`;
       if (l.precio <= 0) return `Ingresa un precio por kg valido en ${l.codigo}.`;
     }
     return null;
@@ -340,14 +390,14 @@ export default function Ventas() {
       const cantidadIngresada = lote.cantidadKg.trim() !== '';
       if (!cantidadIngresada) return false;
       const cantidad = toNum(lote.cantidadKg);
-      return cantidad <= 0 || cantidad > lote.disponibleKg || toNum(lote.precioKg) <= 0;
+      return cantidad <= 0 || cantidad > getDisponibleVenta(lote) || toNum(lote.precioKg) <= 0 || pesoVerificadoInvalido(lote);
     });
   }, [lotesVenta, modoVenta]);
   const puedeAvanzarPaso2 =
     modoVenta === null
       ? false
       : modoVenta === 'TOTAL'
-        ? toNum(precioGlobal) > 0
+        ? toNum(precioGlobal) > 0 && !lotesVenta.some(pesoVerificadoInvalido)
         : hayCantidadParcial && !parcialConErrores;
 
   const siguiente = React.useCallback(() => {
@@ -445,13 +495,27 @@ export default function Ventas() {
             ENABLE_SECADO_PROTOTYPE
               ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId)
               : detalleBase;
-          const pool = (detalle?.sublotes ?? [])
+          let pool = (detalle?.sublotes ?? [])
             .filter((sublote) => sublote.pesoActual > 0)
             .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
             .map((sublote) => ({
               subloteId: sublote.id,
               disponibleKg: round2(sublote.pesoActual),
             }));
+
+          const pesoVerificado = getPesoVerificado(lote);
+          const totalPool = round2(pool.reduce((sum, item) => sum + item.disponibleKg, 0));
+
+          if (pesoVerificado !== null && pesoVerificado < totalPool) {
+            pool = distribuirPesoVerificado(pool, pesoVerificado);
+            await guardarPesosSublotes(
+              pool.map((entry) => ({
+                id: entry.subloteId,
+                pesoActual: entry.disponibleKg,
+                motivo: 'Calibración antes de venta',
+              })),
+            );
+          }
 
           pools.set(poolKey, pool);
         }
@@ -536,7 +600,7 @@ export default function Ventas() {
     void cargarLotes();
   }, [cargarLotes]);
 
-  const updateLote = (id: string, campo: 'cantidadKg' | 'precioKg', valor: string) =>
+  const updateLote = (id: string, campo: 'cantidadKg' | 'precioKg' | 'pesoVerificadoKg', valor: string) =>
     setLotesVenta((prev) => prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l)));
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
@@ -555,6 +619,7 @@ export default function Ventas() {
     modoVenta === 'TOTAL' &&
     (intentoPaso2 || precioGlobal.trim() !== '') &&
     toNum(precioGlobal) <= 0;
+  const pesoVerificadoConErrores = paso === 2 && lotesVenta.some(pesoVerificadoInvalido);
   const sinInventario = paso === 2 && lotesVenta.length === 0;
   const parcialSinCantidad = paso === 2 && modoVenta === 'PARCIAL' && !hayCantidadParcial;
   const parcialSinSeleccion = parcialSinCantidad && intentoPaso2;
@@ -562,6 +627,7 @@ export default function Ventas() {
     sinInventario ||
     modoInvalido ||
     precioTotalInvalido ||
+    pesoVerificadoConErrores ||
     parcialSinSeleccion ||
     parcialConErrores;
 
@@ -809,8 +875,11 @@ export default function Ventas() {
                   {lotesVenta.map((lote) => {
                     const cantidad = toNum(lote.cantidadKg);
                     const cantidadIngresada = lote.cantidadKg.trim() !== '';
+                    const disponibleVenta = getDisponibleVenta(lote);
+                    const mermaVenta = round2(lote.disponibleKg - disponibleVenta);
+                    const pesoVerificadoError = pesoVerificadoInvalido(lote);
                     const cantidadInvalida =
-                      modoVenta === 'PARCIAL' && cantidadIngresada && (cantidad <= 0 || cantidad > lote.disponibleKg);
+                      modoVenta === 'PARCIAL' && cantidadIngresada && (cantidad <= 0 || cantidad > disponibleVenta);
                     const precioInvalido =
                       modoVenta === 'PARCIAL' && cantidadIngresada && toNum(lote.precioKg) <= 0;
 
@@ -827,6 +896,49 @@ export default function Ventas() {
                         Disponible: {kg(lote.disponibleKg)}
                       </p>
 
+                      <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                              Verificar peso
+                            </p>
+                            <p className="mt-1 text-[0.72rem] leading-5 text-slate-500">
+                              Si el peso físico cambió, ajusta aquí antes de vender.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateLote(lote.id, 'pesoVerificadoKg', '')}
+                            className="shrink-0 rounded-full bg-[#eef3ff] px-3 py-1.5 text-[0.62rem] font-black text-[#102d92]"
+                          >
+                            Mismo peso
+                          </button>
+                        </div>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          max={lote.disponibleKg}
+                          value={lote.pesoVerificadoKg}
+                          onChange={(event) => updateLote(lote.id, 'pesoVerificadoKg', event.target.value)}
+                          placeholder={`Actual: ${kg(lote.disponibleKg)}`}
+                          className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
+                            pesoVerificadoError
+                              ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
+                              : 'border-[#d7dcec] bg-white text-slate-900'
+                          }`}
+                        />
+                        {pesoVerificadoError ? (
+                          <p className="mt-2 text-xs font-semibold text-[#b42318]">
+                            El peso verificado debe estar entre 0 y {kg(lote.disponibleKg)}.
+                          </p>
+                        ) : mermaVenta > 0 ? (
+                          <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
+                            Se registrará una merma de {kg(mermaVenta)} antes de la venta.
+                          </p>
+                        ) : null}
+                      </div>
+
                       {modoVenta === 'PARCIAL' ? (
                         <>
                           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -834,7 +946,7 @@ export default function Ventas() {
                               type="number"
                               inputMode="decimal"
                               min={0}
-                              max={lote.disponibleKg}
+                              max={disponibleVenta}
                               value={lote.cantidadKg}
                               onChange={(event) => updateLote(lote.id, 'cantidadKg', event.target.value)}
                               placeholder="Cantidad kg"
@@ -872,7 +984,7 @@ export default function Ventas() {
                         </>
                       ) : (
                         <p className="mt-3 text-sm text-slate-600">
-                          En modo total este lote se vende completo.
+                          En modo total se vende el peso disponible verificado: {kg(disponibleVenta)}.
                         </p>
                       )}
                     </article>
