@@ -10,11 +10,11 @@ export const AUTH_MESSAGES = {
   invalidEmail: 'Correo incorrecto.',
   invalidPassword: 'Contrasena incorrecta.',
   googleGeneric:
-    'No pudimos entrar con Google. Revisa tu internet e intenta de nuevo. Si vuelve a pasar, entra con correo y contrasena o pide ayuda al encargado.',
+    'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
   googleNeedsRegister:
-    'Ese correo de Google todavia no tiene cuenta en Cafe Smart. Toca "Registrate gratis" para crear la cuenta primero.',
+    'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
   offline:
-    'No pudimos conectarnos con Cafe Smart. Revisa que tengas internet y que el sistema este abierto en el computador. Luego intenta de nuevo.',
+    'Revisa tu conexión e intenta de nuevo.',
 } as const;
 
 export function normalizeMessage(message: string | string[] | undefined, fallback: string) {

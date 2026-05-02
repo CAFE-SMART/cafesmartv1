@@ -43,8 +43,8 @@ export function InlineGuidedError({
       <div className="flex items-start gap-2">
         <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-600" />
         <div className="leading-snug">
-          <p className="font-bold">{message.why}</p>
-          <p className="mt-0.5 text-rose-700">{message.action}</p>
+          {message.why ? <p className="font-bold">{message.why}</p> : null}
+          {message.action ? <p className="mt-0.5 text-rose-700">{message.action}</p> : null}
         </div>
       </div>
     </div>
@@ -67,8 +67,8 @@ export function FloatingGuidedNotice({
 
           <div className="min-w-0 flex-1">
             <div className="text-[0.72rem] leading-snug text-slate-700">
-              <p className="font-bold">{message.why}</p>
-              <p className="mt-0.5 text-rose-700">{message.action}</p>
+              {message.why ? <p className="font-bold">{message.why}</p> : null}
+              {message.action ? <p className="mt-0.5 text-rose-700">{message.action}</p> : null}
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">

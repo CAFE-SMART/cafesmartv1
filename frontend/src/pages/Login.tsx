@@ -462,8 +462,8 @@ function AlertBanner({ message }: { message: string }) {
   const title = isGoogleError
     ? 'No pudimos entrar con Google'
     : isConnectionError
-      ? 'No pudimos conectar con el sistema'
-      : 'No pudimos iniciar sesion';
+      ? 'Ups, no pudimos conectar'
+      : 'No pudimos iniciar sesión';
 
   return (
     <div

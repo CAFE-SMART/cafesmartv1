@@ -194,7 +194,7 @@ function BodegaCoffeeRow({
 function EmptyDashboardState({ onRegisterPurchase }: { onRegisterPurchase: () => void }) {
   return (
     <section className="px-5 pt-3">
-      <div className="rounded-[28px] border border-dashed border-[#c9d6ea] bg-white px-5 py-8 text-center shadow-[0_16px_38px_rgba(15,23,42,0.06)]">
+      <div className="rounded-[28px] border border-dashed border-[#c9d6ea] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,246,253,0.7))] px-5 py-8 text-center shadow-[0_16px_38px_rgba(15,23,42,0.05)] backdrop-blur-sm">
         <img
           src="/imagenes-de-proyecto/granito-inteligente.png"
           alt=""
