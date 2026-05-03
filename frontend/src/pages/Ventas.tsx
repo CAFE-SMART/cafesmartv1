@@ -42,6 +42,10 @@ import {
 } from '../services/clientesService';
 import { LoteResumen, obtenerDetalleLote, obtenerLotes } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
+import {
+  getActiveSecadoBlockedKgByLot,
+  getActiveSecadoBlockedSubloteIds,
+} from '../utils/secadoFlow';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -64,6 +68,7 @@ type LoteVenta = {
   calidadId: string;
   calidad: string;
   disponibleKg: number;
+  pesoEnSecadoKg: number;
   cantidadKg: string;
   precioKg: string;
 };
@@ -101,19 +106,27 @@ const toNum = (v: string) => {
 const norm = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
+  const blockedKgByLot = getActiveSecadoBlockedKgByLot();
+
   return lotes
-    .filter((l) => l.pesoActual > 0)
-    .map((l) => ({
-      id: l.id,
-      codigo: l.codigo,
-      tipoCafeId: l.tipoCafeId,
-      tipoCafe: l.tipoCafe,
-      calidadId: l.calidadId,
-      calidad: l.calidad,
-      disponibleKg: l.pesoActual,
-      cantidadKg: '',
-      precioKg: String(Math.round(l.precioPromedioKg || 0)),
-    }));
+    .map((l) => {
+      const pesoEnSecadoKg = blockedKgByLot.get(l.id) ?? 0;
+      const disponibleKg = round2(Math.max(0, l.pesoActual - pesoEnSecadoKg));
+
+      return {
+        id: l.id,
+        codigo: l.codigo,
+        tipoCafeId: l.tipoCafeId,
+        tipoCafe: l.tipoCafe,
+        calidadId: l.calidadId,
+        calidad: l.calidad,
+        disponibleKg,
+        pesoEnSecadoKg: round2(pesoEnSecadoKg),
+        cantidadKg: '',
+        precioKg: String(Math.round(l.precioPromedioKg || 0)),
+      };
+    })
+    .filter((l) => l.disponibleKg > 0);
 }
 
 const uid = () =>
@@ -215,6 +228,7 @@ export default function Ventas() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [submitErrorDetail, setSubmitErrorDetail] = React.useState<unknown>(null);
   const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
+  const [mostrarModalConfirmar, setMostrarModalConfirmar] = React.useState(false);
   const [paso, setPaso] = React.useState<Step>(1);
   const [botonConfirmarPresionado, setBotonConfirmarPresionado] = React.useState(false);
   const [intentoPaso1, setIntentoPaso1] = React.useState(false);
@@ -402,6 +416,7 @@ export default function Ventas() {
 
       const pools = new Map<string, PoolEntry[]>();
       const detalles = [] as Array<{ subloteId: string; pesoVendido: number; precioKg: number }>;
+      const blockedSubloteIds = getActiveSecadoBlockedSubloteIds();
 
       for (const lote of lotesConCantidad) {
         const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
@@ -409,7 +424,7 @@ export default function Ventas() {
         if (!pools.has(poolKey)) {
           const detalle = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
           const pool = detalle.sublotes
-            .filter((sublote) => sublote.pesoActual > 0)
+            .filter((sublote) => sublote.pesoActual > 0 && !blockedSubloteIds.has(sublote.id))
             .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
             .map((sublote) => ({
               subloteId: sublote.id,
@@ -440,7 +455,9 @@ export default function Ventas() {
         }
 
         if (restante > 0.001) {
-          throw new Error(`La cantidad supera el disponible en ${lote.codigo}.`);
+          throw new Error(
+            `La cantidad supera el disponible en ${lote.codigo}. Parte del cafe esta en secado y no puede venderse hasta finalizar el proceso.`,
+          );
         }
       }
 
@@ -466,8 +483,10 @@ export default function Ventas() {
           subtotal: item.cantidad * item.precio,
         })),
       });
+      setMostrarModalConfirmar(false);
       await cargarLotes();
     } catch (error) {
+      setMostrarModalConfirmar(false);
       setSubmitError(UI_MESSAGES.system.saveFailed.mensaje);
       setSubmitErrorDetail(error);
     } finally {
@@ -486,12 +505,32 @@ export default function Ventas() {
     fechaValidacion.isValid,
   ]);
 
+  const abrirModalConfirmar = React.useCallback(() => {
+    const m = validarPasoVenta();
+    if (m) {
+      setPaso(2);
+      setIntentoPaso2(true);
+      return;
+    }
+
+    setFechaIntentada(true);
+    if (!fechaValidacion.isValid) {
+      setPaso(3);
+      return;
+    }
+
+    setSubmitError(null);
+    setSubmitErrorDetail(null);
+    setMostrarModalConfirmar(true);
+  }, [fechaValidacion.isValid, validarPasoVenta]);
+
   const reiniciar = React.useCallback(() => {
     setPaso(1);
     setGuardandoVenta(false);
     setSubmitError(null);
     setSubmitErrorDetail(null);
     setVentaGuardada(null);
+    setMostrarModalConfirmar(false);
     setClienteSeleccionado(null);
     setBusquedaCliente('');
     setBusquedaAplicada('');
@@ -803,6 +842,11 @@ export default function Ventas() {
                       <p className="mt-1 text-sm font-semibold text-slate-900">
                         Disponible: {kg(lote.disponibleKg)}
                       </p>
+                      {lote.pesoEnSecadoKg > 0 ? (
+                        <p className="mt-1 text-sm font-semibold text-[#9a5b00]">
+                          En secado: {kg(lote.pesoEnSecadoKg)} no disponible para venta
+                        </p>
+                      ) : null}
 
                       {modoVenta === 'PARCIAL' ? (
                         <>
@@ -1173,23 +1217,14 @@ export default function Ventas() {
                   </button>
                   <button
                     type="button"
-                    onClick={confirmar}
+                    onClick={abrirModalConfirmar}
                     disabled={guardandoVenta || botonConfirmarPresionado}
                     className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
                       guardandoVenta || botonConfirmarPresionado ? 'bg-[#7f93cf] cursor-wait' : 'bg-[#102d92]'
                     }`}
                   >
-                    {guardandoVenta || botonConfirmarPresionado ? (
-                      <>
-                        <RefreshCw size={16} className="animate-spin" />
-                        Guardando venta...
-                      </>
-                    ) : (
-                      <>
-                        Confirmar venta
-                        <ArrowRight size={16} />
-                      </>
-                    )}
+                    Revisar venta
+                    <ArrowRight size={16} />
                   </button>
                 </div>
               </section>
@@ -1197,6 +1232,63 @@ export default function Ventas() {
           </>
         )}
       </div>
+
+      {mostrarModalConfirmar ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
+                <CheckCircle2 size={24} />
+              </div>
+              <h2 className="mt-5 text-[2rem] font-semibold leading-tight text-slate-900">
+                ¿Registrar venta?
+              </h2>
+              <p className="mt-3 text-[1.05rem] leading-7 text-slate-500">
+                Verifica la información antes de continuar.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#e2e8f4] bg-[#f8faff] p-4">
+              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Cliente</span>
+                <span className="text-right font-semibold text-slate-900">
+                  {clienteSeleccionado?.nombre ?? '-'}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Total kg</span>
+                <span className="font-semibold text-slate-900">{kg(totalKg)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Total a vender</span>
+                <span className="text-[1.4rem] font-black text-[#1f3fa7]">
+                  {money(totalEstimado)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => void confirmar()}
+                disabled={guardandoVenta || botonConfirmarPresionado}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardandoVenta || botonConfirmarPresionado ? 'Guardando venta...' : 'Confirmar venta'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalConfirmar(false)}
+                disabled={guardandoVenta || botonConfirmarPresionado}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {mostrarModal ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/45 px-4 py-8 backdrop-blur-sm">

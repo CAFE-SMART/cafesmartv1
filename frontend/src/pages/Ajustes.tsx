@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -8,10 +9,12 @@ import {
   CalendarDays,
   ChevronRight,
   CircleDollarSign,
+  ClipboardList,
   Droplets,
   FlaskConical,
   Lock,
   LogOut,
+  Play,
   ReceiptText,
   ScanSearch,
   RefreshCcw,
@@ -321,6 +324,7 @@ export default function Ajustes() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [isViewingSecado, setIsViewingSecado] = useState(false);
   const [isViewingProfile, setIsViewingProfile] = useState(false);
   const [phoneWasEdited, setPhoneWasEdited] = useState(false);
   const [profileEditBaseline, setProfileEditBaseline] = useState<ProfileSettings | null>(null);
@@ -344,6 +348,7 @@ export default function Ajustes() {
   const abrirEditorBodega = () => {
     clearFeedback();
     setIsEditingBodega(true);
+    setIsViewingSecado(false);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
     setIsViewingProfile(false);
@@ -354,13 +359,76 @@ export default function Ajustes() {
     setIsEditingBodega(false);
   };
 
+  const abrirEditorEmpresa = () => {
+    clearFeedback();
+    setIsEditingCompany(true);
+    setIsViewingProfile(false);
+    setIsViewingSecado(false);
+    setIsEditingProfile(false);
+    setIsEditingBodega(false);
+  };
+
+  const cerrarEditorEmpresa = () => {
+    clearFeedback();
+    setIsEditingCompany(false);
+  };
+
   const abrirPerfilUsuario = () => {
     clearFeedback();
     setIsViewingProfile(true);
+    setIsViewingSecado(false);
     setIsEditingProfile(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
   };
+
+  const abrirGestionSecado = () => {
+    clearFeedback();
+    setIsViewingSecado(true);
+    setIsViewingProfile(false);
+    setIsEditingProfile(false);
+    setIsEditingCompany(false);
+    setIsEditingBodega(false);
+  };
+
+  const cerrarGestionSecado = () => {
+    clearFeedback();
+    setIsViewingSecado(false);
+  };
+
+  const abrirInicioSecado = () => {
+    setIsViewingSecado(false);
+    navigate('/secado', { state: { secadoView: 'start' } });
+  };
+
+  const abrirSecadosPendientes = () => {
+    setIsViewingSecado(false);
+    navigate('/secado', { state: { secadoView: 'pending' } });
+  };
+
+  useEffect(() => {
+    if (!isViewingSecado) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        cerrarGestionSecado();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isViewingSecado]);
+
+  useEffect(() => {
+    if (!isViewingSecado) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isViewingSecado]);
 
   useEffect(() => {
     const nextNombre = profile.nombre || user?.name || '';
@@ -606,7 +674,7 @@ export default function Ajustes() {
       description: 'Tiempo y humedad',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () => navigate('/inventario'),
+      onClick: abrirGestionSecado,
     },
     {
       id: 'gastos',
@@ -626,13 +694,7 @@ export default function Ajustes() {
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => {
-        clearFeedback();
-        setIsEditingCompany(true);
-        setIsViewingProfile(false);
-        setIsEditingProfile(false);
-        setIsEditingBodega(false);
-      },
+      onClick: abrirEditorEmpresa,
     },
     {
       id: 'tipos-cafe',
@@ -699,6 +761,86 @@ export default function Ajustes() {
       staticOnly: true,
     },
   ] as const;
+
+  const secadoModal =
+    isViewingSecado && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[2147483640] flex items-end justify-center bg-[#020617]/85 px-0 pt-8 backdrop-blur-lg"
+            onClick={cerrarGestionSecado}
+          >
+            <div
+              className="relative max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-[24px] border border-[#e6e8f3] bg-white px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-4 text-center shadow-[0_-18px_70px_rgba(2,6,23,0.45)]"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="secado-modal-title"
+            >
+              <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
+
+              <button
+                type="button"
+                onClick={cerrarGestionSecado}
+                className="absolute right-5 top-5 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-[#e9eef8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                aria-label="Cerrar gestión de secado"
+              >
+                <X size={22} />
+              </button>
+
+              <div className="mx-auto mt-12 flex max-w-[390px] flex-col items-center gap-2">
+                <h3
+                  id="secado-modal-title"
+                  className="text-[1.65rem] font-black leading-tight text-[#111827]"
+                >
+                  Gestión de secado
+                </h3>
+                <p className="text-sm font-semibold leading-6 text-slate-500">
+                  Inicia un secado o continúa uno pendiente.
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                <article className="flex flex-col items-center rounded-[18px] border border-[#e2e8f4] bg-[#f8faff] p-4 text-center">
+                  <span className="inline-flex rounded-[14px] bg-[#e9f8f1] p-3 text-[#0f766e]">
+                    <Play size={20} />
+                  </span>
+                  <h4 className="mt-3 text-base font-black text-slate-900">Iniciar secado</h4>
+                  <p className="mt-2 max-w-[330px] text-sm leading-5 text-slate-600">
+                    Registra el secado de un lote verde disponible.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={abrirInicioSecado}
+                    className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#0c2479] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                  >
+                    Iniciar secado
+                    <ChevronRight size={16} />
+                  </button>
+                </article>
+
+                <article className="flex flex-col items-center rounded-[18px] border border-[#e2e8f4] bg-[#f8faff] p-4 text-center">
+                  <span className="inline-flex rounded-[14px] bg-[#fff7df] p-3 text-[#d29309]">
+                    <ClipboardList size={20} />
+                  </span>
+                  <h4 className="mt-3 text-base font-black text-slate-900">Secados pendientes</h4>
+                  <p className="mt-2 max-w-[330px] text-sm leading-5 text-slate-600">
+                    Finaliza lotes que ya están en proceso.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={abrirSecadosPendientes}
+                    className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                  >
+                    Ver pendientes
+                    <ChevronRight size={16} />
+                  </button>
+                </article>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
@@ -927,12 +1069,7 @@ export default function Ajustes() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    clearFeedback();
-                    setIsEditingCompany(true);
-                    setIsEditingProfile(false);
-                    setIsViewingProfile(false);
-                  }}
+                  onClick={abrirEditorEmpresa}
                   className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d6deef] bg-[#f9fbff] px-3 text-sm font-semibold text-[#102d92]"
                 >
                   Editar empresa
@@ -1031,58 +1168,6 @@ export default function Ajustes() {
           </div>
         </section>
 
-        {isEditingCompany ? (
-          <section className="rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-black text-slate-900">Editar empresa</h3>
-            <div className="mt-3 space-y-3">
-              <input
-                type="text"
-                value={company.nombreEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, nombreEmpresa: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                placeholder="Nombre de la empresa"
-              />
-              <select
-                value={company.tipoEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, tipoEmpresa: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-              >
-                <option value="">Seleccionar tipo</option>
-                <option value="Cooperativa">Cooperativa</option>
-                <option value="Compraventa">Compraventa</option>
-                <option value="Otro">Otro</option>
-              </select>
-              <textarea
-                value={company.descripcion}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, descripcion: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                rows={3}
-                placeholder="Descripción breve del negocio"
-              />
-              {error && activeErrorSection === 'company' ? (
-                <InlineGuidedError message={getAjustesGuidance(error)} />
-              ) : null}
-              <button
-                type="button"
-                onClick={guardarEmpresa}
-                className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white"
-              >
-                <Save size={15} />
-                Guardar empresa
-              </button>
-            </div>
-          </section>
-        ) : null}
-
         {error && !activeErrorSection ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
         ) : null}
@@ -1103,6 +1188,93 @@ export default function Ajustes() {
           {cerrandoSesion ? 'Cerrando sesión...' : 'Cerrar sesión'}
         </button>
       </div>
+
+      {isEditingCompany ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
+          <div className="w-full max-w-[560px] rounded-t-[24px] border border-[#e6e8f3] bg-white px-5 pb-6 pt-4 shadow-[0_24px_60px_rgba(15,23,42,0.35)] sm:px-6 sm:pb-7">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">
+                Editar empresa
+              </h3>
+              <button
+                type="button"
+                onClick={cerrarEditorEmpresa}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Nombre de la empresa
+                </p>
+                <input
+                  type="text"
+                  value={company.nombreEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, nombreEmpresa: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  placeholder="Nombre de la empresa"
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Tipo de empresa
+                </p>
+                <select
+                  value={company.tipoEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, tipoEmpresa: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                >
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Cooperativa">Cooperativa</option>
+                  <option value="Compraventa">Compraventa</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Descripción
+                </p>
+                <textarea
+                  value={company.descripcion}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, descripcion: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  rows={3}
+                  placeholder="Descripción breve del negocio"
+                />
+              </div>
+
+              {error && activeErrorSection === 'company' ? (
+                <InlineGuidedError message={getAjustesGuidance(error)} />
+              ) : null}
+
+              <button
+                type="button"
+                onClick={guardarEmpresa}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white"
+              >
+                <Save size={14} />
+                Guardar empresa
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isEditingBodega ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
@@ -1196,7 +1368,8 @@ export default function Ajustes() {
         />
       ) : null}
 
-      <AppBottomNav />
+      {secadoModal}
+      <AppBottomNav hidden={isViewingSecado} />
     </div>
   );
 }

@@ -166,7 +166,7 @@ function TypeSummaryCard({
   onOpen: () => void;
 }) {
   const visual = coffeeVisual(lot.tipoCafe);
-  const totalSublotesLabel = `${lot.sublotes} SUBLOTE${lot.sublotes === 1 ? '' : 'S'}`;
+  const totalLotsLabel = `${lot.sublotes} LOTE${lot.sublotes === 1 ? '' : 'S'}`;
 
   return (
     <button
@@ -189,7 +189,7 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span className="rounded-[12px] bg-[#f2f3f7] px-4 py-2 text-sm font-semibold text-slate-700">
-            {totalSublotesLabel}
+            {totalLotsLabel}
           </span>
           <ArrowRight size={18} className="text-slate-400" />
         </div>
@@ -361,13 +361,12 @@ export default function Inventario() {
       const current = grouped.get(type);
       if (!current) return [];
       const totalKg = current.lots.reduce((sum, lot) => sum + lot.pesoActual, 0);
-      const totalSublotes = current.lots.reduce((sum, lot) => sum + lot.sublotes, 0);
       return [
         {
           key: current.key,
           name: current.name,
           totalKg,
-          totalSublotes,
+          totalLots: current.lots.length,
           lots: current.lots,
         },
       ];
@@ -494,7 +493,7 @@ export default function Inventario() {
                     ...group.lots[0],
                     tipoCafe: group.name,
                     pesoActual: group.totalKg,
-                    sublotes: group.totalSublotes,
+                    sublotes: group.totalLots,
                   }}
                   onOpen={() => setTypeKey(group.key)}
                 />
