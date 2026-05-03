@@ -49,7 +49,7 @@ function traducirMensajeError(message: unknown, status: number) {
     }
 
     if (status === 404) {
-      return 'Esta opcion aun no esta disponible.';
+      return 'No encontramos la información solicitada. Verifica e intenta nuevamente.';
     }
 
     return 'No pudimos procesarlo. Intenta de nuevo.';
