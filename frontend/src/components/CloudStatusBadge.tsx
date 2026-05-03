@@ -57,7 +57,7 @@ export function CloudStatusBadge({
       type="button"
       onClick={() => void refreshHealth()}
       className={`inline-flex items-center gap-3 rounded-2xl border text-left shadow-sm transition-colors ${
-        compact ? 'w-full max-w-[230px] px-2.5 py-2' : 'max-w-[260px] px-3 py-2'
+        compact ? 'w-full max-w-[260px] px-3 py-2.5' : 'max-w-[300px] px-3.5 py-2.5'
       } ${toneClasses[tone]} ${className}`}
       title={detail}
     >
@@ -65,11 +65,11 @@ export function CloudStatusBadge({
         <StatusIcon tone={tone} />
       </span>
       <span className="min-w-0">
-        <span className="block text-[11px] font-bold uppercase tracking-wide">{title}</span>
+        <span className="block text-sm font-bold uppercase">{title}</span>
         {!compact ? (
-          <span className="block truncate text-[11px] opacity-90">{detail}</span>
+          <span className="block truncate text-sm opacity-90">{detail}</span>
         ) : (
-          <span className="block truncate text-[9px] opacity-90">{detail}</span>
+          <span className="block truncate text-sm opacity-90">{detail}</span>
         )}
       </span>
     </button>

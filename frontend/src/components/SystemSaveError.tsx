@@ -90,7 +90,7 @@ export function SystemSaveError({
         <h2 className="mt-4 text-[1.55rem] font-black leading-tight text-[#1f2937]">
           No pudimos guardar la información
         </h2>
-        <p className="mx-auto mt-2 max-w-[330px] text-sm leading-6 text-slate-600">
+        <p className="mx-auto mt-2 max-w-[340px] text-base leading-6 text-slate-600">
           Puede ser un problema temporal o de conexión. Tus datos siguen en pantalla para que no tengas que escribirlos otra vez.
         </p>
 
@@ -99,7 +99,7 @@ export function SystemSaveError({
             type="button"
             onClick={onRetry}
             disabled={retrying}
-            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCcw size={16} className={retrying ? 'animate-spin' : ''} />
             {retrying ? 'Reintentando...' : 'Reintentar'}
@@ -107,7 +107,7 @@ export function SystemSaveError({
           <button
             type="button"
             onClick={onHome}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#d9deeb] bg-[#f8faff] px-4 text-sm font-semibold text-[#102d92]"
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#d9deeb] bg-[#f8faff] px-4 text-base font-semibold text-[#102d92]"
           >
             <Home size={16} />
             Volver al inicio
@@ -115,7 +115,7 @@ export function SystemSaveError({
           <button
             type="button"
             onClick={() => setSupportOpen(true)}
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-semibold text-slate-600"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-base font-semibold text-slate-600"
           >
             <LifeBuoy size={16} />
             Contactar soporte
@@ -128,7 +128,7 @@ export function SystemSaveError({
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#102d92]">
+                <p className="text-sm font-black uppercase text-[#102d92]">
                   Soporte
                 </p>
                 <h3 className="mt-1 text-[1.25rem] font-black text-slate-900">
@@ -146,25 +146,25 @@ export function SystemSaveError({
             </div>
 
             {supportSent ? (
-              <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm leading-6 text-emerald-700">
+              <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-base leading-6 text-emerald-700">
                 Gracias. Registramos tu mensaje y adjuntamos la información necesaria para revisar el problema.
               </div>
             ) : (
               <>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
+                <p className="mt-3 text-base leading-6 text-slate-600">
                   Escribe una frase breve. El sistema enviará automáticamente el contexto del error sin mostrártelo.
                 </p>
                 <textarea
                   value={supportText}
                   onChange={(event) => setSupportText(event.target.value)}
                   rows={4}
-                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#102d92]"
+                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#102d92]"
                   placeholder="Ej. Estaba registrando una compra y al guardar apareció el error."
                 />
                 <button
                   type="button"
                   onClick={() => void submitSupport()}
-                  className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-sm font-black text-white"
+                  className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-base font-black text-white"
                 >
                   <Send size={15} />
                   Enviar a soporte

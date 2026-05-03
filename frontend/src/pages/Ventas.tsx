@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Banknote,
+  CalendarDays,
   CheckCircle2,
   IdCard,
   Pencil,
@@ -21,11 +22,19 @@ import { EmptyState } from '../components/EmptyState';
 import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
+  createGuidedErrorFromUi,
   FloatingGuidedNotice,
   InlineGuidedError,
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { obtenerDeviceId } from '../utils/deviceId';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  getTodayLocalDateValue,
+  toIsoDateAtUtcNoon,
+  validateBusinessDateRange,
+} from '../utils/date';
+import { UI_MESSAGES } from '../utils/uiMessages';
 import {
   crearCliente,
   listarClientes,
@@ -78,7 +87,7 @@ const LIMITE = 6;
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
   nombre: 'Cliente General',
-  documento: 'Venta rapida',
+  documento: 'Venta rápida',
   detalle: 'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
   rapido: true,
 };
@@ -147,7 +156,7 @@ function datosPasoVenta(step: Step) {
   }
   if (step === 2) {
     return {
-      titulo: 'Seleccionar cafe',
+      titulo: 'Seleccionar café',
       progreso: 66,
     };
   }
@@ -161,7 +170,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('nombre del cliente')) {
     return createGuidedError(
       message,
-      'Falta identificar al cliente.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'Necesitamos su nombre para registrar la venta.',
       'Toca la casilla y escribe su nombre.',
     );
@@ -170,7 +179,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('Selecciona un cliente')) {
     return createGuidedError(
       message,
-      'Falta el cliente.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'La venta requiere que indiques el comprador.',
       'Elige un cliente de la lista.',
     );
@@ -179,36 +188,21 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('modo de venta')) {
     return createGuidedError(
       message,
-      'Falta el modo de venta.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'Debemos saber si vendes todo o solo una parte.',
       'Selecciona una de las dos opciones de venta.',
     );
   }
 
   if (message.includes('precio por kg')) {
-    return createGuidedError(
-      message,
-      'Falta el precio por kilo.',
-      'El precio es esencial para calcular el total.',
-      'Ingresa el valor por kilo a cobrar.',
-    );
+    return createGuidedErrorFromUi(UI_MESSAGES.forms.invalidValue);
   }
 
   if (message.includes('cantidad')) {
-    return createGuidedError(
-      message,
-      'Cantidad supera inventario o es cero.',
-      'No puedes vender más de lo que tienes.',
-      'Revisa el peso del lote disponible y corrige.',
-    );
+    return createGuidedErrorFromUi(UI_MESSAGES.inventory.noStock);
   }
 
-  return createGuidedError(
-    message,
-    'Problema guardando.',
-    'Hubo un fallo con los datos o en la conexión.',
-    'Revisa los datos e intenta de nuevo.',
-  );
+  return createGuidedErrorFromUi(UI_MESSAGES.system.saveFailed);
 }
 
 export default function Ventas() {
@@ -216,6 +210,8 @@ export default function Ventas() {
   const [cargando, setCargando] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guardandoVenta, setGuardandoVenta] = React.useState(false);
+  const [fecha, setFecha] = React.useState(getTodayLocalDateValue());
+  const [fechaIntentada, setFechaIntentada] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [submitErrorDetail, setSubmitErrorDetail] = React.useState<unknown>(null);
   const [ventaGuardada, setVentaGuardada] = React.useState<VentaGuardadaResumen | null>(null);
@@ -278,18 +274,19 @@ export default function Ventas() {
 
   const totalKg = React.useMemo(() => lotesConCantidad.reduce((a, l) => a + l.cantidad, 0), [lotesConCantidad]);
   const totalEstimado = React.useMemo(() => lotesConCantidad.reduce((a, l) => a + l.cantidad * l.precio, 0), [lotesConCantidad]);
+  const fechaValidacion = React.useMemo(() => validateBusinessDateRange(fecha), [fecha]);
 
   const validarPasoVenta = React.useCallback(() => {
     if (!lotesVenta.length) return 'No hay lotes disponibles para vender.';
     if (!modoVenta) return 'Selecciona como deseas realizar la venta.';
     if (modoVenta === 'TOTAL') {
-      if (toNum(precioGlobal) <= 0) return 'Ingresa un precio por kg valido para venta total.';
+      if (toNum(precioGlobal) <= 0) return 'Ingresa un precio por kg válido para venta total.';
       return null;
     }
     if (!lotesConCantidad.length) return 'Ingresa al menos una cantidad para continuar.';
     for (const l of lotesConCantidad) {
       if (l.cantidad > l.disponibleKg) return `La cantidad supera el disponible en ${l.codigo}.`;
-      if (l.precio <= 0) return `Ingresa un precio por kg valido en ${l.codigo}.`;
+      if (l.precio <= 0) return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
   }, [lotesVenta.length, modoVenta, precioGlobal, lotesConCantidad]);
@@ -385,6 +382,11 @@ export default function Ventas() {
       setIntentoPaso2(true);
       return;
     }
+    setFechaIntentada(true);
+    if (!fechaValidacion.isValid) {
+      setPaso(3);
+      return;
+    }
     if (guardandoVenta) return;
 
     setGuardandoVenta(true);
@@ -443,6 +445,7 @@ export default function Ventas() {
       }
 
       const respuesta = await crearVenta({
+        ...(toIsoDateAtUtcNoon(fecha) ? { fecha: toIsoDateAtUtcNoon(fecha) } : {}),
         ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
         deviceId: await obtenerDeviceId(),
         localId: ventaLocalIdRef.current,
@@ -465,7 +468,7 @@ export default function Ventas() {
       });
       await cargarLotes();
     } catch (error) {
-      setSubmitError('No pudimos guardar la información en este momento.');
+      setSubmitError(UI_MESSAGES.system.saveFailed.mensaje);
       setSubmitErrorDetail(error);
     } finally {
       setGuardandoVenta(false);
@@ -479,6 +482,8 @@ export default function Ventas() {
     totalEstimado,
     totalKg,
     validarPasoVenta,
+    fecha,
+    fechaValidacion.isValid,
   ]);
 
   const reiniciar = React.useCallback(() => {
@@ -492,6 +497,8 @@ export default function Ventas() {
     setBusquedaAplicada('');
     setModoVenta(null);
     setPrecioGlobal('');
+    setFecha(getTodayLocalDateValue());
+    setFechaIntentada(false);
     setIntentoPaso1(false);
     setIntentoPaso2(false);
     setLoadError(null);
@@ -526,7 +533,7 @@ export default function Ventas() {
       return;
     }
 
-    navigate(-1);
+    navigate('/inicio');
   };
 
   React.useEffect(() => {
@@ -546,7 +553,7 @@ export default function Ventas() {
     }
 
     if (precioTotalInvalido) {
-      setFloatingError(getVentasGuidance('Ingresa un precio por kg valido para venta total.'));
+      setFloatingError(getVentasGuidance('Ingresa un precio por kg válido para venta total.'));
       return;
     }
 
@@ -599,21 +606,27 @@ export default function Ventas() {
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-10 text-slate-900">
         <div className="mx-auto max-w-[520px] space-y-4">
           <section className="rounded-[22px] border border-[#daf0e3] bg-white p-5 text-center shadow-sm">
-            <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-semibold text-[#0d7b67]">Venta exitosa</span>
+            <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-sm font-semibold text-[#0d7b67]">
+              {UI_MESSAGES.success.saleCreated.titulo}
+            </span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
-            <h2 className="mt-3 text-[1.35rem] font-semibold text-[#102d92]">Venta exitosa</h2>
-            <p className="mt-2 text-sm text-slate-600">La venta se registro y el inventario quedo actualizado.</p>
+            <h2 className="mt-3 text-[1.35rem] font-semibold text-[#102d92]">
+              {UI_MESSAGES.success.saleCreated.titulo}
+            </h2>
+            <p className="mt-2 text-base text-slate-600">
+              {UI_MESSAGES.success.saleCreated.mensaje} El inventario quedó actualizado.
+            </p>
             <div className="mt-4 rounded-[14px] border border-[#e1e6f3] bg-[#f8f9ff] p-4 text-left">
-              <p className="text-xs font-medium text-slate-500">Cliente</p>
+              <p className="text-sm font-medium text-slate-500">Cliente</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">
                 {ventaGuardada.clienteNombre}
               </p>
-              <p className="text-xs text-slate-600">{ventaGuardada.clienteDocumento}</p>
+              <p className="text-sm text-slate-600">{ventaGuardada.clienteDocumento}</p>
               <p className="mt-2 text-sm text-slate-600">Total: {kg(ventaGuardada.totalKg)}</p>
               <p className="text-sm font-semibold text-[#102d92]">{money(ventaGuardada.totalVenta)}</p>
             </div>
             <div className="mt-3 rounded-[14px] border border-[#e1e6f3] bg-[#fcfcff] p-4 text-left">
-              <p className="text-xs font-medium text-slate-500">Detalle</p>
+              <p className="text-sm font-medium text-slate-500">Detalle</p>
               <div className="mt-2 space-y-2">
                 {ventaGuardada.items.map((item) => (
                   <div
@@ -621,7 +634,7 @@ export default function Ventas() {
                     className="rounded-[12px] border border-[#e7ebf7] bg-white px-3 py-2"
                   >
                     <p className="text-sm font-semibold text-slate-900">{item.codigo}</p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-sm text-slate-600">
                       {item.tipoCafe} - {item.calidad}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[#102d92]">
@@ -632,8 +645,8 @@ export default function Ventas() {
               </div>
             </div>
             <div className="mt-4 grid gap-2">
-              <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-sm font-semibold text-[#102d92]">Nueva venta</button>
-              <button type="button" onClick={() => navigate('/inventario')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-sm font-semibold text-white">Ir a inventario</button>
+              <button type="button" onClick={reiniciar} className="rounded-[14px] border border-[#d6dcf0] bg-white px-4 py-3 text-base font-semibold text-[#102d92]">Registrar otra venta</button>
+              <button type="button" onClick={() => navigate('/inventario')} className="rounded-[14px] bg-[#102d92] px-4 py-3 text-base font-semibold text-white">Ir a inventario</button>
             </div>
           </section>
         </div>
@@ -670,15 +683,15 @@ export default function Ventas() {
           </div>
         </header>
         {cargando ? (
-          <CardMsg text="Cargando lotes para venta..." />
+          <CardMsg text={UI_MESSAGES.loading.lotsForSale} />
         ) : loadError ? (
           <section className="rounded-[22px] border border-[#ffd5d5] bg-[#fff6f6] p-4 shadow-sm">
-            <p className="text-sm font-semibold text-[#a22424]">No se pudo cargar inventario de venta.</p>
+            <p className="text-base font-semibold text-[#a22424]">No pudimos cargar el inventario para venta.</p>
             <p className="mt-1 text-sm text-[#8c3838]">{loadError}</p>
             <button
               type="button"
               onClick={() => void cargarLotes()}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#f4a7a7] bg-white px-3 py-2 text-xs font-semibold text-[#a22424]"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#f4a7a7] bg-white px-3 py-2 text-sm font-semibold text-[#a22424]"
             >
               <RefreshCw size={14} />
               Reintentar
@@ -688,19 +701,19 @@ export default function Ventas() {
           <>
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
-                  Seleccionar cafe
+                <p className="text-sm font-medium text-slate-500">
+                  Seleccionar café
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  Como deseas realizar la venta?
+                  ¿Cómo deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
+                  <p className="text-sm font-medium text-slate-500">
                     Cliente seleccionado
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{clienteSeleccionado?.nombre ?? 'Sin cliente'}</p>
-                  <p className="text-xs text-slate-600">{clienteSeleccionado?.documento ?? 'Seleccion pendiente'}</p>
+                  <p className="text-sm text-slate-600">{clienteSeleccionado?.documento ?? 'Selección pendiente'}</p>
                 </div>
 
                 <div className="mt-4 grid gap-3">
@@ -717,7 +730,7 @@ export default function Ventas() {
                   >
                     <p className="text-base font-semibold text-slate-900">Vender una parte del inventario</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Selecciona lotes especificos y ajusta cantidades.
+                      Selecciona lotes específicos y ajusta cantidades.
                     </p>
                   </button>
 
@@ -745,7 +758,7 @@ export default function Ventas() {
 
                 {modoVenta === 'TOTAL' ? (
                   <div className="mt-4 rounded-[16px] border border-[#e5e8f3] bg-[#f8f9ff] p-4">
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-sm font-medium text-slate-500">
                       Precio por kg (COP)
                     </p>
                     <input
@@ -762,7 +775,7 @@ export default function Ventas() {
                     />
                     {precioTotalInvalido ? (
                       <InlineGuidedError
-                        message={getVentasGuidance('Ingresa un precio por kg valido para venta total.')}
+                        message={getVentasGuidance('Ingresa un precio por kg válido para venta total.')}
                         className="mt-2"
                       />
                     ) : null}
@@ -823,13 +836,13 @@ export default function Ventas() {
                             />
                           </div>
                           {cantidadInvalida ? (
-                            <p className="mt-2 text-xs font-semibold text-[#b42318]">
+                            <p className="mt-2 text-sm font-semibold text-[#b42318]">
                               Ajusta cantidad: mayor a 0 y menor o igual al disponible.
                             </p>
                           ) : null}
                           {precioInvalido ? (
-                            <p className="mt-1 text-xs font-semibold text-[#b42318]">
-                              Ingresa un precio valido para este lote.
+                            <p className="mt-1 text-sm font-semibold text-[#b42318]">
+                              Ingresa un precio válido para este lote.
                             </p>
                           ) : null}
                         </>
@@ -883,11 +896,11 @@ export default function Ventas() {
 
             {paso === 1 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
+                <p className="text-sm font-medium text-slate-500">
                   Seleccionar cliente
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  Elige quien recibe la venta
+                  Elige quién recibe la venta
                 </h2>
 
                 <button
@@ -907,19 +920,19 @@ export default function Ventas() {
                       <div>
                         <p className="text-base font-semibold text-[#102d92]">Cliente General</p>
                         <p className="mt-1 text-sm text-slate-600">
-                          Venta rapida para cliente ocasional.
+                          Venta rápida para cliente ocasional.
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full bg-[#dbe5ff] px-2.5 py-1 text-[11px] font-semibold text-[#102d92]">
-                      Rapido
+                    <span className="rounded-full bg-[#dbe5ff] px-2.5 py-1 text-sm font-semibold text-[#102d92]">
+                      Rápido
                     </span>
                   </div>
                 </button>
 
                 <div className="mt-5 flex items-center gap-3">
                   <div className="h-px flex-1 bg-[#e0e6f4]" />
-                  <p className="text-[11px] font-medium text-slate-400">
+                  <p className="text-sm font-medium text-slate-500">
                     O busca un cliente
                   </p>
                   <div className="h-px flex-1 bg-[#e0e6f4]" />
@@ -938,7 +951,7 @@ export default function Ventas() {
                           buscarCliente();
                         }
                       }}
-                      placeholder="Buscar por nombre, cedula o documento"
+                      placeholder="Buscar por nombre, cédula o documento"
                       className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
                     />
                   </label>
@@ -966,14 +979,14 @@ export default function Ventas() {
                 </button>
 
                 <div className="mt-5">
-                  <p className="text-[11px] font-medium text-slate-500">
+                  <p className="text-sm font-medium text-slate-500">
                     Clientes recientes
                   </p>
                   {clientesRecientes.length === 0 ? (
                     <EmptyState
                       icon={User}
-                      title="No hay clientes para mostrar"
-                      description="Prueba otra búsqueda o registra un cliente nuevo para completar la venta."
+                      title={UI_MESSAGES.empty.clients.titulo}
+                      description={UI_MESSAGES.empty.clients.mensaje}
                       className="mt-2 py-5"
                     />
                   ) : (
@@ -995,11 +1008,11 @@ export default function Ventas() {
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold text-slate-900">{cliente.nombre}</p>
-                                <p className="mt-0.5 truncate text-xs text-slate-600">{cliente.documento}</p>
-                                <p className="mt-0.5 truncate text-xs text-slate-500">{cliente.detalle}</p>
+                                <p className="mt-0.5 truncate text-sm text-slate-600">{cliente.documento}</p>
+                                <p className="mt-0.5 truncate text-sm text-slate-500">{cliente.detalle}</p>
                               </div>
                               {selected ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#102d92] px-2.5 py-1 text-[11px] font-semibold text-white">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#102d92] px-2.5 py-1 text-sm font-semibold text-white">
                                   <CheckCircle2 size={12} />
                                   Seleccionado
                                 </span>
@@ -1035,8 +1048,8 @@ export default function Ventas() {
 
             {paso === 3 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
-                  Revision final
+                <p className="text-sm font-medium text-slate-500">
+                  Revisión final
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Confirma los datos de la venta
@@ -1054,14 +1067,47 @@ export default function Ventas() {
                 ) : null}
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
+                  <p className="text-sm font-medium text-slate-500">Fecha de venta</p>
+                  <div
+                    className={`mt-2.5 flex items-center gap-3 rounded-[16px] border px-3 py-3 ${
+                      fechaValidacion.isValid
+                        ? 'border-[#dfe5f2] bg-white'
+                        : 'border-rose-300 bg-rose-50/60'
+                    }`}
+                  >
+                    <CalendarDays size={18} className="text-[#102d92]" />
+                    <input
+                      type="date"
+                      value={fecha}
+                      min={BUSINESS_MIN_DATE_VALUE}
+                      max={getTodayLocalDateValue()}
+                      onChange={(event) => {
+                        setFecha(event.target.value);
+                        setFechaIntentada(true);
+                      }}
+                      aria-invalid={!fechaValidacion.isValid}
+                      aria-describedby={!fechaValidacion.isValid ? 'venta-fecha-error' : undefined}
+                      className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
+                    />
+                  </div>
+                  {!fechaValidacion.isValid && fechaIntentada ? (
+                    <InlineGuidedError
+                      id="venta-fecha-error"
+                      message={createGuidedErrorFromUi(UI_MESSAGES.forms.invalidDate)}
+                      className="mt-3"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
+                  <p className="text-sm font-medium text-slate-500">
                     Cliente
                   </p>
                   <p className="mt-1 text-lg font-semibold text-slate-900">
                     {clienteSeleccionado?.nombre ?? 'Sin cliente'}
                   </p>
-                  <p className="text-xs text-slate-600">
-                    {clienteSeleccionado?.documento ?? 'Seleccion pendiente'}
+                  <p className="text-sm text-slate-600">
+                    {clienteSeleccionado?.documento ?? 'Selección pendiente'}
                   </p>
                 </div>
                 <div className="mt-4 space-y-2">
@@ -1073,7 +1119,7 @@ export default function Ventas() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-slate-900">{lote.codigo}</p>
-                          <p className="text-xs text-slate-600">
+                          <p className="text-sm text-slate-600">
                             {lote.tipoCafe} - {lote.calidad}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-[#102d92]">

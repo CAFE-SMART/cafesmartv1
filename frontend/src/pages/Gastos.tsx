@@ -20,9 +20,11 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { SystemSaveError } from '../components/SystemSaveError';
+import { createGuidedErrorFromUi, InlineGuidedError } from '../components/forms/GuidedError';
 import { registrarGastoLocal, type GastoAplicaA, type GastoEstadoPago, type GastoTipo } from '../services/gastosService';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { getTodayLocalDateValue } from '../utils/date';
+import { getTodayLocalDateValue, validateBusinessDateRange } from '../utils/date';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 type ModalState = 'none' | 'confirm' | 'error' | 'success';
 
@@ -123,26 +125,27 @@ export default function Gastos() {
 
   const montoNumero = Number(form.monto);
   const lotesSeleccionados = lotes.filter((lote) => form.lotesIds.includes(lote.id));
+  const fechaValidacion = React.useMemo(() => validateBusinessDateRange(form.fecha), [form.fecha]);
 
   const validar = React.useCallback(() => {
     if (!form.concepto.trim()) {
-      return 'Escribe el concepto del gasto para poder registrarlo.';
+      return UI_MESSAGES.forms.incompleteData.mensaje;
     }
 
-    if (!form.fecha.trim()) {
-      return 'Selecciona una fecha válida para el gasto.';
+    if (!fechaValidacion.isValid) {
+      return UI_MESSAGES.forms.invalidDate.mensaje;
     }
 
     if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
-      return 'Ingresa un monto mayor que 0 para continuar.';
+      return UI_MESSAGES.forms.invalidValue.mensaje;
     }
 
     if (form.aplicaA === 'SUBLOTES' && form.lotesIds.length === 0) {
-      return 'Selecciona al menos un sublote o lote al que aplicará este gasto.';
+      return UI_MESSAGES.forms.incompleteData.mensaje;
     }
 
     return null;
-  }, [form, montoNumero]);
+  }, [fechaValidacion.isValid, form, montoNumero]);
 
   const abrirConfirmacion = () => {
     const mensaje = validar();
@@ -406,9 +409,15 @@ export default function Gastos() {
             ) : null}
 
             {error ? (
-              <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {error}
-              </div>
+              <InlineGuidedError
+                message={createGuidedErrorFromUi(
+                  error === UI_MESSAGES.forms.invalidDate.mensaje
+                    ? UI_MESSAGES.forms.invalidDate
+                    : error === UI_MESSAGES.forms.invalidValue.mensaje
+                      ? UI_MESSAGES.forms.invalidValue
+                      : UI_MESSAGES.forms.incompleteData,
+                )}
+              />
             ) : null}
 
             <button
@@ -476,9 +485,9 @@ export default function Gastos() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-600">
                   <CheckCircle2 size={22} />
                 </div>
-                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">Gasto registrado con éxito</h2>
+                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">{UI_MESSAGES.success.expenseCreated.titulo}</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  El gasto se guardó correctamente en el sistema.
+                  {UI_MESSAGES.success.expenseCreated.mensaje}
                 </p>
                 <button
                   type="button"

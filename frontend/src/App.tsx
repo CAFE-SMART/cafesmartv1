@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { AlertTriangle, Home, RotateCcw } from 'lucide-react';
 import AppRoutes from './routes/AppRoutes';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
@@ -27,22 +28,64 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     console.error('Cafe Smart runtime error:', error);
   }
 
+  private handleRetry = () => {
+    this.setState({ hasError: false });
+  };
+
+  private handleGoHome = () => {
+    window.location.assign('/');
+  };
+
   render() {
     if (this.state.hasError) {
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 text-center text-slate-900">
-          <div className="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-6 shadow-lg">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-rose-500">
-              Error de la interfaz
+        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-8 text-slate-900">
+          <section
+            className="w-full max-w-sm rounded-2xl border border-rose-100 bg-white p-5 text-left shadow-lg"
+            role="alert"
+            aria-live="assertive"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h1 className="text-xl font-black leading-tight text-slate-950">
+                  No pudimos cargar la pantalla
+                </h1>
+                <p className="mt-2 text-sm leading-5 text-slate-600">
+                  {isOffline
+                    ? 'Parece que no hay conexion. Revisa tu internet e intenta nuevamente.'
+                    : 'Parece que hubo un problema de conexion o del sistema.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                type="button"
+                onClick={this.handleRetry}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#07153b] px-4 text-base font-black text-white shadow-sm transition hover:bg-[#0c2258] focus:outline-none focus:ring-2 focus:ring-[#07153b] focus:ring-offset-2"
+              >
+                <RotateCcw className="h-5 w-5" aria-hidden="true" />
+                Reintentar
+              </button>
+              <button
+                type="button"
+                onClick={this.handleGoHome}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+              >
+                <Home className="h-5 w-5" aria-hidden="true" />
+                Volver al inicio
+              </button>
+            </div>
+
+            <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+              Si el problema continua, intentalo mas tarde.
             </p>
-            <h1 className="mt-3 text-2xl font-black text-slate-900">
-              La pantalla no pudo cargarse
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Algo en la vista de inicio de sesion o registro esta fallando en tiempo de
-              ejecucion. Ya no deberia verse en blanco; ahora veras este aviso en lugar del fallo.
-            </p>
-          </div>
+          </section>
         </div>
       );
     }

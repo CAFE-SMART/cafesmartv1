@@ -25,15 +25,15 @@ export function EmptyState({
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#eef3ff] text-[#102d92]">
         <Icon size={20} />
       </div>
-      <p className="mt-3 text-sm font-black text-slate-900">{title}</p>
-      <p className="mx-auto mt-1 max-w-[280px] text-xs leading-5 text-slate-500">
+      <p className="mt-3 text-base font-black text-slate-900">{title}</p>
+      <p className="mx-auto mt-1 max-w-[300px] text-sm leading-6 text-slate-600">
         {description}
       </p>
       {actionLabel && onAction ? (
         <button
           type="button"
           onClick={onAction}
-          className="mt-4 inline-flex min-h-[38px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-xs font-black text-white"
+          className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white"
         >
           {actionLabel}
         </button>

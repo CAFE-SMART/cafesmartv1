@@ -12,10 +12,12 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { createGuidedErrorFromUi, InlineGuidedError } from '../components/forms/GuidedError';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 const TYPE_ORDER = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
 const BULTO_KG = 40.7;
@@ -566,7 +568,11 @@ export default function Inventario() {
 
         {error ? (
           <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            No pude cargar el inventario. {error}
+            <InlineGuidedError
+              message={createGuidedErrorFromUi(UI_MESSAGES.system.internalError)}
+              className="border-0 bg-transparent px-0 py-0 text-inherit shadow-none"
+            />
+            <p className="mt-2 text-sm text-rose-700">{error}</p>
             <button
               type="button"
               onClick={() => void loadLots()}
@@ -580,7 +586,7 @@ export default function Inventario() {
 
         {loading ? (
           <section className="rounded-[26px] border border-[#dde4f1] bg-white px-5 py-12 text-center shadow-sm">
-            <p className="text-lg font-semibold text-slate-500">Cargando inventario...</p>
+            <p className="text-lg font-semibold text-slate-500">{UI_MESSAGES.loading.inventory}</p>
           </section>
         ) : null}
 
@@ -589,16 +595,16 @@ export default function Inventario() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
               <Package2 size={22} />
             </div>
-            <p className="mt-4 text-lg font-black text-slate-900">No hay lotes en este filtro</p>
+            <p className="mt-4 text-lg font-black text-slate-900">{UI_MESSAGES.empty.inventoryByFilter.titulo}</p>
             <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">
-              Cambia el tipo de café o registra una compra para crear los primeros lotes.
+              {UI_MESSAGES.empty.inventoryByFilter.mensaje}
             </p>
             <button
               type="button"
               onClick={() => navigate('/compras')}
               className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
             >
-              Registrar compra
+              {UI_MESSAGES.empty.inventoryByFilter.accion}
             </button>
           </section>
         ) : null}

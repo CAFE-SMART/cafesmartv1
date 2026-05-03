@@ -1,4 +1,5 @@
 import { AlertCircle, X } from 'lucide-react';
+import type { MensajeUI } from '../../utils/uiMessages';
 
 export type GuidedErrorMessage = {
   what: string;
@@ -29,6 +30,15 @@ export function createGuidedError(
   return { what, why, how, action };
 }
 
+export function createGuidedErrorFromUi(message: MensajeUI): GuidedErrorMessage {
+  return createGuidedError(
+    message.mensaje,
+    message.titulo,
+    message.mensaje,
+    message.accion ?? 'Intenta nuevamente',
+  );
+}
+
 export function InlineGuidedError({
   id,
   message,
@@ -38,7 +48,7 @@ export function InlineGuidedError({
     <div
       id={id}
       role="alert"
-      className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm ${className}`.trim()}
+      className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-base text-rose-800 shadow-sm ${className}`.trim()}
     >
       <div className="flex items-start gap-3">
         <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-600" />
@@ -66,11 +76,11 @@ export function FloatingGuidedNotice({
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-600">
+            <p className="text-sm font-black uppercase text-rose-600">
               Revision necesaria
             </p>
 
-            <div className="space-y-0.5 text-sm leading-snug text-slate-700">
+            <div className="space-y-0.5 text-base leading-snug text-slate-700">
               <p className="font-bold">{message.why}</p>
               <p>{message.how} <span className="font-medium text-rose-700">{message.action}</span></p>
             </div>
@@ -80,7 +90,7 @@ export function FloatingGuidedNotice({
                 <button
                   type="button"
                   onClick={onPrimaryAction}
-                  className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-700"
+                  className="rounded-full bg-rose-600 px-4 py-2 text-base font-bold text-white transition hover:bg-rose-700"
                 >
                   {primaryLabel}
                 </button>
@@ -88,7 +98,7 @@ export function FloatingGuidedNotice({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="rounded-full border border-slate-200 px-4 py-2 text-base font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 Cerrar
               </button>

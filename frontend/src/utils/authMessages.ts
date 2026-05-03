@@ -1,4 +1,5 @@
 import type { AuthError } from '../services/authService';
+import { UI_MESSAGES } from './uiMessages';
 
 type RawApiError = {
   message?: string | string[];
@@ -7,11 +8,11 @@ type RawApiError = {
 };
 
 export const AUTH_MESSAGES = {
-  invalidEmail: 'Correo incorrecto. Verificalo e intenta nuevamente.',
-  invalidPassword: 'Contrasena incorrecta. Intenta nuevamente.',
-  googleGeneric: 'No se pudo iniciar sesion con Google. Intenta nuevamente.',
+  invalidEmail: 'No encontramos una cuenta con ese correo.',
+  invalidPassword: 'Contraseña incorrecta.',
+  googleGeneric: 'No pudimos iniciar sesión con Google. Intenta nuevamente.',
   googleNeedsRegister: 'No encontramos tu cuenta. Vamos a crearla.',
-  offline: 'No se pudo conectar con el servidor. Verifica tu conexion e intenta nuevamente.',
+  offline: UI_MESSAGES.auth.offline.mensaje,
 } as const;
 
 export function normalizeMessage(message: string | string[] | undefined, fallback: string) {

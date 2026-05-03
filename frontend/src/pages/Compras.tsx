@@ -27,15 +27,19 @@ import { EmptyState } from '../components/EmptyState';
 import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
+  createGuidedErrorFromUi,
   InlineGuidedError,
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import {
+  BUSINESS_MIN_DATE_VALUE,
   formatDateLabel,
   getTodayLocalDateValue,
   toIsoDateAtUtcNoon,
+  validateBusinessDateRange,
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
+import { UI_MESSAGES } from '../utils/uiMessages';
 import {
   crearCompra,
   listarCompras,
@@ -252,10 +256,14 @@ function datosPaso(step: Step) {
 }
 
 function getComprasGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('fecha')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.forms.invalidDate);
+  }
+
   if (message.includes('nombre del productor')) {
     return createGuidedError(
       message,
-      'Falta identificar al productor.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'Necesitamos el nombre para registrar la compra.',
       'Toca la casilla y escribe al menos su nombre.',
     );
@@ -264,7 +272,7 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('al menos un producto')) {
     return createGuidedError(
       message,
-      'No hay productos.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'La compra debe tener café.',
       'Agrega un producto para continuar.',
     );
@@ -273,17 +281,17 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('catalogos disponibles')) {
     return createGuidedError(
       message,
-      'Faltan datos base en tu celular.',
+      UI_MESSAGES.system.internalError.titulo,
       'No logramos cargar los tipos de café.',
       'Recarga la aplicación e intenta de nuevo.',
     );
   }
 
-  if (message.includes('tipo de cafe')) {
+  if (message.includes('tipo de cafe') || message.includes('tipo de café')) {
     return createGuidedError(
       message,
-      'Falta seleccionar el tipo de café.',
-      'Debes elegir una opción para poder pagar.',
+      UI_MESSAGES.forms.incompleteData.titulo,
+      'Debes elegir una opción para poder registrar la compra.',
       'Toca "Tipo de Café" y elige uno.',
     );
   }
@@ -291,45 +299,30 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('calidad')) {
     return createGuidedError(
       message,
-      'Falta la calidad.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'Saber la calidad ayuda a validar el precio.',
       'Toca las caritas para seleccionar la calidad.',
     );
   }
 
-  if (message.includes('peso valido')) {
-    return createGuidedError(
-      message,
-      'El peso está vacío o en cero.',
-      'Necesitamos saber cuántos kilos entraron.',
-      'Ingresa el peso exacto del café.',
-    );
+  if (message.includes('peso valido') || message.includes('peso válido')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.forms.incompleteData);
   }
 
-  if (message.includes('precio valido')) {
-    return createGuidedError(
-      message,
-      'Falta el precio por kilo.',
-      'El precio es necesario para dar el total.',
-      'Toca la casilla e ingresa el valor a pagar.',
-    );
+  if (message.includes('precio valido') || message.includes('precio válido')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.forms.invalidValue);
   }
 
   if (message.includes('Selecciona un productor')) {
     return createGuidedError(
       message,
-      'Falta seleccionar el productor.',
+      UI_MESSAGES.forms.incompleteData.titulo,
       'Debemos saber a quién corresponde la compra.',
       'Selecciona Productor Generico o uno de la lista.',
     );
   }
 
-  return createGuidedError(
-    message,
-    'Problema guardando.',
-    'Hubo un fallo con los datos o la conexión.',
-    'Revisa si marcaste algún campo mal, o intenta de nuevo.',
-  );
+  return createGuidedErrorFromUi(UI_MESSAGES.system.saveFailed);
 }
 
 export default function Compras() {
@@ -400,13 +393,14 @@ export default function Compras() {
   const calidades = useMemo(() => ordenarCatalogos(catalogos.calidades, ORDEN_CALIDADES), [catalogos.calidades]);
   const nombreTipoCafePorId = useMemo(() => new Map(catalogos.tiposCafe.map((item) => [item.id, item.nombre])), [catalogos.tiposCafe]);
   const nombreCalidadPorId = useMemo(() => new Map(catalogos.calidades.map((item) => [item.id, item.nombre])), [catalogos.calidades]);
+  const fechaValidacion = useMemo(() => validateBusinessDateRange(fecha), [fecha]);
   const resumen = useMemo(() => {
     const totalKg = sublotes.reduce((acc, sublote) => acc + (Number(sublote.pesoInicial) || 0), 0);
     const totalCompra = sublotes.reduce((acc, sublote) => acc + (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0), 0);
     return { totalKg, totalCompra };
   }, [sublotes]);
   const paso2Completo = useMemo(() => {
-    if (!fecha.trim()) {
+    if (!fechaValidacion.isValid) {
       return false;
     }
 
@@ -422,7 +416,7 @@ export default function Compras() {
         precio > 0
       );
     });
-  }, [fecha, sublotes]);
+  }, [fechaValidacion.isValid, sublotes]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -453,7 +447,7 @@ export default function Compras() {
       return;
     }
 
-    navigate(-1);
+    navigate('/inicio');
   };
 
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
@@ -592,18 +586,18 @@ export default function Compras() {
   };
 
   const validarSublotes = () => {
-    if (!fecha.trim()) {
-      return 'Selecciona la fecha de compra.';
+    if (!fechaValidacion.isValid) {
+      return fechaValidacion.message ?? 'Ingresa una fecha válida.';
     }
 
     if (catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0) {
       return 'Aun no hay catalogos disponibles para registrar la compra.';
     }
     for (const [index, sublote] of sublotes.entries()) {
-        if (!sublote.tipoCafeId) return `Selecciona el tipo de café del sublote ${index + 1}.`;
+      if (!sublote.tipoCafeId) return `Selecciona el tipo de café del sublote ${index + 1}.`;
       if (!sublote.calidadId) return `Selecciona la calidad del sublote ${index + 1}.`;
       if (!Number.isFinite(Number(sublote.pesoInicial)) || Number(sublote.pesoInicial) <= 0) {
-        return `Ingresa un peso valido para el sublote ${index + 1}.`;
+        return `Ingresa un peso válido para el sublote ${index + 1}.`;
       }
       if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) < 1000) {
         return `El precio por kilo debe ser mínimo $1,000 para el sublote ${index + 1}.`;
@@ -704,7 +698,14 @@ export default function Compras() {
     try {
       const compraLocalId = generarId();
       const deviceId = await obtenerDeviceId();
-      const fechaActual = fecha.trim() || hoyLocal();
+      const fechaValidacionActual = validateBusinessDateRange(fecha);
+      if (!fechaValidacionActual.isValid) {
+        setError(fechaValidacionActual.message ?? 'Ingresa una fecha válida.');
+        setStep(2);
+        return;
+      }
+
+      const fechaActual = fecha.trim();
       setFecha(fechaActual);
       const fechaNormalizada = toIsoDateAtUtcNoon(fechaActual);
       const payload = {
@@ -765,7 +766,7 @@ export default function Compras() {
 
   const confirmarCancelarCompra = () => {
     resetFormulario();
-    navigate(-1);
+    navigate('/inicio');
   };
 
   const volverDesdeError = () => {
@@ -1064,16 +1065,32 @@ export default function Compras() {
 
                   <div className="rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
                     <p className="text-[0.9rem] font-semibold tracking-[0.04em] text-slate-500">Fecha de compra</p>
-                    <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
+                    <div
+                      className={`mt-2.5 flex items-center gap-3 rounded-[16px] border px-3 py-3 ${
+                        fechaValidacion.isValid
+                          ? 'border-[#dfe5f2] bg-[#f8f9ff]'
+                          : 'border-rose-300 bg-rose-50/60'
+                      }`}
+                    >
                       <CalendarDays size={18} className="text-[#102d92]" />
                       <input
                         type="date"
                         value={fecha}
+                        min={BUSINESS_MIN_DATE_VALUE}
                         max={hoyLocal()}
                         onChange={(event) => setFecha(event.target.value)}
+                        aria-invalid={!fechaValidacion.isValid}
+                        aria-describedby={!fechaValidacion.isValid ? 'compra-fecha-error' : undefined}
                         className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
                       />
                     </div>
+                    {!fechaValidacion.isValid ? (
+                      <InlineGuidedError
+                        id="compra-fecha-error"
+                        message={getComprasGuidance(fechaValidacion.message ?? 'Ingresa una fecha válida.')}
+                        className="mt-3"
+                      />
+                    ) : null}
                   </div>
 
                   <div className="mt-5">

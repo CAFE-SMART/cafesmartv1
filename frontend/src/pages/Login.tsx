@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { Capacitor } from '@capacitor/core';
 import {
   createGuidedError,
   InlineGuidedError,
@@ -17,7 +18,7 @@ function isValidEmail(value: string) {
 
 function FieldError({ id, message }: { id: string; message: string }) {
   return (
-    <p id={id} className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-red-600">
+    <p id={id} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-red-600">
       <AlertCircle size={14} aria-hidden="true" />
       {message}
     </p>
@@ -37,6 +38,7 @@ function normalizeTipoOrganizacion(
 export default function Login() {
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
   const isGoogleAuthEnabled = Boolean(googleClientId);
+  const isAndroidApp = Capacitor.getPlatform() === 'android';
   const googleButtonWidth =
     typeof window !== 'undefined'
       ? String(Math.min(360, Math.max(180, window.innerWidth - 72)))
@@ -50,7 +52,7 @@ export default function Login() {
   const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleButtonMissing, setGoogleButtonMissing] = useState(false);
+  const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
   const [rememberMe, setRememberMe] = useState(true);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
@@ -68,7 +70,7 @@ export default function Login() {
   }, [hasCompany, hydrated, navigate, token]);
 
   useEffect(() => {
-    if (!isGoogleAuthEnabled || googleLoading) {
+    if (!isGoogleAuthEnabled || isAndroidApp || googleLoading) {
       return;
     }
 
@@ -82,7 +84,7 @@ export default function Login() {
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [googleLoading, isGoogleAuthEnabled]);
+  }, [googleLoading, isAndroidApp, isGoogleAuthEnabled]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -227,6 +229,8 @@ export default function Login() {
 
     try {
       const data = await authService.login(email, password);
+      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+
       await setSession({
         user: {
           id: data.user.id,
@@ -239,39 +243,50 @@ export default function Login() {
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
-        hasCompany: data.hasCompany,
+        hasCompany: nextHasCompany,
         persist: rememberMe,
       });
 
-      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
+      navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
       const message = authError.message || 'No se pudo iniciar sesión. Intenta nuevamente.';
       const details = authError.details ?? {};
+      const isCredentialError =
+        authError.status === 401 ||
+        field === 'email' ||
+        field === 'correo' ||
+        field === 'password' ||
+        field === 'contrasena' ||
+        Boolean(details.email?.[0] || details.correo?.[0] || details.password?.[0] || details.contrasena?.[0]);
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
 
-      if (emailDetail || passwordDetail) {
-        setPasswordFieldError('El correo o la contraseña no son correctos');
+      if (isCredentialError && (emailDetail || passwordDetail)) {
+        setPasswordFieldError(passwordDetail || 'Contraseña incorrecta');
         setPassword('');
         setError(null);
         window.setTimeout(focusPassword, 80);
-      } else if (field === 'email' || field === 'correo') {
-        setEmailFieldError('El correo o la contraseña no son correctos');
+      } else if (isCredentialError && (field === 'email' || field === 'correo')) {
+        setEmailFieldError(message);
         setError(null);
         window.setTimeout(focusEmail, 80);
-      } else if (field === 'password' || field === 'contrasena') {
-        setPasswordFieldError('El correo o la contraseña no son correctos');
+      } else if (isCredentialError && (field === 'password' || field === 'contrasena')) {
+        setPasswordFieldError(message);
         setPassword('');
         setError(null);
         window.setTimeout(focusPassword, 80);
+      } else if (authError.code === 'OFFLINE' || authError.status === 0) {
+        setError('No pudimos conectarnos con el servidor. Revisa tu conexión o que el backend esté encendido.');
+        setPasswordFieldError(null);
+      } else if ((authError.status ?? 0) >= 500) {
+        setError('El servidor tuvo un problema al validar tu ingreso. Intenta nuevamente en unos segundos.');
+        setPasswordFieldError(null);
       } else {
-        setPasswordFieldError('El correo o la contraseña no son correctos');
-        setPassword('');
-        setError(null);
-        window.setTimeout(focusPassword, 80);
+        setError(message);
+        setPasswordFieldError(null);
       }
     } finally {
       setLoading(false);
@@ -294,6 +309,8 @@ export default function Login() {
 
     try {
       const data = await authService.loginWithGoogle(idToken);
+      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+
       await setSession({
         user: {
           id: data.user.id,
@@ -306,11 +323,11 @@ export default function Login() {
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
-        hasCompany: data.hasCompany,
+        hasCompany: nextHasCompany,
         persist: rememberMe,
       });
 
-      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
+      navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const loginError = err as AuthError;
 
@@ -516,7 +533,7 @@ export default function Login() {
           {isGoogleAuthEnabled && (
             <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center">
               <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-xs font-semibold text-gray-400 tracking-wider">
+              <span className="px-4 text-sm font-semibold text-gray-500">
                 O CONTINUA CON
               </span>
               <div className="flex-1 border-t border-gray-200"></div>
@@ -529,9 +546,9 @@ export default function Login() {
                 <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
               </div>
               <p className="text-center text-sm font-semibold text-gray-700 mb-2">
-                Procesando inicio de sesion...
+                Procesando inicio de sesión...
               </p>
-              <p className="text-center text-xs text-gray-500">
+              <p className="text-center text-sm text-gray-500">
                 Espera un momento mientras validamos tu cuenta.
               </p>
             </div>
@@ -543,7 +560,7 @@ export default function Login() {
                 ref={googleButtonRef}
                 className="flex min-h-[44px] w-full items-center justify-center overflow-hidden"
               >
-                {googleButtonMissing ? (
+                {googleButtonMissing || isAndroidApp ? (
                   <button
                     type="button"
                     onClick={openGoogleRedirect}
@@ -572,8 +589,8 @@ export default function Login() {
           )}
 
           {!isGoogleAuthEnabled && (
-            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-800">
-              El acceso con Google no esta disponible porque falta configurar
+            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800">
+              El acceso con Google no está disponible porque falta configurar
               <strong> VITE_GOOGLE_CLIENT_ID </strong>
               en el frontend.
             </div>
@@ -582,14 +599,14 @@ export default function Login() {
           <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600">
             ¿No tienes una cuenta?{' '}
             <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
-              Registrate gratis
+              Regístrate gratis
             </Link>
           </p>
         </div>
       </main>
 
       <footer className="px-4 py-3 sm:p-6 text-center">
-        <p className="text-xs text-slate-400 font-medium tracking-wide">
+        <p className="text-sm text-slate-500 font-medium">
           Copyright 2024 Cafe Smart Inc. Todos los derechos reservados.
         </p>
       </footer>

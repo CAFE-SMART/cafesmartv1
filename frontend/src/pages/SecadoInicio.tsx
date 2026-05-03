@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Droplets, RefreshCcw } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { EmptyState } from '../components/EmptyState';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getActiveSecadoSession } from '../utils/secadoFlow';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 function keyOf(value: string) {
   return value.trim().toUpperCase();
@@ -118,7 +120,7 @@ export default function SecadoInicio() {
           <div className="mt-4 space-y-3">
             {loading ? (
               <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-6 text-sm text-slate-500">
-                Cargando lotes para secado...
+                {UI_MESSAGES.loading.lotsForDrying}
               </div>
             ) : lotes.length > 0 ? (
               lotes.map((lote) => {
@@ -161,9 +163,13 @@ export default function SecadoInicio() {
                 );
               })
             ) : (
-              <div className="rounded-[16px] border border-dashed border-[#d7deef] bg-[#fafbff] px-4 py-6 text-sm text-slate-500">
-                No hay lotes verdes disponibles para iniciar secado.
-              </div>
+              <EmptyState
+                icon={Droplets}
+                title={UI_MESSAGES.empty.dryLots.titulo}
+                description={UI_MESSAGES.empty.dryLots.mensaje}
+                actionLabel={UI_MESSAGES.empty.dryLots.accion}
+                onAction={() => navigate('/compras')}
+              />
             )}
           </div>
         </section>

@@ -29,7 +29,7 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { EmptyState } from '../components/EmptyState';
 import {
-  createGuidedError,
+  createGuidedErrorFromUi,
   FloatingGuidedNotice,
   InlineGuidedError,
   type GuidedErrorMessage,
@@ -43,6 +43,7 @@ import {
   guardarConfiguracionBodega,
 } from '../services/bodegaApi';
 import { applySecadoToLots } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 type ProfileSettings = {
   nombre: string;
@@ -194,91 +195,101 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
 
 function getAjustesGuidance(message: string): GuidedErrorMessage {
   if (message === 'Escribe el nombre del usuario.') {
-    return createGuidedError(
-      message,
-      'Falta tu nombre.',
-      'No sabemos cómo llamarte.',
-      'Escribe tu nombre de usuario.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        'Escribe el nombre del usuario.',
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Escribe el correo del usuario.') {
-    return createGuidedError(
-      message,
-      'Falta el correo.',
-      'Necesitamos un correo valido.',
-      'Escribe el correo del usuario.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        'Escribe el correo del usuario.',
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'El teléfono debe tener 10 números.') {
-    return createGuidedError(
-      message,
-      'Revisa el teléfono.',
-      'El número debe tener exactamente 10 dígitos.',
-      'Corrige el teléfono antes de guardar.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Corrige el dato',
+      ),
     );
   }
 
   if (message === 'No realizaste cambios en el perfil.') {
-    return createGuidedError(
-      message,
-      'Sin cambios.',
-      'Los datos del perfil siguen iguales.',
-      'Modifica algún dato antes de guardar.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        'Sin cambios por guardar',
+        message,
+        'Modifica algún dato antes de guardar',
+      ),
     );
   }
 
   if (message === 'Escribe el nombre de la empresa.') {
-    return createGuidedError(
-      message,
-      'Falta nombre de empresa.',
-      'Tu negocio debe tener un nombre.',
-      'Escribe el nombre de tu empresa.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Selecciona el tipo de empresa.') {
-    return createGuidedError(
-      message,
-      'Falta el tipo.',
-      '¿A que se dedica tu negocio?',
-      'Selecciona el tipo de empresa.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Escribe un nombre para la bodega.') {
-    return createGuidedError(
-      message,
-      'Bodega sin nombre.',
-      'Ponle un nombre para identificarla.',
-      'Escribe el nombre de la bodega.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'La capacidad debe ser mayor que 0.') {
-    return createGuidedError(
-      message,
-      'Capacidad en cero.',
-      'La bodega debe tener espacio.',
-      'Ingresa una capacidad mayor a 0.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Corrige el dato',
+      ),
     );
   }
 
   if (message === 'La capacidad no puede ser menor al inventario actual almacenado.') {
-    return createGuidedError(
-      message,
-      'Capacidad muy pequeña.',
-      'Ya tienes mas cafe guardado que ese limite.',
-      'Aumenta la capacidad de la bodega.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Ajusta la capacidad e intenta nuevamente',
+      ),
     );
   }
 
-  return createGuidedError(
-    message,
-    'Problema guardando.',
-    'Hubo un problema con tus datos.',
-    'Verifica y vuelve a intentar.',
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.system.saveFailed.titulo,
+      message || UI_MESSAGES.system.saveFailed.mensaje,
+      UI_MESSAGES.system.saveFailed.accion,
+    ),
   );
 }
 
@@ -480,14 +491,7 @@ export default function Ajustes() {
     if (phoneWasEdited && profile.telefono.trim() && getPhoneDigits(profile.telefono).length !== 10) {
       const message = 'El teléfono debe tener 10 números.';
       setError(message);
-      setFloatingError(
-        createGuidedError(
-          message,
-          'Revisa el teléfono.',
-          'El número debe tener exactamente 10 dígitos.',
-          'Corrige el teléfono antes de guardar.',
-        ),
-      );
+      setFloatingError(getAjustesGuidance(message));
       return;
     }
 
@@ -517,7 +521,7 @@ export default function Ajustes() {
 
     saveProfile(nextProfile);
     setProfile(nextProfile);
-    setSuccess('Perfil actualizado correctamente.');
+    setSuccess(UI_MESSAGES.success.saved.mensaje);
     setIsEditingProfile(false);
     setPhoneWasEdited(false);
     setProfileEditBaseline(null);
@@ -538,7 +542,7 @@ export default function Ajustes() {
       return;
     }
     saveCompany(company);
-    setSuccess('Información de la empresa actualizada.');
+    setSuccess(UI_MESSAGES.success.saved.mensaje);
     setIsEditingCompany(false);
   };
 
@@ -576,7 +580,7 @@ export default function Ajustes() {
       setNombreBodega(result.nombreBodega);
       setCapacidadKg(String(result.capacidadKg));
       setUpdatedAt(result.updatedAt);
-      setSuccess('Capacidad de bodega actualizada.');
+      setSuccess(UI_MESSAGES.success.saved.mensaje);
       setIsEditingBodega(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al guardar la bodega.';
@@ -994,13 +998,13 @@ export default function Ajustes() {
 
           <div className="rounded-[16px] border border-[#e5e9f5] bg-white p-3 shadow-sm">
             {loadingMovimientos ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Cargando movimientos...</p>
+              <p className="px-1 py-2 text-sm text-slate-500">{UI_MESSAGES.loading.movements}</p>
             ) : movimientosRecientes.length === 0 ? (
               <EmptyState
                 icon={ReceiptText}
-                title="Sin movimientos recientes"
-                description="Cuando registres compras o gastos, aparecerán aquí para revisar la actividad del negocio."
-                actionLabel="Registrar compra"
+                title={UI_MESSAGES.empty.recentMovements.titulo}
+                description={UI_MESSAGES.empty.recentMovements.mensaje}
+                actionLabel={UI_MESSAGES.empty.recentMovements.accion}
                 onAction={() => navigate('/compras')}
               />
             ) : (

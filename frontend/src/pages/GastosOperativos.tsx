@@ -25,6 +25,7 @@ import { listarCompras, type CompraListadoItem } from '../services/comprasServic
 import { crearGasto, type CrearGastoPayload } from '../services/gastosService';
 import { getTodayLocalDateValue, toIsoDateAtUtcNoon } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 type TipoGastoValue =
   | 'TRANSPORTE'
@@ -97,9 +98,9 @@ function getFieldGuidance(
 
   if (field === 'monto') {
     return {
-      what: whatOverride ?? 'El monto del gasto no es valido.',
+      what: whatOverride ?? 'El monto del gasto no es válido.',
       why: 'Solo se permiten valores mayores a cero.',
-      how: 'Ingresa solo numeros y un monto mayor a 0.',
+      how: 'Ingresa solo números y un monto mayor a 0.',
       action: 'Escribe un monto mayor a $0.',
     };
   }
@@ -108,7 +109,7 @@ function getFieldGuidance(
     return {
       what: whatOverride ?? 'Falta la fecha del gasto.',
       why: 'Es obligatoria para registrar el gasto.',
-      how: 'Selecciona el dia del gasto.',
+      how: 'Selecciona el día del gasto.',
       action: 'Elige la fecha del gasto.',
     };
   }
@@ -116,7 +117,7 @@ function getFieldGuidance(
   if (!hasAvailableSublotes) {
     return {
       what: whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
-      why: 'Aun no existen sublotes registrados.',
+      why: 'Aún no existen sublotes registrados.',
       how: 'Registra sublotes o cambia a gasto general.',
       action: 'Selecciona "Gasto general" o crea sublotes.',
     };
@@ -133,7 +134,7 @@ function getFieldGuidance(
 function getSaveErrorGuidance(message: string): GuidanceMessage {
   return {
     what: 'No pude guardar el gasto.',
-    why: message || 'Hubo un problema de conexion o del servidor.',
+    why: message || 'Hubo un problema de conexión o del servidor.',
     how: 'Revisa tus datos y vuelve a intentarlo.',
     action: 'Toca "Reintentar" para guardar de nuevo.',
   };
@@ -181,7 +182,7 @@ function FloatingNoticeCard({
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-600">
+            <p className="text-sm font-black uppercase text-rose-600">
               Revision necesaria
             </p>
 
@@ -552,7 +553,7 @@ export default function GastosOperativos() {
         <div className="relative min-h-[36px]">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/ajustes')}
             className="absolute left-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-slate-100"
             aria-label="Volver"
           >
@@ -670,7 +671,7 @@ export default function GastosOperativos() {
                       size={22}
                       className={isSelected ? 'text-[#102d92]' : 'text-slate-400'}
                     />
-                    <span className="text-[10px] font-black uppercase tracking-wider">
+                    <span className="text-sm font-black uppercase">
                       {opcion.label}
                     </span>
                   </button>
@@ -726,7 +727,7 @@ export default function GastosOperativos() {
                   size={24}
                   className={aplicaA === 'GENERAL' ? 'text-[#102d92]' : 'text-slate-400'}
                 />
-                <span className="text-[11px] font-black uppercase tracking-wider">
+                <span className="text-sm font-black uppercase">
                   Gasto General
                 </span>
               </button>
@@ -744,7 +745,7 @@ export default function GastosOperativos() {
                   size={24}
                   className={aplicaA === 'SUBLOTES' ? 'text-[#102d92]' : 'text-slate-400'}
                 />
-                <span className="text-[11px] font-black uppercase tracking-wider">
+                <span className="text-sm font-black uppercase">
                   Asociar a Sublotes
                 </span>
               </button>
@@ -759,7 +760,7 @@ export default function GastosOperativos() {
               <div className="flex items-center justify-between">
                 <label className="ml-1 text-sm font-bold text-slate-700">Seleccionar sublotes</label>
                 {sublotesSeleccionados.length > 0 ? (
-                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-xs font-bold text-[#102d92] animate-in zoom-in">
+                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-sm font-bold text-[#102d92] animate-in zoom-in">
                     {sublotesSeleccionados.length} seleccionados
                   </span>
                 ) : null}
@@ -797,7 +798,7 @@ export default function GastosOperativos() {
                 </div>
               </button>
 
-              <p className="ml-1 text-[12px] text-slate-500">
+              <p className="ml-1 text-sm text-slate-500">
                 Selecciona los sublotes a los que aplica este gasto.
               </p>
 
@@ -840,10 +841,10 @@ export default function GastosOperativos() {
                           {seleccionado ? <CheckCircle2 size={14} className="text-white" /> : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-bold leading-tight text-slate-800">
+                          <p className="text-sm font-bold leading-tight text-slate-800">
                             {sublote.tipoCafe} {sublote.calidad}
                           </p>
-                          <p className="mt-0.5 text-[11px] text-slate-500">
+                          <p className="mt-0.5 text-sm text-slate-500">
                             Comprado: {sublote.fechaCompra.slice(0, 10)} - {sublote.pesoActual} kg
                           </p>
                         </div>
@@ -873,7 +874,7 @@ export default function GastosOperativos() {
           <button
             type="button"
             disabled={saving}
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/ajustes')}
             className="w-full rounded-xl bg-transparent py-3.5 text-sm font-bold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
             Cancelar
@@ -925,10 +926,10 @@ export default function GastosOperativos() {
               <CheckCircle2 size={24} />
             </div>
             <h3 className="mb-2 text-center text-xl font-black text-slate-900">
-              Gasto registrado con exito
+              {UI_MESSAGES.success.expenseCreated.titulo}
             </h3>
             <p className="mb-6 text-center text-sm leading-relaxed text-slate-500">
-              El gasto fue guardado correctamente en el sistema.
+              {UI_MESSAGES.success.expenseCreated.mensaje}
             </p>
             <div className="space-y-2">
               <button

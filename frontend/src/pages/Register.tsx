@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
   ArrowRight,
   ArrowLeft,
@@ -51,6 +52,7 @@ export default function Register() {
   const isGoogleAuthEnabled = Boolean(
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
+  const isAndroidApp = Capacitor.getPlatform() === 'android';
   const [googleLoading, setGoogleLoading] = useState(false);
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
   const initialRouteState = useMemo(
@@ -796,7 +798,7 @@ export default function Register() {
                     </svg>
                   </button>
 
-                  {!hasGoogleFlow && isGoogleAuthEnabled && (
+                  {!hasGoogleFlow && isGoogleAuthEnabled && !isAndroidApp && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
                       <p className="mb-3 text-xs font-medium text-slate-600">
                         Si prefieres, tambien puedes continuar con Google desde aqui.

@@ -87,7 +87,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     setIsCheckingEmail(true);
     try {
       const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
-      return exists ? 'Este correo ya esta registrado. Usa otro o inicia sesion.' : null;
+      return exists ? 'Este correo ya está registrado. Usa otro o inicia sesión.' : null;
     } catch (checkError) {
       const message =
         checkError && typeof checkError === 'object' && 'message' in checkError
@@ -110,7 +110,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
       nextErrors.nombreOrganizacion = 'El nombre de la empresa es obligatorio.';
     } else if (nombreOrganizacionNormalizado.length < 2) {
       nextErrors.nombreOrganizacion =
-        'El nombre de la empresa debe tener minimo 2 caracteres.';
+        'El nombre de la empresa debe tener mínimo 2 caracteres.';
     }
 
     if (!tipoOrganizacion) {
@@ -119,7 +119,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrigelos para continuar.');
+      setError('Revisa los campos en rojo y corrígelos para continuar.');
       return;
     }
 
@@ -145,9 +145,9 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     }
 
     if (nombreOrganizacionNormalizado.length < 2) {
-      setError('El nombre del negocio debe tener minimo 2 caracteres.');
+      setError('El nombre del negocio debe tener mínimo 2 caracteres.');
       setStepOneErrors({
-        nombreOrganizacion: 'El nombre de la empresa debe tener minimo 2 caracteres.',
+        nombreOrganizacion: 'El nombre de la empresa debe tener mínimo 2 caracteres.',
       });
       setStep(1);
       return;
@@ -167,19 +167,19 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     if (!apellidos.trim()) {
       nextErrors.apellidos = 'Los apellidos del administrador son obligatorios.';
     } else if (!hasAtLeastOneSurname(apellidos)) {
-      nextErrors.apellidos = 'Ingresa al menos un apellido valido.';
+      nextErrors.apellidos = 'Ingresa al menos un apellido válido.';
     }
 
     if (!telefono.trim()) {
-      nextErrors.telefono = 'El telefono es obligatorio.';
+      nextErrors.telefono = 'El teléfono es obligatorio.';
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Ingresa un telefono colombiano valido. Ejemplo: +57 300 123 4567';
+      nextErrors.telefono = 'Ingresa un teléfono colombiano válido. Ejemplo: +57 300 123 4567';
     }
 
     if (!correo.trim()) {
-      nextErrors.correo = 'El correo electronico es obligatorio.';
+      nextErrors.correo = 'El correo electrónico es obligatorio.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Ingresa un correo valido. Ejemplo: admin@empresa.com';
+      nextErrors.correo = 'Ingresa un correo válido. Ejemplo: admin@empresa.com';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -190,25 +190,25 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     const checks = getPasswordChecks(password);
     if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
       nextErrors.password =
-        'La contrasena debe tener minimo 6 caracteres, una minuscula y una mayuscula.';
+        'La contraseña debe tener mínimo 6 caracteres, una minúscula y una mayúscula.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma nuevamente tu contrasena.';
+      nextErrors.confirmPassword = 'Confirma nuevamente tu contraseña.';
     } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Las contrasenas no coinciden.';
+      nextErrors.confirmPassword = 'Las contraseñas no coinciden.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrigelos para continuar.');
+      setError('Revisa los campos en rojo y corrígelos para continuar.');
       return;
     }
 
     setStepTwoErrors({});
 
     if (hasGoogleFlow && !routeState.googleToken) {
-      setError('No detectamos tu sesion de Google. Vuelve a iniciar con Google.');
+      setError('No detectamos tu sesión de Google. Vuelve a iniciar con Google.');
       return;
     }
 

@@ -77,7 +77,7 @@ export function FormattedPhoneInput({
           />
         )}
       </div>
-      <p className={`mt-2 text-xs font-semibold ${message ? 'text-rose-600' : 'text-slate-500'}`}>
+      <p className={`mt-2 text-sm font-semibold ${message ? 'text-rose-600' : 'text-slate-500'}`}>
         {message ?? hint}
       </p>
     </div>

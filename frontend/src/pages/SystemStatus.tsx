@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
@@ -39,9 +40,11 @@ function ConfirmSuccessView() {
             <Check size={30} strokeWidth={3.2} />
           </div>
           <h1 className="mt-4 text-[1.35rem] font-black tracking-tight text-[#121826]">
-            Cuenta creada
+            {UI_MESSAGES.success.accountCreated.titulo}
           </h1>
-          <p className="mt-1.5 text-sm text-slate-600">Preparando tu bienvenida...</p>
+          <p className="mt-1.5 text-sm text-slate-600">
+            {UI_MESSAGES.success.accountCreated.mensaje}
+          </p>
         </section>
       </div>
     </div>
@@ -90,7 +93,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
             </h1>
 
             <p className="mt-3 text-center text-[1rem] leading-7 text-[#e0e8ff]">
-              Controla tu cafe en un solo lugar con precision.
+              Controla tu café en un solo lugar con precisión.
             </p>
 
             <button
@@ -120,7 +123,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
               className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-2xl border border-white/28 bg-[#0d162fcc] px-4 text-[1.06rem] font-bold text-white backdrop-blur"
             >
               <MessageCircle size={18} />
-              Contactenos
+              Contáctenos
             </button>
           </div>
         </div>
@@ -142,9 +145,9 @@ export default function SystemStatus() {
   const [status, setStatus] = useState<ProcessStatus>('creating');
   const [successStage, setSuccessStage] = useState<SuccessStage>('confirm');
   const [errorMessage, setErrorMessage] = useState(
-    'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+    'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',
   );
-  const [errorTitle, setErrorTitle] = useState('Error de conexion');
+  const [errorTitle, setErrorTitle] = useState('Problema de conexión');
   const registrationStartedRef = useRef(false);
 
   useEffect(() => {
@@ -170,8 +173,8 @@ export default function SystemStatus() {
 
       setStatus('creating');
       setSuccessStage('confirm');
-      setErrorTitle('Error de conexion');
-      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.');
+      setErrorTitle('Problema de conexión');
+      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.');
 
       try {
         let response: AuthResponse;
@@ -230,12 +233,12 @@ export default function SystemStatus() {
         if (field === 'email' || field === 'correo') {
           setErrorTitle('No se pudo crear la cuenta');
         } else {
-          setErrorTitle('Error de conexion');
+          setErrorTitle('Problema de conexión');
         }
 
         setErrorMessage(
           authError.message ||
-            'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+            'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',
         );
       }
     },

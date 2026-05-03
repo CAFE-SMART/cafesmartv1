@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, SunMedium } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { InlineGuidedError, createGuidedErrorFromUi } from '../components/forms/GuidedError';
 import { formatDateLabel } from '../utils/date';
 import {
   obtenerDetalleLote,
@@ -15,6 +16,7 @@ import {
   getActiveSecadoSessionForLot,
   startSecado,
 } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -25,6 +27,30 @@ function kg(value: number) {
 
 function shortDate(value: string) {
   return formatDateLabel(value);
+}
+
+function getSecadoSeleccionGuidance(message: string) {
+  if (message.includes('No se encontro el lote')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.inventory.notFound);
+  }
+
+  if (message.includes('No se encontraron sublotes')) {
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.inventory.notFound.titulo,
+        'No encontramos sublotes disponibles para este lote.',
+        'Verifica los datos',
+      ),
+    );
+  }
+
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.system.internalError.titulo,
+      message || UI_MESSAGES.system.internalError.mensaje,
+      UI_MESSAGES.system.internalError.accion,
+    ),
+  );
 }
 
 export default function SecadoSeleccion() {
@@ -205,9 +231,10 @@ export default function SecadoSeleccion() {
         ) : null}
 
         {error ? (
-          <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            {error}
-          </section>
+          <div className="space-y-2">
+            <InlineGuidedError message={getSecadoSeleccionGuidance(error)} />
+            <p className="px-1 text-sm text-slate-500">{error}</p>
+          </div>
         ) : null}
 
         {loading ? (

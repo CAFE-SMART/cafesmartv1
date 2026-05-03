@@ -93,10 +93,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setToken(storedToken ?? null);
-      setHasCompany(storedHasCompany === 'true');
-
       if (!storedUserRaw) {
+        setToken(storedToken ?? null);
+        setHasCompany(storedHasCompany === 'true');
         setUser(null);
         setHydrated(true);
         return;
@@ -104,6 +103,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
+        const nextHasCompany = storedHasCompany === 'true' || Boolean(parsed.organizacionId);
+
+        setToken(storedToken ?? null);
+        setHasCompany(nextHasCompany);
         setUser({
           id: parsed.id,
           email: parsed.email ?? parsed.correo ?? '',
@@ -115,6 +118,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           otroTipoDetalle: parsed.otroTipoDetalle ?? null,
         });
       } catch {
+        setToken(storedToken ?? null);
+        setHasCompany(storedHasCompany === 'true');
         setUser(null);
       }
 
@@ -154,22 +159,24 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const setSession = async (data: UserSessionInput) => {
+    const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+
     setUser(data.user);
     setToken(data.token);
-    setHasCompany(data.hasCompany);
+    setHasCompany(nextHasCompany);
 
     if (data.persist === false) {
       await clearAuthStorage();
       setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token);
       setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user));
-      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(data.hasCompany));
+      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany));
       return;
     }
 
     await Promise.all([
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
       setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
-      setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(data.hasCompany)),
+      setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession, 'true'),
     ]);
   };

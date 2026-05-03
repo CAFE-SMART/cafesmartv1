@@ -8,6 +8,7 @@ import {
   type DashboardMovimiento,
   type DashboardSummary,
 } from '../services/dashboardService';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 const sectionTitleClass =
   'text-[0.92rem] font-black uppercase tracking-[0.14em] text-[#73829a]';
@@ -307,13 +308,13 @@ export default function Inicio() {
           <div className={`mt-4 overflow-hidden ${cardClass} p-0`}>
             {loading && !summary ? (
               <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                Cargando movimientos...
+                {UI_MESSAGES.loading.movements}
               </div>
             ) : movimientos.length === 0 ? (
               <EmptyState
                 icon={ReceiptText}
-                title="Todavía no hay movimientos"
-                description="Registra una compra o una venta para que el resumen del día empiece a mostrar actividad."
+                title={UI_MESSAGES.empty.dashboardMovements.titulo}
+                description={UI_MESSAGES.empty.dashboardMovements.mensaje}
                 className="m-4"
               />
             ) : (

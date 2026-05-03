@@ -5,6 +5,54 @@ export function getTodayLocalDateValue(reference = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+export const BUSINESS_MIN_DATE_VALUE = '2000-01-01';
+export const BUSINESS_DATE_RANGE_MESSAGE =
+  'Ingresa una fecha válida. Solo puedes registrar fechas desde el año 2000 hasta hoy.';
+
+function parseDateValueStrict(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+export function validateBusinessDateRange(value: string, reference = new Date()) {
+  if (!value.trim()) {
+    return {
+      isValid: false,
+      message: 'Selecciona la fecha del registro.',
+    };
+  }
+
+  const date = parseDateValueStrict(value);
+  const minDate = parseDateValueStrict(BUSINESS_MIN_DATE_VALUE);
+  const maxDate = parseDateValueStrict(getTodayLocalDateValue(reference));
+
+  if (!date || !minDate || !maxDate || date < minDate || date > maxDate) {
+    return {
+      isValid: false,
+      message: BUSINESS_DATE_RANGE_MESSAGE,
+    };
+  }
+
+  return {
+    isValid: true,
+    message: null,
+  };
+}
+
 function buildDateFromValue(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split('-').map(Number);
