@@ -34,6 +34,8 @@ export function InlineGuidedError({
   message,
   className = '',
 }: InlineGuidedErrorProps) {
+  const guidance = message.action || message.how;
+
   return (
     <div
       id={id}
@@ -44,7 +46,7 @@ export function InlineGuidedError({
         <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-600" />
         <div className="leading-snug">
           {message.why ? <p className="font-bold">{message.why}</p> : null}
-          {message.action ? <p className="mt-0.5 text-rose-700">{message.action}</p> : null}
+          {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
         </div>
       </div>
     </div>
@@ -57,6 +59,8 @@ export function FloatingGuidedNotice({
   onPrimaryAction,
   onClose,
 }: FloatingGuidedNoticeProps) {
+  const guidance = message.action || message.how;
+
   return (
     <div className="fixed inset-x-0 bottom-20 z-50 px-4">
       <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
@@ -68,7 +72,7 @@ export function FloatingGuidedNotice({
           <div className="min-w-0 flex-1">
             <div className="text-[0.72rem] leading-snug text-slate-700">
               {message.why ? <p className="font-bold">{message.why}</p> : null}
-              {message.action ? <p className="mt-0.5 text-rose-700">{message.action}</p> : null}
+              {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">

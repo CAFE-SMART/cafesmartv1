@@ -498,7 +498,7 @@ export default function Compras() {
       return;
     }
 
-    navigate(-1);
+    navigate('/inicio');
   };
 
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
@@ -898,7 +898,7 @@ export default function Compras() {
 
   const confirmarCancelarCompra = () => {
     resetFormulario();
-    navigate(-1);
+    navigate('/inicio');
   };
 
   const volverDesdeError = () => {
@@ -988,10 +988,10 @@ export default function Compras() {
           <button
             type="button"
             onClick={volverPasoAnterior}
-            className="absolute left-0 inline-flex items-center gap-1.5 text-slate-900 transition hover:opacity-75"
+            className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75"
+            aria-label={step > 1 ? 'Volver al paso anterior' : 'Salir a inicio'}
           >
             <ArrowLeft size={22} />
-            <span className="text-[0.95rem] font-semibold">Inicio</span>
           </button>
           <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Compra</h1>
         </div>

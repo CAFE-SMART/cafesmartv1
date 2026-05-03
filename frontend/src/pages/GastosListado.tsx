@@ -161,10 +161,10 @@ export default function GastosListado() {
                 <Receipt size={18} />
               </div>
               <p className="mt-3 text-[0.76rem] font-black text-slate-900">
-                Aún no has registrado gastos
+                Aun no has registrado gastos
               </p>
               <p className="mx-auto mt-1 max-w-[230px] text-[0.64rem] font-semibold leading-5 text-slate-500">
-                Empieza registrando uno para llevar control de tus costos.
+                Registra el primero para empezar a gestionarlos.
               </p>
             </div>
           ) : null}

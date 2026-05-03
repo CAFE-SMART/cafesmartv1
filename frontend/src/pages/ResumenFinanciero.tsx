@@ -1,5 +1,19 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Lock, PackageCheck, Receipt, RefreshCcw, ShoppingCart, TrendingUp } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Clock,
+  LineChart,
+  Lock,
+  PackageCheck,
+  Plus,
+  Receipt,
+  RefreshCcw,
+  Scale,
+  ShoppingCart,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { obtenerDashboardSummary, type DashboardMovimiento, type DashboardSummary } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
@@ -25,6 +39,20 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function formatDayShort(value: Date) {
+  return value.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+function formatCurrencyShort(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1000000) return `$${(value / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
+  if (abs >= 1000) return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
+  return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 }
 
 function getMovimientoCopy(item: DashboardMovimiento) {
@@ -56,7 +84,7 @@ function getMovimientoCopy(item: DashboardMovimiento) {
     icon: Receipt,
     tone: 'bg-[#fff1f2] text-[#be123c]',
     amountTone: 'text-[#be123c]',
-    sign: '-',
+    sign: '',
   };
 }
 
@@ -110,7 +138,7 @@ export default function ResumenFinanciero() {
   };
 
   const utilidad = summary?.utilidadTotalAcumulada ?? 0;
-  const movimientosRecientes = useMemo(() => {
+  const movimientos = useMemo(() => {
     const seen = new Set<string>();
 
     return [...(summary?.movimientosRecientes ?? [])]
@@ -120,50 +148,101 @@ export default function ResumenFinanciero() {
         seen.add(key);
         return true;
       })
-      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-      .slice(0, 5);
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   }, [summary?.movimientosRecientes]);
+  const movimientosRecientes = useMemo(() => movimientos.slice(0, 8), [movimientos]);
 
-  const ingresosTotal = useMemo(
-    () => movimientosRecientes.filter((item) => item.tipo === 'VENTA').reduce((sum, item) => sum + item.valor, 0),
-    [movimientosRecientes],
-  );
-  const comprasTotal = useMemo(
-    () => movimientosRecientes.filter((item) => item.tipo === 'COMPRA').reduce((sum, item) => sum + item.valor, 0),
-    [movimientosRecientes],
-  );
+  const ventasTotal = summary?.totalVentasHoy ?? 0;
+  const gastosTotal = summary?.totalGastosHoy ?? 0;
+  const comprasTotal = summary?.totalComprasHoy ?? 0;
+  const mermaTotalKg = summary?.mermaTotalKg ?? 0;
+  const hasData = utilidad !== 0 || ventasTotal > 0 || comprasTotal > 0 || gastosTotal > 0 || mermaTotalKg > 0 || movimientos.length > 0;
+  const periodoActual = new Date().toLocaleDateString('es-CO', {
+    month: 'long',
+    year: 'numeric',
+  });
 
-  const chartBars = useMemo(() => {
-    const maxValue = Math.max(1, ingresosTotal, comprasTotal, Math.abs(utilidad));
+  const trend = useMemo(() => {
+    const byDay = new Map<string, { key: string; label: string; time: number; value: number }>();
+    for (const item of movimientos) {
+      const date = new Date(item.fecha);
+      if (Number.isNaN(date.getTime())) continue;
+      const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const key = day.toISOString().slice(0, 10);
+      const bucket = byDay.get(key) ?? {
+        key,
+        label: formatDayShort(day),
+        time: day.getTime(),
+        value: 0,
+      };
+      bucket.value += item.tipo === 'VENTA' ? item.valor : -item.valor;
+      byDay.set(key, bucket);
+    }
 
-    return [
-      { label: 'Ingresos', value: ingresosTotal, tone: 'bg-[#9ec5ee]' },
-      { label: 'Compras', value: comprasTotal, tone: 'bg-[#d7e3f2]' },
-      { label: 'Utilidad', value: Math.max(0, utilidad), tone: 'bg-[#0f58bd]' },
-    ].map((item) => ({
-      ...item,
-      height: Math.max(10, Math.round((item.value / maxValue) * 112)),
-    }));
-  }, [comprasTotal, ingresosTotal, utilidad]);
+    let buckets = [...byDay.values()]
+      .sort((a, b) => a.time - b.time)
+      .slice(-6);
+
+    if (buckets.length === 0) {
+      const now = new Date();
+      buckets = [{
+        key: now.toISOString().slice(0, 10),
+        label: formatDayShort(now),
+        time: now.getTime(),
+        value: utilidad,
+      }];
+    }
+
+    const values = buckets.map((bucket) => bucket.value);
+    const rawMin = Math.min(0, ...values);
+    const rawMax = Math.max(0, ...values);
+    const padding = Math.max(500000, (rawMax - rawMin) * 0.18);
+    const min = rawMin - padding;
+    const max = rawMax + padding;
+    const range = Math.max(1, max - min);
+    const chart = { left: 72, top: 30, width: 292, height: 148 };
+    const points = buckets.map((bucket, index) => {
+      const x = buckets.length === 1
+        ? chart.left + chart.width / 2
+        : chart.left + (index / (buckets.length - 1)) * chart.width;
+      const y = chart.top + chart.height - ((bucket.value - min) / range) * chart.height;
+      return { ...bucket, x, y };
+    });
+
+    return {
+      points,
+      polyline: points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
+      zeroY: chart.top + chart.height - ((0 - min) / range) * chart.height,
+      yLabels: [rawMax, 0, rawMin]
+        .filter((value, index, list) => list.findIndex((item) => Math.abs(item - value) < 1) === index)
+        .map((value) => ({
+        value,
+        label: formatCurrencyShort(value),
+        y: chart.top + chart.height - ((value - min) / range) * chart.height,
+      })),
+      yAxisTitle: 'Dinero (COP)',
+      xAxisTitle: 'Dias con movimiento',
+    };
+  }, [movimientos, utilidad]);
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
-      <main className="mx-auto w-full max-w-[340px] rounded-[24px] border border-[#dbe2ee] bg-white px-4 py-4 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
-        <header className="grid h-10 grid-cols-[36px_1fr_36px] items-center">
+    <div className="min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
+      <main className="mx-auto w-full max-w-[430px] py-2">
+        <header className="grid min-h-[54px] grid-cols-[44px_1fr_44px] items-center">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92]"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white"
             aria-label="Volver"
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 className="text-center text-[0.84rem] font-black">Resumen financiero</h1>
+          <h1 className="text-center text-[1.05rem] font-black text-[#111827]">Resultado financiero</h1>
           {authorized ? (
             <button
               type="button"
               onClick={() => void cargar(true)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
               aria-label="Recargar resumen"
             >
               <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
@@ -211,71 +290,166 @@ export default function ResumenFinanciero() {
           </section>
         ) : (
           <>
-            <section className="mt-4 rounded-[16px] bg-[#0f58bd] px-4 py-4 text-white shadow-[0_14px_28px_rgba(15,88,189,0.22)]">
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#64748b]">Dashboard</p>
+                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-[#071126]">Finanzas</h2>
+              </div>
+              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-[#111827] shadow-sm">
+                <CalendarDays size={15} className="text-[#102d92]" />
+                {periodoActual}
+              </div>
+            </div>
+
+            <section className="mt-5 overflow-hidden rounded-[16px] bg-[#0959d8] px-4 py-5 text-white shadow-[0_16px_34px_rgba(9,89,216,0.24)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.7rem] font-semibold text-white/75">Utilidad neta realizada</p>
-                  <p className="mt-2 text-[1.55rem] font-black leading-none">
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">Utilidad neta</p>
+                  <p className="mt-3 text-[2.15rem] font-black leading-none tracking-normal">
                     {loading ? '...' : formatCurrency(utilidad)}
                   </p>
                 </div>
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-                  <TrendingUp size={20} />
+                <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/18">
+                  <TrendingUp size={30} />
                 </span>
               </div>
-              <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
-                Calculada sobre ventas realizadas, gastos registrados y merma valorizada.
+              {hasData ? (
+                <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
+                  Resultado despues de compras, gastos y ventas
+                </p>
+              ) : (
+                <div className="mt-3 space-y-1 text-white/75">
+                  <p className="text-[0.64rem] font-black leading-4">
+                    Aun no tienes movimientos registrados
+                  </p>
+                  <p className="text-[0.62rem] font-semibold leading-4">
+                    Registra compras, ventas o gastos para ver tu utilidad
+                  </p>
+                </div>
+              )}
+              <p className="mt-5 inline-flex items-center gap-2 text-[0.68rem] font-bold text-white/75">
+                <Clock size={14} />
+                Actualizado: hoy
               </p>
             </section>
 
-            <section className="mt-3 grid grid-cols-2 gap-2">
-              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+            <section className="mt-4 grid grid-cols-3 gap-3">
+              <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <ShoppingCart size={18} />
+                </span>
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-emerald-700">
                   Ventas
                 </p>
-                <p className="mt-2 text-[1rem] font-black text-[#111827]">
-                  {loading ? '...' : formatCurrency(ingresosTotal)}
+                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                  {loading ? '...' : formatCurrency(ventasTotal)}
                 </p>
               </article>
-              <article className="rounded-[12px] border border-[#dbe2ee] bg-white px-3 py-3">
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+              <article className="rounded-[14px] border border-blue-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#0f58bd]">
+                  <PackageCheck size={18} />
+                </span>
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#0f58bd]">
                   Compras
                 </p>
-                <p className="mt-2 text-[1rem] font-black text-[#111827]">
+                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(comprasTotal)}
                 </p>
               </article>
+              <article className="rounded-[14px] border border-rose-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                  <Wallet size={18} />
+                </span>
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-rose-600">
+                  Gastos
+                </p>
+                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                  {loading ? '...' : formatCurrency(gastosTotal)}
+                </p>
+              </article>
             </section>
 
-            <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-3">
+            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <Scale size={22} />
+                  </span>
+                  <div className="min-w-0">
+                  <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
+                    Merma total
+                  </p>
+                  <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
+                    {loading ? '...' : formatKg(mermaTotalKg)}
+                  </p>
+                  <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
+                    Diferencia entre peso comprado y peso final.
+                  </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/80 px-2 py-1 text-[0.56rem] font-black text-amber-700">
+                  {mermaTotalKg > 0 ? 'Revisar' : 'OK'}
+                </span>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BarChart3 size={15} className="text-[#102d92]" />
-                  <p className="text-[0.72rem] font-black text-[#111827]">Ingresos vs utilidad</p>
+                  <LineChart size={15} className="text-[#102d92]" />
+                  <div>
+                    <p className="text-[0.82rem] font-black text-[#111827]">Tendencia de utilidad</p>
+                    <p className="text-[0.62rem] font-semibold text-slate-500">Dinero por fecha</p>
+                  </div>
                 </div>
                 <p className="text-[0.56rem] font-black uppercase tracking-[0.1em] text-[#73829a]">
-                  Actual
+                  {trend.xAxisTitle}
                 </p>
               </div>
 
-              <div className="mt-4 flex h-[128px] items-end justify-around border-b border-[#e6ecf4] px-2">
-                {chartBars.map((bar) => (
-                  <div key={bar.label} className="flex flex-col items-center gap-2">
-                    <div
-                      className={`w-8 rounded-t-[5px] ${bar.tone}`}
-                      style={{ height: `${bar.height}px` }}
-                    />
-                    <span className="text-[0.5rem] font-black uppercase text-[#73829a]">
-                      {bar.label}
-                    </span>
-                  </div>
-                ))}
+              <div className="mt-4 h-[245px]">
+                <svg viewBox="0 0 390 230" className="h-[220px] w-full overflow-visible" role="img" aria-label="Tendencia de utilidad">
+                  <text x="0" y="14" fill="#0f172a" fontSize="11" fontWeight="800">
+                    {trend.yAxisTitle}
+                  </text>
+                  <text x="364" y="228" textAnchor="end" fill="#0f172a" fontSize="11" fontWeight="800">
+                    Fecha
+                  </text>
+                  {trend.yLabels.map((tick) => (
+                    <g key={tick.label}>
+                      <text x="0" y={tick.y + 4} fill="#475569" fontSize="11" fontWeight="700">
+                        {tick.label}
+                      </text>
+                      <line x1="72" y1={tick.y} x2="364" y2={tick.y} stroke="#e6ecf4" strokeDasharray="5 5" />
+                    </g>
+                  ))}
+                  <line x1="72" y1={trend.zeroY} x2="364" y2={trend.zeroY} stroke="#cbd5e1" strokeWidth="1.5" />
+                  <polyline points={trend.polyline} fill="none" stroke="#0f58bd" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  {trend.points.map((point) => (
+                    <g key={point.key}>
+                      <text
+                        x={point.x}
+                        y={Math.max(14, point.y - 12)}
+                        textAnchor="middle"
+                        fill="#111827"
+                        fontSize="11"
+                        fontWeight="800"
+                      >
+                        {formatCurrencyShort(point.value)}
+                      </text>
+                      <circle cx={point.x} cy={point.y} r="6" fill="#0f58bd" stroke="#ffffff" strokeWidth="3" />
+                      <text x={point.x} y="212" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700">
+                        {point.label}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
               </div>
             </section>
 
-            <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-3">
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[0.72rem] font-black text-[#111827]">Movimientos recientes</p>
+                <p className="text-[0.82rem] font-black text-[#111827]">Movimientos recientes</p>
                 <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
                   {movimientosRecientes.length}
                 </span>
@@ -283,7 +457,7 @@ export default function ResumenFinanciero() {
 
               {movimientosRecientes.length === 0 ? (
                 <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
-                  No hay movimientos recientes.
+                  Aun no tienes movimientos
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">
@@ -291,24 +465,54 @@ export default function ResumenFinanciero() {
                     const copy = getMovimientoCopy(item);
                     const Icon = copy.icon;
                     return (
-                      <article key={`${item.tipo}-${item.id}`} className="flex items-center gap-2.5 rounded-[12px] bg-[#f8fafc] px-3 py-2.5">
-                        <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${copy.tone}`}>
-                          <Icon size={14} />
+                      <article key={`${item.tipo}-${item.id}`} className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0">
+                        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${copy.tone}`}>
+                          <Icon size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[0.72rem] font-black text-[#111827]">{copy.title}</p>
-                          <p className="truncate text-[0.58rem] font-semibold text-slate-500">
-                            {copy.detail} · {formatDate(item.fecha)}
+                          <p className="truncate text-[0.82rem] font-black text-[#111827]">{copy.title}</p>
+                          <p className="truncate text-[0.68rem] font-semibold text-slate-500">
+                            {copy.detail}
                           </p>
                         </div>
-                        <p className={`shrink-0 text-[0.62rem] font-black ${copy.amountTone}`}>
-                          {copy.sign} {formatCurrency(item.valor)}
-                        </p>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[0.62rem] font-semibold text-slate-500">{formatDate(item.fecha)}</p>
+                        <p className={`mt-1 text-[0.74rem] font-black ${copy.amountTone}`}>
+                            {copy.sign ? `${copy.sign} ` : ''}{formatCurrency(item.valor)}
+                          </p>
+                        </div>
                       </article>
                     );
                   })}
                 </div>
               )}
+            </section>
+
+            <section className="mt-4 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/ventas')}
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#e9f7ef] px-2 text-center text-[0.58rem] font-black text-[#118444]"
+              >
+                <ShoppingCart size={15} />
+                Venta
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/compras')}
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#eef4ff] px-2 text-center text-[0.58rem] font-black text-[#0f58bd]"
+              >
+                <PackageCheck size={15} />
+                Compra
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/gastos/registro')}
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#fff1f2] px-2 text-center text-[0.58rem] font-black text-[#be123c]"
+              >
+                <Plus size={15} />
+                Gasto
+              </button>
             </section>
           </>
         )}

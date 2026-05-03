@@ -9,6 +9,7 @@ describe('DashboardService', () => {
       },
       compra: {
         count: jest.fn(),
+        aggregate: jest.fn(),
         findMany: jest.fn(),
       },
       venta: {
@@ -58,6 +59,9 @@ describe('DashboardService', () => {
     prisma.sublote.aggregate
       .mockResolvedValueOnce({ _sum: { pesoInicial: null } })
       .mockResolvedValueOnce({ _sum: { pesoInicial: 120 } });
+    prisma.compra.aggregate
+      .mockResolvedValueOnce({ _sum: { totalCompra: null } })
+      .mockResolvedValueOnce({ _sum: { totalCompra: 600000 } });
     prisma.gastoOperativo.aggregate
       .mockResolvedValueOnce({ _sum: { montoGasto: null } })
       .mockResolvedValueOnce({ _sum: { montoGasto: 45000 } });
@@ -113,6 +117,7 @@ describe('DashboardService', () => {
       ventasHoy: 0,
       gastosHoy: 0,
       kgCompradosHoy: 0,
+      totalComprasHoy: 0,
       totalGastosHoy: 0,
       kgActual: 0,
       movimientosRecientes: [],
@@ -123,6 +128,7 @@ describe('DashboardService', () => {
       ventasHoy: 1,
       gastosHoy: 1,
       kgCompradosHoy: 120,
+      totalComprasHoy: 600000,
       totalGastosHoy: 45000,
       kgActual: 85,
     });
@@ -145,6 +151,7 @@ describe('DashboardService', () => {
     prisma.venta.count.mockResolvedValue(0);
     prisma.gastoOperativo.count.mockResolvedValue(1);
     prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
+    prisma.compra.aggregate.mockResolvedValue({ _sum: { totalCompra: 900000 } });
     prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: null } });
     prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
     prisma.productor.count.mockResolvedValue(1);
@@ -180,6 +187,7 @@ describe('DashboardService', () => {
     prisma.venta.count.mockResolvedValue(1);
     prisma.gastoOperativo.count.mockResolvedValue(1);
     prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
+    prisma.compra.aggregate.mockResolvedValue({ _sum: { totalCompra: 900000 } });
     prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: 1904000 } });
     prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
     prisma.productor.count.mockResolvedValue(1);

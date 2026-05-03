@@ -14,6 +14,7 @@ export type DashboardSummary = {
   ventasHoy: number;
   gastosHoy: number;
   kgCompradosHoy: number;
+  totalComprasHoy: number;
   totalVentasHoy: number;
   totalGastosHoy: number;
   totalProductores: number;

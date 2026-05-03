@@ -21,6 +21,7 @@ type DashboardSummaryResponse = {
   ventasHoy: number;
   gastosHoy: number;
   kgCompradosHoy: number;
+  totalComprasHoy: number;
   totalVentasHoy: number;
   totalGastosHoy: number;
   totalProductores: number;
@@ -54,6 +55,7 @@ export class DashboardService {
       ventasHoy,
       gastosHoy,
       kgCompradosHoy,
+      totalComprasHoy,
       totalVentasHoy,
       totalGastosHoy,
       totalProductores,
@@ -103,6 +105,17 @@ export class DashboardService {
               gte: inicioDia,
               lt: finDia,
             },
+          },
+        },
+      }),
+      this.prisma.compra.aggregate({
+        _sum: { totalCompra: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
           },
         },
       }),
@@ -265,6 +278,7 @@ export class DashboardService {
       ventasHoy,
       gastosHoy,
       kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
+      totalComprasHoy: Number(totalComprasHoy._sum.totalCompra ?? 0),
       totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
       totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
       totalProductores,

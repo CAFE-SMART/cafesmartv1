@@ -532,6 +532,9 @@ export default function GastosOperativos() {
     }
   };
 
+  const mostrarErrorInline = (field: FieldKey) =>
+    Boolean(fieldErrors[field]) && floatingNotice?.field !== field;
+
   const tipoOpciones = [
     { value: 'TRANSPORTE', label: 'TRANSPORTE', icon: Truck },
     { value: 'COMIDA', label: 'COMIDA', icon: Utensils },
@@ -566,15 +569,12 @@ export default function GastosOperativos() {
               className={getInputClassName(Boolean(fieldErrors.concepto), 'px-3 py-2 text-[0.66rem] font-semibold')}
               value={concepto}
               aria-invalid={Boolean(fieldErrors.concepto)}
-              aria-describedby={fieldErrors.concepto ? 'gasto-concepto-error' : undefined}
+              aria-describedby={undefined}
               onChange={(event) => {
                 setConcepto(event.target.value);
                 limpiarErrorCampo('concepto');
               }}
             />
-            {fieldErrors.concepto ? (
-              <InlineFieldError id="gasto-concepto-error" feedback={fieldErrors.concepto} />
-            ) : null}
           </div>
 
           <div className="space-y-1.5">
@@ -605,13 +605,10 @@ export default function GastosOperativos() {
                   )}
                   value={formatearMonedaInput(montoStr)}
                   aria-invalid={Boolean(fieldErrors.monto)}
-                  aria-describedby={fieldErrors.monto ? 'gasto-monto-error' : undefined}
+                  aria-describedby={undefined}
                   onChange={handleMontoChange}
                 />
               </div>
-              {fieldErrors.monto ? (
-                <InlineFieldError id="gasto-monto-error" feedback={fieldErrors.monto} />
-              ) : null}
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
@@ -626,7 +623,7 @@ export default function GastosOperativos() {
                   )}
                   value={fecha}
                   aria-invalid={Boolean(fieldErrors.fecha)}
-                  aria-describedby={fieldErrors.fecha ? 'gasto-fecha-error' : undefined}
+                  aria-describedby={undefined}
                   onChange={(event) => {
                     setFecha(event.target.value);
                     limpiarErrorCampo('fecha');
@@ -637,9 +634,6 @@ export default function GastosOperativos() {
                   className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
               </div>
-              {fieldErrors.fecha ? (
-                <InlineFieldError id="gasto-fecha-error" feedback={fieldErrors.fecha} />
-              ) : null}
             </div>
           </div>
 
@@ -763,9 +757,12 @@ export default function GastosOperativos() {
               <button
                 ref={sublotesButtonRef}
                 type="button"
-                onClick={() => setShowSublotesSelector((prev) => !prev)}
+                onClick={() => {
+                  limpiarErrorCampo('sublotes');
+                  setShowSublotesSelector((prev) => !prev);
+                }}
                 aria-invalid={Boolean(fieldErrors.sublotes)}
-                aria-describedby={fieldErrors.sublotes ? 'gasto-sublotes-error' : undefined}
+                aria-describedby={undefined}
                 className={`w-full rounded-[8px] px-3 py-2.5 text-left shadow-sm transition ${
                   fieldErrors.sublotes
                     ? 'border border-rose-300 bg-rose-50/60 hover:border-rose-400'
@@ -796,9 +793,6 @@ export default function GastosOperativos() {
                 Selecciona los sublotes a los que aplica este gasto.
               </p>
 
-              {fieldErrors.sublotes ? (
-                <InlineFieldError id="gasto-sublotes-error" feedback={fieldErrors.sublotes} />
-              ) : null}
 
               {showSublotesSelector ? (
                 <div className="max-h-[180px] w-full overflow-y-auto rounded-[8px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
@@ -937,10 +931,10 @@ export default function GastosOperativos() {
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => navigate('/inicio')}
+                onClick={() => navigate('/gastos')}
                 className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
               >
-                Ir a inicio
+                Ver gastos
               </button>
             </div>
           </div>
@@ -957,7 +951,7 @@ export default function GastosOperativos() {
               Error al registrar
             </h3>
             <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
-              No se pudo guardar el gasto. Intenta de nuevo.
+              {showErrorModal.what} {showErrorModal.action}
             </p>
             <div className="space-y-2">
               <button

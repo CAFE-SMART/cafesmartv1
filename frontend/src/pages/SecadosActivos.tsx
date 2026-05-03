@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CircleDashed, Package2 } from 'lucide-react';
 import { getActiveSecadoSessions } from '../utils/secadoFlow';
@@ -28,8 +28,8 @@ function daysSince(value: string) {
 function startedLabel(value: string) {
   const days = daysSince(value);
   if (days === 0) return 'Iniciado hoy';
-  if (days === 1) return 'Iniciado hace 1 día';
-  return `Iniciado hace ${days} días`;
+  if (days === 1) return 'Iniciado hace 1 dia';
+  return `Iniciado hace ${days} dias`;
 }
 
 function qualityKey(value: string) {
@@ -45,6 +45,7 @@ function qualityTone(value: string) {
 
 export default function SecadosActivos() {
   const navigate = useNavigate();
+  const [showAll, setShowAll] = useState(false);
   const sessions = useMemo(
     () =>
       [...getActiveSecadoSessions()].sort(
@@ -52,6 +53,8 @@ export default function SecadosActivos() {
       ),
     [],
   );
+  const visibleSessions = showAll ? sessions : sessions.slice(0, 3);
+  const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
@@ -70,9 +73,9 @@ export default function SecadosActivos() {
 
         <main className="px-4 py-4">
           <section>
-            <h2 className="text-[1.05rem] font-black leading-tight">Café en proceso de secado</h2>
+            <h2 className="text-[1.05rem] font-black leading-tight">Cafe en proceso de secado</h2>
             <p className="mt-2 text-[0.72rem] leading-5 text-slate-500">
-              Revisa los procesos que ya empezaron y entra directo a registrar el resultado cuando estén listos.
+              Revisa los procesos que ya empezaron y entra directo a registrar el resultado cuando esten listos.
             </p>
           </section>
 
@@ -83,12 +86,12 @@ export default function SecadosActivos() {
               </div>
               <p className="mt-4 text-sm font-black text-slate-800">No hay secados activos</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Cuando inicies un secado, aparecerá aquí para continuar el proceso.
+                Cuando inicies un secado, aparecera aqui para continuar el proceso.
               </p>
             </section>
           ) : (
             <section className="mt-5 space-y-3">
-              {sessions.map((session) => (
+              {visibleSessions.map((session) => (
                 <article
                   key={session.id}
                   className="rounded-[18px] border border-[#cdeef1] bg-[#e7fbfd] px-4 py-3.5 shadow-sm"
@@ -96,16 +99,16 @@ export default function SecadosActivos() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[#0f6b6d]">
-                        Monitoreo activo
+                        En seguimiento
                       </p>
                       <div className="mt-1 flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-[1.05rem] font-black leading-tight text-[#102d92]">
-                            {session.tipoCafe}
+                            {session.tipoCafe} - {session.calidad}
                           </p>
                           <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black uppercase text-slate-700">
                             <span className={`h-2 w-2 rounded-full ${qualityTone(session.calidad)}`} />
-                            {session.calidad}
+                            {session.sublotes.length} sublote{session.sublotes.length === 1 ? '' : 's'}
                           </p>
                         </div>
                         <p className="shrink-0 text-right text-[0.95rem] font-black text-[#102d92]">
@@ -113,7 +116,7 @@ export default function SecadosActivos() {
                         </p>
                       </div>
                       <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
-                        {startedLabel(session.startedAt)} · {session.sublotes.length} sublote{session.sublotes.length === 1 ? '' : 's'}
+                        {startedLabel(session.startedAt)}
                       </p>
                     </div>
                     <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#102d92]">
@@ -126,10 +129,19 @@ export default function SecadosActivos() {
                     onClick={() => navigate(`/inventario/secado/${session.id}/finalizar?step=finish`)}
                     className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-[0.9rem] font-black text-white"
                   >
-                    Continuar secado
+                    Finalizar secado
                   </button>
                 </article>
               ))}
+              {hiddenCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-white text-[0.78rem] font-black text-[#102d92] shadow-sm"
+                >
+                  Ver mas ({hiddenCount})
+                </button>
+              ) : null}
             </section>
           )}
         </main>

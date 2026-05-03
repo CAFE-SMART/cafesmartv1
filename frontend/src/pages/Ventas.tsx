@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Scale,
   Trash2,
   User,
   X,
@@ -223,18 +224,18 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('Selecciona un cliente')) {
     return createGuidedError(
       message,
-      'Falta el cliente.',
-      'La venta requiere que indiques el comprador.',
-      'Elige un cliente de la lista.',
+      'Selecciona un cliente',
+      'No elegiste a quien registrar la venta.',
+      'Usa Cliente General o busca uno.',
     );
   }
 
-  if (message.includes('modo de venta')) {
+  if (message.includes('modo de venta') || message.includes('como deseas realizar la venta')) {
     return createGuidedError(
       message,
-      'Ups, para continuar elige una de las dos opciones marcadas.',
-      '',
-      '',
+      'Selecciona como vender',
+      'No elegiste el tipo de venta.',
+      'Una parte o todo el inventario.',
     );
   }
 
@@ -267,9 +268,9 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
 
   return createGuidedError(
     message,
-    'Ups, no se pudo guardar.',
+    'No se pudo guardar la venta.',
     'Revisa los campos señalados.',
-    'Vuelve a intentar.',
+    'Revisa el dato marcado y vuelve a intentarlo.',
   );
 }
 
@@ -307,6 +308,7 @@ export default function Ventas() {
   const [modoVenta, setModoVenta] = React.useState<ModoVenta | null>(null);
   const [precioGlobal, setPrecioGlobal] = React.useState('');
   const [lotesVenta, setLotesVenta] = React.useState<LoteVenta[]>([]);
+  const [loteAjustandoId, setLoteAjustandoId] = React.useState<string | null>(null);
   const [clientes, setClientes] = React.useState<ClienteOption[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = React.useState<ClienteOption | null>(null);
   const [busquedaCliente, setBusquedaCliente] = React.useState('');
@@ -637,7 +639,7 @@ export default function Ventas() {
       return;
     }
 
-    navigate(-1);
+    navigate('/inicio');
   };
 
   const guardarCliente = async () => {
@@ -723,10 +725,10 @@ export default function Ventas() {
             <button
               type="button"
               onClick={volverPasoAnterior}
-              className="absolute left-0 inline-flex items-center gap-1.5 text-slate-900 transition hover:opacity-75"
+              className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75"
+              aria-label={paso > 1 ? 'Volver al paso anterior' : 'Salir a inicio'}
             >
               <ArrowLeft size={22} />
-              <span className="text-[0.95rem] font-semibold">Inicio</span>
             </button>
             <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Venta</h1>
           </div>
@@ -876,8 +878,9 @@ export default function Ventas() {
                     const cantidad = toNum(lote.cantidadKg);
                     const cantidadIngresada = lote.cantidadKg.trim() !== '';
                     const disponibleVenta = getDisponibleVenta(lote);
-                    const mermaVenta = round2(lote.disponibleKg - disponibleVenta);
+                    const ajustePesoKg = round2(lote.disponibleKg - disponibleVenta);
                     const pesoVerificadoError = pesoVerificadoInvalido(lote);
+                    const estaAjustandoPeso = loteAjustandoId === lote.id;
                     const cantidadInvalida =
                       modoVenta === 'PARCIAL' && cantidadIngresada && (cantidad <= 0 || cantidad > disponibleVenta);
                     const precioInvalido =
@@ -892,29 +895,54 @@ export default function Ventas() {
                       <p className="text-sm text-slate-600">
                         {lote.tipoCafe} - {lote.calidad}
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
-                        Disponible: {kg(lote.disponibleKg)}
-                      </p>
-
                       <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                              Verificar peso
+                              Peso para vender
                             </p>
-                            <p className="mt-1 text-[0.72rem] leading-5 text-slate-500">
-                              Si el peso físico cambió, ajusta aquí antes de vender.
+                            <p className="mt-1 text-base font-black text-slate-900">{kg(disponibleVenta)}</p>
+                            <p className="text-[0.72rem] leading-5 text-slate-500">
+                              Registrado: {kg(lote.disponibleKg)}
                             </p>
                           </div>
                           <button
                             type="button"
-                            onClick={() => updateLote(lote.id, 'pesoVerificadoKg', '')}
-                            className="shrink-0 rounded-full bg-[#eef3ff] px-3 py-1.5 text-[0.62rem] font-black text-[#102d92]"
+                            onClick={() => setLoteAjustandoId((actual) => (actual === lote.id ? null : lote.id))}
+                            className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
+                            aria-expanded={estaAjustandoPeso}
                           >
-                            Mismo peso
+                            <Scale size={14} />
+                            Ajustar
                           </button>
                         </div>
-                        <input
+                        {estaAjustandoPeso ? (
+                          <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="text-xs font-black text-slate-600" htmlFor={`peso-${lote.id}`}>
+                                Peso total actual
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => updateLote(lote.id, 'pesoVerificadoKg', '')}
+                                className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#102d92] shadow-sm"
+                              >
+                                Usar registrado
+                              </button>
+                            </div>
+                            <input
+                              id={`peso-${lote.id}`}
+                              type="range"
+                              min={0}
+                              max={lote.disponibleKg}
+                              step="0.1"
+                              value={disponibleVenta}
+                              onChange={(event) => updateLote(lote.id, 'pesoVerificadoKg', event.target.value)}
+                              className="mt-3 w-full accent-[#102d92]"
+                            />
+                            <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
+                              <Scale size={16} className="shrink-0 text-[#102d92]" />
+                              <input
                           type="number"
                           inputMode="decimal"
                           min={0}
@@ -922,19 +950,23 @@ export default function Ventas() {
                           value={lote.pesoVerificadoKg}
                           onChange={(event) => updateLote(lote.id, 'pesoVerificadoKg', event.target.value)}
                           placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                          className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
+                          className={`w-full bg-transparent text-sm font-semibold outline-none ${
                             pesoVerificadoError
-                              ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                              : 'border-[#d7dcec] bg-white text-slate-900'
+                              ? 'text-[#b42318]'
+                              : 'text-slate-900'
                           }`}
                         />
+                              <span className="text-xs font-black text-slate-400">kg</span>
+                            </label>
+                          </div>
+                        ) : null}
                         {pesoVerificadoError ? (
                           <p className="mt-2 text-xs font-semibold text-[#b42318]">
                             El peso verificado debe estar entre 0 y {kg(lote.disponibleKg)}.
                           </p>
-                        ) : mermaVenta > 0 ? (
+                        ) : ajustePesoKg > 0 ? (
                           <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
-                            Se registrará una merma de {kg(mermaVenta)} antes de la venta.
+                            Peso ajustado: se vendera sobre {kg(disponibleVenta)}.
                           </p>
                         ) : null}
                       </div>
