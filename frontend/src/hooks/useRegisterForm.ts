@@ -23,23 +23,41 @@ type UseRegisterFormParams = {
 export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegisterFormParams) {
   const [step, setStep] = useState(1);
 
-  const [nombreOrganizacion, setNombreOrganizacion] = useState('');
-  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>('');
-  const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
+  const [nombreOrganizacion, setNombreOrganizacion] = useState(
+    normalizePossiblyMojibake(routeState.registerDraft?.nombreOrganizacion || ''),
+  );
+  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>(
+    routeState.registerDraft?.tipoOrganizacion || '',
+  );
+  const [otroTipoDetalle, setOtroTipoDetalle] = useState(
+    normalizePossiblyMojibake(routeState.registerDraft?.otroTipoDetalle || ''),
+  );
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
   const [nombre, setNombre] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.nombre ||
+        routeState.registerDraft?.nombre?.trim().split(/\s+/).slice(0, 1).join(' ') ||
+        '',
+    ),
   );
   const [apellidos, setApellidos] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.apellidos ||
+        routeState.registerDraft?.nombre?.trim().split(/\s+/).slice(1).join(' ') ||
+        '',
+    ),
   );
-  const [telefono, setTelefono] = useState('');
+  const [telefono, setTelefono] = useState(
+    routeState.registerDraft?.telefono?.replace(/\D/g, '').slice(-10) || '',
+  );
   const [correo, setCorreo] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.correo || routeState.registerDraft?.correo || '',
+    ),
   );
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState(routeState.registerDraft?.password || '');
+  const [confirmPassword, setConfirmPassword] = useState(routeState.registerDraft?.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>({});
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
@@ -161,25 +179,25 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     }
 
     if (!nombre.trim()) {
-      nextErrors.nombre = 'El nombre del administrador es obligatorio.';
+      nextErrors.nombre = 'Completa este campo para continuar.';
     }
 
     if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Los apellidos del administrador son obligatorios.';
+      nextErrors.apellidos = 'Completa este campo para continuar.';
     } else if (!hasAtLeastOneSurname(apellidos)) {
       nextErrors.apellidos = 'Ingresa al menos un apellido válido.';
     }
 
     if (!telefono.trim()) {
-      nextErrors.telefono = 'El teléfono es obligatorio.';
+      nextErrors.telefono = 'Completa este campo para continuar.';
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Ingresa un teléfono colombiano válido. Ejemplo: +57 300 123 4567';
+      nextErrors.telefono = 'Ingresa un número de celular colombiano de 10 dígitos.';
     }
 
     if (!correo.trim()) {
-      nextErrors.correo = 'El correo electrónico es obligatorio.';
+      nextErrors.correo = 'Completa este campo para continuar.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Ingresa un correo válido. Ejemplo: admin@empresa.com';
+      nextErrors.correo = 'Revisa que el correo incluya @ y un dominio.';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -188,15 +206,15 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     }
 
     const checks = getPasswordChecks(password);
-    if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
+    if (!checks.minLength || !checks.hasLower || !checks.hasUpper || !checks.hasNumber) {
       nextErrors.password =
-        'La contraseña debe tener mínimo 6 caracteres, una minúscula y una mayúscula.';
+        'Completa los requisitos de seguridad para continuar.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma nuevamente tu contraseña.';
+      nextErrors.confirmPassword = 'Completa este campo para continuar.';
     } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Las contraseñas no coinciden.';
+      nextErrors.confirmPassword = 'Las contraseñas no coinciden. Revísalas e intenta otra vez.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -223,7 +241,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
             ? otroTipoDetalle.trim()
             : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono,
+        telefono: `+57 ${telefono.replace(/\D/g, '')}`,
         correo,
         password,
       },

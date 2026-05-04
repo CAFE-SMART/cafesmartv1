@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
+import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -11,6 +11,11 @@ import {
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
+import {
+  clearRememberedAccount,
+  getRememberedAccount,
+  saveRememberedAccount,
+} from '../storage/authStorage';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -35,6 +40,8 @@ function normalizeTipoOrganizacion(
   return value ?? null;
 }
 
+const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
+
 export default function Login() {
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
   const isGoogleAuthEnabled = Boolean(googleClientId);
@@ -53,7 +60,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberedAccountName, setRememberedAccountName] = useState('');
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
@@ -68,6 +76,36 @@ export default function Login() {
 
     navigate(hasCompany ? '/inicio' : '/crear-empresa', { replace: true });
   }, [hasCompany, hydrated, navigate, token]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRememberedAccount = async () => {
+      const account = await getRememberedAccount();
+      if (!active || !account.email) {
+        return;
+      }
+
+      setEmail(account.email);
+      setRememberedAccountName(account.name);
+      setRememberMe(true);
+    };
+
+    void loadRememberedAccount();
+
+    if (typeof window !== 'undefined') {
+      const expiredMessage = window.sessionStorage.getItem(SESSION_EXPIRED_MESSAGE_KEY);
+      if (expiredMessage) {
+        setError(expiredMessage);
+        setPassword('');
+        window.sessionStorage.removeItem(SESSION_EXPIRED_MESSAGE_KEY);
+      }
+    }
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isGoogleAuthEnabled || isAndroidApp || googleLoading) {
@@ -188,6 +226,17 @@ export default function Login() {
     passwordInputRef.current?.focus();
   };
 
+  const syncRememberedAccount = async (account: { email: string; name?: string | null }) => {
+    if (rememberMe) {
+      await saveRememberedAccount(account);
+      setRememberedAccountName(account.name ?? '');
+      return;
+    }
+
+    await clearRememberedAccount();
+    setRememberedAccountName('');
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailTouched(true);
@@ -244,7 +293,11 @@ export default function Login() {
         },
         token: data.access_token,
         hasCompany: nextHasCompany,
-        persist: rememberMe,
+        persist: false,
+      });
+      await syncRememberedAccount({
+        email: data.user.email || email.trim(),
+        name: data.user.name,
       });
 
       navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
@@ -324,7 +377,11 @@ export default function Login() {
         },
         token: data.access_token,
         hasCompany: nextHasCompany,
-        persist: rememberMe,
+        persist: false,
+      });
+      await syncRememberedAccount({
+        email: data.user.email,
+        name: data.user.name,
       });
 
       navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
@@ -501,21 +558,48 @@ export default function Login() {
               )}
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <input
-                id="remember_me"
-                type="checkbox"
-                className="w-5 h-5 rounded border-gray-300 text-[#1e3a8a] focus:ring-[#1e3a8a] bg-gray-50 cursor-pointer"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              <label
-                htmlFor="remember_me"
-                className="text-sm font-medium leading-5 text-slate-700 cursor-pointer select-none"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={rememberMe}
+              onClick={() => setRememberMe((current) => !current)}
+              className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
+                rememberMe
+                  ? 'border-[#1e3a8a] bg-[#eef4ff] shadow-[0_8px_24px_rgba(30,58,138,0.12)]'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+            >
+              <span
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
+                  rememberMe
+                    ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white'
+                    : 'border-slate-300 bg-white text-transparent'
+                }`}
               >
-                Recordar en este dispositivo
-              </label>
-            </div>
+                <Check size={18} strokeWidth={3} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black text-slate-800">
+                  Recordar cuenta en este dispositivo
+                </span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
+                  {rememberMe && (rememberedAccountName || email)
+                    ? rememberedAccountName || email
+                    : 'Guarda solo tu correo, no inicia sesión automáticamente.'}
+                </span>
+              </span>
+              <span
+                className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-all ${
+                  rememberMe ? 'bg-[#1e3a8a]' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                    rememberMe ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </span>
+            </button>
 
             <button
               type="submit"

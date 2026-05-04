@@ -5,6 +5,15 @@ export type RegisterLocationState = {
     nombre?: string;
     apellidos?: string;
   };
+  registerDraft?: {
+    nombreOrganizacion?: string;
+    tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
+    otroTipoDetalle?: string;
+    nombre?: string;
+    telefono?: string;
+    correo?: string;
+    password?: string;
+  };
 };
 
 export type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
@@ -26,7 +35,6 @@ export type StepTwoErrors = {
 };
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const COLOMBIA_PHONE_REGEX = /^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/;
 
 export function hasAtLeastOneSurname(value: string) {
   const parts = value
@@ -40,12 +48,8 @@ export function hasAtLeastOneSurname(value: string) {
 export const hasAtLeastTwoSurnames = hasAtLeastOneSurname;
 
 export function isValidPhone(value: string) {
-  const raw = value.trim();
-  if (!raw) {
-    return false;
-  }
-
-  return COLOMBIA_PHONE_REGEX.test(raw);
+  const digits = value.replace(/\D/g, '');
+  return /^3\d{9}$/.test(digits);
 }
 
 export function getPasswordChecks(value: string) {
@@ -66,11 +70,11 @@ export function getPasswordStrength(value: string) {
   }
 
   if (score <= 1) {
-    return { score, label: 'Muy debil' };
+    return { score, label: 'Muy débil' };
   }
 
   if (score === 2) {
-    return { score, label: 'Debil' };
+    return { score, label: 'Débil' };
   }
 
   if (score === 3) {

@@ -3,6 +3,7 @@ import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
   getAuthStorageValue,
+  removeAuthStorageValue,
   setRuntimeAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
@@ -51,6 +52,7 @@ type UserState = {
 };
 
 const UserContext = createContext<UserState | null>(null);
+const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
 
 function getTokenExpirationMs(token: string): number | null {
   const payload = parseJwtPayload<{ exp?: number }>(token);
@@ -71,20 +73,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     const hydrate = async () => {
-      const [storedUserRaw, storedToken, storedHasCompany] = await Promise.all([
+      const [storedUserRaw, storedToken, storedHasCompany, storedRememberSession] = await Promise.all([
         getAuthStorageValue(AUTH_STORAGE_KEYS.user),
         getAuthStorageValue(AUTH_STORAGE_KEYS.token),
         getAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany),
+        getAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession),
       ]);
 
       if (!active) {
         return;
       }
 
-      const expirationMs = storedToken ? getTokenExpirationMs(storedToken) : null;
-      const isExpired = expirationMs !== null && expirationMs <= Date.now();
-
-      if (isExpired) {
+      if (storedRememberSession === 'true') {
         await clearAuthStorage();
         setUser(null);
         setToken(null);
@@ -93,10 +93,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (!storedUserRaw) {
-        setToken(storedToken ?? null);
-        setHasCompany(storedHasCompany === 'true');
+      if (!storedToken || !storedUserRaw) {
         setUser(null);
+        setToken(null);
+        setHasCompany(false);
+        setHydrated(true);
+        return;
+      }
+
+      const expirationMs = getTokenExpirationMs(storedToken);
+      const isExpired = expirationMs !== null && expirationMs <= Date.now();
+
+      if (isExpired) {
+        await clearAuthStorage();
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem(SESSION_EXPIRED_MESSAGE_KEY, 'Tu sesión expiró. Ingresa nuevamente.');
+        }
+        setUser(null);
+        setToken(null);
+        setHasCompany(false);
         setHydrated(true);
         return;
       }
@@ -105,7 +120,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
         const nextHasCompany = storedHasCompany === 'true' || Boolean(parsed.organizacionId);
 
-        setToken(storedToken ?? null);
+        setToken(storedToken);
         setHasCompany(nextHasCompany);
         setUser({
           id: parsed.id,
@@ -118,9 +133,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           otroTipoDetalle: parsed.otroTipoDetalle ?? null,
         });
       } catch {
-        setToken(storedToken ?? null);
-        setHasCompany(storedHasCompany === 'true');
+        await clearAuthStorage();
         setUser(null);
+        setToken(null);
+        setHasCompany(false);
       }
 
       setHydrated(true);
@@ -145,12 +161,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const remainingMs = expirationMs - Date.now();
     if (remainingMs <= 0) {
-      void logout();
+      void expireSession();
       return;
     }
 
     const timerId = window.setTimeout(() => {
-      void logout();
+      void expireSession();
     }, remainingMs);
 
     return () => {
@@ -177,8 +193,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
       setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany)),
-      setAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession, 'true'),
+      removeAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession),
     ]);
+  };
+
+  const expireSession = async () => {
+    setUser(null);
+    setToken(null);
+    setHasCompany(false);
+
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(SESSION_EXPIRED_MESSAGE_KEY, 'Tu sesión expiró. Ingresa nuevamente.');
+    }
+
+    await clearAuthStorage();
   };
 
   const logout = async () => {

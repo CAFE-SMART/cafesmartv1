@@ -35,4 +35,9 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
     },
   },
+  build: {
+    // Evita advertencias por chunks grandes en builds de entrega.
+    // A futuro, se puede optimizar con lazy loading/dynamic import().
+    chunkSizeWarningLimit: 1000,
+  },
 });

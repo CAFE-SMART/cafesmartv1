@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AlertTriangle, Home, RotateCcw } from 'lucide-react';
 import AppRoutes from './routes/AppRoutes';
+import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
 
@@ -116,13 +117,29 @@ function GlobalOfflineNotice() {
 }
 
 function App() {
+  const [showBootSplash, setShowBootSplash] = useState(true);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      setShowBootSplash(false);
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <AppErrorBoundary>
-        <div className="min-h-screen bg-gray-50 text-gray-900">
-          <GlobalOfflineNotice />
-          <AppRoutes />
-        </div>
+        {showBootSplash ? (
+          <AppLoadingScreen />
+        ) : (
+          <div className="min-h-screen bg-gray-50 text-gray-900">
+            <GlobalOfflineNotice />
+            <AppRoutes />
+          </div>
+        )}
       </AppErrorBoundary>
     </BrowserRouter>
   );
