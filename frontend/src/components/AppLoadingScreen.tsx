@@ -1,4 +1,4 @@
-import { Coffee } from 'lucide-react';
+import { CafeSmartLogo } from './CafeSmartLogo';
 
 export function AppLoadingScreen() {
   return (
@@ -28,7 +28,7 @@ export function AppLoadingScreen() {
             50% { transform: rotate(2deg) translateX(4px); }
           }
 
-          @keyframes appSplashSteam {
+          @keyframes cafesmartSteam {
             0%, 100% { opacity: .65; transform: translateY(0) scaleX(1); }
             50% { opacity: 1; transform: translateY(-4px) scaleX(.96); }
           }
@@ -45,22 +45,7 @@ export function AppLoadingScreen() {
 
       <div className="relative z-10 flex w-full max-w-[390px] flex-col items-center text-center">
         <section className="animate-[appSplashFadeScale_360ms_ease-out_both]">
-          <div className="relative mx-auto flex h-[118px] w-[118px] items-center justify-center">
-            <span className="absolute top-1 h-12 w-9 rounded-full border-4 border-[#2f80ed] border-b-0 opacity-90 animate-[appSplashSteam_2.2s_ease-in-out_infinite]" />
-            <span className="absolute top-5 h-10 w-8 rounded-full border-4 border-[#2f80ed] border-b-0 opacity-80 animate-[appSplashSteam_2.4s_ease-in-out_infinite_160ms]" />
-            <div className="absolute bottom-1 flex h-[74px] w-[94px] items-center justify-center rounded-b-[42px] rounded-t-[8px] border-[6px] border-[#2f80ed] bg-white shadow-[0_22px_48px_rgba(37,99,235,0.12)]">
-              <Coffee className="h-8 w-8 text-[#8b572a]" strokeWidth={2.4} aria-hidden="true" />
-            </div>
-            <div className="absolute bottom-8 right-1 h-9 w-8 rounded-r-full border-[6px] border-l-0 border-[#2f80ed]" />
-          </div>
-
-          <h1 className="mt-5 text-[42px] font-black leading-none tracking-normal">
-            <span className="text-[#07153b]">Café</span>
-            <span className="text-[#1683f7]">Smart</span>
-          </h1>
-          <p className="mt-3 text-[17px] font-semibold leading-6 text-slate-600">
-            Gestiona tu negocio cafetero
-          </p>
+          <CafeSmartLogo size="lg" />
         </section>
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">

@@ -298,7 +298,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 
 export default function Ajustes() {
   const navigate = useNavigate();
-  const { user, logout } = useUser();
+  const { user } = useUser();
 
   const initialConfig = useMemo(() => ({
     nombreBodega: 'Bodega principal',
@@ -659,12 +659,7 @@ export default function Ajustes() {
 
   const cerrarSesion = async () => {
     setCerrandoSesion(true);
-    try {
-      await logout();
-      navigate('/login', { replace: true });
-    } finally {
-      setCerrandoSesion(false);
-    }
+    navigate('/cerrando-sesion', { replace: true });
   };
 
   const procesosOperativos = [

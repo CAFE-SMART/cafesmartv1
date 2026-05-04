@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { authService, type AuthError, type AuthResponse } from '../services/authService';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
@@ -82,6 +83,11 @@ function StatusAnimations() {
         @keyframes cafesmartSway {
           0%, 100% { transform: rotate(-2deg) translateX(0); }
           50% { transform: rotate(2deg) translateX(4px); }
+        }
+
+        @keyframes cafesmartSteam {
+          0%, 100% { opacity: .65; transform: translateY(0) scaleX(1); }
+          50% { opacity: 1; transform: translateY(-4px) scaleX(.96); }
         }
 
         @keyframes cafesmartPop {
@@ -232,15 +238,7 @@ function StatusDecoration({ tone }: { tone: 'success' | 'error' }) {
 
 function BrandMark() {
   return (
-    <div className="text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-white text-[#1d9bf0] shadow-[0_14px_32px_rgba(37,99,235,0.12)]">
-        <Coffee size={38} strokeWidth={2.4} />
-      </div>
-      <p className="mt-3 text-[1.7rem] font-black tracking-tight">
-        <span className="text-[#0f172a]">Café</span>
-        <span className="text-[#1d9bf0]">Smart</span>
-      </p>
-    </div>
+    <CafeSmartLogo size="sm" compact />
   );
 }
 
@@ -492,21 +490,17 @@ function CreatingAccountView() {
             0%, 100% { transform: rotate(-2deg) translateX(0); }
             50% { transform: rotate(2deg) translateX(4px); }
           }
+
+          @keyframes cafesmartSteam {
+            0%, 100% { opacity: .65; transform: translateY(0) scaleX(1); }
+            50% { opacity: 1; transform: translateY(-4px) scaleX(.96); }
+          }
         `}
       </style>
 
       <div className="relative z-10 mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[460px] flex-col items-center justify-center pb-28">
         <div className="animate-[cafesmartFadeScale_600ms_ease-out_both] text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-white text-[#1d4ed8] shadow-[0_18px_42px_rgba(37,99,235,0.14)]">
-            <Coffee size={46} strokeWidth={2.4} />
-          </div>
-          <p className="mt-4 text-[2rem] font-black tracking-tight">
-            <span className="text-[#0f172a]">Café</span>
-            <span className="text-[#1d9bf0]">Smart</span>
-          </p>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
-            Gestiona tu negocio cafetero
-          </p>
+          <CafeSmartLogo size="md" compact />
         </div>
 
         <div className="mt-14 animate-[cafesmartFadeUp_650ms_ease-out_180ms_both] text-center">

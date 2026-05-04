@@ -21,6 +21,7 @@ const SecadoResumen = lazy(() => import('../pages/SecadoResumen'));
 const Ajustes = lazy(() => import('../pages/Ajustes'));
 const Gastos = lazy(() => import('../pages/Gastos'));
 const SystemStatus = lazy(() => import('../pages/SystemStatus'));
+const LogoutStatus = lazy(() => import('../pages/LogoutStatus'));
 const GastosOperativos = lazy(() => import('../pages/GastosOperativos'));
 
 function RootRoute({ showLanding }: { showLanding: boolean }) {
@@ -48,6 +49,7 @@ export default function AppRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/crear-empresa" element={<Register />} />
         <Route path="/estado-sistema" element={<SystemStatus />} />
+        <Route path="/cerrando-sesion" element={<LogoutStatus />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/inicio" element={<Inicio />} />
           <Route path="/analisis-financiero" element={<AnalisisFinanciero />} />

@@ -28,6 +28,7 @@ import {
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { RegisterProgress } from '../components/register/RegisterProgress';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
   EMAIL_REGEX,
@@ -355,6 +356,7 @@ export default function Register() {
                   Crear cuenta
                 </h1>
                 </div>
+                <CafeSmartLogo size="sm" compact className="mt-3" />
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
@@ -553,6 +555,7 @@ export default function Register() {
                   Crear cuenta
                 </h2>
               </div>
+              <CafeSmartLogo size="sm" compact className="mb-4" />
 
               <div className="mb-5">
                 <div className="mb-2 flex items-center justify-between gap-3">

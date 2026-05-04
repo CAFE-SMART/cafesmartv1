@@ -16,6 +16,7 @@ import {
   getRememberedAccount,
   saveRememberedAccount,
 } from '../storage/authStorage';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -190,7 +191,7 @@ export default function Login() {
     window.close();
     if (!window.closed) {
       resetForm();
-      navigate('/login', { replace: true });
+      navigate('/', { replace: true });
     }
   };
 
@@ -418,30 +419,12 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
       <main className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 w-full max-w-[480px]">
-          <div className="mb-4 sm:mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-[#1e3a8a] p-2 text-white">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-                  <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-                </svg>
-              </div>
-              <p className="text-[1.45rem] font-semibold text-[#0f172a]">Cafe Smart</p>
-            </div>
-
+          <div className="relative mb-4 sm:mb-6 flex items-start justify-center">
+            <CafeSmartLogo size="sm" compact />
             <button
               type="button"
               onClick={() => void handleExitApp()}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
+              className="absolute right-0 top-0 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
               aria-label="Salir de la aplicacion"
             >
               Salir
