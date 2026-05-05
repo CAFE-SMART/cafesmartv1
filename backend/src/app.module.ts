@@ -14,6 +14,7 @@ import { BodegaModule } from './bodega/bodega.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { ProductoresModule } from './productores/productores.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     ClientesModule,
     ProductoresModule,
     DashboardModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

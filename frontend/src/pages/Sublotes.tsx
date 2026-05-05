@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, FlaskConical, Info, Pencil, RefreshCcw, Scale, Tag } from 'lucide-react';
 import { useCloudStatus } from '../context/CloudStatusContext';
-import { InlineGuidedError, type GuidedErrorMessage, createGuidedError } from '../components/forms/GuidedError';
+import {
+  InlineGuidedError,
+  type GuidedErrorMessage,
+  createGuidedErrorFromUi,
+} from '../components/forms/GuidedError';
 import { getDaysInBodega } from '../utils/date';
 import {
   guardarFactoresSublotes,
@@ -11,6 +15,7 @@ import {
   type LoteDetalle,
 } from '../services/lotesService';
 import { applySecadoToDetalle } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
@@ -242,19 +247,39 @@ function getDaysForSublote(sublote: { fechaIngreso: string; diasEnBodega: number
 
 function getSublotesGuidance(message: string): GuidedErrorMessage {
   if (message.includes('humedad')) {
-    return createGuidedError(
-      message,
-      'La humedad no es valida.',
-      'Debes escribir un numero entre 0 y 100.',
-      'Revisa el valor e intenta otra vez.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        'La humedad ingresada no es válida.',
+        'Escribe un número entre 0 y 100',
+      ),
     );
   }
 
-  return createGuidedError(
-    message,
-    'No se pudo guardar el cambio.',
-    'Vuelve a intentarlo cuando tengas conexion.',
-    'Si el problema sigue, refresca la pantalla.',
+  if (message.includes('factor')) {
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        'Revisa el valor ingresado.',
+        'Corrige el dato',
+      ),
+    );
+  }
+
+  if (message.includes('No se encontró el lote')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.inventory.notFound);
+  }
+
+  if (message.includes('cargar el detalle')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.system.internalError);
+  }
+
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.system.saveFailed.titulo,
+      message || UI_MESSAGES.system.saveFailed.mensaje,
+      UI_MESSAGES.system.saveFailed.accion,
+    ),
   );
 }
 
@@ -278,7 +303,7 @@ export default function Sublotes() {
 
   const cargar = useCallback(async () => {
     if (!tipoCafeId || !calidadId) {
-      setError('No se encontro el lote solicitado.');
+      setError('No se encontró el lote solicitado.');
       setLoading(false);
       return;
     }
@@ -422,7 +447,7 @@ export default function Sublotes() {
 
     if (editModal.field === 'humedad') {
       if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0 || parsed > 100)) {
-        setError('La humedad no es valida. Debe estar entre 0 y 100.');
+        setError('La humedad no es válida. Debe estar entre 0 y 100.');
         return;
       }
 
@@ -478,7 +503,7 @@ export default function Sublotes() {
     }
 
     if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) {
-      setError('El factor no es valido. No puede ser negativo.');
+      setError('El factor no es válido. No puede ser negativo.');
       return;
     }
 
@@ -487,7 +512,7 @@ export default function Sublotes() {
 
     if (parsed !== null && (parsed < 84 || parsed > 100)) {
       setFactorNotice(
-        'Rango recomendado: 84-100. Si confirmas que el dato es correcto segun la Federacion Nacional de Cafeteros, puedes continuar.',
+        'Rango recomendado: 84-100. Si confirmas que el dato es correcto según la Federación Nacional de Cafeteros, puedes continuar.',
       );
     }
 

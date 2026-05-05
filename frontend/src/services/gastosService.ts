@@ -34,6 +34,22 @@ export type CrearGastoPayload = {
   subloteIds?: string[];
 };
 
+export type GastoTipo = CrearGastoPayload['tipoGasto'];
+export type GastoEstadoPago = CrearGastoPayload['estadoPago'];
+export type GastoAplicaA = 'GENERAL' | 'SUBLOTES';
+
+export type RegistrarGastoLocalPayload = {
+  id: string;
+  concepto: string;
+  descripcion?: string;
+  monto: number;
+  fecha: string;
+  tipo: GastoTipo;
+  estadoPago: GastoEstadoPago;
+  aplicaA: GastoAplicaA;
+  lotesIds?: string[];
+};
+
 export async function listarGastos(subloteId?: string) {
   const query = subloteId ? `?subloteId=${encodeURIComponent(subloteId)}` : '';
   return apiFetch(`/gastos${query}`) as Promise<GastoItem[]>;
@@ -44,6 +60,20 @@ export async function crearGasto(payload: CrearGastoPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   }) as Promise<GastoItem>;
+}
+
+export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {
+  return crearGasto({
+    conceptoGasto: payload.concepto,
+    descripcion: payload.descripcion,
+    montoGasto: payload.monto,
+    fechaGasto: new Date(payload.fecha).toISOString(),
+    tipoGasto: payload.tipo,
+    estadoPago: payload.estadoPago,
+    localId: payload.id,
+    asociarASublotes: payload.aplicaA === 'SUBLOTES',
+    subloteIds: payload.aplicaA === 'SUBLOTES' ? payload.lotesIds ?? [] : [],
+  });
 }
 
 export async function obtenerGasto(id: string) {

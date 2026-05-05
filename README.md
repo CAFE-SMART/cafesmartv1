@@ -195,6 +195,156 @@ docker-compose up -d db
 
 En ese caso, ajusta `backend/.env` para apuntar a tu PostgreSQL local.
 
+## Instalación de emulador Android
+
+Este proyecto puede ejecutarse en un emulador Android usando Android Studio. No necesitas un modelo específico: puedes crear cualquier dispositivo virtual tipo `Phone`. Pixel 5 es una buena opción de ejemplo porque es liviano y representa bien un celular estándar, pero también puedes usar Pixel 4, Pixel 6, Nexus u otro perfil disponible.
+
+### Requisitos previos
+
+Antes de crear el emulador, confirma que tienes:
+
+- Android Studio instalado
+- Android SDK instalado desde Android Studio
+- Virtual Device Manager, incluido en Android Studio
+- Espacio libre en disco para descargar una imagen de Android
+- Virtualización activada en BIOS/UEFI si tu equipo lo requiere
+
+### 1. Abrir el administrador de dispositivos
+
+1. Abre Android Studio.
+2. En la pantalla inicial selecciona `More Actions`.
+3. Entra a `Virtual Device Manager`.
+
+Si ya tienes un proyecto abierto, también puedes ir a:
+
+```text
+Tools -> Device Manager
+```
+
+### 2. Crear un dispositivo virtual
+
+1. Haz clic en `Create Device`.
+2. Selecciona una categoría. Para pruebas normales se recomienda `Phone`.
+3. Elige un modelo. Ejemplos válidos:
+   - `Pixel 5`
+   - `Pixel 6`
+   - `Pixel 7`
+   - cualquier otro teléfono disponible
+4. Haz clic en `Next`.
+
+Recomendación: usa un teléfono de tamaño medio para validar bien la experiencia móvil. Pixel 5 sirve como referencia, pero no es obligatorio.
+
+### 3. Seleccionar la imagen del sistema
+
+1. Elige una versión de Android.
+2. Recomendado: Android 12, API 31, o superior.
+3. Si la imagen no está instalada, haz clic en `Download`.
+4. Espera la descarga y acepta las licencias.
+5. Haz clic en `Next`.
+
+Para mejor rendimiento, usa una imagen `x86_64` cuando esté disponible.
+
+### 4. Configurar el emulador
+
+En la pantalla de configuración puedes ajustar:
+
+- Nombre del AVD, por ejemplo `CafeSmart_Pixel_5` o `CafeSmart_Android_API_33`
+- Orientación inicial: `Portrait` recomendada
+- RAM y almacenamiento, si Android Studio permite editarlo
+- Gráficos: deja la opción recomendada por Android Studio si no estás seguro
+
+Luego haz clic en `Finish`.
+
+### 5. Ejecutar el emulador
+
+1. Vuelve al `Device Manager`.
+2. Busca el dispositivo virtual creado.
+3. Presiona el botón `Play`.
+4. Espera a que Android inicie completamente antes de ejecutar la app.
+
+El primer arranque puede tardar varios minutos. Los siguientes suelen ser más rápidos.
+
+### 6. Ejecutar Café Smart en el emulador
+
+Con el emulador encendido, puedes ejecutar la app desde terminal:
+
+```bash
+cd frontend
+pnpm run build:android
+npx cap sync android
+npx cap run android
+```
+
+También puedes hacerlo desde Android Studio:
+
+1. Abre el proyecto Android con:
+
+```bash
+cd frontend
+npx cap open android
+```
+
+2. Selecciona el emulador en la barra superior.
+3. Presiona `Run`.
+
+### Problemas comunes del emulador
+
+#### El emulador no inicia
+
+- Verifica que la virtualización esté activada en BIOS/UEFI.
+- Reinicia Android Studio.
+- Cierra otros emuladores abiertos.
+- Desde `Device Manager`, prueba `Cold Boot Now`.
+- Si sigue fallando, crea un emulador nuevo con otra imagen del sistema.
+
+#### Error con archivos `.lock`
+
+Si aparece un error relacionado con archivos `.lock`, por ejemplo:
+
+```text
+emu-last-feature-flags.protobuf.lock
+```
+
+Cierra Android Studio y todos los emuladores. Luego ejecuta en PowerShell:
+
+```powershell
+Remove-Item "$env:USERPROFILE\.android\*.lock" -Force
+```
+
+Después vuelve a abrir Android Studio e inicia el emulador.
+
+#### El emulador está lento
+
+- Usa una imagen `x86_64`.
+- Cierra programas pesados en segundo plano.
+- Reduce la RAM del dispositivo virtual si tu computador tiene poca memoria.
+- Evita tener varios emuladores abiertos al mismo tiempo.
+- Usa un modelo tipo `Phone` antes que `Tablet` para pruebas estándar.
+
+#### La app abre pero no conecta con el backend
+
+En emulador Android, `localhost` apunta al propio emulador, no a tu computador. Para consumir el backend local usa:
+
+```env
+VITE_API_URL="http://10.0.2.2:3000"
+```
+
+Luego vuelve a ejecutar:
+
+```bash
+cd frontend
+pnpm run build:android
+npx cap sync android
+```
+
+### Recomendaciones
+
+- Usa `Phone` para pruebas móviles estándar.
+- Pixel 5 es opcional, no obligatorio.
+- Mantén Android Studio y el SDK actualizados.
+- Si un emulador se daña con frecuencia, es más rápido crear uno nuevo que intentar repararlo muchas veces.
+- Para pruebas en celular real, conecta el dispositivo por USB y habilita la depuración USB.
+
 ## Ejecución en Android Studio
 
 Esta es la forma recomendada para probar la app móvil Android usando Capacitor.
@@ -286,6 +436,101 @@ Cuando Android Studio abra el proyecto:
 - Android Studio tarda mucho o falla al abrir:
   espera la descarga inicial de Gradle y verifica que el SDK de Android esté instalado correctamente.
 
+## Ejecución Android desde terminal
+
+Este flujo sirve para compilar, instalar y abrir la app Android sin usar el botón `Run` de Android Studio.
+
+### 1. Enciende el backend
+
+Desde la raíz del proyecto:
+
+```bash
+pnpm dev:backend
+```
+
+Deja esta terminal abierta.
+
+### 2. Verifica que exista un emulador o dispositivo
+
+En otra terminal:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices -l
+```
+
+Debe aparecer un dispositivo en estado `device`, por ejemplo:
+
+```text
+emulator-5554 device
+```
+
+Si PowerShell dice que `adb` no existe, usa siempre la ruta completa anterior. Eso pasa cuando Android SDK no está agregado al `PATH` de Windows.
+
+Si no aparece ningún dispositivo, lista los emuladores instalados:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe" -list-avds
+```
+
+Luego arranca el emulador. Ejemplo:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe" -avd CafeSmart_Pixel_5
+```
+
+Espera a que Android termine de iniciar y vuelve a ejecutar:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices -l
+```
+
+También puedes abrir el emulador desde Android Studio en `Device Manager`, o conectar un celular con depuración USB habilitada.
+
+### 3. Compila el frontend para Android
+
+Desde `frontend/`:
+
+```bash
+cd frontend
+pnpm run build:android
+```
+
+Este comando genera la carpeta `dist/` usando el modo Android.
+
+### 4. Ejecuta la app con Capacitor
+
+Lista los emuladores disponibles:
+
+```bash
+npx cap run android --list
+```
+
+Luego ejecuta la app indicando el target. Ejemplo:
+
+```bash
+npx cap run android --target CafeSmart_Pixel_5
+```
+
+Si usas otro emulador, reemplaza `CafeSmart_Pixel_5` por el nombre que muestre Capacitor o por el nombre de tu AVD.
+
+### 5. Flujo alternativo si Capacitor falla instalando
+
+Si `npx cap run android` compila pero falla en `Deploying app-debug.apk`, puedes instalar el APK manualmente:
+
+```powershell
+npx cap sync android
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 install -r .\android\app\build\outputs\apk\debug\app-debug.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 shell monkey -p com.cafesmart.app -c android.intent.category.LAUNCHER 1
+```
+
+Notas:
+
+- `emulator-5554` es el ID que muestra `adb devices -l` o el comando con la ruta completa de `adb.exe`.
+- `CafeSmart_Pixel_5` es el nombre del emulador que usa Capacitor, pero solo aparece como target si el emulador está encendido.
+- Si `npx cap run android --target CafeSmart_Pixel_5` muestra `No devices found`, primero arranca el emulador y espera a que `adb devices -l` lo muestre como `device`.
+- Si `adb devices -l` muestra `offline`, cierra el emulador y arráncalo con `Cold Boot Now` desde Android Studio.
+- Si aparece `Can't find service: package` o `Broken pipe`, el emulador está dañado; usa `Wipe Data` o crea un emulador nuevo.
+
 ## Base de datos y Prisma
 
 Comandos útiles desde `backend/`:
@@ -363,6 +608,10 @@ Si lint marca una variable como no usada, puedes:
   ```typescript
   const [_variable, setVariable] = useState<tipo[]>([]);
   ```
+
+## Pruebas de escritorio documentadas
+
+- `docs/desktop-test-compras-ventas.md`: validación manual y trazable de compras, ventas, inventario, capacidad de bodega y utilidad bruta.
 
 ## Problemas comunes
 

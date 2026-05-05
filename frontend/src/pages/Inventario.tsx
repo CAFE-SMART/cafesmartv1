@@ -12,10 +12,12 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { createGuidedErrorFromUi, InlineGuidedError } from '../components/forms/GuidedError';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
+import { UI_MESSAGES } from '../utils/uiMessages';
 
 const TYPE_ORDER = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
 const BULTO_KG = 40.7;
@@ -164,7 +166,7 @@ function TypeSummaryCard({
   onOpen: () => void;
 }) {
   const visual = coffeeVisual(lot.tipoCafe);
-  const totalSublotesLabel = `${lot.sublotes} SUBLOTE${lot.sublotes === 1 ? '' : 'S'}`;
+  const totalLotsLabel = `${lot.sublotes} LOTE${lot.sublotes === 1 ? '' : 'S'}`;
 
   return (
     <button
@@ -187,7 +189,7 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span className="rounded-[12px] bg-[#f2f3f7] px-4 py-2 text-sm font-semibold text-slate-700">
-            {totalSublotesLabel}
+            {totalLotsLabel}
           </span>
           <ArrowRight size={18} className="text-slate-400" />
         </div>
@@ -359,13 +361,12 @@ export default function Inventario() {
       const current = grouped.get(type);
       if (!current) return [];
       const totalKg = current.lots.reduce((sum, lot) => sum + lot.pesoActual, 0);
-      const totalSublotes = current.lots.reduce((sum, lot) => sum + lot.sublotes, 0);
       return [
         {
           key: current.key,
           name: current.name,
           totalKg,
-          totalSublotes,
+          totalLots: current.lots.length,
           lots: current.lots,
         },
       ];
@@ -492,7 +493,7 @@ export default function Inventario() {
                     ...group.lots[0],
                     tipoCafe: group.name,
                     pesoActual: group.totalKg,
-                    sublotes: group.totalSublotes,
+                    sublotes: group.totalLots,
                   }}
                   onOpen={() => setTypeKey(group.key)}
                 />
@@ -538,7 +539,7 @@ export default function Inventario() {
         {typeKey === 'VERDE' && !activeSession && secadoTarget ? (
           <button
             type="button"
-            onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
+            onClick={() => navigate(`/inventario/lote/${secadoTarget.id}/secado`)}
             className="inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
           >
             <SunMedium size={20} />
@@ -566,7 +567,11 @@ export default function Inventario() {
 
         {error ? (
           <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            No pude cargar el inventario. {error}
+            <InlineGuidedError
+              message={createGuidedErrorFromUi(UI_MESSAGES.system.internalError)}
+              className="border-0 bg-transparent px-0 py-0 text-inherit shadow-none"
+            />
+            <p className="mt-2 text-sm text-rose-700">{error}</p>
             <button
               type="button"
               onClick={() => void loadLots()}
@@ -580,7 +585,7 @@ export default function Inventario() {
 
         {loading ? (
           <section className="rounded-[26px] border border-[#dde4f1] bg-white px-5 py-12 text-center shadow-sm">
-            <p className="text-lg font-semibold text-slate-500">Cargando inventario...</p>
+            <p className="text-lg font-semibold text-slate-500">{UI_MESSAGES.loading.inventory}</p>
           </section>
         ) : null}
 
@@ -589,7 +594,17 @@ export default function Inventario() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
               <Package2 size={22} />
             </div>
-            <p className="mt-4 text-lg text-slate-600">Todavía no hay lotes registrados en este tipo de café.</p>
+            <p className="mt-4 text-lg font-black text-slate-900">{UI_MESSAGES.empty.inventoryByFilter.titulo}</p>
+            <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">
+              {UI_MESSAGES.empty.inventoryByFilter.mensaje}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/compras')}
+              className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+            >
+              {UI_MESSAGES.empty.inventoryByFilter.accion}
+            </button>
           </section>
         ) : null}
 

@@ -622,6 +622,34 @@ export class LotesService {
     };
   }
 
+  async findSublotesByLoteId(
+    userId: string,
+    loteId: string,
+  ): Promise<LoteDetalleResponse> {
+    const [tipoCafeId, calidadId] = loteId.includes('::')
+      ? loteId.split('::', 2)
+      : [null, null];
+
+    if (tipoCafeId && calidadId) {
+      return this.findSublotesByLote(userId, tipoCafeId, calidadId);
+    }
+
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const lote = await this.prisma.lote.findFirst({
+      where: { id: loteId, organizacionId },
+      select: {
+        tipoCafeId: true,
+        calidadId: true,
+      },
+    });
+
+    if (!lote) {
+      throw new NotFoundException('No se encontraron sublotes para ese lote');
+    }
+
+    return this.findSublotesByLote(userId, lote.tipoCafeId, lote.calidadId);
+  }
+
   async actualizarHumedades(
     userId: string,
     sublotes: HumedadUpdateInput[],

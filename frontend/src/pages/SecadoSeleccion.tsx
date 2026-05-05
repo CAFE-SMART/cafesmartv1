@@ -3,14 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, SunMedium } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
+import { InlineGuidedError, createGuidedErrorFromUi } from '../components/forms/GuidedError';
 import { formatDateLabel } from '../utils/date';
-import { obtenerDetalleLote, type LoteDetalle } from '../services/lotesService';
+import {
+  obtenerDetalleLote,
+  obtenerDetalleLotePorId,
+  type LoteDetalle,
+} from '../services/lotesService';
 import {
   applySecadoToDetalle,
   getActiveSecadoSession,
   getActiveSecadoSessionForLot,
   startSecado,
 } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -23,9 +29,37 @@ function shortDate(value: string) {
   return formatDateLabel(value);
 }
 
+function getSecadoSeleccionGuidance(message: string) {
+  if (message.includes('No se encontro el lote')) {
+    return createGuidedErrorFromUi(UI_MESSAGES.inventory.notFound);
+  }
+
+  if (message.includes('No se encontraron sublotes')) {
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.inventory.notFound.titulo,
+        'No encontramos sublotes disponibles para este lote.',
+        'Verifica los datos',
+      ),
+    );
+  }
+
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.system.internalError.titulo,
+      message || UI_MESSAGES.system.internalError.mensaje,
+      UI_MESSAGES.system.internalError.accion,
+    ),
+  );
+}
+
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
-  const { tipoCafeId, calidadId } = useParams<{ tipoCafeId: string; calidadId: string }>();
+  const { tipoCafeId, calidadId, loteId } = useParams<{
+    tipoCafeId?: string;
+    calidadId?: string;
+    loteId?: string;
+  }>();
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +68,7 @@ export default function SecadoSeleccion() {
   const [blockingSessionId, setBlockingSessionId] = useState<string | null>(null);
 
   const cargar = async () => {
-    if (!tipoCafeId || !calidadId) {
+    if (!loteId && (!tipoCafeId || !calidadId)) {
       setError('No se encontro el lote verde para secado.');
       setLoading(false);
       return;
@@ -44,15 +78,33 @@ export default function SecadoSeleccion() {
     setError(null);
 
     try {
-      const base = await obtenerDetalleLote(tipoCafeId, calidadId);
-      const visual = applySecadoToDetalle(base, tipoCafeId, calidadId);
+      const base = loteId
+        ? await obtenerDetalleLotePorId(loteId)
+        : await obtenerDetalleLote(tipoCafeId as string, calidadId as string);
+      const visual = applySecadoToDetalle(
+        base,
+        base.lote.tipoCafeId,
+        base.lote.calidadId,
+      );
 
       if (!visual) {
         throw new Error('No se encontraron sublotes disponibles para este lote.');
       }
 
       setDetalle(visual);
-      setSelectedIds(visual.sublotes.map((sublote) => sublote.id));
+      setSelectedIds((current) => {
+        if (current.length === 0) {
+          return visual.sublotes.map((sublote) => sublote.id);
+        }
+
+        const validCurrent = current.filter((id) =>
+          visual.sublotes.some((sublote) => sublote.id === id),
+        );
+
+        return validCurrent.length > 0
+          ? validCurrent
+          : visual.sublotes.map((sublote) => sublote.id);
+      });
 
       const active = getActiveSecadoSessionForLot(visual.lote.id);
       setActiveSessionId(active?.id ?? null);
@@ -72,7 +124,7 @@ export default function SecadoSeleccion() {
 
   useEffect(() => {
     void cargar();
-  }, [calidadId, tipoCafeId]);
+  }, [calidadId, loteId, tipoCafeId]);
 
   const totalSeleccionado = useMemo(() => {
     if (!detalle) return 0;
@@ -102,10 +154,7 @@ export default function SecadoSeleccion() {
     if (!detalle || selectedIds.length === 0) return;
 
     const session = startSecado(detalle, selectedIds);
-    navigate('/inventario', {
-      state: { preferredTypeKey: 'VERDE', activeSecadoId: session.id },
-      replace: true,
-    });
+    navigate(`/inventario/secado/${session.id}/finalizar`);
   };
 
   return (
@@ -115,8 +164,10 @@ export default function SecadoSeleccion() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+              onClick={() => navigate('/secado')}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
+              aria-label="Volver al paso anterior"
+              title="Volver al paso anterior"
             >
               <ArrowLeft size={18} />
             </button>
@@ -180,9 +231,10 @@ export default function SecadoSeleccion() {
         ) : null}
 
         {error ? (
-          <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            {error}
-          </section>
+          <div className="space-y-2">
+            <InlineGuidedError message={getSecadoSeleccionGuidance(error)} />
+            <p className="px-1 text-sm text-slate-500">{error}</p>
+          </div>
         ) : null}
 
         {loading ? (
@@ -208,6 +260,8 @@ export default function SecadoSeleccion() {
                   type="button"
                   onClick={seleccionarTodo}
                   className="inline-flex items-center gap-2 rounded-full bg-[#fff0c8] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#8c5a00]"
+                  aria-label="Seleccionar todos los sublotes"
+                  title="Seleccionar todos los sublotes o quitar selección"
                 >
                   <Check size={14} />
                   {selectedIds.length === detalle.sublotes.length ? 'Quitar todo' : 'Seleccionar todo'}
@@ -231,6 +285,8 @@ export default function SecadoSeleccion() {
                         className={`mt-1 inline-flex h-10 w-10 items-center justify-center rounded-xl border text-white ${
                           checked ? 'border-[#102d92] bg-[#102d92]' : 'border-slate-200 bg-white text-transparent'
                         }`}
+                        aria-label={`Seleccionar sublote ${sublote.etiqueta}`}
+                        title={`Seleccionar sublote ${sublote.etiqueta}`}
                       >
                         <Check size={18} />
                       </button>

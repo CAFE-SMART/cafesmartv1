@@ -1,15 +1,17 @@
-﻿import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+import API_ROOT_URL from '../config/api';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
-const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/auth`;
+// 🔥 Endpoint base
+const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+const AUTH_REQUEST_TIMEOUT_MS = 30000;
 
 export type AuthError = {
   message: string;
   field: string | null;
   details?: Record<string, string[]>;
   action?: string | null;
+  debug?: unknown;
   code: 'OFFLINE' | 'HTTP' | 'UNKNOWN';
   status?: number;
 };
@@ -21,7 +23,9 @@ export type AuthResponse = {
     id: number | string;
     email: string;
     name: string;
+    telefono?: string | null;
     organizacionId?: string | null;
+    nombreOrganizacion?: string | null;
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
     otroTipoDetalle?: string | null;
   };
@@ -33,6 +37,10 @@ type RawApiError = {
   field?: string;
   details?: Record<string, string[]>;
   action?: string;
+  debug?: unknown;
+  path?: string;
+  raw?: string;
+  statusCode?: number;
 };
 
 type CloudTrackingConfig = {
@@ -42,17 +50,61 @@ type CloudTrackingConfig = {
   successMessage?: string;
 };
 
-function isNetworkFetchError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
+function construirBasesAuth() {
+  const apiBaseConfigurada = API_ROOT_URL.replace(/\/$/, '');
+  const candidatas = [apiBaseConfigurada];
+
+  if (typeof window === 'undefined') {
+    return candidatas;
   }
+
+  try {
+    const urlConfigurada = new URL(apiBaseConfigurada);
+    const hostActual = window.location.hostname?.trim();
+
+    if (
+      hostActual &&
+      !HOSTS_LOCALES.has(hostActual) &&
+      HOSTS_LOCALES.has(urlConfigurada.hostname)
+    ) {
+      candidatas.push(
+        `${urlConfigurada.protocol}//${hostActual}${
+          urlConfigurada.port ? `:${urlConfigurada.port}` : ''
+        }`,
+      );
+    }
+  } catch {
+    return candidatas;
+  }
+
+  return [...new Set(candidatas)].map((apiBaseUrl) => `${apiBaseUrl}/auth`);
+}
+
+function isNetworkFetchError(error: unknown) {
+  if (!(error instanceof Error)) return false;
 
   const message = error.message.toLowerCase();
   return (
+    error.name === 'AbortError' ||
+    message.includes('aborted') ||
     message.includes('failed to fetch') ||
     message.includes('networkerror') ||
     message.includes('load failed')
   );
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function postAuth<TResponse>(
@@ -70,20 +122,72 @@ async function postAuth<TResponse>(
       });
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    let response: Response | null = null;
+    let lastNetworkError: unknown = null;
 
-    const data = (await response.json().catch(() => ({}))) as TResponse & RawApiError;
+    for (const authBaseUrl of construirBasesAuth()) {
+      try {
+        response = await fetchWithTimeout(`${authBaseUrl}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        break;
+      } catch (error) {
+        lastNetworkError = error;
+
+        if (!isNetworkFetchError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    if (!response) {
+      throw lastNetworkError;
+    }
+
+    const responseText = await response.text();
+    let data: TResponse & RawApiError;
+
+    try {
+      data = (responseText ? JSON.parse(responseText) : {}) as TResponse & RawApiError;
+    } catch (parseError) {
+      if (import.meta.env.DEV) {
+        console.error('AUTH API PARSE ERROR', {
+          endpoint,
+          status: response.status,
+          raw: responseText,
+          error: parseError,
+        });
+      }
+
+      throw {
+        message: 'El servidor respondió algo que no es JSON válido. Revisa la terminal del backend.',
+        field: null,
+        code: 'UNKNOWN',
+        status: response.status,
+      } as AuthError;
+    }
 
     if (!response.ok) {
+      if (import.meta.env.DEV) {
+        console.error('AUTH API ERROR', {
+          endpoint,
+          status: response.status,
+          message: data.message,
+          path: data.path,
+          debug: data.debug,
+          details: data.details,
+          raw: responseText,
+        });
+      }
+
       const authError: AuthError = {
         message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
         field: data.field ?? null,
         details: data.details,
         action: data.action ?? null,
+        debug: data.debug,
         code: 'HTTP',
         status: response.status,
       };
@@ -94,7 +198,7 @@ async function postAuth<TResponse>(
       emitCloudStatusEvent({
         status: 'synced',
         source: cloudTracking.source ?? 'sync',
-        message: cloudTracking.successMessage ?? 'Operacion confirmada en la nube.',
+        message: cloudTracking.successMessage ?? 'Información sincronizada correctamente.',
       });
     }
 
@@ -105,8 +209,7 @@ async function postAuth<TResponse>(
       emitCloudStatusEvent({
         status: 'error',
         source: cloudTracking.source ?? 'sync',
-        message:
-          knownError.message || 'No se pudo completar la operacion con la nube.',
+        message: knownError.message || 'No pudimos completar la operación con la nube.',
       });
     }
 
@@ -116,10 +219,11 @@ async function postAuth<TResponse>(
 
     const knownError = error as Partial<AuthError>;
     throw {
-      message: knownError.message || 'Error al conectar con el servidor',
+      message: knownError.message || 'No pudimos conectar con el servidor.',
       field: knownError.field ?? null,
       details: knownError.details,
       action: knownError.action ?? null,
+      debug: knownError.debug,
       code: knownError.code ?? 'UNKNOWN',
       status: knownError.status,
     } as AuthError;
@@ -131,7 +235,7 @@ export const authService = {
     const data = await postAuth<{ exists: boolean }>(
       '/check-email',
       { correo },
-      'No se pudo validar el correo',
+      'No pudimos validar el correo.',
       { enabled: false },
     );
     return Boolean(data.exists);
@@ -146,20 +250,20 @@ export const authService = {
     correo: string;
     password: string;
   }): Promise<AuthResponse> {
-    return postAuth<AuthResponse>('/register', data, 'Error al registrarse', {
+    return postAuth<AuthResponse>('/register', data, 'No pudimos crear la cuenta.', {
       enabled: true,
       source: 'register',
       syncingMessage: 'Guardando tu cuenta en la nube...',
-      successMessage: 'La cuenta quedo guardada en la nube.',
+      successMessage: 'Tu cuenta quedó lista correctamente.',
     });
   },
 
   login(email: string, password: string): Promise<AuthResponse> {
-    return postAuth<AuthResponse>('/login', { email, password }, 'Error de autenticacion', {
+    return postAuth<AuthResponse>('/login', { email, password }, 'No pudimos iniciar sesión.', {
       enabled: true,
       source: 'login',
-      syncingMessage: 'Validando tu sesion con la nube...',
-      successMessage: 'La sesion fue validada con la nube.',
+      syncingMessage: 'Validando tu sesión con la nube...',
+      successMessage: 'Tu sesión se validó correctamente.',
     });
   },
 
@@ -167,12 +271,12 @@ export const authService = {
     return postAuth<AuthResponse>(
       '/login/google',
       { idToken },
-      'Error de autenticacion con Google',
+      'No pudimos iniciar sesión con Google.',
       {
         enabled: true,
         source: 'login-google',
         syncingMessage: 'Validando Google con la nube...',
-        successMessage: 'Google fue validado con la nube.',
+        successMessage: 'Tu acceso con Google se validó correctamente.',
       },
     );
   },
@@ -190,12 +294,12 @@ export const authService = {
     return postAuth<AuthResponse>(
       '/register/google',
       data,
-      'Error al registrarse con Google',
+      'No pudimos crear la cuenta con Google.',
       {
         enabled: true,
         source: 'register-google',
         syncingMessage: 'Guardando tu registro de Google en la nube...',
-        successMessage: 'La cuenta de Google quedo guardada en la nube.',
+        successMessage: 'Tu cuenta de Google quedó lista correctamente.',
       },
     );
   },

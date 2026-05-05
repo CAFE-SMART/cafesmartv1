@@ -14,6 +14,14 @@ export class LotesController {
     return this.lotesService.findAll(req.user.sub);
   }
 
+  @Get('detalle/:loteId')
+  findDetalleByLoteId(
+    @Param('loteId') loteId: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.lotesService.findSublotesByLoteId(req.user.sub, loteId);
+  }
+
   @Get(':tipoCafeId/:calidadId/sublotes')
   findSublotes(
     @Param('tipoCafeId') tipoCafeId: string,

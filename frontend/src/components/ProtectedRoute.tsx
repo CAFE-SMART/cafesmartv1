@@ -1,11 +1,12 @@
 import { Navigate, Outlet } from 'react-router-dom';
+import { AppLoadingScreen } from './AppLoadingScreen';
 import { useUser } from '../context/UserContext';
 
 export const ProtectedRoute = () => {
   const { token, hasCompany, hydrated } = useUser();
 
   if (!hydrated) {
-    return null;
+    return <AppLoadingScreen />;
   }
   
   // Si no hay token, lo mandamos al login.

@@ -17,8 +17,14 @@ export type DashboardSummary = {
   kgActual: number;
   kgCapacidad: number;
   movimientosRecientes: DashboardMovimiento[];
+  totalRevenue?: number;
+  totalExpenses?: number;
+  totalProfit?: number;
+  totalWasteKg?: number;
 };
 
 export async function obtenerDashboardSummary() {
-  return apiFetch('/dashboard/summary') as Promise<DashboardSummary>;
+  return apiFetch('/dashboard/summary', { cache: 'no-store' }) as Promise<DashboardSummary>;
 }
+
+export const obtenerResumenDashboard = obtenerDashboardSummary;

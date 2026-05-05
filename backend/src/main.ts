@@ -2,6 +2,7 @@ import { BadRequestException, ValidationError, ValidationPipe } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 /**
  * Aplana errores anidados de validacion para devolver un contrato simple por campo.
@@ -30,6 +31,7 @@ async function bootstrap() {
   const port = Number(configService.get('PORT') ?? 3000);
 
   app.enableCors();
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

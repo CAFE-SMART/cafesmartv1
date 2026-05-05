@@ -2,13 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Info, Save } from 'lucide-react';
 import {
-  createGuidedError,
+  createGuidedErrorFromUi,
   FloatingGuidedNotice,
   InlineGuidedError,
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { formatDateLabel } from '../utils/date';
 import { getSecadoSession, saveSecadoResults } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -23,28 +24,31 @@ function dateLabel(value: string) {
 
 function getSecadoGuidance(message: string): GuidedErrorMessage {
   if (message.includes('salida seca')) {
-    return createGuidedError(
-      message,
-      'Falta el peso final.',
-      'El proceso requiere la cantidad de café seco.',
-      'Escribe la salida seca en kilos.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        'Registra la salida seca del lote.',
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message.includes('no puede superar')) {
-    return createGuidedError(
-      message,
-      'La salida supera la entrada.',
-      'El café seco debe pesar menos que el verde.',
-      'Verifica y corrige el peso final.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Corrige el dato',
+      ),
     );
   }
 
-  return createGuidedError(
-    message,
-    'Falta la humedad.',
-    'Necesitamos saber qué tan seco quedó el lote.',
-    'Ingresa la humedad final en porcentaje.',
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.forms.incompleteData.titulo,
+      'Registra la humedad final del lote seco.',
+      'Revisa los campos marcados',
+    ),
   );
 }
 
@@ -127,13 +131,14 @@ export default function SecadoProceso() {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
         <div className="mx-auto w-full max-w-[520px] rounded-[26px] border border-rose-200 bg-white px-5 py-10 text-center shadow-sm">
-          <p className="text-lg font-semibold text-slate-700">No encontre el secado en proceso.</p>
+          <p className="text-lg font-semibold text-slate-700">{UI_MESSAGES.inventory.notFound.mensaje}</p>
+          <p className="mt-2 text-sm text-slate-500">No encontramos el secado en proceso para este lote.</p>
           <button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() => navigate('/secado')}
             className="mt-5 inline-flex rounded-[18px] bg-[#102d92] px-5 py-3 text-sm font-black text-white"
           >
-            Volver a inventario
+            Volver al flujo de secado
           </button>
         </div>
       </div>
@@ -144,10 +149,11 @@ export default function SecadoProceso() {
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] pb-12 text-slate-900">
       <header className="border-b border-white/80 bg-[rgba(247,245,255,0.92)] px-4 py-4 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[520px] items-center gap-3">
-          <button
+<button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() => navigate(`/inventario/lote/${session.loteId}/secado`)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
+            aria-label="Volver al paso anterior"
           >
             <ArrowLeft size={18} />
           </button>

@@ -15,7 +15,7 @@ export function RegisterProgress({ step, totalSteps, progressPercent }: Register
   return (
     <>
       <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-bold tracking-wide text-gray-500">
+        <span className="text-sm font-bold text-gray-600">
           {stepLabel}
         </span>
         <span className="text-sm font-bold text-[#1e3a8a]">{step} de {totalSteps}</span>

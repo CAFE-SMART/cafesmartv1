@@ -53,6 +53,7 @@ export class UsersService {
         id: true,
         nombre: true,
         correo: true,
+        telefono: true,
         organizacionId: true,
         organizacion: {
           select: {

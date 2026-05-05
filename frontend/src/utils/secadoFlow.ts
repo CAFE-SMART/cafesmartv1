@@ -240,6 +240,25 @@ export function getActiveSecadoSessionForLot(lotId: string) {
   );
 }
 
+export function getActiveSecadoBlockedSubloteIds() {
+  return new Set(
+    readStorage()
+      .filter((session) => session.estado !== 'COMPLETED')
+      .flatMap((session) => session.sublotes.map((sublote) => sublote.id)),
+  );
+}
+
+export function getActiveSecadoBlockedKgByLot() {
+  const blockedByLot = new Map<string, number>();
+
+  for (const session of readStorage().filter((item) => item.estado !== 'COMPLETED')) {
+    const blockedKg = totalInputKg(session);
+    blockedByLot.set(session.loteId, safeNumber((blockedByLot.get(session.loteId) ?? 0) + blockedKg));
+  }
+
+  return blockedByLot;
+}
+
 export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
   const selectedSublotes = detalle.sublotes.filter((sublote) => selectedIds.includes(sublote.id));
   const sessions = readStorage();

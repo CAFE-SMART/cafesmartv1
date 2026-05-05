@@ -6,6 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:android": "vite build --mode android",
+    "android:run": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1",
+    "android:fast": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1",
+    "android:launch": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1 -LaunchOnly",
+    "android:full": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1 -ForceWebBuild -ForceGradleBuild",
     "preview": "vite preview",
     "test": "vitest"
   },

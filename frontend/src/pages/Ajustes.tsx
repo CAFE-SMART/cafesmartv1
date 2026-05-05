@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -8,10 +9,13 @@ import {
   CalendarDays,
   ChevronRight,
   CircleDollarSign,
+  ClipboardList,
   Droplets,
   FlaskConical,
   Lock,
   LogOut,
+  Play,
+  ReceiptText,
   ScanSearch,
   RefreshCcw,
   Save,
@@ -26,8 +30,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { EmptyState } from '../components/EmptyState';
 import {
-  createGuidedError,
+  createGuidedErrorFromUi,
   FloatingGuidedNotice,
   InlineGuidedError,
   type GuidedErrorMessage,
@@ -41,6 +46,7 @@ import {
   guardarConfiguracionBodega,
 } from '../services/bodegaApi';
 import { applySecadoToLots } from '../utils/secadoFlow';
+import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 type ProfileSettings = {
   nombre: string;
@@ -88,6 +94,42 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function getPhoneDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function getPhoneValidationMessage(value: string) {
+  const digits = getPhoneDigits(value);
+
+  if (!digits) {
+    return {
+      tone: 'neutral' as const,
+      text: 'Escribe un número de 10 dígitos.',
+    };
+  }
+
+  if (digits.length < 10) {
+    const missing = 10 - digits.length;
+    return {
+      tone: 'warning' as const,
+      text: `Falta${missing === 1 ? '' : 'n'} ${missing} número${missing === 1 ? '' : 's'}.`,
+    };
+  }
+
+  if (digits.length > 10) {
+    const extra = digits.length - 10;
+    return {
+      tone: 'warning' as const,
+      text: `Sobran ${extra} número${extra === 1 ? '' : 's'}. Debe tener 10 dígitos.`,
+    };
+  }
+
+  return {
+    tone: 'success' as const,
+    text: 'El número tiene 10 dígitos.',
+  };
+}
+
 function getStoredProfile(): ProfileSettings | null {
   try {
     const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
@@ -129,7 +171,9 @@ function saveCompany(company: CompanySettings) {
 function getAjustesErrorSection(message: string): AjustesErrorSection | null {
   if (
     message === 'Escribe el nombre del usuario.' ||
-    message === 'Escribe el correo del usuario.'
+    message === 'Escribe el correo del usuario.' ||
+    message === 'El teléfono debe tener 10 números.' ||
+    message === 'No realizaste cambios en el perfil.'
   ) {
     return 'profile';
   }
@@ -154,79 +198,107 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
 
 function getAjustesGuidance(message: string): GuidedErrorMessage {
   if (message === 'Escribe el nombre del usuario.') {
-    return createGuidedError(
-      message,
-      'Falta tu nombre.',
-      'No sabemos cómo llamarte.',
-      'Escribe tu nombre de usuario.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        'Escribe el nombre del usuario.',
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Escribe el correo del usuario.') {
-    return createGuidedError(
-      message,
-      'Falta el correo.',
-      'Necesitamos un correo valido.',
-      'Escribe el correo del usuario.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        'Escribe el correo del usuario.',
+        'Revisa los campos marcados',
+      ),
+    );
+  }
+
+  if (message === 'El teléfono debe tener 10 números.') {
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Corrige el dato',
+      ),
+    );
+  }
+
+  if (message === 'No realizaste cambios en el perfil.') {
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        'Sin cambios por guardar',
+        message,
+        'Modifica algún dato antes de guardar',
+      ),
     );
   }
 
   if (message === 'Escribe el nombre de la empresa.') {
-    return createGuidedError(
-      message,
-      'Falta nombre de empresa.',
-      'Tu negocio debe tener un nombre.',
-      'Escribe el nombre de tu empresa.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Selecciona el tipo de empresa.') {
-    return createGuidedError(
-      message,
-      'Falta el tipo.',
-      '¿A que se dedica tu negocio?',
-      'Selecciona el tipo de empresa.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'Escribe un nombre para la bodega.') {
-    return createGuidedError(
-      message,
-      'Bodega sin nombre.',
-      'Ponle un nombre para identificarla.',
-      'Escribe el nombre de la bodega.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.incompleteData.titulo,
+        message,
+        'Revisa los campos marcados',
+      ),
     );
   }
 
   if (message === 'La capacidad debe ser mayor que 0.') {
-    return createGuidedError(
-      message,
-      'Capacidad en cero.',
-      'La bodega debe tener espacio.',
-      'Ingresa una capacidad mayor a 0.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Corrige el dato',
+      ),
     );
   }
 
   if (message === 'La capacidad no puede ser menor al inventario actual almacenado.') {
-    return createGuidedError(
-      message,
-      'Capacidad muy pequeña.',
-      'Ya tienes mas cafe guardado que ese limite.',
-      'Aumenta la capacidad de la bodega.',
+    return createGuidedErrorFromUi(
+      createUiMessage(
+        UI_MESSAGES.forms.invalidValue.titulo,
+        message,
+        'Ajusta la capacidad e intenta nuevamente',
+      ),
     );
   }
 
-  return createGuidedError(
-    message,
-    'Problema guardando.',
-    'Hubo un problema con tus datos.',
-    'Verifica y vuelve a intentar.',
+  return createGuidedErrorFromUi(
+    createUiMessage(
+      UI_MESSAGES.system.saveFailed.titulo,
+      message || UI_MESSAGES.system.saveFailed.mensaje,
+      UI_MESSAGES.system.saveFailed.accion,
+    ),
   );
 }
 
 export default function Ajustes() {
   const navigate = useNavigate();
-  const { user, logout } = useUser();
+  const { user } = useUser();
 
   const initialConfig = useMemo(() => ({
     nombreBodega: 'Bodega principal',
@@ -252,12 +324,20 @@ export default function Ajustes() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [isViewingSecado, setIsViewingSecado] = useState(false);
+  const [isViewingProfile, setIsViewingProfile] = useState(false);
+  const [phoneWasEdited, setPhoneWasEdited] = useState(false);
+  const [profileEditBaseline, setProfileEditBaseline] = useState<ProfileSettings | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(null);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
+  const phoneValidation = useMemo(
+    () => getPhoneValidationMessage(profile.telefono),
+    [profile.telefono],
+  );
 
   const clearFeedback = () => {
     setError(null);
@@ -268,8 +348,10 @@ export default function Ajustes() {
   const abrirEditorBodega = () => {
     clearFeedback();
     setIsEditingBodega(true);
+    setIsViewingSecado(false);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
+    setIsViewingProfile(false);
   };
 
   const cerrarEditorBodega = () => {
@@ -277,30 +359,120 @@ export default function Ajustes() {
     setIsEditingBodega(false);
   };
 
+  const abrirEditorEmpresa = () => {
+    clearFeedback();
+    setIsEditingCompany(true);
+    setIsViewingProfile(false);
+    setIsViewingSecado(false);
+    setIsEditingProfile(false);
+    setIsEditingBodega(false);
+  };
+
+  const cerrarEditorEmpresa = () => {
+    clearFeedback();
+    setIsEditingCompany(false);
+  };
+
+  const abrirPerfilUsuario = () => {
+    clearFeedback();
+    setIsViewingProfile(true);
+    setIsViewingSecado(false);
+    setIsEditingProfile(false);
+    setIsEditingCompany(false);
+    setIsEditingBodega(false);
+  };
+
+  const abrirGestionSecado = () => {
+    clearFeedback();
+    setIsViewingSecado(true);
+    setIsViewingProfile(false);
+    setIsEditingProfile(false);
+    setIsEditingCompany(false);
+    setIsEditingBodega(false);
+  };
+
+  const cerrarGestionSecado = () => {
+    clearFeedback();
+    setIsViewingSecado(false);
+  };
+
+  const abrirInicioSecado = () => {
+    setIsViewingSecado(false);
+    navigate('/secado', { state: { secadoView: 'start' } });
+  };
+
+  const abrirSecadosPendientes = () => {
+    setIsViewingSecado(false);
+    navigate('/secado', { state: { secadoView: 'pending' } });
+  };
+
+  useEffect(() => {
+    if (!isViewingSecado) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        cerrarGestionSecado();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isViewingSecado]);
+
+  useEffect(() => {
+    if (!isViewingSecado) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isViewingSecado]);
+
   useEffect(() => {
     const nextNombre = profile.nombre || user?.name || '';
     const nextCorreo = profile.correo || user?.email || '';
+    const nextTelefono = profile.telefono || user?.telefono || '';
+    const nextEmpresa = company.nombreEmpresa || user?.nombreOrganizacion || '';
     const nextTipo =
       company.tipoEmpresa ||
       (user?.tipoOrganizacion ? user.tipoOrganizacion.charAt(0) + user.tipoOrganizacion.slice(1).toLowerCase() : 'Compraventa');
 
-    if (nextNombre !== profile.nombre || nextCorreo !== profile.correo) {
+    if (
+      nextNombre !== profile.nombre ||
+      nextCorreo !== profile.correo ||
+      nextTelefono !== profile.telefono
+    ) {
       setProfile((prev) => ({
         ...prev,
         nombre: nextNombre,
         correo: nextCorreo,
+        telefono: nextTelefono,
       }));
     }
 
     if (!company.nombreEmpresa || !company.tipoEmpresa) {
       setCompany((prev) => ({
-        nombreEmpresa: prev.nombreEmpresa || 'Mi empresa cafetera',
+        nombreEmpresa: prev.nombreEmpresa || nextEmpresa || 'Mi empresa cafetera',
         tipoEmpresa: nextTipo,
         descripcion:
-          prev.descripcion || 'Configuración base para operar compras, inventario y ventas.',
+          prev.descripcion || user?.otroTipoDetalle || '',
       }));
     }
-  }, [company.nombreEmpresa, company.tipoEmpresa, company.descripcion, profile.nombre, profile.correo, user?.name, user?.email, user?.tipoOrganizacion]);
+  }, [
+    company.nombreEmpresa,
+    company.tipoEmpresa,
+    profile.nombre,
+    profile.correo,
+    profile.telefono,
+    user?.name,
+    user?.email,
+    user?.telefono,
+    user?.nombreOrganizacion,
+    user?.tipoOrganizacion,
+    user?.otroTipoDetalle,
+  ]);
 
   const cargarInventario = async () => {
     setLoadingStock(true);
@@ -384,21 +556,43 @@ export default function Ajustes() {
 
   const guardarPerfil = () => {
     clearFeedback();
-    if (!profile.nombre.trim()) {
-      const message = 'Escribe el nombre del usuario.';
+    if (phoneWasEdited && profile.telefono.trim() && getPhoneDigits(profile.telefono).length !== 10) {
+      const message = 'El teléfono debe tener 10 números.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
       return;
     }
-    if (!profile.correo.trim()) {
-      const message = 'Escribe el correo del usuario.';
+
+    const baseline = profileEditBaseline ?? getStoredProfile() ?? {
+      nombre: user?.name ?? '',
+      correo: user?.email ?? '',
+      telefono: user?.telefono ?? '',
+    };
+
+    const nextProfile: ProfileSettings = {
+      nombre: profile.nombre.trim() || baseline.nombre,
+      correo: profile.correo.trim() || baseline.correo,
+      telefono: profile.telefono.trim() || baseline.telefono,
+    };
+
+    const hasChanges =
+      nextProfile.nombre !== baseline.nombre ||
+      nextProfile.correo !== baseline.correo ||
+      nextProfile.telefono !== baseline.telefono;
+
+    if (!hasChanges) {
+      const message = 'No realizaste cambios en el perfil.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
       return;
     }
-    saveProfile(profile);
-    setSuccess('Perfil actualizado correctamente.');
+
+    saveProfile(nextProfile);
+    setProfile(nextProfile);
+    setSuccess(UI_MESSAGES.success.saved.mensaje);
     setIsEditingProfile(false);
+    setPhoneWasEdited(false);
+    setProfileEditBaseline(null);
   };
 
   const guardarEmpresa = () => {
@@ -416,7 +610,7 @@ export default function Ajustes() {
       return;
     }
     saveCompany(company);
-    setSuccess('Información de la empresa actualizada.');
+    setSuccess(UI_MESSAGES.success.saved.mensaje);
     setIsEditingCompany(false);
   };
 
@@ -454,7 +648,7 @@ export default function Ajustes() {
       setNombreBodega(result.nombreBodega);
       setCapacidadKg(String(result.capacidadKg));
       setUpdatedAt(result.updatedAt);
-      setSuccess('Capacidad de bodega actualizada.');
+      setSuccess(UI_MESSAGES.success.saved.mensaje);
       setIsEditingBodega(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al guardar la bodega.';
@@ -465,12 +659,7 @@ export default function Ajustes() {
 
   const cerrarSesion = async () => {
     setCerrandoSesion(true);
-    try {
-      await logout();
-      navigate('/login', { replace: true });
-    } finally {
-      setCerrandoSesion(false);
-    }
+    navigate('/cerrando-sesion', { replace: true });
   };
 
   const procesosOperativos = [
@@ -480,7 +669,7 @@ export default function Ajustes() {
       description: 'Tiempo y humedad',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () => navigate('/inventario'),
+      onClick: abrirGestionSecado,
     },
     {
       id: 'gastos',
@@ -500,7 +689,7 @@ export default function Ajustes() {
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => setIsEditingCompany(true),
+      onClick: abrirEditorEmpresa,
     },
     {
       id: 'tipos-cafe',
@@ -536,7 +725,7 @@ export default function Ajustes() {
       icon: UserCog,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => setIsEditingProfile(true),
+      onClick: abrirPerfilUsuario,
     },
     {
       id: 'gestion-usuarios',
@@ -567,6 +756,86 @@ export default function Ajustes() {
       staticOnly: true,
     },
   ] as const;
+
+  const secadoModal =
+    isViewingSecado && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[2147483640] flex items-end justify-center bg-[#020617]/85 px-0 pt-8 backdrop-blur-lg"
+            onClick={cerrarGestionSecado}
+          >
+            <div
+              className="relative max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-[24px] border border-[#e6e8f3] bg-white px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-4 text-center shadow-[0_-18px_70px_rgba(2,6,23,0.45)]"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="secado-modal-title"
+            >
+              <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
+
+              <button
+                type="button"
+                onClick={cerrarGestionSecado}
+                className="absolute right-5 top-5 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-[#e9eef8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                aria-label="Cerrar gestión de secado"
+              >
+                <X size={22} />
+              </button>
+
+              <div className="mx-auto mt-12 flex max-w-[390px] flex-col items-center gap-2">
+                <h3
+                  id="secado-modal-title"
+                  className="text-[1.65rem] font-black leading-tight text-[#111827]"
+                >
+                  Gestión de secado
+                </h3>
+                <p className="text-sm font-semibold leading-6 text-slate-500">
+                  Inicia un secado o continúa uno pendiente.
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                <article className="flex flex-col items-center rounded-[18px] border border-[#e2e8f4] bg-[#f8faff] p-4 text-center">
+                  <span className="inline-flex rounded-[14px] bg-[#e9f8f1] p-3 text-[#0f766e]">
+                    <Play size={20} />
+                  </span>
+                  <h4 className="mt-3 text-base font-black text-slate-900">Iniciar secado</h4>
+                  <p className="mt-2 max-w-[330px] text-sm leading-5 text-slate-600">
+                    Registra el secado de un lote verde disponible.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={abrirInicioSecado}
+                    className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#0c2479] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                  >
+                    Iniciar secado
+                    <ChevronRight size={16} />
+                  </button>
+                </article>
+
+                <article className="flex flex-col items-center rounded-[18px] border border-[#e2e8f4] bg-[#f8faff] p-4 text-center">
+                  <span className="inline-flex rounded-[14px] bg-[#fff7df] p-3 text-[#d29309]">
+                    <ClipboardList size={20} />
+                  </span>
+                  <h4 className="mt-3 text-base font-black text-slate-900">Secados pendientes</h4>
+                  <p className="mt-2 max-w-[330px] text-sm leading-5 text-slate-600">
+                    Finaliza lotes que ya están en proceso.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={abrirSecadosPendientes}
+                    className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff]"
+                  >
+                    Ver pendientes
+                    <ChevronRight size={16} />
+                  </button>
+                </article>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
@@ -600,7 +869,18 @@ export default function Ajustes() {
             </div>
             <button
               type="button"
-              onClick={() => setIsEditingProfile((prev) => !prev)}
+              onClick={() => {
+                clearFeedback();
+                setIsEditingProfile((prev) => {
+                  const next = !prev;
+                  setProfileEditBaseline(next ? profile : null);
+                  return next;
+                });
+                setPhoneWasEdited(false);
+                setIsViewingProfile(false);
+                setIsEditingCompany(false);
+                setIsEditingBodega(false);
+              }}
               className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#102d92]"
             >
               Editar
@@ -634,11 +914,25 @@ export default function Ajustes() {
                 value={profile.telefono}
                 onChange={(event) => {
                   setProfile((prev) => ({ ...prev, telefono: event.target.value }));
+                  setPhoneWasEdited(true);
                   clearFeedback();
                 }}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 placeholder="Teléfono"
               />
+              {phoneWasEdited ? (
+                <p
+                  className={`rounded-[12px] px-3 py-2 text-xs font-semibold ${
+                    phoneValidation.tone === 'success'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : phoneValidation.tone === 'warning'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-slate-50 text-slate-500'
+                  }`}
+                >
+                  {phoneValidation.text}
+                </p>
+              ) : null}
               {error && activeErrorSection === 'profile' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
@@ -702,6 +996,83 @@ export default function Ajustes() {
             })}
           </div>
 
+          {isViewingProfile ? (
+            <section className="rounded-[18px] border border-[#dbe4fb] bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#2c57cc]">
+                    Perfil de usuario
+                  </p>
+                  <h3 className="mt-1 text-[1.15rem] font-semibold text-slate-900">
+                    Datos guardados
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsViewingProfile(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar perfil"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-2.5">
+                {[
+                  ['Nombre', profile.nombre || user?.name || 'Sin nombre guardado'],
+                  ['Teléfono', profile.telefono || user?.telefono || 'Sin teléfono guardado'],
+                  ['Correo', profile.correo || user?.email || 'Sin correo guardado'],
+                  [
+                    'Empresa',
+                    company.nombreEmpresa || user?.nombreOrganizacion || 'Sin empresa guardada',
+                  ],
+                  [
+                    'Descripción',
+                    company.descripcion ||
+                      user?.otroTipoDetalle ||
+                      'Sin descripción registrada',
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-[14px] border border-[#edf0f7] bg-[#fbfcff] px-3 py-2.5"
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                      {label}
+                    </p>
+                    <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearFeedback();
+                    setIsEditingProfile(true);
+                    setProfileEditBaseline(profile);
+                    setPhoneWasEdited(false);
+                    setIsEditingCompany(false);
+                    setIsViewingProfile(false);
+                  }}
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-semibold text-white"
+                >
+                  Editar perfil
+                </button>
+                <button
+                  type="button"
+                  onClick={abrirEditorEmpresa}
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d6deef] bg-[#f9fbff] px-3 text-sm font-semibold text-[#102d92]"
+                >
+                  Editar empresa
+                </button>
+              </div>
+            </section>
+          ) : null}
+
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Gestión de personas</p>
           <div className="grid grid-cols-2 gap-2.5">
             {gestionPersonas.map((item) => {
@@ -759,9 +1130,15 @@ export default function Ajustes() {
 
           <div className="rounded-[16px] border border-[#e5e9f5] bg-white p-3 shadow-sm">
             {loadingMovimientos ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Cargando movimientos...</p>
+              <p className="px-1 py-2 text-sm text-slate-500">{UI_MESSAGES.loading.movements}</p>
             ) : movimientosRecientes.length === 0 ? (
-              <p className="px-1 py-2 text-sm text-slate-500">Aún no hay movimientos recientes.</p>
+              <EmptyState
+                icon={ReceiptText}
+                title={UI_MESSAGES.empty.recentMovements.titulo}
+                description={UI_MESSAGES.empty.recentMovements.mensaje}
+                actionLabel={UI_MESSAGES.empty.recentMovements.accion}
+                onAction={() => navigate('/compras')}
+              />
             ) : (
               <div className="space-y-2">
                 {movimientosRecientes.map((movimiento) => {
@@ -786,58 +1163,6 @@ export default function Ajustes() {
           </div>
         </section>
 
-        {isEditingCompany ? (
-          <section className="rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-black text-slate-900">Editar empresa</h3>
-            <div className="mt-3 space-y-3">
-              <input
-                type="text"
-                value={company.nombreEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, nombreEmpresa: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                placeholder="Nombre de la empresa"
-              />
-              <select
-                value={company.tipoEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, tipoEmpresa: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-              >
-                <option value="">Seleccionar tipo</option>
-                <option value="Cooperativa">Cooperativa</option>
-                <option value="Compraventa">Compraventa</option>
-                <option value="Otro">Otro</option>
-              </select>
-              <textarea
-                value={company.descripcion}
-                onChange={(event) => {
-                  setCompany((prev) => ({ ...prev, descripcion: event.target.value }));
-                  clearFeedback();
-                }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                rows={3}
-                placeholder="Descripción breve del negocio"
-              />
-              {error && activeErrorSection === 'company' ? (
-                <InlineGuidedError message={getAjustesGuidance(error)} />
-              ) : null}
-              <button
-                type="button"
-                onClick={guardarEmpresa}
-                className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white"
-              >
-                <Save size={15} />
-                Guardar empresa
-              </button>
-            </div>
-          </section>
-        ) : null}
-
         {error && !activeErrorSection ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
         ) : null}
@@ -858,6 +1183,93 @@ export default function Ajustes() {
           {cerrandoSesion ? 'Cerrando sesión...' : 'Cerrar sesión'}
         </button>
       </div>
+
+      {isEditingCompany ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
+          <div className="w-full max-w-[560px] rounded-t-[24px] border border-[#e6e8f3] bg-white px-5 pb-6 pt-4 shadow-[0_24px_60px_rgba(15,23,42,0.35)] sm:px-6 sm:pb-7">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">
+                Editar empresa
+              </h3>
+              <button
+                type="button"
+                onClick={cerrarEditorEmpresa}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Nombre de la empresa
+                </p>
+                <input
+                  type="text"
+                  value={company.nombreEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, nombreEmpresa: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  placeholder="Nombre de la empresa"
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Tipo de empresa
+                </p>
+                <select
+                  value={company.tipoEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, tipoEmpresa: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                >
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Cooperativa">Cooperativa</option>
+                  <option value="Compraventa">Compraventa</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+
+              <div>
+                <p className="mb-2 block text-base font-semibold text-slate-900">
+                  Descripción
+                </p>
+                <textarea
+                  value={company.descripcion}
+                  onChange={(event) => {
+                    setCompany((prev) => ({ ...prev, descripcion: event.target.value }));
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]"
+                  rows={3}
+                  placeholder="Descripción breve del negocio"
+                />
+              </div>
+
+              {error && activeErrorSection === 'company' ? (
+                <InlineGuidedError message={getAjustesGuidance(error)} />
+              ) : null}
+
+              <button
+                type="button"
+                onClick={guardarEmpresa}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white"
+              >
+                <Save size={14} />
+                Guardar empresa
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isEditingBodega ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/35 px-3 pt-8 backdrop-blur-md">
@@ -951,7 +1363,8 @@ export default function Ajustes() {
         />
       ) : null}
 
-      <AppBottomNav />
+      {secadoModal}
+      <AppBottomNav hidden={isViewingSecado} />
     </div>
   );
 }
