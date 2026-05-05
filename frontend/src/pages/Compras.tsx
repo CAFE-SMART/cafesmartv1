@@ -768,9 +768,10 @@ export default function Compras() {
       
       return true; // Puede continuar directamente
     } catch (error) {
-      // Si falla la validación, permitir continuar (offline-first)
-      console.warn('No se pudo validar capacidad, permitiendo continuar:', error);
-      return true;
+      console.error('No se pudo validar capacidad:', error);
+      setRegistroErrorMensaje('No se pudo validar la capacidad de bodega. Intenta de nuevo más tarde.');
+      setMostrarModalCapacidad(false);
+      return false;
     }
   };
 
