@@ -195,6 +195,12 @@ export class ComprasService {
           organizacionIdFinal,
         );
         const compraProcesada = procesarCompra(input, contextoCapacidad);
+        if (compraProcesada.exceso && compraProcesada.exceso > 0) {
+          throw new BadRequestException(
+            'No hay espacio suficiente en bodega para registrar esta compra',
+          );
+        }
+
         const lotesCompra = await this.asegurarLotesCompra(
           tx,
           organizacionIdFinal,
@@ -270,6 +276,82 @@ export class ComprasService {
 
       throw error;
     }
+  }
+
+  async eliminarCompra(compraId: string, userId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const organizacionId = await this.obtenerOrganizacionId(tx, userId);
+      const compra = await tx.compra.findFirst({
+        where: {
+          id: compraId,
+          organizacionId,
+          deletedAt: null,
+        },
+        include: {
+          sublotes: {
+            where: this.obtenerWhereSubloteActivo(),
+            include: {
+              detallesVenta: {
+                where: { deletedAt: null },
+                select: { id: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!compra) {
+        throw new BadRequestException('La compra no existe o ya fue eliminada');
+      }
+
+      const tieneVentas = compra.sublotes.some(
+        (sublote) => sublote.detallesVenta.length > 0,
+      );
+
+      if (tieneVentas) {
+        throw new BadRequestException(
+          'No se puede eliminar una compra que ya tiene ventas registradas',
+        );
+      }
+
+      const ahora = new Date();
+      const movimientosReversa: MovimientoInventario[] = compra.sublotes.map(
+        (sublote) => ({
+          tipoCafeId: sublote.tipoCafeId,
+          calidadId: sublote.calidadId,
+          cantidad: -Number(sublote.pesoActual),
+          tipoMovimiento: TipoMovimientoInventario.COMPRA,
+          referenciaTipo: TipoReferenciaInventario.COMPRA,
+        }),
+      );
+
+      await this.actualizarInventarioSnapshot(
+        tx,
+        organizacionId,
+        movimientosReversa,
+      );
+
+      await this.registrarMovimientosInventario(
+        tx,
+        organizacionId,
+        userId,
+        compra.id,
+        movimientosReversa,
+      );
+
+      await tx.sublote.updateMany({
+        where: {
+          compraId: compra.id,
+          deletedAt: null,
+        },
+        data: { deletedAt: ahora },
+      });
+
+      await tx.compra.update({
+        where: { id: compra.id },
+        data: { deletedAt: ahora },
+      });
+    }, { maxWait: 10000, timeout: 25000 });
   }
 
   /**

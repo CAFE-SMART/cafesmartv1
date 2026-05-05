@@ -82,3 +82,9 @@ export async function crearCompra(payload: CreateCompraPayload) {
     sublotes: [],
   };
 }
+
+export async function eliminarCompra(id: string) {
+  return apiFetch(`/compras/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
+}

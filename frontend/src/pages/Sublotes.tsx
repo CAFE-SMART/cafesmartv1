@@ -11,6 +11,7 @@ import { getDaysInBodega } from '../utils/date';
 import {
   guardarFactoresSublotes,
   guardarHumedadesSublotes,
+  guardarPesosSublotes,
   obtenerDetalleLote,
   type LoteDetalle,
 } from '../services/lotesService';
@@ -19,7 +20,7 @@ import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
-type EditField = 'humedad' | 'factor';
+type EditField = 'humedad' | 'factor' | 'peso';
 
 type PendingHumidityEdit = {
   tipoCafeId: string;
@@ -439,6 +440,12 @@ export default function Sublotes() {
     setEditModal({ field: 'factor', value: currentValue === null ? '' : String(currentValue) });
   }, [subloteActivo]);
 
+  const handleEditPeso = useCallback(() => {
+    if (!subloteActivo) return;
+
+    setEditModal({ field: 'peso', value: String(subloteActivo.pesoActual) });
+  }, [subloteActivo]);
+
   const handleConfirmEdit = useCallback(() => {
     if (!editModal || !subloteActivo || !tipoCafeId || !calidadId) return;
 
@@ -496,6 +503,54 @@ export default function Sublotes() {
             updatedAt: Date.now(),
           });
           setError(err instanceof Error ? err.message : 'No se pudo guardar la humedad.');
+        }
+      })();
+
+      return;
+    }
+
+    if (editModal.field === 'peso') {
+      if (parsed === null || !Number.isFinite(parsed) || parsed < 0) {
+        setError('El peso no es valido. Debe ser un numero mayor o igual a cero.');
+        return;
+      }
+
+      if (parsed > subloteActivo.pesoInicial) {
+        setError('El peso actual no puede superar el peso inicial del sublote.');
+        return;
+      }
+
+      if (!isOnline) {
+        setError('Conectate a internet para ajustar el peso del sublote.');
+        setOfflineNoticeVisible(true);
+        return;
+      }
+
+      setError(null);
+      setEditModal(null);
+
+      const nextPeso = Number(parsed.toFixed(2));
+      setDetalle((current) => {
+        if (!current) return current;
+
+        const nextDetail: LoteDetalleVisual = {
+          ...current,
+          sublotes: current.sublotes.map((sublote) =>
+            sublote.id === subloteActivo.id ? { ...sublote, pesoActual: nextPeso } : sublote,
+          ) as LoteDetalleVisual['sublotes'],
+        };
+
+        writeCachedDetail(tipoCafeId, calidadId, nextDetail);
+        return nextDetail;
+      });
+
+      void (async () => {
+        try {
+          await guardarPesosSublotes([{ id: subloteActivo.id, pesoActual: nextPeso }]);
+          await cargar();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'No se pudo guardar el peso.');
+          await cargar();
         }
       })();
 
@@ -688,7 +743,7 @@ export default function Sublotes() {
 
           <button
             type="button"
-            onClick={() => navigate('/ajustes')}
+            onClick={handleEditPeso}
             className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#e9e9e9] bg-[#f7f7f7] text-[15px] font-semibold text-[#5a5a5a]"
           >
             <Scale size={18} strokeWidth={2.15} />
@@ -701,14 +756,24 @@ export default function Sublotes() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/40 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[360px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
             <p className="text-center text-[16px] font-semibold text-[#1f1f1f]">
-              {editModal.field === 'humedad' ? 'Editar humedad' : 'Editar factor'}
+              {editModal.field === 'humedad'
+                ? 'Editar humedad'
+                : editModal.field === 'peso'
+                  ? 'Ajustar peso'
+                  : 'Editar factor'}
             </p>
             <input
               type="number"
               inputMode="decimal"
               step={editModal.field === 'humedad' ? '0.1' : '0.01'}
               min="0"
-              max={editModal.field === 'humedad' ? '100' : undefined}
+              max={
+                editModal.field === 'humedad'
+                  ? '100'
+                  : editModal.field === 'peso'
+                    ? subloteActivo?.pesoInicial
+                    : undefined
+              }
               value={editModal.value}
               onChange={(event) =>
                 setEditModal((current) =>
@@ -716,7 +781,13 @@ export default function Sublotes() {
                 )
               }
               className="mt-3 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-2.5 text-[18px] font-semibold text-[#1f1f1f] outline-none focus:border-[#2f4aa4]"
-              placeholder={editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 86'}
+              placeholder={
+                editModal.field === 'humedad'
+                  ? 'Ej: 12.0'
+                  : editModal.field === 'peso'
+                    ? 'Ej: 120.5'
+                    : 'Ej: 86'
+              }
             />
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button

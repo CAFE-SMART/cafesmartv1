@@ -1,9 +1,11 @@
 ﻿import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -36,5 +38,15 @@ export class ComprasController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.comprasService.crearCompra(dto, req.user.sub);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async eliminar(
+    @Param('id') id: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    await this.comprasService.eliminarCompra(id, req.user.sub);
   }
 }

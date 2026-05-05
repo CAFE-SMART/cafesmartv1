@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/com
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ActualizarFactoresDto } from './dto/actualizar-factores.dto';
 import { ActualizarHumedadesDto } from './dto/actualizar-humedades.dto';
+import { ActualizarPesosDto } from './dto/actualizar-pesos.dto';
 import { LotesService } from './lotes.service';
 
 @Controller('lotes')
@@ -20,6 +21,17 @@ export class LotesController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.lotesService.findSublotesByLoteId(req.user.sub, loteId);
+  }
+
+  @Get('sublotes/:subloteId/resultados-financieros')
+  getResultadosFinancierosSublote(
+    @Param('subloteId') subloteId: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.lotesService.obtenerResultadosFinancierosSublote(
+      req.user.sub,
+      subloteId,
+    );
   }
 
   @Get(':tipoCafeId/:calidadId/sublotes')
@@ -49,5 +61,13 @@ export class LotesController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.lotesService.actualizarFactores(req.user.sub, dto.sublotes);
+  }
+
+  @Patch('sublotes/peso')
+  updatePesos(
+    @Body() dto: ActualizarPesosDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.lotesService.actualizarPesos(req.user.sub, dto.sublotes);
   }
 }

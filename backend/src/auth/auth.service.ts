@@ -237,6 +237,27 @@ export class AuthService {
     return this.buildAuthResponse(linkedUser, 'Login con Google exitoso');
   }
 
+  async verifyCurrentPassword(userId: string, password: string) {
+    const user = await this.usersService.findPasswordById(userId);
+
+    if (!user?.password) {
+      throw new UnauthorizedException({
+        message: 'Esta cuenta no tiene contrasena local configurada',
+        field: 'password',
+      });
+    }
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      throw new UnauthorizedException({
+        message: 'Contrasena incorrecta',
+        field: 'password',
+      });
+    }
+
+    return { valid: true };
+  }
+
   /**
    * Traduce errores de unicidad de Prisma a mensajes funcionales para el cliente.
    */

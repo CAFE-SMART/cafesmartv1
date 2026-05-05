@@ -10,16 +10,19 @@ const Landing = lazy(() => import('../pages/Landing'));
 const Register = lazy(() => import('../pages/Register'));
 const Inicio = lazy(() => import('../pages/Inicio'));
 const AnalisisFinanciero = lazy(() => import('../pages/AnalisisFinanciero'));
+const ResumenFinanciero = lazy(() => import('../pages/ResumenFinanciero'));
 const Compras = lazy(() => import('../pages/Compras'));
 const Inventario = lazy(() => import('../pages/Inventario'));
 const Ventas = lazy(() => import('../pages/Ventas'));
 const Sublotes = lazy(() => import('../pages/Sublotes'));
 const SecadoInicio = lazy(() => import('../pages/SecadoInicio'));
+const SecadosActivos = lazy(() => import('../pages/SecadosActivos'));
 const SecadoSeleccion = lazy(() => import('../pages/SecadoSeleccion'));
 const SecadoProceso = lazy(() => import('../pages/SecadoProceso'));
 const SecadoResumen = lazy(() => import('../pages/SecadoResumen'));
 const Ajustes = lazy(() => import('../pages/Ajustes'));
 const Gastos = lazy(() => import('../pages/Gastos'));
+const GastosListado = lazy(() => import('../pages/GastosListado'));
 const SystemStatus = lazy(() => import('../pages/SystemStatus'));
 const LogoutStatus = lazy(() => import('../pages/LogoutStatus'));
 const GastosOperativos = lazy(() => import('../pages/GastosOperativos'));
@@ -53,12 +56,15 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="/inicio" element={<Inicio />} />
           <Route path="/analisis-financiero" element={<AnalisisFinanciero />} />
+          <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
           <Route path="/compras" element={<Compras />} />
           <Route path="/ventas" element={<Ventas />} />
           <Route path="/inventario" element={<Inventario />} />
           <Route path="/ajustes" element={<Ajustes />} />
           <Route path="/gastos" element={<Gastos />} />
+          <Route path="/gastos/listado" element={<GastosListado />} />
           <Route path="/secado" element={<SecadoInicio />} />
+          <Route path="/inventario/secados" element={<SecadosActivos />} />
           <Route path="/inventario/lote/:loteId/secado" element={<SecadoSeleccion />} />
           <Route
             path="/inventario/:tipoCafeId/:calidadId/secado"

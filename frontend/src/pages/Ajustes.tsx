@@ -1109,8 +1109,8 @@ export default function Ajustes() {
             </div>
             <button
               type="button"
-              disabled
-              className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-80 mx-auto"
+              onClick={() => navigate('/resumen-financiero')}
+              className="relative z-10 mx-auto mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white"
             >
               Acceder ahora
             </button>

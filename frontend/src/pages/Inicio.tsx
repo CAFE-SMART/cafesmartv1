@@ -116,6 +116,13 @@ function MetricRow({
 
 function MovementRow({ movimiento }: { movimiento: DashboardMovimiento }) {
   const esVenta = movimiento.tipo === 'VENTA';
+  const esGasto = movimiento.tipo === 'GASTO';
+  const titulo = esVenta
+    ? `Venta - ${movimiento.nombre}`
+    : esGasto
+      ? `Gasto - ${movimiento.nombre}`
+      : `Compra - ${movimiento.nombre}`;
+  const detalle = esGasto ? 'Gasto operativo' : formatKgUpper(movimiento.kg);
 
   return (
     <div className="flex items-start justify-between gap-4 px-5 py-4">
@@ -125,10 +132,10 @@ function MovementRow({ movimiento }: { movimiento: DashboardMovimiento }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-[1.1rem] font-medium leading-tight text-[#1f2937]">
-            {esVenta ? `Venta - ${movimiento.nombre}` : `Compra - ${movimiento.nombre}`}
+            {titulo}
           </p>
           <p className="mt-1 text-[0.9rem] font-medium uppercase tracking-[0.04em] text-[#8391a7]">
-            {formatKgUpper(movimiento.kg)}
+            {detalle}
           </p>
         </div>
       </div>

@@ -104,6 +104,12 @@ type FactorUpdateInput = {
   factor?: number | null;
 };
 
+type PesoUpdateInput = {
+  id: string;
+  pesoActual: number;
+  motivo?: string;
+};
+
 const SUBLOTE_INVENTARIO_SELECT = {
   id: true,
   pesoInicial: true,
@@ -164,8 +170,8 @@ export class LotesService {
 
     const mermaKg = Math.max(0, pesoInicial - pesoActual - pesoVendido);
     
-    const effectiveWeight = Math.max(0.01, pesoInicial - pesoVendido);
-    const costoPorKg = costoTotal / effectiveWeight;
+    const costoPorKg = pesoInicial > 0 ? costoTotal / pesoInicial : 0;
+    const costoVendido = pesoVendido * costoPorKg;
     
     const mermaPorcentaje = pesoInicial > 0 ? (mermaKg / pesoInicial) * 100 : 0;
     const mermaValor = mermaKg * costoPorKg;
@@ -195,7 +201,7 @@ export class LotesService {
       }
     }
 
-    const utilidadNeta = totalVentas - costoTotal - totalGastos - mermaValor;
+    const utilidadNeta = totalVentas - costoVendido - totalGastos - mermaValor;
 
     return {
       costoTotal,
@@ -261,6 +267,72 @@ export class LotesService {
     return gastosPorSublote;
   }
 
+  private calcularGastosGeneralesPorSublote(
+    gastosGenerales: Array<{ montoGasto: Prisma.Decimal | number }>,
+    sublotes: InventarioSublote[],
+    ventasPorSublote: Map<string, VentaResumen>,
+  ): Map<string, number> {
+    const gastosPorSublote = new Map<string, number>();
+    const totalGastosGenerales = gastosGenerales.reduce(
+      (sum, gasto) => sum + Number(gasto.montoGasto),
+      0,
+    );
+
+    if (totalGastosGenerales <= 0 || sublotes.length === 0) {
+      return gastosPorSublote;
+    }
+
+    const pesoBasePorSublote = new Map<string, number>();
+    let pesoBaseTotal = 0;
+
+    for (const sublote of sublotes) {
+      const venta = ventasPorSublote.get(sublote.id);
+      const pesoBase = Number(sublote.pesoActual) + (venta?.pesoVendido ?? 0);
+      pesoBasePorSublote.set(sublote.id, pesoBase);
+      pesoBaseTotal += pesoBase;
+    }
+
+    for (const sublote of sublotes) {
+      const pesoBase = pesoBasePorSublote.get(sublote.id) ?? 0;
+      const gastoAsignado =
+        pesoBaseTotal > 0
+          ? (pesoBase / pesoBaseTotal) * totalGastosGenerales
+          : totalGastosGenerales / sublotes.length;
+
+      gastosPorSublote.set(sublote.id, gastoAsignado);
+    }
+
+    return gastosPorSublote;
+  }
+
+  private combinarGastosPorSublote(
+    gastosAsociados: Map<string, number>,
+    gastosGenerales: Map<string, number>,
+  ): Map<string, number> {
+    const combinado = new Map(gastosAsociados);
+
+    for (const [subloteId, monto] of gastosGenerales.entries()) {
+      combinado.set(subloteId, (combinado.get(subloteId) ?? 0) + monto);
+    }
+
+    return combinado;
+  }
+
+  private sumarGastoFinanciero(
+    financiero: SubloteFinanciero,
+    gastoAdicional: number,
+  ): SubloteFinanciero {
+    if (gastoAdicional <= 0) {
+      return financiero;
+    }
+
+    return {
+      ...financiero,
+      totalGastos: financiero.totalGastos + gastoAdicional,
+      utilidadNeta: financiero.utilidadNeta - gastoAdicional,
+    };
+  }
+
   private calcularFinancieroSubloteResumen(
     sublote: Pick<InventarioSublote, 'costoTotal' | 'pesoInicial' | 'pesoActual'>,
     venta: VentaResumen | undefined,
@@ -272,11 +344,11 @@ export class LotesService {
     const pesoVendido = venta?.pesoVendido ?? 0;
     const totalVentas = venta?.totalVentas ?? 0;
     const mermaKg = Math.max(0, pesoInicial - pesoActual - pesoVendido);
-    const effectiveWeight = Math.max(0.01, pesoInicial - pesoVendido);
-    const costoPorKg = costoTotal / effectiveWeight;
+    const costoPorKg = pesoInicial > 0 ? costoTotal / pesoInicial : 0;
+    const costoVendido = pesoVendido * costoPorKg;
     const mermaPorcentaje = pesoInicial > 0 ? (mermaKg / pesoInicial) * 100 : 0;
     const mermaValor = mermaKg * costoPorKg;
-    const utilidadNeta = totalVentas - costoTotal - totalGastos - mermaValor;
+    const utilidadNeta = totalVentas - costoVendido - totalGastos - mermaValor;
 
     return {
       costoTotal,
@@ -310,7 +382,7 @@ export class LotesService {
     }
 
     const subloteIds = sublotes.map((sublote) => sublote.id);
-    const [detallesVenta, gastosSublote] = await this.prisma.$transaction([
+    const [detallesVenta, gastosSublote, gastosGenerales] = await this.prisma.$transaction([
       this.prisma.ventaDetalle.findMany({
         where: {
           deletedAt: null,
@@ -340,6 +412,16 @@ export class LotesService {
           },
         },
       }),
+      this.prisma.gastoOperativo.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          sublotes: { none: {} },
+        },
+        select: {
+          montoGasto: true,
+        },
+      }),
     ]);
 
     const ventasPorSublote = new Map<string, VentaResumen>();
@@ -354,10 +436,13 @@ export class LotesService {
       ventasPorSublote.set(detalle.subloteId, actual);
     }
 
-    const gastosPorSublote = this.calcularGastosPorSublote(
-      gastosSublote,
-      sublotes,
-      ventasPorSublote,
+    const gastosPorSublote = this.combinarGastosPorSublote(
+      this.calcularGastosPorSublote(gastosSublote, sublotes, ventasPorSublote),
+      this.calcularGastosGeneralesPorSublote(
+        gastosGenerales,
+        sublotes,
+        ventasPorSublote,
+      ),
     );
 
     const lotesAgrupados = new Map<string, LoteAcumulado>();
@@ -520,6 +605,58 @@ export class LotesService {
       throw new NotFoundException('No se encontraron sublotes para ese lote');
     }
 
+    const sublotesOrganizacion = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: SUBLOTE_INVENTARIO_SELECT,
+    });
+    const sublotesOrganizacionIds = sublotesOrganizacion.map((sublote) => sublote.id);
+    const [detallesVentaOrganizacion, gastosGenerales] = await this.prisma.$transaction([
+      this.prisma.ventaDetalle.findMany({
+        where: {
+          deletedAt: null,
+          subloteId: { in: sublotesOrganizacionIds },
+        },
+        select: {
+          subloteId: true,
+          pesoVendido: true,
+          subtotal: true,
+        },
+      }),
+      this.prisma.gastoOperativo.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          sublotes: { none: {} },
+        },
+        select: {
+          montoGasto: true,
+        },
+      }),
+    ]);
+
+    const ventasOrganizacionPorSublote = new Map<string, VentaResumen>();
+    for (const detalle of detallesVentaOrganizacion) {
+      const actual = ventasOrganizacionPorSublote.get(detalle.subloteId) ?? {
+        pesoVendido: 0,
+        totalVentas: 0,
+      };
+      actual.pesoVendido += Number(detalle.pesoVendido);
+      actual.totalVentas += Number(detalle.subtotal);
+      ventasOrganizacionPorSublote.set(detalle.subloteId, actual);
+    }
+
+    const gastosGeneralesPorSublote = this.calcularGastosGeneralesPorSublote(
+      gastosGenerales,
+      sublotesOrganizacion,
+      ventasOrganizacionPorSublote,
+    );
+
     const primerSublote = sublotes[0];
     let pesoInicial = 0;
     let pesoActual = 0;
@@ -546,7 +683,10 @@ export class LotesService {
       const factor = this.normalizarNumeroNullable(sublote.factor);
       const fechaIngreso = sublote.compra.fecha;
 
-      const financiero = this.calcularFinancieroSublote(sublote);
+      const financiero = this.sumarGastoFinanciero(
+        this.calcularFinancieroSublote(sublote),
+        gastosGeneralesPorSublote.get(sublote.id) ?? 0,
+      );
       totalVentas += financiero.totalVentas;
       totalGastos += financiero.totalGastos;
       utilidadNeta += financiero.utilidadNeta;
@@ -650,6 +790,111 @@ export class LotesService {
     return this.findSublotesByLote(userId, lote.tipoCafeId, lote.calidadId);
   }
 
+  async obtenerResultadosFinancierosSublote(
+    userId: string,
+    subloteId: string,
+  ): Promise<SubloteFinanciero & { subloteId: string }> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const sublote = await this.prisma.sublote.findFirst({
+      where: {
+        id: subloteId,
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        ...SUBLOTE_INVENTARIO_SELECT,
+        detallesVenta: {
+          where: { deletedAt: null },
+        },
+        gastosOperativos: {
+          include: {
+            gastoOperativo: {
+              include: {
+                sublotes: {
+                  include: {
+                    sublote: {
+                      include: {
+                        detallesVenta: { where: { deletedAt: null } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sublote) {
+      throw new NotFoundException(`Sublote con id "${subloteId}" no encontrado`);
+    }
+
+    const sublotesOrganizacion = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: SUBLOTE_INVENTARIO_SELECT,
+    });
+    const sublotesOrganizacionIds = sublotesOrganizacion.map((item) => item.id);
+    const [detallesVentaOrganizacion, gastosGenerales] = await this.prisma.$transaction([
+      this.prisma.ventaDetalle.findMany({
+        where: {
+          deletedAt: null,
+          subloteId: { in: sublotesOrganizacionIds },
+        },
+        select: {
+          subloteId: true,
+          pesoVendido: true,
+          subtotal: true,
+        },
+      }),
+      this.prisma.gastoOperativo.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          sublotes: { none: {} },
+        },
+        select: {
+          montoGasto: true,
+        },
+      }),
+    ]);
+
+    const ventasPorSublote = new Map<string, VentaResumen>();
+    for (const detalle of detallesVentaOrganizacion) {
+      const actual = ventasPorSublote.get(detalle.subloteId) ?? {
+        pesoVendido: 0,
+        totalVentas: 0,
+      };
+      actual.pesoVendido += Number(detalle.pesoVendido);
+      actual.totalVentas += Number(detalle.subtotal);
+      ventasPorSublote.set(detalle.subloteId, actual);
+    }
+
+    const gastosGeneralesPorSublote = this.calcularGastosGeneralesPorSublote(
+      gastosGenerales,
+      sublotesOrganizacion,
+      ventasPorSublote,
+    );
+    const financiero = this.sumarGastoFinanciero(
+      this.calcularFinancieroSublote(sublote),
+      gastosGeneralesPorSublote.get(sublote.id) ?? 0,
+    );
+
+    return {
+      subloteId: sublote.id,
+      ...financiero,
+    };
+  }
+
   async actualizarHumedades(
     userId: string,
     sublotes: HumedadUpdateInput[],
@@ -744,6 +989,118 @@ export class LotesService {
         }),
       ),
     );
+
+    return { totalActualizados: sublotes.length };
+  }
+
+  async actualizarPesos(
+    userId: string,
+    sublotes: PesoUpdateInput[],
+  ): Promise<{ totalActualizados: number }> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const ids = sublotes.map((sublote) => sublote.id);
+    const idsUnicos = [...new Set(ids)];
+
+    if (ids.length !== idsUnicos.length) {
+      throw new BadRequestException(
+        'Hay sublotes repetidos. Revisa la seleccion e intenta guardar de nuevo.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const existentes = await tx.sublote.findMany({
+        where: {
+          id: { in: idsUnicos },
+          deletedAt: null,
+          compra: {
+            deletedAt: null,
+            organizacionId,
+          },
+        },
+        select: {
+          id: true,
+          pesoInicial: true,
+          pesoActual: true,
+          tipoCafeId: true,
+          calidadId: true,
+        },
+      });
+
+      if (existentes.length !== idsUnicos.length) {
+        const encontrados = new Set(existentes.map((sublote) => sublote.id));
+        const faltantes = idsUnicos.filter((id) => !encontrados.has(id));
+        throw new NotFoundException(
+          `No encontramos algunos sublotes de esta solicitud: ${faltantes.join(', ')}. Actualiza el inventario e intenta nuevamente.`,
+        );
+      }
+
+      const existentesPorId = new Map(existentes.map((sublote) => [sublote.id, sublote]));
+      const deltaInventario = new Map<
+        string,
+        { tipoCafeId: string; calidadId: string; cantidad: number }
+      >();
+
+      for (const sublote of sublotes) {
+        const existente = existentesPorId.get(sublote.id);
+        const pesoActual = Number(sublote.pesoActual);
+
+        if (!existente || !Number.isFinite(pesoActual) || pesoActual < 0) {
+          throw new BadRequestException(
+            'El peso ingresado no es valido. Revisa que sea un numero mayor o igual a cero.',
+          );
+        }
+
+        if (pesoActual > Number(existente.pesoInicial)) {
+          throw new BadRequestException(
+            'El peso actual no puede superar el peso inicial del sublote. Ajusta el valor e intenta de nuevo.',
+          );
+        }
+
+        const delta = pesoActual - Number(existente.pesoActual);
+        const clave = `${existente.tipoCafeId}::${existente.calidadId}`;
+        const actual = deltaInventario.get(clave) ?? {
+          tipoCafeId: existente.tipoCafeId,
+          calidadId: existente.calidadId,
+          cantidad: 0,
+        };
+        actual.cantidad += delta;
+        deltaInventario.set(clave, actual);
+
+        await tx.sublote.update({
+          where: { id: sublote.id },
+          data: {
+            pesoActual,
+          },
+        });
+      }
+
+      for (const movimiento of deltaInventario.values()) {
+        if (Math.abs(movimiento.cantidad) < 0.0001) {
+          continue;
+        }
+
+        await tx.inventario.upsert({
+          where: {
+            organizacionId_tipoCafeId_calidadId: {
+              organizacionId,
+              tipoCafeId: movimiento.tipoCafeId,
+              calidadId: movimiento.calidadId,
+            },
+          },
+          create: {
+            organizacionId,
+            tipoCafeId: movimiento.tipoCafeId,
+            calidadId: movimiento.calidadId,
+            pesoTotal: movimiento.cantidad,
+          },
+          update: {
+            pesoTotal: {
+              increment: movimiento.cantidad,
+            },
+          },
+        });
+      }
+    }, { maxWait: 10000, timeout: 25000 });
 
     return { totalActualizados: sublotes.length };
   }

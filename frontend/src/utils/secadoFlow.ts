@@ -232,6 +232,10 @@ export function getActiveSecadoSession() {
   return readStorage().find((session) => session.estado !== 'COMPLETED') ?? null;
 }
 
+export function getActiveSecadoSessions() {
+  return readStorage().filter((session) => session.estado !== 'COMPLETED');
+}
+
 export function getActiveSecadoSessionForLot(lotId: string) {
   return (
     readStorage().find(
