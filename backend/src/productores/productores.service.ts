@@ -51,7 +51,7 @@ export class ProductoresService {
       data: {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarTextoOpcional(dto.documento),
+        documento: this.normalizarDocumento(dto.documento),
         telefono: this.normalizarTextoOpcional(dto.telefono),
       },
       select: {
@@ -95,7 +95,7 @@ export class ProductoresService {
       where: { id: productorId },
       data: {
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarTextoOpcional(dto.documento),
+        documento: this.normalizarDocumento(dto.documento),
         telefono: this.normalizarTextoOpcional(dto.telefono),
       },
       select: {
@@ -146,5 +146,15 @@ export class ProductoresService {
     }
 
     return nombre;
+  }
+
+  private normalizarDocumento(valor: string): string {
+    const documento = valor.trim();
+
+    if (!documento) {
+      throw new BadRequestException('El documento del productor es obligatorio');
+    }
+
+    return documento;
   }
 }

@@ -12,14 +12,13 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
-import { createGuidedErrorFromUi, InlineGuidedError } from '../components/forms/GuidedError';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { obtenerConfiguracionBodega } from '../services/bodegaApi';
-import { applySecadoToLots, getActiveSecadoSession } from '../utils/secadoFlow';
+import { applySecadoToLots, getActiveSecadoSession, getActiveSecadoSessions } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
-import { UI_MESSAGES } from '../utils/uiMessages';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
-const TYPE_ORDER = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
+const TYPE_ORDER = ['VERDE', 'EN SECADO', 'SECO', 'TRILLADO', 'PASILLA'] as const;
 const BULTO_KG = 40.7;
 const QUALITY_SECTIONS = [
   { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
@@ -27,12 +26,26 @@ const QUALITY_SECTIONS = [
   { key: 'MALO', title: 'MALO', dot: 'bg-[#d82433]' },
 ] as const;
 
+const OPERATIONAL_CACHE_KEYS = [
+  'cafesmart-secado-flow-v1',
+  'cafesmart-sublote-detail-cache-v1',
+  'cafesmart-sublote-humedad-queue-v1',
+  'cafesmart-sublote-factor-queue-v1',
+  'cafesmart-sublote-peso-queue-v1',
+];
+
 function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value);
+}
+
+function formatKg(value: number) {
+  return new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: value % 1 === 0 ? 0 : 1,
+  }).format(value);
 }
 
 function formatSacks(valueKg: number) {
@@ -45,6 +58,16 @@ function formatSacks(valueKg: number) {
 
 function formatShortSacks(valueKg: number) {
   return formatSacks(valueKg);
+}
+
+function pluralLabel(value: number, singular: string, plural: string) {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function displayCoffeeName(value: string) {
+  const key = keyOf(value);
+  if (key === 'EN SECADO') return 'En secado';
+  return value.toLowerCase();
 }
 
 function getLotDays(lot: LoteResumen) {
@@ -78,6 +101,15 @@ function coffeeVisual(name: string) {
     };
   }
 
+  if (key === 'EN SECADO') {
+    return {
+      icon: <CircleDashed size={18} />,
+      bg: 'bg-[#fff7df]',
+      text: 'text-[#b77900]',
+      ring: '#b77900',
+    };
+  }
+
   if (key === 'PASILLA') {
     return {
       icon: <BadgeAlert size={18} />,
@@ -93,6 +125,23 @@ function coffeeVisual(name: string) {
     text: 'text-[#102d92]',
     ring: '#102d92',
   };
+}
+
+function clearOperationalLocalCache() {
+  if (typeof window === 'undefined') return;
+  OPERATIONAL_CACHE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+}
+
+function isSecadoProcessLot(lot: LoteResumen) {
+  return keyOf(lot.tipoCafe) === 'EN SECADO';
+}
+
+function secadoProgress(estado: string) {
+  return estado === 'READY' ? 82 : 45;
+}
+
+function secadoStatusLabel(estado: string) {
+  return estado === 'READY' ? 'Listo para finalizar' : 'Secado en proceso';
 }
 
 function CapacityRing({
@@ -157,16 +206,18 @@ function CapacityRing({
     </section>
   );
 }
-
 function TypeSummaryCard({
   lot,
+  subloteCount,
   onOpen,
 }: {
   lot: LoteResumen;
+  subloteCount: number;
   onOpen: () => void;
 }) {
   const visual = coffeeVisual(lot.tipoCafe);
-  const totalLotsLabel = `${lot.sublotes} LOTE${lot.sublotes === 1 ? '' : 'S'}`;
+  const sublotesLabel = pluralLabel(subloteCount, 'sublote', 'sublotes');
+  const isProcess = isSecadoProcessLot(lot);
 
   return (
     <button
@@ -180,7 +231,7 @@ function TypeSummaryCard({
             {visual.icon}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">{lot.tipoCafe.toLowerCase()}</p>
+            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">{displayCoffeeName(lot.tipoCafe)}</p>
             <p className="mt-0.5 text-sm text-slate-500">
               {formatNumber(lot.pesoActual)} kg · {formatShortSacks(lot.pesoActual)} bultos
             </p>
@@ -188,8 +239,10 @@ function TypeSummaryCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="rounded-[12px] bg-[#f2f3f7] px-4 py-2 text-sm font-semibold text-slate-700">
-            {totalLotsLabel}
+          <span className={`rounded-[12px] px-4 py-2 text-sm font-semibold ${
+            isProcess ? 'bg-[#fff2cc] text-[#946200]' : 'bg-[#f2f3f7] text-slate-700'
+          }`}>
+            {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
           <ArrowRight size={18} className="text-slate-400" />
         </div>
@@ -200,6 +253,7 @@ function TypeSummaryCard({
 
 function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void }) {
   const lotDays = getLotDays(lot).max;
+  const sublotesLabel = pluralLabel(lot.sublotes, 'sublote', 'sublotes');
 
   return (
     <button
@@ -209,7 +263,9 @@ function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void 
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-slate-900">{lot.codigo}</p>
+          <p className="truncate text-[1.05rem] font-semibold text-slate-900">
+            {isSecadoProcessLot(lot) ? 'En proceso de secado' : 'Sublotes disponibles'}
+          </p>
           <p className="mt-0.5 text-sm text-slate-500">
             {formatNumber(lot.pesoActual)} kg
           </p>
@@ -218,7 +274,64 @@ function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void 
             {lotDays} días
           </p>
         </div>
-        <ArrowRight size={18} className="text-slate-400" />
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-[12px] bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700">
+            {sublotesLabel}
+          </span>
+          <ArrowRight size={18} className="text-slate-400" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function SecadoProcessCard({
+  session,
+  onOpen,
+}: {
+  session: ReturnType<typeof getActiveSecadoSessions>[number];
+  onOpen: () => void;
+}) {
+  const totalKg = session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  const progress = secadoProgress(session.estado);
+  const startedAt = new Date(session.startedAt);
+  const fecha = Number.isNaN(startedAt.getTime())
+    ? 'Hoy'
+    : startedAt.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-[18px] border border-amber-200 bg-[#fff8e7] p-4 text-left shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-amber-700">
+            {secadoStatusLabel(session.estado)}
+          </p>
+          <p className="mt-1 truncate text-[1.05rem] font-black text-slate-900">
+            {session.tipoCafe} - {session.calidad}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {formatNumber(totalKg)} kg - desde {fecha}
+          </p>
+        </div>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-amber-700">
+          <CircleDashed size={17} />
+        </span>
+      </div>
+
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white">
+        <div
+          className="h-full rounded-full bg-[#f6b81a] transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[0.58rem] font-black uppercase tracking-[0.08em] text-amber-800/70">
+        <span>Inicio</span>
+        <span>{progress}%</span>
+        <span>Resultado</span>
       </div>
     </button>
   );
@@ -255,14 +368,19 @@ export default function Inventario() {
         obtenerLotes(),
         obtenerConfiguracionBodega(),
       ]);
-      setLots(applySecadoToLots(data));
+
+      if (data.length === 0) {
+        clearOperationalLocalCache();
+      }
+
+      setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
       setBodegaConfig({
         nombreBodega: config.nombreBodega,
         capacidadKg: config.capacidadKg,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el inventario.');
-      setLots(applySecadoToLots([]));
+      setLots([]);
     } finally {
       setLoading(false);
     }
@@ -271,8 +389,6 @@ export default function Inventario() {
   useEffect(() => {
     void loadLots();
   }, []);
-
-  const activeSession = getActiveSecadoSession();
 
   const availableTypes = useMemo(() => {
     const map = new Map<string, { key: string; name: string }>();
@@ -366,7 +482,6 @@ export default function Inventario() {
           key: current.key,
           name: current.name,
           totalKg,
-          totalLots: current.lots.length,
           lots: current.lots,
         },
       ];
@@ -383,16 +498,22 @@ export default function Inventario() {
   );
 
   const totalKg = useMemo(() => lots.reduce((sum, lot) => sum + lot.pesoActual, 0), [lots]);
-  const secadoTarget = typeKey === 'VERDE' && orderedLots.length > 0 ? orderedLots[0] : null;
-  const showGlobalEmptyState = !loading && !error && lots.length === 0;
-  const secadoProcessPath =
-    typeKey === 'VERDE'
-      ? activeSession
-        ? `/inventario/secado/${activeSession.id}/finalizar`
-        : secadoTarget
-          ? `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`
-          : null
+  const activeSecadoSessions = useMemo(
+    () =>
+      ENABLE_SECADO_PROTOTYPE
+        ? [...getActiveSecadoSessions()].sort(
+            (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+          )
+        : [],
+    [lots],
+  );
+  const activeSessionBase = ENABLE_SECADO_PROTOTYPE ? getActiveSecadoSession() : null;
+  const activeSession =
+    activeSessionBase && lots.some((lot) => lot.id === activeSessionBase.loteId)
+      ? activeSessionBase
       : null;
+  const secadoTarget = ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0 ? orderedLots[0] : null;
+  const showGlobalEmptyState = !loading && !error && lots.length === 0;
 
   return (
     <div
@@ -436,14 +557,21 @@ export default function Inventario() {
                   <button
                     key={item.key || 'all'}
                     type="button"
-                    onClick={() => setTypeKey(item.key)}
+                    onClick={() => {
+                      if (item.key === 'EN SECADO') {
+                        navigate('/inventario/secados');
+                        return;
+                      }
+
+                      setTypeKey(item.key);
+                    }}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                       active
                         ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
                         : 'border-[#d8deea] bg-white text-slate-600'
                     }`}
                   >
-                    {item.label}
+                    {item.key === 'EN SECADO' ? 'En secado' : item.label}
                   </button>
                 );
               })}
@@ -452,31 +580,31 @@ export default function Inventario() {
         ) : null}
 
         {showGlobalEmptyState ? (
-          <section className="w-full min-h-[calc(100vh-112px)] bg-white px-5 py-8 text-center">
-            <div className="mx-auto flex min-h-[calc(100vh-176px)] w-full max-w-[520px] flex-col items-center justify-center">
-              <div className="relative h-[210px] w-[210px]">
-                <div className="absolute inset-0 rotate-3 rounded-[30px] bg-[#f9f9fb] shadow-[0_28px_42px_rgba(35,39,75,0.1)]" />
-                <div className="absolute inset-[44px] flex items-center justify-center rounded-[20px] bg-[#f2f2f4] text-slate-300">
-                  <Package2 size={46} />
+          <section className="px-1 pt-4">
+            <div className="mx-auto max-w-[360px] rounded-[22px] border border-[#e1e8f3] bg-white px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
+              <div className="relative mx-auto h-[96px] w-[96px]">
+                <div className="absolute inset-0 rotate-3 rounded-[24px] bg-[#f6f8fc]" />
+                <div className="absolute inset-[22px] flex items-center justify-center rounded-[16px] bg-[#eef3f8] text-slate-300">
+                  <Package2 size={28} />
                 </div>
-                <div className="absolute -right-2 bottom-4 flex h-16 w-16 rotate-[-9deg] items-center justify-center rounded-[18px] bg-[#ff7a10] text-white shadow-[0_10px_18px_rgba(255,122,16,0.45)]">
-                  <Coffee size={24} />
+                <div className="absolute -right-1 bottom-2 flex h-10 w-10 rotate-[-9deg] items-center justify-center rounded-[13px] bg-[#ff7a10] text-white shadow-[0_8px_14px_rgba(255,122,16,0.35)]">
+                  <Coffee size={17} />
                 </div>
               </div>
 
-              <h2 className="mt-2 text-[2.05rem] font-black leading-tight text-[#1f2432]">
-                Aún no tienes café en inventario
+              <h2 className="mt-4 text-[1.25rem] font-black leading-tight text-[#1f2432]">
+                Aún no hay café en inventario
               </h2>
-              <p className="mt-3 text-[1.02rem] font-medium leading-relaxed text-slate-500">
-                Registra tu primera compra para empezar a ver tu café.
+              <p className="mx-auto mt-2 max-w-[260px] text-[0.84rem] font-medium leading-5 text-slate-500">
+                Registra tu primera compra para empezar.
               </p>
 
               <button
                 type="button"
                 onClick={() => navigate('/compras')}
-                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[16px] bg-[#2f64db] px-5 py-4 text-[1.75rem] font-semibold text-white shadow-[0_14px_30px_rgba(47,100,219,0.3)]"
+                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#2f64db] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(47,100,219,0.22)]"
               >
-                <ShoppingCart size={24} />
+                <ShoppingCart size={18} />
                 Registrar compra
               </button>
             </div>
@@ -493,9 +621,16 @@ export default function Inventario() {
                     ...group.lots[0],
                     tipoCafe: group.name,
                     pesoActual: group.totalKg,
-                    sublotes: group.totalLots,
                   }}
-                  onOpen={() => setTypeKey(group.key)}
+                  subloteCount={group.lots.reduce((sum, lot) => sum + lot.sublotes, 0)}
+                  onOpen={() => {
+                    if (group.key === 'EN SECADO') {
+                      navigate('/inventario/secados');
+                      return;
+                    }
+
+                    setTypeKey(group.key);
+                  }}
                 />
               ))}
             </div>
@@ -503,63 +638,51 @@ export default function Inventario() {
         ) : null}
 
         {typeKey === 'VERDE' && activeSession ? (
-          <section className="rounded-[28px] border border-[#cdeef1] bg-[#dff8fb] p-5 shadow-sm">
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#0f6b6d]">
-              Monitoreo activo
-            </p>
-            <h2 className="mt-4 text-[1.9rem] font-black leading-tight text-[#102d92]">
-              Lote en proceso de secado
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Lote
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">{activeSession.loteCodigo}</p>
-              </div>
-              <div className="rounded-[20px] bg-white/70 px-4 py-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Sublotes seleccionados
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
-                  {activeSession.sublotes.length}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(`/inventario/secado/${activeSession.id}/finalizar`)}
-              className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white"
-            >
-              Finalizar secado
-            </button>
-          </section>
-        ) : null}
-
-        {typeKey === 'VERDE' && !activeSession && secadoTarget ? (
           <button
             type="button"
-            onClick={() => navigate(`/inventario/lote/${secadoTarget.id}/secado`)}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-lg font-black text-white shadow-[0_18px_38px_rgba(16,45,146,0.18)]"
+            onClick={() => navigate('/inventario/secados')}
+            className="inline-flex w-full items-center justify-center gap-2 text-[0.82rem] font-semibold text-[#647cb8]"
           >
-            <SunMedium size={20} />
+            <CircleDashed size={15} />
+            Ver secados activos
+            <ArrowRight size={15} />
+          </button>
+        ) : null}
+
+        {typeKey === 'VERDE' && secadoTarget ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
+          >
+            <SunMedium size={17} />
             Iniciar secado
           </button>
         ) : null}
 
-        {secadoProcessPath ? (
-          <button
-            type="button"
-            onClick={() => navigate(secadoProcessPath)}
-            className="inline-flex w-full items-center justify-center gap-2 text-[1.05rem] font-semibold text-[#647cb8]"
-          >
-            <CircleDashed size={18} />
-            Ver procesos de secado
-            <ArrowRight size={18} />
-          </button>
+        {typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#f6b81a]" />
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">Procesos de secado</p>
+              </div>
+              <p className="text-sm font-semibold text-slate-500">
+                {activeSecadoSessions.length} activo{activeSecadoSessions.length === 1 ? '' : 's'}
+              </p>
+            </div>
+
+            {activeSecadoSessions.map((session) => (
+              <SecadoProcessCard
+                key={session.id}
+                session={session}
+                onOpen={() => navigate(`/inventario/secado/${session.id}/finalizar?step=finish`)}
+              />
+            ))}
+          </section>
         ) : null}
 
-        {locationState?.completedSecadoId ? (
+        {ENABLE_SECADO_PROTOTYPE && locationState?.completedSecadoId ? (
           <section className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm font-medium text-emerald-700">
             El secado se envió al inventario y ya se refleja como sublote de café seco.
           </section>
@@ -567,11 +690,8 @@ export default function Inventario() {
 
         {error ? (
           <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            <InlineGuidedError
-              message={createGuidedErrorFromUi(UI_MESSAGES.system.internalError)}
-              className="border-0 bg-transparent px-0 py-0 text-inherit shadow-none"
-            />
-            <p className="mt-2 text-sm text-rose-700">{error}</p>
+            <p className="font-bold">No se pudo cargar el inventario</p>
+            <p className="mt-1">Verifica tu conexion e intenta de nuevo.</p>
             <button
               type="button"
               onClick={() => void loadLots()}
@@ -585,7 +705,7 @@ export default function Inventario() {
 
         {loading ? (
           <section className="rounded-[26px] border border-[#dde4f1] bg-white px-5 py-12 text-center shadow-sm">
-            <p className="text-lg font-semibold text-slate-500">{UI_MESSAGES.loading.inventory}</p>
+            <p className="text-lg font-semibold text-slate-500">Cargando inventario...</p>
           </section>
         ) : null}
 
@@ -594,21 +714,11 @@ export default function Inventario() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
               <Package2 size={22} />
             </div>
-            <p className="mt-4 text-lg font-black text-slate-900">{UI_MESSAGES.empty.inventoryByFilter.titulo}</p>
-            <p className="mx-auto mt-2 max-w-[300px] text-sm leading-6 text-slate-500">
-              {UI_MESSAGES.empty.inventoryByFilter.mensaje}
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/compras')}
-              className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-            >
-              {UI_MESSAGES.empty.inventoryByFilter.accion}
-            </button>
+            <p className="mt-4 text-lg text-slate-600">Todavia no hay sublotes registrados en este tipo de cafe.</p>
           </section>
         ) : null}
 
-        {!loading && !error && typeKey !== '' && orderedLots.length > 0
+        {!loading && !error && typeKey !== '' && typeKey !== 'EN SECADO' && orderedLots.length > 0
           ? (
               <section className="space-y-4">
                 {qualitySections
@@ -621,7 +731,11 @@ export default function Inventario() {
                         <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">{section.title}</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-500">
-                        {section.lots.length} lote{section.lots.length === 1 ? '' : 's'}
+                        {pluralLabel(
+                          section.lots.reduce((sum, lot) => sum + lot.sublotes, 0),
+                          'sublote',
+                          'sublotes',
+                        )}
                       </p>
                     </div>
 
@@ -630,7 +744,14 @@ export default function Inventario() {
                         <QualityLotCard
                           key={lot.id}
                           lot={lot}
-                          onOpen={() => navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`)}
+                          onOpen={() => {
+                            if (isSecadoProcessLot(lot)) {
+                              navigate('/inventario/secados');
+                              return;
+                            }
+
+                            navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`);
+                          }}
                         />
                       ))}
                     </div>

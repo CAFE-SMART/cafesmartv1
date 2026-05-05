@@ -1,5 +1,4 @@
 import type { AuthError } from '../services/authService';
-import { UI_MESSAGES } from './uiMessages';
 
 type RawApiError = {
   message?: string | string[];
@@ -8,16 +7,19 @@ type RawApiError = {
 };
 
 export const AUTH_MESSAGES = {
-  invalidEmail: 'No encontramos una cuenta con ese correo.',
-  invalidPassword: 'Contraseña incorrecta.',
-  googleGeneric: 'No pudimos iniciar sesión con Google. Intenta nuevamente.',
-  googleNeedsRegister: 'No encontramos tu cuenta. Vamos a crearla.',
-  offline: UI_MESSAGES.auth.offline.mensaje,
+  invalidEmail: 'Correo incorrecto.',
+  invalidPassword: 'Contrasena incorrecta.',
+  googleGeneric:
+    'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
+  googleNeedsRegister:
+    'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
+  offline:
+    'Revisa tu conexión e intenta de nuevo.',
 } as const;
 
 export function normalizeMessage(message: string | string[] | undefined, fallback: string) {
   if (Array.isArray(message)) {
-    return message.join(', ');
+    return message.filter(Boolean).join(', ');
   }
 
   return message || fallback;
@@ -45,19 +47,19 @@ export function mapFriendlyAuthMessage(
       return AUTH_MESSAGES.googleNeedsRegister;
     }
 
-    return normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
-  }
+    const rawMessage = normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
+    const lowerMessage = rawMessage.toLowerCase();
 
-  if (endpoint === '/register') {
-    if (field === 'nombreorganizacion') {
-      return 'Ya existe una empresa registrada con ese nombre. Usa un nombre diferente.';
+    if (
+      lowerMessage.includes('internal server error') ||
+      lowerMessage.includes('server error') ||
+      lowerMessage.includes('fetch failed') ||
+      lowerMessage.includes('google')
+    ) {
+      return AUTH_MESSAGES.googleGeneric;
     }
-  }
 
-  if (endpoint === '/register/google') {
-    if (field === 'nombreorganizacion') {
-      return 'Ya existe una empresa registrada con ese nombre. Usa un nombre diferente.';
-    }
+    return rawMessage;
   }
 
   return normalizeMessage(data.message, fallbackError);

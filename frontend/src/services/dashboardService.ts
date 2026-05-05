@@ -12,30 +12,24 @@ export type DashboardMovimiento = {
 export type DashboardSummary = {
   comprasHoy: number;
   ventasHoy: number;
-  gastosHoy?: number;
+  gastosHoy: number;
   kgCompradosHoy: number;
-  totalComprasHoy?: number;
-  totalVentasHoy?: number;
-  totalGastosHoy?: number;
+  totalComprasHoy: number;
+  totalVentasHoy: number;
+  totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number;
-  inventarioPorTipo?: Array<{
+  inventarioPorTipo: {
     tipoCafeId: string;
     tipoCafe: string;
     kgDisponible: number;
-  }>;
-  utilidadTotalAcumulada?: number;
-  mermaTotalKg?: number;
+  }[];
+  utilidadTotalAcumulada: number;
+  mermaTotalKg: number;
   movimientosRecientes: DashboardMovimiento[];
-  totalRevenue?: number;
-  totalExpenses?: number;
-  totalProfit?: number;
-  totalWasteKg?: number;
 };
 
 export async function obtenerDashboardSummary() {
-  return apiFetch('/dashboard/summary', { cache: 'no-store' }) as Promise<DashboardSummary>;
+  return apiFetch('/dashboard/summary') as Promise<DashboardSummary>;
 }
-
-export const obtenerResumenDashboard = obtenerDashboardSummary;

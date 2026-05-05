@@ -1,15 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Info, Save } from 'lucide-react';
-import {
-  createGuidedErrorFromUi,
-  FloatingGuidedNotice,
-  InlineGuidedError,
-  type GuidedErrorMessage,
-} from '../components/forms/GuidedError';
-import { formatDateLabel } from '../utils/date';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CalendarDays, CheckCircle2, Play, Save, SunMedium } from 'lucide-react';
 import { getSecadoSession, saveSecadoResults } from '../utils/secadoFlow';
-import { createUiMessage, UI_MESSAGES } from '../utils/uiMessages';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -18,127 +10,121 @@ function kg(value: number) {
   }).format(value)} kg`;
 }
 
-function dateLabel(value: string) {
-  return formatDateLabel(value);
+function dateInput(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10);
 }
 
-function getSecadoGuidance(message: string): GuidedErrorMessage {
-  if (message.includes('salida seca')) {
-    return createGuidedErrorFromUi(
-      createUiMessage(
-        UI_MESSAGES.forms.incompleteData.titulo,
-        'Registra la salida seca del lote.',
-        'Revisa los campos marcados',
-      ),
-    );
-  }
+function keyOf(value: string) {
+  return value.trim().toUpperCase();
+}
 
-  if (message.includes('no puede superar')) {
-    return createGuidedErrorFromUi(
-      createUiMessage(
-        UI_MESSAGES.forms.invalidValue.titulo,
-        message,
-        'Corrige el dato',
-      ),
-    );
-  }
+function titleCase(value: string) {
+  const clean = value.trim().toLowerCase();
+  if (!clean) return '';
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
 
-  return createGuidedErrorFromUi(
-    createUiMessage(
-      UI_MESSAGES.forms.incompleteData.titulo,
-      'Registra la humedad final del lote seco.',
-      'Revisa los campos marcados',
-    ),
-  );
+function QualityDot({ color }: { color: string }) {
+  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
+  const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
-  const sourceQuality = (session?.calidad ?? '').trim().toUpperCase();
-  const outputQuality = sourceQuality === 'BUENO' ? 'BUENO' : 'REGULAR';
-  const outputLabel =
-    outputQuality === 'BUENO' ? 'Cafe Seco - Bueno (kg)' : 'Cafe Seco - Regular (kg)';
-
-  const [buenoKg, setBuenoKg] = useState(
-    session && session.outputBuenoKg > 0 ? session.outputBuenoKg.toString() : '',
+  const [step, setStep] = useState<'config' | 'active' | 'finish'>(
+    searchParams.get('step') === 'finish' || session?.estado === 'READY' ? 'finish' : 'config',
   );
-  const [buenoHumedad, setBuenoHumedad] = useState(
-    session && session.outputBuenoHumedad !== null ? session.outputBuenoHumedad.toString() : '',
-  );
-  const [regularKg, setRegularKg] = useState(
-    session && session.outputRegularKg > 0 ? session.outputRegularKg.toString() : '',
-  );
-  const [regularHumedad, setRegularHumedad] = useState(
-    session && session.outputRegularHumedad !== null ? session.outputRegularHumedad.toString() : '',
-  );
+  const [startDate, setStartDate] = useState(session ? dateInput(session.startedAt) : dateInput(''));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [buenoKg, setBuenoKg] = useState(session?.outputBuenoKg ? String(session.outputBuenoKg) : '');
+  const [regularKg, setRegularKg] = useState(session?.outputRegularKg ? String(session.outputRegularKg) : '');
+  const [maloKg, setMaloKg] = useState(session?.outputMaloKg ? String(session.outputMaloKg) : '');
+  const [withExpense, setWithExpense] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(null);
-  const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
 
   const totalEntrada = useMemo(
     () => (session ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0) : 0),
     [session],
   );
+  const sourceQuality = keyOf(session?.calidad ?? '');
+  const visibleQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
+    (quality) => !sourceQuality || sourceQuality === quality,
+  );
+  const showAllOutputs = visibleQualities.length === 0;
+  const outputQualities = showAllOutputs ? (['BUENO', 'REGULAR', 'MALO'] as const) : visibleQualities;
+  const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
+  const regular = outputQualities.includes('REGULAR') ? Number(regularKg) || 0 : 0;
+  const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
+  const totalSalida = bueno + regular + malo;
+  const merma = Math.max(0, totalEntrada - totalSalida);
+  const mermaPct = totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
+  const outputFields = [
+    {
+      quality: 'BUENO' as const,
+      label: 'Seco bueno (kg)',
+      value: buenoKg,
+      setter: setBuenoKg,
+    },
+    {
+      quality: 'REGULAR' as const,
+      label: 'Seco regular (kg)',
+      value: regularKg,
+      setter: setRegularKg,
+    },
+    {
+      quality: 'MALO' as const,
+      label: 'Seco malo (kg)',
+      value: maloKg,
+      setter: setMaloKg,
+    },
+  ].filter((field) => outputQualities.includes(field.quality));
 
-  const outputKg = outputQuality === 'BUENO' ? Number(buenoKg) || 0 : Number(regularKg) || 0;
-  const outputHumedadText = outputQuality === 'BUENO' ? buenoHumedad : regularHumedad;
-  const totalSalida = outputKg;
-  const mermaKg = Math.max(0, totalEntrada - totalSalida);
-  const rendimientoPct =
-    totalEntrada > 0 ? Number(((totalSalida / totalEntrada) * 100).toFixed(1)) : 0;
-
-  const continuar = () => {
+  const finalizar = () => {
     if (!sessionId || !session) return;
-
-    const humedad = outputHumedadText.trim() ? Number(outputHumedadText) : null;
-
-    if (outputKg <= 0) {
-      const message = 'Registra la salida seca del lote antes de continuar.';
-      setError(message);
-      setFloatingError(getSecadoGuidance(message));
+    if (totalSalida <= 0) {
+      setError('Registra por lo menos una salida seca.');
       return;
     }
-
     if (totalSalida > totalEntrada) {
-      const message = 'La salida no puede superar el peso total que entro a secado.';
-      setError(message);
-      setFloatingError(getSecadoGuidance(message));
+      setError('La salida no puede superar el peso de entrada.');
       return;
     }
-
-    if (humedad === null || !Number.isFinite(humedad)) {
-      const message = 'Registra la humedad final del lote seco.';
-      setError(message);
-      setFloatingError(getSecadoGuidance(message));
-      return;
-    }
-
-    setBotonRegistrarPresionado(true);
 
     saveSecadoResults(sessionId, {
-      outputBuenoKg: outputQuality === 'BUENO' ? outputKg : 0,
-      outputBuenoHumedad: outputQuality === 'BUENO' ? humedad : null,
-      outputRegularKg: outputQuality === 'REGULAR' ? outputKg : 0,
-      outputRegularHumedad: outputQuality === 'REGULAR' ? humedad : null,
+      outputBuenoKg: bueno,
+      outputBuenoHumedad: null,
+      outputRegularKg: regular,
+      outputRegularHumedad: null,
+      outputMaloKg: malo,
+      outputMaloHumedad: null,
     });
-
     navigate(`/inventario/secado/${sessionId}/resumen`);
+  };
+
+  const handleBack = () => {
+    if (step === 'finish') {
+      setStep('active');
+      return;
+    }
+
+    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
   };
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto w-full max-w-[520px] rounded-[26px] border border-rose-200 bg-white px-5 py-10 text-center shadow-sm">
-          <p className="text-lg font-semibold text-slate-700">{UI_MESSAGES.inventory.notFound.mensaje}</p>
-          <p className="mt-2 text-sm text-slate-500">No encontramos el secado en proceso para este lote.</p>
+      <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
+        <div className="mx-auto w-full max-w-[340px] rounded-[20px] bg-white p-6 text-center shadow-sm">
+          <p className="text-sm font-bold">No encontré el secado en proceso.</p>
           <button
             type="button"
-            onClick={() => navigate('/secado')}
-            className="mt-5 inline-flex rounded-[18px] bg-[#102d92] px-5 py-3 text-sm font-black text-white"
+            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            className="mt-4 h-11 rounded-full bg-[#0647d6] px-5 text-xs font-black text-white"
           >
-            Volver al flujo de secado
+            Volver a inventario
           </button>
         </div>
       </div>
@@ -146,151 +132,211 @@ export default function SecadoProceso() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] pb-12 text-slate-900">
-      <header className="border-b border-white/80 bg-[rgba(247,245,255,0.92)] px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[520px] items-center gap-3">
-<button
+    <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
+      <div className="mx-auto min-h-screen w-full max-w-[340px] bg-[#fbfbfb]">
+        <header className="relative flex h-12 items-center justify-center px-4">
+          <button
             type="button"
-            onClick={() => navigate(`/inventario/lote/${session.loteId}/secado`)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
-            aria-label="Volver al paso anterior"
+            onClick={handleBack}
+            className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
+            aria-label="Volver"
           >
             <ArrowLeft size={18} />
           </button>
-          <p className="text-[1.45rem] font-black text-[#111827]">Proceso de Secado</p>
-        </div>
-      </header>
+          <h1 className="text-sm font-extrabold">
+            {step === 'config' ? 'Fecha de inicio' : step === 'active' ? 'Secado en proceso' : 'Finalizar el secado'}
+          </h1>
+        </header>
 
-      <main className="mx-auto flex w-full max-w-[520px] flex-col gap-5 px-4 py-6">
-        <section className="rounded-[28px] border border-[#d9e2f5] bg-white p-5 shadow-sm">
-          <p className="text-lg font-black text-[#102d92]">Informacion del Lote Verde</p>
-          <div className="mt-5 rounded-[24px] border border-[#e6e8f3] bg-[#fafbff] p-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-              Lote seleccionado
-            </p>
-            <h1 className="mt-3 text-[1.9rem] font-black text-[#111827]">{session.loteCodigo}</h1>
-            <p className="mt-2 text-base text-[#2155da]">Fecha del lote verde: {dateLabel(session.fechaLote)}</p>
-
-            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-[#e6e8f3] pt-5">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Calidad de origen
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">{session.calidad}</p>
+        {step === 'config' ? (
+          <main className="flex flex-col gap-4 px-4 py-4">
+            <section className="relative h-36 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#294730,#d7b46a)] p-4 text-white shadow-sm">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_35%,rgba(255,255,255,.22),transparent_24%),linear-gradient(135deg,rgba(6,29,19,.12),rgba(5,18,45,.55))]" />
+              <div className="relative flex h-full items-end">
+                <p className="text-lg font-black drop-shadow">Configuración de secado</p>
               </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Peso inicial (verde)
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">{kg(totalEntrada)}</p>
+            </section>
+
+            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+              <label className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                Fecha de inicio de secado
+              </label>
+              <div className="mt-2 flex h-12 items-center gap-3 rounded-[12px] bg-slate-100 px-3">
+                <CalendarDays size={17} className="text-[#0647d6]" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="w-full bg-transparent text-sm font-black outline-none"
+                />
               </div>
-            </div>
-          </div>
-        </section>
+              <p className="mt-3 text-[0.68rem] text-slate-400">Registra cuándo inició el proceso.</p>
+            </section>
 
-        <section className="rounded-[28px] border border-[#d9e2f5] bg-white p-5 shadow-sm">
-          <p className="text-lg font-black text-[#102d92]">Resultados del secado</p>
-          <p className="mt-2 text-sm leading-7 text-slate-500">
-            Este lote viene de verde {session.calidad.toLowerCase()}, por eso la salida seca se
-            registra solo para cafe seco {session.calidad.toLowerCase()}.
-          </p>
-
-          <div className="mt-5">
-            <label className="mb-2 block text-lg font-black text-slate-800">{outputLabel}</label>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={outputQuality === 'BUENO' ? buenoKg : regularKg}
-                onChange={(event) =>
-                  outputQuality === 'BUENO'
-                    ? (setBuenoKg(event.target.value), setError(null), setFloatingError(null))
-                    : (setRegularKg(event.target.value), setError(null), setFloatingError(null))
-                }
-                className="w-full rounded-[20px] border border-[#cfe0ff] bg-white px-5 py-4 text-[2rem] font-black text-slate-900 outline-none focus:border-[#2155da]"
-                placeholder="0.00"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={outputQuality === 'BUENO' ? buenoHumedad : regularHumedad}
-                onChange={(event) =>
-                  outputQuality === 'BUENO'
-                    ? (setBuenoHumedad(event.target.value), setError(null), setFloatingError(null))
-                    : (setRegularHumedad(event.target.value), setError(null), setFloatingError(null))
-                }
-                className="w-full rounded-[20px] border border-[#cfe0ff] bg-white px-5 py-4 text-xl font-black text-slate-900 outline-none focus:border-[#2155da]"
-                placeholder="Humedad"
-              />
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[24px] border border-[#d9e2f5] bg-[#f5f7ff] p-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xl font-black text-slate-800">Resumen del proceso</p>
-              <span className="rounded-full bg-[#2155da] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
-                Calculo automatico
-              </span>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Total entrada (kg)
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-900">{kg(totalEntrada)}</p>
+            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+              <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                Resumen del secado
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Total a secar</span>
+                <span className="text-lg font-black text-[#0647d6]">{kg(totalEntrada)}</span>
               </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Total salida (kg)
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-900">{kg(totalSalida)}</p>
-                <p className="mt-1 text-sm font-black text-emerald-600">{rendimientoPct}% rendimiento</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[0.65rem] font-black">
+                <span><QualityDot color="bg-emerald-500" /> Bueno<br />{sourceQuality === 'BUENO' ? kg(totalEntrada) : '0 kg'}</span>
+                <span><QualityDot color="bg-amber-400" /> Regular<br />{sourceQuality === 'REGULAR' ? kg(totalEntrada) : '0 kg'}</span>
+                <span><QualityDot color="bg-rose-500" /> Malo<br />{sourceQuality === 'MALO' ? kg(totalEntrada) : '0 kg'}</span>
               </div>
-            </div>
+            </section>
 
-            <div className="mt-5 border-t border-[#d9e2f5] pt-5">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Merma</p>
-              <p className="mt-2 text-[2rem] font-black text-[#2155da]">{kg(mermaKg)}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-[#b7d7ff] bg-[#edf5ff] p-5">
-          <div className="flex items-start gap-4">
-            <div className="rounded-2xl bg-[#2155da] p-3 text-white">
-              <Info size={18} />
-            </div>
-            <p className="text-base leading-8 text-[#173ea6]">
-              Al confirmar, el sistema descuenta este peso del inventario verde y la nueva fecha de
-              ingreso a bodega para seco sera la fecha de finalizacion del secado.
-            </p>
-          </div>
-        </section>
-
-        {error ? (
-          <InlineGuidedError message={getSecadoGuidance(error)} />
+            <button
+              type="button"
+              onClick={() => setStep('active')}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)]"
+            >
+              Iniciar proceso <Play size={15} fill="currentColor" />
+            </button>
+          </main>
         ) : null}
 
-        <button
-          type="button"
-          onClick={continuar}
-          disabled={botonRegistrarPresionado}
-          className="inline-flex w-full items-center justify-center gap-3 rounded-[22px] bg-[#2155da] px-5 py-4 text-lg font-black text-white shadow-[0_18px_40px_rgba(33,85,218,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Save size={20} />
-          {botonRegistrarPresionado ? 'Guardando secado...' : 'Registrar secado'}
-        </button>
-      </main>
+        {step === 'active' ? (
+          <main className="flex min-h-[calc(100vh-48px)] flex-col items-center px-5 py-8 text-center">
+            <section className="relative h-44 w-full overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#5a783e,#eccb78_52%,#71562f)] p-4 shadow-sm">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(255,255,255,.75),transparent_18%),linear-gradient(180deg,rgba(255,255,255,.08),rgba(8,24,44,.4))]" />
+              <div className="relative flex h-full items-end">
+                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white/80 px-3 py-2 text-xs font-black text-slate-700">
+                  <SunMedium size={17} className="rounded-full bg-[#0647d6] p-1 text-white" />
+                  Proceso Activo
+                </span>
+              </div>
+            </section>
 
-      {floatingError ? (
-        <FloatingGuidedNotice
-          message={floatingError}
-          onClose={() => setFloatingError(null)}
-        />
-      ) : null}
+            <div className="mt-8">
+              <h2 className="text-2xl font-black leading-tight">El secado ha iniciado correctamente</h2>
+              <p className="mt-4 text-sm leading-6 text-slate-500">
+                Cuando el proceso finalice, regresa aquí para registrar el resultado del secado.
+              </p>
+            </div>
+
+            <div className="mt-auto w-full pb-4">
+              <button
+                type="button"
+                onClick={() => setStep('finish')}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+              >
+                Finalizar secado <CheckCircle2 size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/inicio')}
+                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#0647d6]"
+              >
+                <ArrowLeft size={15} /> Ir a inicio
+              </button>
+            </div>
+          </main>
+        ) : null}
+
+        {step === 'finish' ? (
+          <main className="flex flex-col gap-4 px-4 py-4">
+            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+              <label className="text-[0.62rem] font-black uppercase text-slate-500">Fecha de inicio</label>
+              <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">{startDate}</div>
+              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">Fecha de finalización</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-black outline-none"
+              />
+            </section>
+
+            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+              <h2 className="text-base font-black">Resultado del secado</h2>
+              <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
+                Registra la salida para café verde {titleCase(session.calidad)}.
+              </p>
+              {outputFields.map((field) => (
+                <label key={field.quality} className="mt-4 block">
+                  <span className="text-[0.62rem] font-black uppercase text-slate-500">{field.label}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={field.value}
+                    onChange={(event) => {
+                      field.setter(event.target.value);
+                      setError(null);
+                    }}
+                    className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
+                    placeholder="0"
+                  />
+                </label>
+              ))}
+            </section>
+
+            <section className="overflow-hidden rounded-[16px] bg-white shadow-sm">
+              <div className="flex items-center gap-2 bg-[#0647d6] px-4 py-3 text-xs font-black uppercase text-white">
+                <Save size={15} />
+                Resumen de totales
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-4 text-center">
+                <div>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Entrada</p>
+                  <p className="mt-1 text-lg font-black">{kg(totalEntrada)}</p>
+                </div>
+                <div>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Salida</p>
+                  <p className="mt-1 text-lg font-black">{kg(totalSalida)}</p>
+                </div>
+                <div>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Merma</p>
+                  <p className="mt-1 text-lg font-black text-rose-600">{kg(merma)}</p>
+                  <p className="text-[0.65rem] font-black text-rose-400">{mermaPct}%</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[18px] bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8ff] text-[#0647d6]">
+                  <Save size={16} />
+                </span>
+                <div>
+                  <p className="text-sm font-black">Hubo gastos en el secado?</p>
+                  <p className="text-[0.68rem] text-slate-500">Mano de obra, combustible, etc.</p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWithExpense(false)}
+                  className={`h-9 rounded-full border text-xs font-black ${!withExpense ? 'border-[#0647d6] text-[#0647d6]' : 'border-slate-200 text-slate-400'}`}
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWithExpense(true)}
+                  className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
+                >
+                  Sí
+                </button>
+              </div>
+            </section>
+
+            {error ? <p className="text-center text-xs font-bold text-rose-600">{error}</p> : null}
+
+            <button
+              type="button"
+              onClick={finalizar}
+              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+            >
+              <CheckCircle2 size={16} />
+              Finalizar secado
+            </button>
+          </main>
+        ) : null}
+      </div>
     </div>
   );
 }

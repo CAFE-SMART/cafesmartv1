@@ -762,34 +762,6 @@ export class LotesService {
     };
   }
 
-  async findSublotesByLoteId(
-    userId: string,
-    loteId: string,
-  ): Promise<LoteDetalleResponse> {
-    const [tipoCafeId, calidadId] = loteId.includes('::')
-      ? loteId.split('::', 2)
-      : [null, null];
-
-    if (tipoCafeId && calidadId) {
-      return this.findSublotesByLote(userId, tipoCafeId, calidadId);
-    }
-
-    const organizacionId = await this.obtenerOrganizacionId(userId);
-    const lote = await this.prisma.lote.findFirst({
-      where: { id: loteId, organizacionId },
-      select: {
-        tipoCafeId: true,
-        calidadId: true,
-      },
-    });
-
-    if (!lote) {
-      throw new NotFoundException('No se encontraron sublotes para ese lote');
-    }
-
-    return this.findSublotesByLote(userId, lote.tipoCafeId, lote.calidadId);
-  }
-
   async obtenerResultadosFinancierosSublote(
     userId: string,
     subloteId: string,
@@ -1002,105 +974,57 @@ export class LotesService {
     const idsUnicos = [...new Set(ids)];
 
     if (ids.length !== idsUnicos.length) {
-      throw new BadRequestException(
-        'Hay sublotes repetidos. Revisa la seleccion e intenta guardar de nuevo.',
+      throw new BadRequestException('Hay sublotes repetidos. Revisa la selección e intenta guardar de nuevo.');
+    }
+
+    const existentes = await this.prisma.sublote.findMany({
+      where: {
+        id: { in: idsUnicos },
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        id: true,
+        pesoInicial: true,
+      },
+    });
+
+    if (existentes.length !== idsUnicos.length) {
+      const encontrados = new Set(existentes.map((sublote) => sublote.id));
+      const faltantes = idsUnicos.filter((id) => !encontrados.has(id));
+      throw new NotFoundException(
+        `No encontramos algunos sublotes de esta solicitud: ${faltantes.join(', ')}. Actualiza el inventario e intenta nuevamente.`,
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const existentes = await tx.sublote.findMany({
-        where: {
-          id: { in: idsUnicos },
-          deletedAt: null,
-          compra: {
-            deletedAt: null,
-            organizacionId,
-          },
-        },
-        select: {
-          id: true,
-          pesoInicial: true,
-          pesoActual: true,
-          tipoCafeId: true,
-          calidadId: true,
-        },
-      });
+    const existentesPorId = new Map(existentes.map((sublote) => [sublote.id, sublote]));
 
-      if (existentes.length !== idsUnicos.length) {
-        const encontrados = new Set(existentes.map((sublote) => sublote.id));
-        const faltantes = idsUnicos.filter((id) => !encontrados.has(id));
-        throw new NotFoundException(
-          `No encontramos algunos sublotes de esta solicitud: ${faltantes.join(', ')}. Actualiza el inventario e intenta nuevamente.`,
-        );
+    for (const sublote of sublotes) {
+      const existente = existentesPorId.get(sublote.id);
+      const pesoActual = Number(sublote.pesoActual);
+
+      if (!existente || !Number.isFinite(pesoActual) || pesoActual < 0) {
+        throw new BadRequestException('El peso ingresado no es válido. Revisa que sea un número mayor o igual a cero.');
       }
 
-      const existentesPorId = new Map(existentes.map((sublote) => [sublote.id, sublote]));
-      const deltaInventario = new Map<
-        string,
-        { tipoCafeId: string; calidadId: string; cantidad: number }
-      >();
+      if (pesoActual > Number(existente.pesoInicial)) {
+        throw new BadRequestException('El peso actual no puede superar el peso inicial del sublote. Ajusta el valor e intenta de nuevo.');
+      }
+    }
 
-      for (const sublote of sublotes) {
-        const existente = existentesPorId.get(sublote.id);
-        const pesoActual = Number(sublote.pesoActual);
-
-        if (!existente || !Number.isFinite(pesoActual) || pesoActual < 0) {
-          throw new BadRequestException(
-            'El peso ingresado no es valido. Revisa que sea un numero mayor o igual a cero.',
-          );
-        }
-
-        if (pesoActual > Number(existente.pesoInicial)) {
-          throw new BadRequestException(
-            'El peso actual no puede superar el peso inicial del sublote. Ajusta el valor e intenta de nuevo.',
-          );
-        }
-
-        const delta = pesoActual - Number(existente.pesoActual);
-        const clave = `${existente.tipoCafeId}::${existente.calidadId}`;
-        const actual = deltaInventario.get(clave) ?? {
-          tipoCafeId: existente.tipoCafeId,
-          calidadId: existente.calidadId,
-          cantidad: 0,
-        };
-        actual.cantidad += delta;
-        deltaInventario.set(clave, actual);
-
-        await tx.sublote.update({
+    await this.prisma.$transaction(
+      sublotes.map((sublote) =>
+        this.prisma.sublote.update({
           where: { id: sublote.id },
           data: {
-            pesoActual,
+            pesoActual: sublote.pesoActual,
           },
-        });
-      }
-
-      for (const movimiento of deltaInventario.values()) {
-        if (Math.abs(movimiento.cantidad) < 0.0001) {
-          continue;
-        }
-
-        await tx.inventario.upsert({
-          where: {
-            organizacionId_tipoCafeId_calidadId: {
-              organizacionId,
-              tipoCafeId: movimiento.tipoCafeId,
-              calidadId: movimiento.calidadId,
-            },
-          },
-          create: {
-            organizacionId,
-            tipoCafeId: movimiento.tipoCafeId,
-            calidadId: movimiento.calidadId,
-            pesoTotal: movimiento.cantidad,
-          },
-          update: {
-            pesoTotal: {
-              increment: movimiento.cantidad,
-            },
-          },
-        });
-      }
-    }, { maxWait: 10000, timeout: 25000 });
+        }),
+      ),
+    );
 
     return { totalActualizados: sublotes.length };
   }
@@ -1116,7 +1040,7 @@ export class LotesService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException('Tu usuario no tiene una organización asignada. Contacta al administrador para continuar.');
     }
 
     return usuario.organizacionId;

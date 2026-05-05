@@ -5,6 +5,10 @@ import type {
 } from '../services/lotesService';
 
 const STORAGE_KEY = 'cafesmart-secado-flow-v1';
+const SECADO_PROCESS_TYPE_ID = 'virtual-en-secado';
+const SECADO_PROCESS_QUALITY_ID = 'virtual-en-proceso';
+const SECADO_PROCESS_TYPE = 'EN SECADO';
+const SECADO_PROCESS_QUALITY = 'EN PROCESO';
 export const VISUAL_CAPACITY_KG = 3000;
 
 export type SecadoEstado = 'IN_PROCESS' | 'READY' | 'COMPLETED';
@@ -13,6 +17,7 @@ export type SecadoSubloteSeleccionado = {
   id: string;
   etiqueta: string;
   pesoActual: number;
+  pesoDisponible?: number;
   humedad: number | null;
   fechaIngreso: string;
   diasEnBodega: number;
@@ -36,6 +41,8 @@ export type SecadoSession = {
   outputBuenoHumedad: number | null;
   outputRegularKg: number;
   outputRegularHumedad: number | null;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
   mermaKg: number;
   rendimientoPct: number;
 };
@@ -45,6 +52,8 @@ type ResultadoSecadoPayload = {
   outputBuenoHumedad: number | null;
   outputRegularKg: number;
   outputRegularHumedad: number | null;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
 };
 
 function keyOf(value: string) {
@@ -131,6 +140,68 @@ function totalInputKg(session: SecadoSession) {
   return session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
 }
 
+function hasSelectedSublotes(session: SecadoSession) {
+  return session.sublotes.length > 0 && totalInputKg(session) > 0;
+}
+
+function isActiveSession(session: SecadoSession) {
+  return session.estado !== 'COMPLETED' && hasSelectedSublotes(session);
+}
+
+function getCompletedSecadoSessions() {
+  const seen = new Set<string>();
+
+  return readStorage().filter((session) => {
+    if (session.estado !== 'COMPLETED' || !hasSelectedSublotes(session)) return false;
+    if (seen.has(session.id)) return false;
+    seen.add(session.id);
+    return true;
+  });
+}
+
+function getInventorySecadoSessions() {
+  const seen = new Set<string>();
+
+  return readStorage().filter((session) => {
+    if (!hasSelectedSublotes(session)) return false;
+    if (session.estado !== 'COMPLETED' && !isActiveSession(session)) return false;
+    if (seen.has(session.id)) return false;
+    seen.add(session.id);
+    return true;
+  });
+}
+
+function hasSourceSublotes(session: SecadoSession, sublotes: SubloteDetalle[]) {
+  const ids = new Set(sublotes.map((sublote) => sublote.id));
+  return session.sublotes.every((sublote) => ids.has(sublote.id));
+}
+
+function hasSecadoOutput(sublotes: SubloteDetalle[], generatedId: string) {
+  return sublotes.some((sublote) => sublote.id === generatedId);
+}
+
+function isSameOrAfter(value: string, reference: string) {
+  const date = new Date(value);
+  const referenceDate = new Date(reference);
+
+  if (Number.isNaN(date.getTime()) || Number.isNaN(referenceDate.getTime())) {
+    return true;
+  }
+
+  return date.getTime() >= referenceDate.getTime();
+}
+
+function canApplySessionToLot(session: SecadoSession, lot: LoteResumen) {
+  const removedKg = totalInputKg(session);
+  const startedAfterLot = isSameOrAfter(session.startedAt, lot.fechaPrimerIngreso);
+
+  return (
+    startedAfterLot &&
+    session.sublotes.length <= lot.sublotes &&
+    removedKg <= lot.pesoActual
+  );
+}
+
 function buildGeneratedOutputs(session: SecadoSession) {
   const completedAt = session.completedAt ?? session.updatedAt;
 
@@ -151,6 +222,14 @@ function buildGeneratedOutputs(session: SecadoSession) {
       label: `SC-${session.loteCodigo}-R`,
       qualityId: 'virtual-regular',
     },
+    {
+      quality: 'MALO',
+      kg: session.outputMaloKg ?? 0,
+      humidity: session.outputMaloHumedad ?? null,
+      id: `secado-${session.id}-malo`,
+      label: `SC-${session.loteCodigo}-M`,
+      qualityId: 'virtual-malo',
+    },
   ].filter((item) => item.kg > 0);
 
   return outputs.map((item) => ({
@@ -168,7 +247,49 @@ function buildGeneratedOutputs(session: SecadoSession) {
     fechaIngreso: completedAt,
     diasEnBodega: daysSince(completedAt),
     creadoEn: completedAt,
+    costoTotal: 0,
+    totalVentas: 0,
+    pesoVendido: 0,
+    totalGastos: 0,
+    mermaKg: 0,
+    mermaPorcentaje: 0,
+    mermaValor: 0,
+    utilidadNeta: 0,
+    costoPorKg: 0,
   })) satisfies SubloteDetalle[];
+}
+
+function buildProcessLot(session: SecadoSession) {
+  const inputKg = totalInputKg(session);
+  const oldestDate = session.sublotes
+    .map((sublote) => sublote.fechaIngreso)
+    .sort()[0] ?? session.startedAt;
+
+  return {
+    id: `secado-proceso-${session.id}`,
+    codigo: `Secado ${session.loteCodigo}`,
+    tipoCafeId: SECADO_PROCESS_TYPE_ID,
+    tipoCafe: SECADO_PROCESS_TYPE,
+    calidadId: SECADO_PROCESS_QUALITY_ID,
+    calidad: SECADO_PROCESS_QUALITY,
+    sublotes: session.sublotes.length,
+    sublotesConHumedad: session.sublotes.filter((sublote) => sublote.humedad !== null).length,
+    pesoInicial: safeNumber(inputKg),
+    pesoActual: safeNumber(inputKg),
+    precioPromedioKg: 0,
+    humedadPromedio: null,
+    fecha: session.startedAt,
+    fechaPrimerIngreso: oldestDate,
+    fechaUltimoIngreso: session.startedAt,
+    diasEnBodegaMin: daysSince(session.startedAt),
+    diasEnBodegaMax: daysSince(oldestDate),
+    creadoEn: session.startedAt,
+    totalVentas: 0,
+    totalGastos: 0,
+    utilidadNeta: 0,
+    mermaValor: 0,
+    mermaKg: session.mermaKg,
+  } satisfies LoteResumen;
 }
 
 function rebuildLotFromSublotes(
@@ -229,17 +350,17 @@ export function getSecadoSession(sessionId: string) {
 }
 
 export function getActiveSecadoSession() {
-  return readStorage().find((session) => session.estado !== 'COMPLETED') ?? null;
+  return readStorage().find((session) => isActiveSession(session)) ?? null;
 }
 
 export function getActiveSecadoSessions() {
-  return readStorage().filter((session) => session.estado !== 'COMPLETED');
+  return readStorage().filter((session) => isActiveSession(session));
 }
 
 export function getActiveSecadoSessionForLot(lotId: string) {
   return (
     readStorage().find(
-      (session) => session.loteId === lotId && session.estado !== 'COMPLETED',
+      (session) => session.loteId === lotId && isActiveSession(session),
     ) ?? null
   );
 }
@@ -266,10 +387,9 @@ export function getActiveSecadoBlockedKgByLot() {
 export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
   const selectedSublotes = detalle.sublotes.filter((sublote) => selectedIds.includes(sublote.id));
   const sessions = readStorage();
-  const active = sessions.find((session) => session.estado !== 'COMPLETED');
 
-  if (active) {
-    return active;
+  if (selectedSublotes.length === 0) {
+    throw new Error('Selecciona al menos un sublote para iniciar secado.');
   }
 
   const timestamp = nowIso();
@@ -298,6 +418,59 @@ export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
     outputBuenoHumedad: null,
     outputRegularKg: 0,
     outputRegularHumedad: null,
+    outputMaloKg: 0,
+    outputMaloHumedad: null,
+    mermaKg: 0,
+    rendimientoPct: 0,
+  };
+
+  writeStorage([session, ...sessions]);
+  return session;
+}
+
+export function startSecadoWithWeights(
+  detalle: LoteDetalle,
+  selectedWeights: Record<string, number>,
+) {
+  const selectedSublotes = detalle.sublotes.filter((sublote) => {
+    const weight = selectedWeights[sublote.id];
+    return Number.isFinite(weight) && weight > 0;
+  });
+  const sessions = readStorage();
+
+  if (selectedSublotes.length === 0) {
+    throw new Error('Selecciona al menos un sublote para iniciar secado.');
+  }
+
+  const timestamp = nowIso();
+  const session: SecadoSession = {
+    id: generateId(),
+    estado: 'IN_PROCESS',
+    loteId: detalle.lote.id,
+    loteCodigo: detalle.lote.codigo,
+    tipoCafeId: detalle.lote.tipoCafeId,
+    tipoCafe: detalle.lote.tipoCafe,
+    calidadId: detalle.lote.calidadId,
+    calidad: detalle.lote.calidad,
+    fechaLote: detalle.lote.fechaPrimerIngreso,
+    sublotes: selectedSublotes.map((sublote) => ({
+      id: sublote.id,
+      etiqueta: sublote.etiqueta,
+      pesoActual: safeNumber(Math.min(sublote.pesoActual, selectedWeights[sublote.id] ?? 0)),
+      pesoDisponible: sublote.pesoActual,
+      humedad: sublote.humedad,
+      fechaIngreso: sublote.fechaIngreso,
+      diasEnBodega: sublote.diasEnBodega,
+    })),
+    startedAt: timestamp,
+    updatedAt: timestamp,
+    completedAt: null,
+    outputBuenoKg: 0,
+    outputBuenoHumedad: null,
+    outputRegularKg: 0,
+    outputRegularHumedad: null,
+    outputMaloKg: 0,
+    outputMaloHumedad: null,
     mermaKg: 0,
     rendimientoPct: 0,
   };
@@ -312,7 +485,7 @@ export function saveSecadoResults(sessionId: string, payload: ResultadoSecadoPay
     if (session.id !== sessionId) return session;
 
     const totalEntrada = totalInputKg(session);
-    const totalSalida = payload.outputBuenoKg + payload.outputRegularKg;
+    const totalSalida = payload.outputBuenoKg + payload.outputRegularKg + (payload.outputMaloKg ?? 0);
     const mermaKg = Math.max(0, totalEntrada - totalSalida);
     const rendimientoPct =
       totalEntrada > 0 ? Number(((totalSalida / totalEntrada) * 100).toFixed(1)) : 0;
@@ -325,6 +498,8 @@ export function saveSecadoResults(sessionId: string, payload: ResultadoSecadoPay
       outputBuenoHumedad: payload.outputBuenoHumedad,
       outputRegularKg: safeNumber(payload.outputRegularKg),
       outputRegularHumedad: payload.outputRegularHumedad,
+      outputMaloKg: safeNumber(payload.outputMaloKg ?? 0),
+      outputMaloHumedad: payload.outputMaloHumedad ?? null,
       mermaKg: safeNumber(mermaKg),
       rendimientoPct,
     };
@@ -352,27 +527,45 @@ export function finalizeSecado(sessionId: string) {
 }
 
 export function applySecadoToLots(baseLots: LoteResumen[]) {
-  const sessions = readStorage().filter((session) => session.estado === 'COMPLETED');
+  if (baseLots.length === 0) {
+    return [];
+  }
+
+  const sessions = getInventorySecadoSessions();
   const lots = baseLots.map((lot) => ({ ...lot }));
 
   for (const session of sessions) {
     const removedKg = totalInputKg(session);
-    const removedCount = session.sublotes.length;
-    const removedHumidityCount = session.sublotes.filter((sublote) => sublote.humedad !== null).length;
+    const removedCount = session.sublotes.filter(
+      (sublote) => sublote.pesoActual >= (sublote.pesoDisponible ?? sublote.pesoActual),
+    ).length;
+    const removedHumidityCount = session.sublotes.filter(
+      (sublote) =>
+        sublote.humedad !== null &&
+        sublote.pesoActual >= (sublote.pesoDisponible ?? sublote.pesoActual),
+    ).length;
     const source = lots.find((lot) => lot.id === session.loteId);
 
-    if (source) {
-      source.pesoActual = safeNumber(Math.max(0, source.pesoActual - removedKg));
-      source.pesoInicial = safeNumber(Math.max(0, source.pesoInicial - removedKg));
-      source.sublotes = Math.max(0, source.sublotes - removedCount);
-      source.sublotesConHumedad = Math.max(0, source.sublotesConHumedad - removedHumidityCount);
+    if (!source || !canApplySessionToLot(session, source)) {
+      continue;
     }
 
+    source.pesoActual = safeNumber(Math.max(0, source.pesoActual - removedKg));
+    source.pesoInicial = safeNumber(Math.max(0, source.pesoInicial - removedKg));
+    source.sublotes = Math.max(0, source.sublotes - removedCount);
+    source.sublotesConHumedad = Math.max(0, source.sublotesConHumedad - removedHumidityCount);
+
     const completedAt = session.completedAt ?? session.updatedAt;
+    if (session.estado !== 'COMPLETED') {
+      lots.push(buildProcessLot(session));
+      continue;
+    }
+
     const outputs = [
-      { quality: 'BUENO', kg: session.outputBuenoKg, humidity: session.outputBuenoHumedad },
-      { quality: 'REGULAR', kg: session.outputRegularKg, humidity: session.outputRegularHumedad },
-    ].filter((item) => item.kg > 0);
+            { quality: 'BUENO', kg: session.outputBuenoKg, humidity: session.outputBuenoHumedad },
+            { quality: 'REGULAR', kg: session.outputRegularKg, humidity: session.outputRegularHumedad },
+            { quality: 'MALO', kg: session.outputMaloKg ?? 0, humidity: session.outputMaloHumedad ?? null },
+          ].filter((item) => item.kg > 0);
 
     for (const output of outputs) {
       const existing = lots.find(
@@ -418,6 +611,11 @@ export function applySecadoToLots(baseLots: LoteResumen[]) {
           diasEnBodegaMin: 0,
           diasEnBodegaMax: 0,
           creadoEn: completedAt,
+          totalVentas: 0,
+          totalGastos: 0,
+          utilidadNeta: 0,
+          mermaValor: 0,
+          mermaKg: 0,
         });
       }
     }
@@ -431,23 +629,41 @@ export function applySecadoToDetalle(
   tipoCafeId: string,
   calidadId: string,
 ) {
-  const sessions = readStorage().filter((session) => session.estado === 'COMPLETED');
+  const sessions = getInventorySecadoSessions();
 
   if (baseDetail) {
     let nextSublotes = [...baseDetail.sublotes];
+    const validSourceSessions = sessions.filter((session) =>
+      hasSourceSublotes(session, baseDetail.sublotes),
+    );
 
-    for (const session of sessions) {
+    for (const session of validSourceSessions) {
       if (session.loteId === baseDetail.lote.id) {
-        const selectedIds = new Set(session.sublotes.map((sublote) => sublote.id));
-        nextSublotes = nextSublotes.filter((sublote) => !selectedIds.has(sublote.id));
+        const selectedWeightById = new Map(
+          session.sublotes.map((sublote) => [sublote.id, sublote.pesoActual]),
+        );
+        nextSublotes = nextSublotes
+          .map((sublote) => ({
+            ...sublote,
+            pesoActual: safeNumber(
+              Math.max(0, sublote.pesoActual - (selectedWeightById.get(sublote.id) ?? 0)),
+            ),
+          }))
+          .filter((sublote) => sublote.pesoActual > 0);
       }
 
       if (keyOf(baseDetail.lote.tipoCafe) === 'SECO' && keyOf(baseDetail.lote.calidad) === 'BUENO') {
-        nextSublotes = [...nextSublotes, ...buildGeneratedOutputs(session).filter((sublote) => keyOf(sublote.calidad) === 'BUENO')];
+        const generated = buildGeneratedOutputs(session).filter(
+          (sublote) => keyOf(sublote.calidad) === 'BUENO' && !hasSecadoOutput(nextSublotes, sublote.id),
+        );
+        nextSublotes = [...nextSublotes, ...generated];
       }
 
       if (keyOf(baseDetail.lote.tipoCafe) === 'SECO' && keyOf(baseDetail.lote.calidad) === 'REGULAR') {
-        nextSublotes = [...nextSublotes, ...buildGeneratedOutputs(session).filter((sublote) => keyOf(sublote.calidad) === 'REGULAR')];
+        const generated = buildGeneratedOutputs(session).filter(
+          (sublote) => keyOf(sublote.calidad) === 'REGULAR' && !hasSecadoOutput(nextSublotes, sublote.id),
+        );
+        nextSublotes = [...nextSublotes, ...generated];
       }
     }
 
@@ -489,6 +705,11 @@ export function applySecadoToDetalle(
     diasEnBodegaMin: 0,
     diasEnBodegaMax: 0,
     creadoEn: virtualSublotes[0].creadoEn,
+    totalVentas: 0,
+    totalGastos: 0,
+    utilidadNeta: 0,
+    mermaValor: 0,
+    mermaKg: 0,
   };
 
   return {

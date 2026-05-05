@@ -1,170 +1,42 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Loader, Lock, LogIn, Mail } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import { Capacitor } from '@capacitor/core';
-import {
-  createGuidedError,
-  InlineGuidedError,
-  type GuidedErrorMessage,
-} from '../components/forms/GuidedError';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
-import {
-  clearRememberedAccount,
-  getRememberedAccount,
-  saveRememberedAccount,
-} from '../storage/authStorage';
-import { CafeSmartLogo } from '../components/CafeSmartLogo';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function FieldError({ id, message }: { id: string; message: string }) {
-  return (
-    <p id={id} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-red-600">
-      <AlertCircle size={14} aria-hidden="true" />
-      {message}
-    </p>
-  );
 }
 
 function normalizeTipoOrganizacion(
   value: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null | undefined,
 ): 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | null {
   if (value === 'OTRO') {
-    return 'PERSONALIZADO' as const;
+    return 'PERSONALIZADO';
   }
 
   return value ?? null;
 }
 
-const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
-
 export default function Login() {
-  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
-  const isGoogleAuthEnabled = Boolean(googleClientId);
-  const isAndroidApp = Capacitor.getPlatform() === 'android';
-  const googleButtonWidth =
-    typeof window !== 'undefined'
-      ? String(Math.min(360, Math.max(180, window.innerWidth - 72)))
-      : '320';
+  const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
   const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
-  const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [rememberedAccountName, setRememberedAccountName] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
-  const { setSession, token, hasCompany, hydrated } = useUser();
-
-  useEffect(() => {
-    if (!hydrated || !token) {
-      return;
-    }
-
-    navigate(hasCompany ? '/inicio' : '/crear-empresa', { replace: true });
-  }, [hasCompany, hydrated, navigate, token]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadRememberedAccount = async () => {
-      const account = await getRememberedAccount();
-      if (!active || !account.email) {
-        return;
-      }
-
-      setEmail(account.email);
-      setRememberedAccountName(account.name);
-      setRememberMe(true);
-    };
-
-    void loadRememberedAccount();
-
-    if (typeof window !== 'undefined') {
-      const expiredMessage = window.sessionStorage.getItem(SESSION_EXPIRED_MESSAGE_KEY);
-      if (expiredMessage) {
-        setError(expiredMessage);
-        setPassword('');
-        window.sessionStorage.removeItem(SESSION_EXPIRED_MESSAGE_KEY);
-      }
-    }
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isGoogleAuthEnabled || isAndroidApp || googleLoading) {
-      return;
-    }
-
-    setGoogleButtonMissing(false);
-
-    const timerId = window.setTimeout(() => {
-      const iframe = googleButtonRef.current?.querySelector('iframe');
-      setGoogleButtonMissing(!iframe);
-    }, 1600);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [googleLoading, isAndroidApp, isGoogleAuthEnabled]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const hash = window.location.hash;
-    if (!hash.includes('id_token=')) {
-      return;
-    }
-
-    const params = new URLSearchParams(hash.replace(/^#/, ''));
-    const idToken = params.get('id_token');
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
-
-    if (idToken) {
-      void handleGoogleSuccess({ credential: idToken });
-    }
-  }, []);
-
-  const openGoogleRedirect = () => {
-    if (!googleClientId || typeof window === 'undefined') {
-      handleGoogleError();
-      return;
-    }
-
-    const nonce =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : String(Date.now());
-    const params = new URLSearchParams({
-      client_id: googleClientId,
-      redirect_uri: window.location.origin + window.location.pathname,
-      response_type: 'id_token',
-      scope: 'openid email profile',
-      nonce,
-      prompt: 'select_account',
-    });
-
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  };
+  const { setSession } = useUser();
 
   const resetForm = () => {
     setEmail('');
@@ -172,7 +44,6 @@ export default function Login() {
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
-    setEmailTouched(false);
   };
 
   const handleExitApp = async () => {
@@ -191,33 +62,9 @@ export default function Login() {
     window.close();
     if (!window.closed) {
       resetForm();
-      navigate('/', { replace: true });
+      navigate('/login', { replace: true });
     }
   };
-
-  const getEmailGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Revisa tu correo.',
-      'El formato no es correcto o está vacío (ej: juan@correo.com).',
-      'Corrige tu correo e intenta de nuevo.',
-    );
-
-  const getPasswordGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Revisa tu contraseña.',
-      'Puede estar incorrecta o vacía.',
-      'Escribe tu contraseña correcta.',
-    );
-
-  const getGlobalGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
-      message,
-      'Problema al iniciar.',
-      'Verifica tus credenciales o conexión.',
-      'Revisa los datos e intenta entrar.',
-    );
 
   const focusEmail = () => {
     emailInputRef.current?.focus();
@@ -227,20 +74,8 @@ export default function Login() {
     passwordInputRef.current?.focus();
   };
 
-  const syncRememberedAccount = async (account: { email: string; name?: string | null }) => {
-    if (rememberMe) {
-      await saveRememberedAccount(account);
-      setRememberedAccountName(account.name ?? '');
-      return;
-    }
-
-    await clearRememberedAccount();
-    setRememberedAccountName('');
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailTouched(true);
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
@@ -250,15 +85,15 @@ export default function Login() {
     let nextPasswordError: string | null = null;
 
     if (!email.trim()) {
-      nextEmailError = 'Ingresa tu correo electrónico';
+      nextEmailError = 'Escribe tu correo.';
       hasValidationError = true;
     } else if (!isValidEmail(email)) {
-      nextEmailError = 'Ingresa un correo electrónico válido';
+      nextEmailError = 'Correo invalido.';
       hasValidationError = true;
     }
 
     if (!password.trim()) {
-      nextPasswordError = 'Ingresa tu contraseña';
+      nextPasswordError = 'Escribe tu contrase\u00f1a.';
       hasValidationError = true;
     }
 
@@ -266,12 +101,7 @@ export default function Login() {
     setPasswordFieldError(nextPasswordError);
 
     if (hasValidationError) {
-      setError('Completa los campos para continuar');
-      if (nextEmailError) {
-        window.setTimeout(focusEmail, 80);
-      } else if (nextPasswordError) {
-        window.setTimeout(focusPassword, 80);
-      }
+      window.setTimeout(nextEmailError ? focusEmail : focusPassword, 80);
       return;
     }
 
@@ -279,68 +109,51 @@ export default function Login() {
 
     try {
       const data = await authService.login(email, password);
-      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
-
       await setSession({
         user: {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          telefono: data.user.telefono ?? null,
           organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
           tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
-        hasCompany: nextHasCompany,
-        persist: false,
-      });
-      await syncRememberedAccount({
-        email: data.user.email || email.trim(),
-        name: data.user.name,
+        hasCompany: data.hasCompany,
+        persist: rememberMe,
       });
 
-      navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
+      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No se pudo iniciar sesión. Intenta nuevamente.';
+      const message = authError.message || 'No pudimos iniciar sesion.';
       const details = authError.details ?? {};
-      const isCredentialError =
-        authError.status === 401 ||
-        field === 'email' ||
-        field === 'correo' ||
-        field === 'password' ||
-        field === 'contrasena' ||
-        Boolean(details.email?.[0] || details.correo?.[0] || details.password?.[0] || details.contrasena?.[0]);
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
 
-      if (isCredentialError && (emailDetail || passwordDetail)) {
-        setPasswordFieldError(passwordDetail || 'Contraseña incorrecta');
-        setPassword('');
+      if (emailDetail) {
+        setEmailFieldError(emailDetail);
+      }
+
+      if (passwordDetail) {
+        setPasswordFieldError(passwordDetail);
+      }
+
+      if (emailDetail || passwordDetail) {
         setError(null);
-        window.setTimeout(focusPassword, 80);
-      } else if (isCredentialError && (field === 'email' || field === 'correo')) {
+        window.setTimeout(emailDetail ? focusEmail : focusPassword, 80);
+      } else if (field === 'email' || field === 'correo') {
         setEmailFieldError(message);
         setError(null);
         window.setTimeout(focusEmail, 80);
-      } else if (isCredentialError && (field === 'password' || field === 'contrasena')) {
+      } else if (field === 'password' || field === 'contrasena') {
         setPasswordFieldError(message);
-        setPassword('');
         setError(null);
         window.setTimeout(focusPassword, 80);
-      } else if (authError.code === 'OFFLINE' || authError.status === 0) {
-        setError('No pudimos conectarnos con el servidor. Revisa tu conexión o que el backend esté encendido.');
-        setPasswordFieldError(null);
-      } else if ((authError.status ?? 0) >= 500) {
-        setError('El servidor tuvo un problema al validar tu ingreso. Intenta nuevamente en unos segundos.');
-        setPasswordFieldError(null);
       } else {
         setError(message);
-        setPasswordFieldError(null);
       }
     } finally {
       setLoading(false);
@@ -355,37 +168,28 @@ export default function Login() {
 
     const idToken = credentialResponse?.credential;
     if (!idToken) {
-      const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.';
-      setError(message);
+      setError('Google no respondio. Intenta de nuevo.');
       setGoogleLoading(false);
       return;
     }
 
     try {
       const data = await authService.loginWithGoogle(idToken);
-      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
-
       await setSession({
         user: {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          telefono: data.user.telefono ?? null,
           organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
           tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
-        hasCompany: nextHasCompany,
-        persist: false,
-      });
-      await syncRememberedAccount({
-        email: data.user.email,
-        name: data.user.name,
+        hasCompany: data.hasCompany,
+        persist: rememberMe,
       });
 
-      navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
+      navigate(data.hasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const loginError = err as AuthError;
 
@@ -400,283 +204,281 @@ export default function Login() {
         return;
       }
 
-      const message = loginError.message || 'No se pudo iniciar sesión con Google.';
-      setError(message);
+      setError(loginError.message || 'Google no pudo iniciar sesion.');
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const handleGoogleError = () => {
-    const message = 'No se pudo iniciar sesión con Google.';
-    setError(message);
+    setError(
+      'No pudimos abrir Google. Revisa tu internet e intenta de nuevo. Si sigue pasando, entra con correo y contrasena o pide ayuda al encargado.',
+    );
     setEmailFieldError(null);
     setPasswordFieldError(null);
     setGoogleLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      <main className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:p-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 w-full max-w-[480px]">
-          <div className="relative mb-4 sm:mb-6 flex items-start justify-center">
-            <CafeSmartLogo size="sm" compact />
-            <button
-              type="button"
-              onClick={() => void handleExitApp()}
-              className="absolute right-0 top-0 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              aria-label="Salir de la aplicacion"
-            >
-              Salir
-              <LogOut size={16} className="text-gray-500" />
-            </button>
+    <div className="min-h-screen bg-[#f4f6fa] text-slate-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-[340px] flex-col px-5 py-7">
+        <header className="flex items-center justify-between">
+          <div className="rounded-full bg-white px-3 py-2 shadow-[0_10px_26px_rgba(15,23,42,0.08)]">
+            <CafeSmartLogo />
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
-          <p className="text-center text-sm text-gray-500 mb-5 sm:mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
-          </p>
+          <button
+            type="button"
+            onClick={() => void handleExitApp()}
+            className="rounded-full px-2 py-1 text-sm font-semibold text-slate-500 transition-colors hover:text-[#274ab8]"
+          >
+            Salir
+          </button>
+        </header>
 
-          {error ? (
-            <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
-          ) : null}
-
-          <form onSubmit={handleLogin} noValidate className="space-y-4 sm:space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Correo electronico
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  aria-invalid={Boolean(emailFieldError)}
-                  aria-describedby={emailFieldError ? 'login-email-error' : undefined}
-                  className={`block w-full pl-10 pr-9 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                    emailFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                  }`}
-                  placeholder="ejemplo@correo.com"
-                  value={email}
-                  onBlur={() => {
-                    setEmailTouched(true);
-                    if (email.trim() && !isValidEmail(email)) {
-                      setEmailFieldError('Ingresa un correo electrónico válido');
-                    }
-                  }}
-                  onChange={(e) => {
-                    const nextEmail = e.target.value;
-                    setEmail(nextEmail);
-                    if (!nextEmail.trim()) {
-                      setEmailFieldError(null);
-                      return;
-                    }
-                    if (emailTouched && !isValidEmail(nextEmail)) {
-                      setEmailFieldError('Ingresa un correo electrónico válido');
-                      return;
-                    }
-                    setEmailFieldError(null);
-                  }}
-                />
-                {emailFieldError ? (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                  </div>
-                ) : null}
-              </div>
-              {emailFieldError && (
-                <FieldError id="login-email-error" message={emailFieldError} />
-              )}
+        <main className="flex flex-1 items-center justify-center py-6">
+          <section className="w-full rounded-[14px] border border-white bg-white px-5 py-5 shadow-[0_16px_38px_rgba(15,23,42,0.08)]">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#0b1118] shadow-[0_12px_24px_rgba(15,23,42,0.14)]">
+              <img
+                src="/imagenes-de-proyecto/granito-inteligente.png"
+                alt="Cafe Smart"
+                className="h-full w-full object-cover"
+              />
             </div>
+            <h1 className="text-center text-[1.25rem] font-black leading-tight tracking-normal text-[#172033]">
+              Iniciar Sesi&oacute;n
+            </h1>
+            <p className="mx-auto mt-2 max-w-[260px] text-center text-[0.72rem] leading-5 text-[#75859d]">
+              Bienvenido a Caf&eacute; Smart
+            </p>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-slate-700">Contraseña</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const message = 'La recuperacion de contraseña aun no esta disponible.';
-                    setError(message);
-                  }}
-                  className="text-sm font-semibold text-[#1e3a8a] hover:underline"
-                >
-                  Olvidaste tu contraseña?
-                </button>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  ref={passwordInputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  aria-invalid={Boolean(passwordFieldError)}
-                  aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
-                    passwordFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
-                  }`}
-                  placeholder="********"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setPasswordFieldError(null);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                  )}
-                </button>
-              </div>
-              {passwordFieldError && (
-                <FieldError id="login-password-error" message={passwordFieldError} />
-              )}
-            </div>
+            {error ? <AlertBanner message={error} /> : null}
 
-            <button
-              type="button"
-              role="switch"
-              aria-checked={rememberMe}
-              onClick={() => setRememberMe((current) => !current)}
-              className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
-                rememberMe
-                  ? 'border-[#1e3a8a] bg-[#eef4ff] shadow-[0_8px_24px_rgba(30,58,138,0.12)]'
-                  : 'border-slate-200 bg-slate-50'
-              }`}
-            >
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
-                  rememberMe
-                    ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white'
-                    : 'border-slate-300 bg-white text-transparent'
-                }`}
-              >
-                <Check size={18} strokeWidth={3} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black text-slate-800">
-                  Recordar cuenta en este dispositivo
-                </span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
-                  {rememberMe && (rememberedAccountName || email)
-                    ? rememberedAccountName || email
-                    : 'Guarda solo tu correo, no inicia sesión automáticamente.'}
-                </span>
-              </span>
-              <span
-                className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-all ${
-                  rememberMe ? 'bg-[#1e3a8a]' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                    rememberMe ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </span>
-            </button>
+            <form onSubmit={handleLogin} className="mt-5 space-y-4">
+              <TextField
+                id="login-email"
+                ref={emailInputRef}
+                label="Correo electronico"
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  setEmailFieldError(null);
+                }}
+                placeholder="ejemplo@correo.com"
+                type="email"
+                autoComplete="email"
+                error={emailFieldError}
+                icon={<Mail size={17} />}
+              />
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 ${
-                loading
-                  ? 'bg-[#1e3a8a]/70 cursor-wait'
-                  : 'bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg'
-              }`}
-            >
-              {loading ? 'Entrando...' : 'Entrar'} <LogIn size={18} />
-            </button>
-          </form>
-
-          {isGoogleAuthEnabled && (
-            <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center">
-              <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-sm font-semibold text-gray-500">
-                O CONTINUA CON
-              </span>
-              <div className="flex-1 border-t border-gray-200"></div>
-            </div>
-          )}
-
-          {isGoogleAuthEnabled && googleLoading && (
-            <div className="mb-6 flex flex-col items-center justify-center py-8">
-              <div className="relative w-16 h-16 mb-4">
-                <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
-              </div>
-              <p className="text-center text-sm font-semibold text-gray-700 mb-2">
-                Procesando inicio de sesión...
-              </p>
-              <p className="text-center text-sm text-gray-500">
-                Espera un momento mientras validamos tu cuenta.
-              </p>
-            </div>
-          )}
-
-          {isGoogleAuthEnabled && !googleLoading && (
-            <div className="mb-5 sm:mb-6 w-full">
-              <div
-                ref={googleButtonRef}
-                className="flex min-h-[44px] w-full items-center justify-center overflow-hidden"
-              >
-                {googleButtonMissing || isAndroidApp ? (
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label htmlFor="login-password" className="text-sm font-black text-[#344054]">
+                    Contrase&ntilde;a
+                  </label>
                   <button
                     type="button"
-                    onClick={openGoogleRedirect}
-                    className="flex h-11 w-full max-w-[360px] items-center justify-center gap-3 rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700"
+                    onClick={() => setError('Recuperacion no disponible todavia.')}
+                    className="text-[11px] font-black text-[#274ab8] hover:underline"
                   >
-                    <span className="text-lg font-black text-[#4285f4]">G</span>
-                    Continuar con Google
+                    &iquest;Olvidaste tu contrase&ntilde;a?
                   </button>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    text="continue_with"
-                    theme="outline"
-                    size="large"
-                    shape="rectangular"
-                    logo_alignment="left"
-                    width={googleButtonWidth}
-                    containerProps={{
-                      className: 'flex min-h-[44px] w-full justify-center',
+                </div>
+
+                <div
+                  className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+                    passwordFieldError
+                      ? 'border-rose-300 bg-rose-50/60'
+                      : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                  }`}
+                >
+                  <Lock size={17} className="shrink-0 text-[#9aa8bc]" />
+                  <input
+                    id="login-password"
+                    ref={passwordInputRef}
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setPasswordFieldError(null);
                     }}
+                    placeholder="********"
+                    autoComplete="current-password"
+                    className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+
+                {passwordFieldError ? <FieldError message={passwordFieldError} /> : null}
+              </div>
+
+              <label className="flex items-center gap-3 text-sm text-[#5d6b82]">
+                <input
+                  id="remember_me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="h-4 w-4 rounded border-[#c8d2e2] text-[#274ab8] focus:ring-[#274ab8]"
+                />
+                <span>Recordar mi cuenta en este dispositivo</span>
+              </label>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] text-[0.72rem] font-black text-white transition ${
+                  loading
+                    ? 'cursor-wait bg-[#8398dc]'
+                    : 'bg-[#284bc1] shadow-[0_16px_30px_rgba(40,75,193,0.20)] hover:bg-[#203fa8]'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <Loader size={17} className="animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  <>
+                    Entrar
+                    <LogIn size={17} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {isGoogleAuthEnabled ? (
+              <div className="mt-7">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[#e3e8f0]" />
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#93a1b6]">
+                    O CONTIN&Uacute;A CON
+                  </span>
+                  <div className="h-px flex-1 bg-[#e3e8f0]" />
+                </div>
+
+                {googleLoading ? (
+                  <div className="mt-5 rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-5 text-center">
+                    <Loader size={18} className="mx-auto animate-spin text-[#274ab8]" />
+                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                      Validando Google...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-5 flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      text="signin_with"
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                    />
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold text-amber-800">
+                Google no esta configurado.
+              </p>
+            )}
 
-          {!isGoogleAuthEnabled && (
-            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800">
-              El acceso con Google no está disponible porque falta configurar
-              <strong> VITE_GOOGLE_CLIENT_ID </strong>
-              en el frontend.
-            </div>
-          )}
+            <p className="mt-7 text-center text-sm text-[#5d6b82]">
+              &iquest;No tienes una cuenta?{' '}
+              <Link to="/register" className="font-black text-[#274ab8] hover:underline">
+                Reg&iacute;strate gratis
+              </Link>
+            </p>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
 
-          <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600">
-            ¿No tienes una cuenta?{' '}
-            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
-              Regístrate gratis
-            </Link>
-          </p>
-        </div>
-      </main>
+const TextField = React.forwardRef<
+  HTMLInputElement,
+  {
+    id: string;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    type?: string;
+    autoComplete?: string;
+    error?: string | null;
+    icon: React.ReactNode;
+  }
+>(function TextField(
+  { id, label, value, onChange, placeholder, type = 'text', autoComplete, error, icon },
+  ref,
+) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-[0.68rem] font-black text-[#344054]">
+        {label}
+      </label>
+      <div
+        className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+          error
+            ? 'border-rose-300 bg-rose-50/60'
+            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+        }`}
+      >
+        <span className="shrink-0 text-[#9aa8bc]">{icon}</span>
+        <input
+          id={id}
+          ref={ref}
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+        />
+      </div>
+      {error ? <FieldError message={error} /> : null}
+    </div>
+  );
+});
 
-      <footer className="px-4 py-3 sm:p-6 text-center">
-        <p className="text-sm text-slate-500 font-medium">
-          Copyright 2024 Cafe Smart Inc. Todos los derechos reservados.
-        </p>
-      </footer>
+function FieldError({ message }: { message: string }) {
+  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>;
+}
+
+function AlertBanner({ message }: { message: string }) {
+  const isGoogleError = message.toLowerCase().includes('google');
+  const isConnectionError =
+    message.toLowerCase().includes('problema interno') ||
+    message.toLowerCase().includes('conexion') ||
+    message.toLowerCase().includes('conectar') ||
+    message.toLowerCase().includes('disponible');
+  const title = isGoogleError
+    ? 'No pudimos entrar con Google'
+    : isConnectionError
+      ? 'Ups, no pudimos conectar'
+      : 'No pudimos iniciar sesión';
+
+  return (
+    <div
+      className={`mt-5 flex gap-3 rounded-[12px] border px-4 py-3 text-sm ${
+        isConnectionError
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : 'border-rose-200 bg-rose-50 text-rose-800'
+      }`}
+      role="alert"
+    >
+      <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <div>
+        <p className="font-black">{title}</p>
+        <p className="mt-1 leading-5">{message}</p>
+      </div>
     </div>
   );
 }

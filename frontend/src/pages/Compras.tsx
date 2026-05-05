@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -10,7 +10,9 @@ import {
   Coffee,
   Frown,
   Leaf,
+  LoaderCircle,
   Meh,
+  Pencil,
   Plus,
   Search,
   Save,
@@ -23,23 +25,17 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
-import { EmptyState } from '../components/EmptyState';
-import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
-  createGuidedErrorFromUi,
   InlineGuidedError,
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import {
-  BUSINESS_MIN_DATE_VALUE,
   formatDateLabel,
   getTodayLocalDateValue,
   toIsoDateAtUtcNoon,
-  validateBusinessDateRange,
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
-import { UI_MESSAGES } from '../utils/uiMessages';
 import {
   crearCompra,
   listarCompras,
@@ -108,7 +104,6 @@ function generarId() {
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-
 function normalizeSearchText(value: string) {
   return value
     .normalize('NFD')
@@ -141,6 +136,17 @@ function formatoMoneda(valor: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(valor);
+}
+
+function esperarPintadoInterfaz() {
+  return new Promise<void>((resolve) => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      resolve();
+      return;
+    }
+
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function mapProductorToOption(productor: ProductorItem): ProductorOption {
@@ -256,14 +262,10 @@ function datosPaso(step: Step) {
 }
 
 function getComprasGuidance(message: string): GuidedErrorMessage {
-  if (message.includes('fecha')) {
-    return createGuidedErrorFromUi(UI_MESSAGES.forms.invalidDate);
-  }
-
   if (message.includes('nombre del productor')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.forms.incompleteData.titulo,
+      'Falta identificar al productor.',
       'Necesitamos el nombre para registrar la compra.',
       'Toca la casilla y escribe al menos su nombre.',
     );
@@ -272,26 +274,35 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('al menos un producto')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.forms.incompleteData.titulo,
+      'No hay productos.',
       'La compra debe tener café.',
       'Agrega un producto para continuar.',
+    );
+  }
+
+  if (message.includes('Completa este cafe')) {
+    return createGuidedError(
+      message,
+      'Producto incompleto.',
+      'Antes de agregar otro cafe, termina los datos actuales.',
+      'Completa tipo, calidad, peso y precio.',
     );
   }
 
   if (message.includes('catalogos disponibles')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.system.internalError.titulo,
+      'Faltan datos base en tu celular.',
       'No logramos cargar los tipos de café.',
       'Recarga la aplicación e intenta de nuevo.',
     );
   }
 
-  if (message.includes('tipo de cafe') || message.includes('tipo de café')) {
+  if (message.includes('tipo de cafe')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.forms.incompleteData.titulo,
-      'Debes elegir una opción para poder registrar la compra.',
+      'Falta seleccionar el tipo de café.',
+      'Debes elegir una opción para poder pagar.',
       'Toca "Tipo de Café" y elige uno.',
     );
   }
@@ -299,38 +310,56 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('calidad')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.forms.incompleteData.titulo,
+      'Falta la calidad.',
       'Saber la calidad ayuda a validar el precio.',
       'Toca las caritas para seleccionar la calidad.',
     );
   }
 
-  if (message.includes('peso valido') || message.includes('peso válido')) {
-    return createGuidedErrorFromUi(UI_MESSAGES.forms.incompleteData);
+  if (message.includes('peso valido')) {
+    return createGuidedError(
+      message,
+      'El peso está vacío o en cero.',
+      'Necesitamos saber cuántos kilos entraron.',
+      'Ingresa el peso exacto del café.',
+    );
   }
 
-  if (message.includes('precio valido') || message.includes('precio válido')) {
-    return createGuidedErrorFromUi(UI_MESSAGES.forms.invalidValue);
+  if (message.includes('precio valido')) {
+    return createGuidedError(
+      message,
+      'Falta el precio por kilo.',
+      'El precio es necesario para dar el total.',
+      'Toca la casilla e ingresa el valor a pagar.',
+    );
   }
 
   if (message.includes('Selecciona un productor')) {
     return createGuidedError(
       message,
-      UI_MESSAGES.forms.incompleteData.titulo,
+      'Falta seleccionar el productor.',
       'Debemos saber a quién corresponde la compra.',
       'Selecciona Productor Generico o uno de la lista.',
     );
   }
 
-  return createGuidedErrorFromUi(UI_MESSAGES.system.saveFailed);
+  return createGuidedError(
+    message,
+    'Ups, no se pudo guardar.',
+    'Revisa los campos señalados.',
+    'Vuelve a intentar.',
+  );
 }
 
 export default function Compras() {
   const navigate = useNavigate();
+  const savingRef = useRef(false);
+  const compraLocalIdRef = useRef<string | null>(null);
   const [catalogos, setCatalogos] = useState<CatalogosCompra>({ tiposCafe: [], calidades: [] });
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
   const [fecha, setFecha] = useState(hoyLocal());
   const [sublotes, setSublotes] = useState<SubloteForm[]>([crearSubloteVacio()]);
+  const [subloteActivoId, setSubloteActivoId] = useState<string | null>(null);
   const [productorSeleccionado, setProductorSeleccionado] = useState<ProductorOption | null>(null);
   const [productorSelectionMode, setProductorSelectionMode] = useState<ProductorSelectionMode>(null);
   const [productores, setProductores] = useState<ProductorOption[]>([]);
@@ -340,7 +369,9 @@ export default function Compras() {
   const [productorFormError, setProductorFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [checkingConfirmacion, setCheckingConfirmacion] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarErrorFormulario, setMostrarErrorFormulario] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
@@ -348,7 +379,6 @@ export default function Compras() {
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
   const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
   const [registroErrorMensaje, setRegistroErrorMensaje] = useState<string | null>(null);
-  const [registroErrorDetalle, setRegistroErrorDetalle] = useState<unknown>(null);
   const [datosCapacidad, setDatosCapacidad] = useState<{
     capacidadKg: number;
     inventarioActual: number;
@@ -365,10 +395,12 @@ export default function Compras() {
   const [compraGuardada, setCompraGuardada] = useState<CompraGuardadaResumen | null>(null);
   const [botonRegistrarPresionado, setBotonRegistrarPresionado] = useState(false);
   const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] = useState(false);
+  const [productorCreadoToast, setProductorCreadoToast] = useState<ProductorOption | null>(null);
 
   const cargarTodo = async () => {
     setLoading(true);
     setError(null);
+    setMostrarErrorFormulario(false);
     try {
       const [catalogosData, comprasData, productoresData] = await Promise.all([
         obtenerCatalogosCompra(),
@@ -379,7 +411,7 @@ export default function Compras() {
       setCompras(comprasData);
       setProductores(productoresData.map(mapProductorToOption));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la informacion de compras.');
+      console.warn('No se pudo cargar toda la informacion de compras:', err);
     } finally {
       setLoading(false);
     }
@@ -389,18 +421,29 @@ export default function Compras() {
     void cargarTodo();
   }, []);
 
+  useEffect(() => {
+    if (!productorCreadoToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setProductorCreadoToast(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [productorCreadoToast]);
+
   const tiposCafe = useMemo(() => ordenarCatalogos(catalogos.tiposCafe, ORDEN_TIPOS), [catalogos.tiposCafe]);
   const calidades = useMemo(() => ordenarCatalogos(catalogos.calidades, ORDEN_CALIDADES), [catalogos.calidades]);
   const nombreTipoCafePorId = useMemo(() => new Map(catalogos.tiposCafe.map((item) => [item.id, item.nombre])), [catalogos.tiposCafe]);
   const nombreCalidadPorId = useMemo(() => new Map(catalogos.calidades.map((item) => [item.id, item.nombre])), [catalogos.calidades]);
-  const fechaValidacion = useMemo(() => validateBusinessDateRange(fecha), [fecha]);
   const resumen = useMemo(() => {
     const totalKg = sublotes.reduce((acc, sublote) => acc + (Number(sublote.pesoInicial) || 0), 0);
     const totalCompra = sublotes.reduce((acc, sublote) => acc + (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0), 0);
     return { totalKg, totalCompra };
   }, [sublotes]);
   const paso2Completo = useMemo(() => {
-    if (!fechaValidacion.isValid) {
+    if (!fecha.trim()) {
       return false;
     }
 
@@ -416,7 +459,7 @@ export default function Compras() {
         precio > 0
       );
     });
-  }, [fechaValidacion.isValid, sublotes]);
+  }, [fecha, sublotes]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -424,6 +467,7 @@ export default function Compras() {
     catalogos.tiposCafe.length > 0 &&
     catalogos.calidades.length > 0 &&
     !saving &&
+    !checkingConfirmacion &&
     !loading;
   const productoresFiltrados = useMemo(() => {
     const base = [...productores];
@@ -439,6 +483,12 @@ export default function Compras() {
       ),
     );
   }, [busquedaProductor, productores]);
+  const busquedaProductorActiva = busquedaProductor.trim().length > 0;
+  const sinProductoresRegistrados = productores.length === 0;
+  const subloteActual =
+    sublotes.find((sublote) => sublote.id === subloteActivoId) ?? sublotes[sublotes.length - 1] ?? null;
+  const sublotesVisibles = subloteActual ? [subloteActual] : [];
+  const sublotesGuardados = Math.max(0, sublotes.length - 1);
   const pasoActual = datosPaso(step);
 
   const volverPasoAnterior = () => {
@@ -451,10 +501,34 @@ export default function Compras() {
   };
 
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
+    setMostrarErrorFormulario(false);
+    setError(null);
     setSublotes((actual) => actual.map((sublote) => (sublote.id === id ? { ...sublote, [campo]: valor } : sublote)));
   };
 
-  const agregarSublote = () => setSublotes((actual) => [...actual, crearSubloteVacio()]);
+  const agregarSublote = () => {
+    const actual = sublotes[sublotes.length - 1];
+    if (!actual) return;
+
+    if (
+      !actual.tipoCafeId ||
+      !actual.calidadId ||
+      !Number.isFinite(Number(actual.pesoInicial)) ||
+      Number(actual.pesoInicial) <= 0 ||
+      !Number.isFinite(Number(actual.precioKg)) ||
+      Number(actual.precioKg) < 1000
+    ) {
+      setMostrarErrorFormulario(true);
+      setError('Completa este cafe antes de agregar otro.');
+      return;
+    }
+
+    const nuevoSublote = crearSubloteVacio();
+    setError(null);
+    setMostrarErrorFormulario(false);
+    setSubloteActivoId(nuevoSublote.id);
+    setSublotes((items) => [...items, nuevoSublote]);
+  };
 
   const eliminarSublote = (id: string) => {
     setSublotes((actual) => {
@@ -485,6 +559,7 @@ export default function Compras() {
     setProductorSeleccionado(productor);
     setProductorSelectionMode(productor.rapido ? 'generico' : 'buscar');
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const refrescarProductores = async () => {
@@ -503,12 +578,14 @@ export default function Compras() {
     }
     void refrescarProductores();
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const seleccionarGenerico = () => {
     setProductorSelectionMode('generico');
     setProductorSeleccionado(PRODUCTOR_GENERAL);
     setError(null);
+    setMostrarErrorFormulario(false);
   };
 
   const guardarProductorLocal = async () => {
@@ -541,12 +618,10 @@ export default function Compras() {
         productorBase,
         ...actual.filter((productor) => productor.id !== productorBase.id),
       ]);
-      setProductorSeleccionado(productorBase);
-      setProductorSelectionMode('buscar');
-      setBusquedaProductor(nombre);
       setMostrarModalProductor(false);
       setProductorForm({ nombre: '', telefono: '', documento: '' });
       setProductorFormError(null);
+      setProductorCreadoToast(productorBase);
       setError(null);
     } catch (err) {
       setProductorFormError(
@@ -558,46 +633,69 @@ export default function Compras() {
   };
 
   const resetFormulario = () => {
+    savingRef.current = false;
+    compraLocalIdRef.current = null;
     setFecha(hoyLocal());
     setSublotes([crearSubloteVacio()]);
+    setSubloteActivoId(null);
     setProductorSeleccionado(null);
     setProductorSelectionMode(null);
     setBusquedaProductor('');
     setProductorFormError(null);
+    setProductorCreadoToast(null);
     setRegistroErrorMensaje(null);
     setMostrarModalCancelar(false);
     setMostrarModalConfirmar(false);
+    setCheckingConfirmacion(false);
     setMostrarModalAlerta80(false);
     setAlerta80Mostrada(false);
     setDatosAlerta80(null);
     setStep(1);
     setError(null);
+    setMostrarErrorFormulario(false);
     setWarning(null);
+  };
+
+  const iniciarNuevaCompra = () => {
+    setCompraGuardada(null);
+    resetFormulario();
   };
 
   const eliminarSubloteDesdeRevision = (id: string) => {
     if (sublotes.length === 1) {
+      setMostrarErrorFormulario(true);
       setError('Debe quedar al menos un producto antes de finalizar la compra.');
       return;
     }
 
     setSublotes((actual) => actual.filter((sublote) => sublote.id !== id));
+    if (subloteActivoId === id) {
+      setSubloteActivoId(null);
+    }
     setError(null);
+    setMostrarErrorFormulario(false);
+  };
+
+  const editarSubloteDesdeRevision = (id: string) => {
+    setSubloteActivoId(id);
+    setError(null);
+    setMostrarErrorFormulario(false);
+    setStep(2);
   };
 
   const validarSublotes = () => {
-    if (!fechaValidacion.isValid) {
-      return fechaValidacion.message ?? 'Ingresa una fecha válida.';
+    if (!fecha.trim()) {
+      return 'Selecciona la fecha de compra.';
     }
 
     if (catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0) {
       return 'Aun no hay catalogos disponibles para registrar la compra.';
     }
     for (const [index, sublote] of sublotes.entries()) {
-      if (!sublote.tipoCafeId) return `Selecciona el tipo de café del sublote ${index + 1}.`;
+        if (!sublote.tipoCafeId) return `Selecciona el tipo de café del sublote ${index + 1}.`;
       if (!sublote.calidadId) return `Selecciona la calidad del sublote ${index + 1}.`;
       if (!Number.isFinite(Number(sublote.pesoInicial)) || Number(sublote.pesoInicial) <= 0) {
-        return `Ingresa un peso válido para el sublote ${index + 1}.`;
+        return `Ingresa un peso valido para el sublote ${index + 1}.`;
       }
       if (!Number.isFinite(Number(sublote.precioKg)) || Number(sublote.precioKg) < 1000) {
         return `El precio por kilo debe ser mínimo $1,000 para el sublote ${index + 1}.`;
@@ -608,8 +706,10 @@ export default function Compras() {
 
   const irSiguientePaso = () => {
     setError(null);
+    setMostrarErrorFormulario(false);
     if (step === 1) {
       if (!productorSeleccionado) {
+        setMostrarErrorFormulario(true);
         setError('Selecciona un productor para continuar.');
         return;
       }
@@ -619,6 +719,7 @@ export default function Compras() {
     if (step === 2) {
       const mensajeValidacion = validarSublotes();
       if (mensajeValidacion) {
+        setMostrarErrorFormulario(true);
         setError(mensajeValidacion);
         return;
       }
@@ -628,6 +729,7 @@ export default function Compras() {
 
   const irPasoAnterior = () => {
     setError(null);
+    setMostrarErrorFormulario(false);
     setWarning(null);
     setStep((actual) => Math.max(1, actual - 1) as Step);
   };
@@ -665,47 +767,82 @@ export default function Compras() {
       
       return true; // Puede continuar directamente
     } catch (error) {
-      // Si falla la validación, permitir continuar (offline-first)
-      console.warn('No se pudo validar capacidad, permitiendo continuar:', error);
-      return true;
+      console.error('No se pudo validar capacidad:', error);
+      setRegistroErrorMensaje('No se pudo validar la capacidad de bodega. Intenta de nuevo más tarde.');
+      setMostrarModalCapacidad(false);
+      return false;
+    }
+  };
+
+  const abrirConfirmacionCompra = async () => {
+    setRegistroErrorMensaje(null);
+    setError(null);
+    setMostrarErrorFormulario(false);
+
+    if (!productorSeleccionado) {
+      setMostrarErrorFormulario(true);
+      setError('Selecciona un productor para continuar.');
+      setStep(1);
+      return;
+    }
+
+    const mensajeValidacion = validarSublotes();
+    if (mensajeValidacion) {
+      setMostrarErrorFormulario(true);
+      setError(mensajeValidacion);
+      return;
+    }
+
+    setCheckingConfirmacion(true);
+    try {
+      const puedeContinuar = await validarCapacidadBodega();
+      if (puedeContinuar) {
+        setMostrarModalConfirmar(true);
+      }
+    } finally {
+      setCheckingConfirmacion(false);
     }
   };
 
   const guardarCompra = async () => {
+    if (savingRef.current) {
+      return;
+    }
+
+    savingRef.current = true;
     setRegistroErrorMensaje(null);
-    setRegistroErrorDetalle(null);
+    setSaving(true);
+    setBotonRegistrarPresionado(true);
+    setError(null);
+    setMostrarErrorFormulario(false);
+    setWarning(null);
+
     if (!productorSeleccionado) {
+      savingRef.current = false;
+      setSaving(false);
+      setBotonRegistrarPresionado(false);
+      setMostrarErrorFormulario(true);
       setError('Selecciona un productor para continuar.');
       setStep(1);
       return;
     }
     const mensajeValidacion = validarSublotes();
     if (mensajeValidacion) {
+      savingRef.current = false;
+      setSaving(false);
+      setBotonRegistrarPresionado(false);
+      setMostrarErrorFormulario(true);
       setError(mensajeValidacion);
       return;
     }
-    
-    // Validar capacidad antes de mostrar modal de confirmación
-    const puedeContinuar = await validarCapacidadBodega();
-    if (!puedeContinuar) {
-      return; // El modal de capacidad se mostrará
-    }
-    
-    setSaving(true);
-    setBotonRegistrarPresionado(true);
-    setError(null);
-    setWarning(null);
-    try {
-      const compraLocalId = generarId();
-      const deviceId = await obtenerDeviceId();
-      const fechaValidacionActual = validateBusinessDateRange(fecha);
-      if (!fechaValidacionActual.isValid) {
-        setError(fechaValidacionActual.message ?? 'Ingresa una fecha válida.');
-        setStep(2);
-        return;
-      }
 
-      const fechaActual = fecha.trim();
+    await esperarPintadoInterfaz();
+
+    try {
+      const compraLocalId = compraLocalIdRef.current ?? generarId();
+      compraLocalIdRef.current = compraLocalId;
+      const deviceId = await obtenerDeviceId();
+      const fechaActual = fecha.trim() || hoyLocal();
       setFecha(fechaActual);
       const fechaNormalizada = toIsoDateAtUtcNoon(fechaActual);
       const payload = {
@@ -719,7 +856,7 @@ export default function Compras() {
           pesoInicial: Number(sublote.pesoInicial),
           precioKg: Number(sublote.precioKg),
           deviceId,
-          localId: generarId(),
+          localId: sublote.id,
         })),
       };
       const respuesta = await crearCompra(payload);
@@ -742,21 +879,16 @@ export default function Compras() {
       });
       const comprasActualizadas = await listarCompras();
       setCompras(comprasActualizadas);
-      resetFormulario();
+      setMostrarModalConfirmar(false);
     } catch (err) {
-      setRegistroErrorMensaje('No pudimos guardar la información en este momento.');
-      setRegistroErrorDetalle(err);
+      const mensaje = err instanceof Error ? err.message : 'No se pudo guardar la compra.';
+      setRegistroErrorMensaje(mensaje);
       setError(null);
     } finally {
+      savingRef.current = false;
       setSaving(false);
       setBotonRegistrarPresionado(false);
-      setMostrarModalConfirmar(false);
     }
-  };
-
-  const confirmarCompraConAdvertencia = async () => {
-    setMostrarModalCapacidad(false);
-    setMostrarModalConfirmar(true);
   };
 
   const cerrarModalConfirmar = () => {
@@ -771,7 +903,6 @@ export default function Compras() {
 
   const volverDesdeError = () => {
     setRegistroErrorMensaje(null);
-    setRegistroErrorDetalle(null);
     setStep(3);
   };
 
@@ -809,7 +940,7 @@ export default function Compras() {
             </section>
 
             <div className="mt-7 grid gap-3">
-              <button type="button" onClick={() => setCompraGuardada(null)} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)]">
+              <button type="button" onClick={iniciarNuevaCompra} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)]">
                 Registrar nueva compra
               </button>
               <button type="button" onClick={() => navigate('/inventario')} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]">
@@ -825,15 +956,26 @@ export default function Compras() {
   if (registroErrorMensaje) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
-          <SystemSaveError
-            operation="Registrar compra"
-            error={registroErrorDetalle ?? registroErrorMensaje}
-            onRetry={() => void guardarCompra()}
-            onHome={() => navigate('/inicio', { replace: true })}
-            retrying={saving}
-            className="w-full"
-          />
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[420px] items-center">
+          <div className="w-full rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="text-center">
+              <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]">
+                <AlertTriangle size={24} strokeWidth={2.8} />
+              </div>
+              <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">No se pudo guardar la compra</h1>
+              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">Intenta de nuevo.</p>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button type="button" onClick={() => void guardarCompra()} disabled={saving} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                {saving ? 'Reintentando...' : 'Reintentar'}
+              </button>
+              <button type="button" onClick={volverDesdeError} className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]">
+                Volver a editar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -846,9 +988,10 @@ export default function Compras() {
           <button
             type="button"
             onClick={volverPasoAnterior}
-            className="absolute left-0 text-slate-900 transition hover:opacity-75"
+            className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75"
+            aria-label={step > 1 ? 'Volver al paso anterior' : 'Salir a inicio'}
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft size={22} />
           </button>
           <h1 className="text-[1.35rem] font-semibold text-slate-900">Registro de Compra</h1>
         </div>
@@ -954,13 +1097,22 @@ export default function Compras() {
                     );
                   })}
 
-                  {productoresFiltrados.length === 0 ? (
-                    <EmptyState
-                      icon={UserPlus}
-                      title="No encontramos productores"
-                      description="Prueba otra búsqueda o registra un productor nuevo para usarlo en esta compra."
-                      className="py-5"
-                    />
+                  {productoresFiltrados.length === 0 && sinProductoresRegistrados ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
+                      <p className="font-semibold text-slate-700">
+                        Aun no hay productores registrados
+                      </p>
+                      <p className="mt-1">Registra uno para comenzar.</p>
+                    </div>
+                  ) : null}
+
+                  {productoresFiltrados.length === 0 && !sinProductoresRegistrados && busquedaProductorActiva ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
+                      <p className="font-semibold text-slate-700">
+                        No se encontraron resultados
+                      </p>
+                      <p className="mt-1">Intenta con otro nombre o identificacion.</p>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -1036,7 +1188,7 @@ export default function Compras() {
               </article>
             ) : null}
 
-            {error ? (
+            {error && mostrarErrorFormulario ? (
               <InlineGuidedError message={getComprasGuidance(error)} />
             ) : null}
 
@@ -1054,7 +1206,14 @@ export default function Compras() {
 
         {step === 2 ? (
           <section className="space-y-4">
-            {sublotes.map((sublote, index) => {
+            {sublotesGuardados > 0 ? (
+              <div className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3 text-sm font-semibold text-[#102d92]">
+                {sublotesGuardados} cafe{sublotesGuardados === 1 ? '' : 's'} agregado{sublotesGuardados === 1 ? '' : 's'} a esta compra.
+              </div>
+            ) : null}
+
+            {sublotesVisibles.map((sublote) => {
+              const index = sublotes.findIndex((item) => item.id === sublote.id);
               const tipoNombre = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? `Café ${index + 1}`;
 
               return (
@@ -1065,32 +1224,16 @@ export default function Compras() {
 
                   <div className="rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
                     <p className="text-[0.9rem] font-semibold tracking-[0.04em] text-slate-500">Fecha de compra</p>
-                    <div
-                      className={`mt-2.5 flex items-center gap-3 rounded-[16px] border px-3 py-3 ${
-                        fechaValidacion.isValid
-                          ? 'border-[#dfe5f2] bg-[#f8f9ff]'
-                          : 'border-rose-300 bg-rose-50/60'
-                      }`}
-                    >
+                    <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
                       <CalendarDays size={18} className="text-[#102d92]" />
                       <input
                         type="date"
                         value={fecha}
-                        min={BUSINESS_MIN_DATE_VALUE}
                         max={hoyLocal()}
                         onChange={(event) => setFecha(event.target.value)}
-                        aria-invalid={!fechaValidacion.isValid}
-                        aria-describedby={!fechaValidacion.isValid ? 'compra-fecha-error' : undefined}
                         className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
                       />
                     </div>
-                    {!fechaValidacion.isValid ? (
-                      <InlineGuidedError
-                        id="compra-fecha-error"
-                        message={getComprasGuidance(fechaValidacion.message ?? 'Ingresa una fecha válida.')}
-                        className="mt-3"
-                      />
-                    ) : null}
                   </div>
 
                   <div className="mt-5">
@@ -1210,7 +1353,7 @@ export default function Compras() {
               </div>
             </article>
 
-            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
+            {error && mostrarErrorFormulario ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
             <div className="grid gap-3">
               <button type="button" onClick={irSiguientePaso} disabled={!paso2Completo} className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] disabled:cursor-not-allowed disabled:opacity-50">
@@ -1232,7 +1375,7 @@ export default function Compras() {
               <div className="space-y-4 rounded-[16px] border border-[#e6eaf3] bg-[#fbfcff] px-4 py-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Productor</span>
-                  <span className="text-[1.25rem] font-semibold text-slate-900">{productorSeleccionado?.nombre ?? 'Sin productor'}</span>
+                <span className="text-[1.25rem] font-semibold text-slate-900">{productorSeleccionado?.nombre ?? 'Sin productor'}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#6f809a]">Fecha</span>
@@ -1272,9 +1415,19 @@ export default function Compras() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
+                            onClick={() => editarSubloteDesdeRevision(sublote.id)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
+                            title="Editar producto"
+                            aria-label={`Editar ${tipoCafe}`}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
                             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
                             title="Eliminar producto"
+                            aria-label={`Eliminar ${tipoCafe}`}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -1302,12 +1455,12 @@ export default function Compras() {
               </div>
             </article>
 
-            {error ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
+            {error && mostrarErrorFormulario ? <InlineGuidedError message={getComprasGuidance(error)} /> : null}
 
             <div className="grid gap-3">
-              <button type="button" onClick={() => setMostrarModalConfirmar(true)} disabled={!puedeRegistrarCompra} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
-                <Save size={20} />
-                Registrar compra
+              <button type="button" onClick={() => void abrirConfirmacionCompra()} disabled={!puedeRegistrarCompra} className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60">
+                {checkingConfirmacion ? <LoaderCircle size={20} className="animate-spin" /> : <Save size={20} />}
+                {checkingConfirmacion ? 'Revisando bodega...' : 'Registrar compra'}
               </button>
               <button type="button" onClick={() => setMostrarModalCancelar(true)} className="inline-flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700">
                 Cancelar
@@ -1359,15 +1512,7 @@ export default function Compras() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
                 <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
-                Estás superando la capacidad de la bodega
-              </h2>
-              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Con esta compra tendrás más café del que tu bodega puede almacenar.
-              </p>
-              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
-                Puedes continuar, pero es recomendable revisar esta decisión para evitar pérdidas o problemas de almacenamiento.
-              </p>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">No hay espacio suficiente</h2><p className="mt-3 text-[1rem] leading-7 text-slate-500">Esta compra supera la capacidad de tu bodega. Ajusta el peso o libera espacio antes de guardar.</p>
             </div>
 
             <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
@@ -1388,17 +1533,10 @@ export default function Compras() {
             <div className="mt-6 grid gap-3">
               <button
                 type="button"
-                onClick={confirmarCompraConAdvertencia}
+                onClick={() => setMostrarModalCapacidad(false)}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
               >
-                Continuar de todas formas
-              </button>
-              <button
-                type="button"
-                onClick={() => setMostrarModalCapacidad(false)}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
-              >
-                Revisar compra
+                Entendido, revisar compra
               </button>
             </div>
           </div>
@@ -1492,48 +1630,65 @@ export default function Compras() {
                 type="button"
                 onClick={() => void guardarCompra()}
                 disabled={!puedeRegistrarCompra || saving}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-80"
               >
-                {saving ? 'Guardando compra...' : 'Confirmar compra'}
+                {saving ? (
+                  <>
+                    <LoaderCircle size={20} className="animate-spin" />
+                    Guardando compra...
+                  </>
+                ) : (
+                  'Confirmar compra'
+                )}
               </button>
               <button
                 type="button"
                 onClick={cerrarModalConfirmar}
+                disabled={saving}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
               >
                 Cancelar
               </button>
             </div>
           </div>
+          {saving ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/10 px-4">
+              <div className="rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
+                <LoaderCircle size={28} className="mx-auto animate-spin text-[#1f3fa7]" />
+                <p className="mt-2 text-sm font-black text-slate-900">Guardando compra</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Espera un momento...</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       {mostrarModalProductor ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 px-3 pt-8 backdrop-blur-md">
-          <div className="w-full max-w-[560px] overflow-hidden rounded-t-[30px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.2)]">
-            <div className="px-6 pb-6 pt-4">
-              <div className="mx-auto h-2 w-16 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-5 flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="px-5 pb-5 pt-3">
+              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+              <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[1.7rem] font-semibold leading-tight text-[#111827]">Registrar Productor</h2>
+                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">Registrar Productor</h2>
                 </div>
-                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500">
-                  <X size={24} />
+                <button type="button" onClick={cerrarModalProductor} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500">
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="mt-8 space-y-5">
+              <div className="mt-5 space-y-4">
                 <div>
-                  <label className="mb-2 block text-base font-semibold text-slate-900">Nombre completo</label>
-                  <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Pérez Rodríguez" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Nombre completo</label>
+                  <input type="text" value={productorForm.nombre} onChange={(event) => setProductorForm((actual) => ({ ...actual, nombre: event.target.value }))} placeholder="Ej. Juan Pérez Rodríguez" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-2 block text-base font-semibold text-slate-900">Cédula o NIT</label>
-                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="Ej. 123456789 o 900123456" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Cédula o NIT</label>
+                  <input type="text" value={productorForm.documento} onChange={(event) => setProductorForm((actual) => ({ ...actual, documento: event.target.value }))} placeholder="Ej. 123456789 o 900123456" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
                 <div>
-                  <label className="mb-2 block text-base font-semibold text-slate-900">Teléfono (opcional)</label>
-                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="Ej. 3001234567" className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] px-5 py-4 text-base text-slate-900 outline-none focus:border-[#173ea6]" />
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">Teléfono (opcional)</label>
+                  <input type="text" value={productorForm.telefono} onChange={(event) => setProductorForm((actual) => ({ ...actual, telefono: event.target.value }))} placeholder="Ej. 3001234567" className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]" />
                 </div>
 
                 {productorFormError ? (
@@ -1542,14 +1697,39 @@ export default function Compras() {
               </div>
             </div>
 
-            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-6 py-5">
-              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex w-full items-center justify-center rounded-[20px] bg-[#102d92] px-5 py-4 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
+              <button type="button" onClick={guardarProductorLocal} disabled={botonGuardarProductorPresionado} className="inline-flex w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
                 {botonGuardarProductorPresionado ? 'Guardando productor...' : 'Guardar Productor'}
               </button>
-              <button type="button" onClick={cerrarModalProductor} className="mt-4 inline-flex w-full items-center justify-center px-5 py-2 text-base font-semibold text-slate-500">
+              <button type="button" onClick={cerrarModalProductor} className="mt-3 inline-flex w-full items-center justify-center px-5 py-2 text-[0.9rem] font-semibold text-slate-500">
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {productorCreadoToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 bottom-6 z-40 px-4"
+        >
+          <div className="mx-auto flex w-full max-w-[520px] items-center justify-between gap-3 rounded-[18px] border border-[#d9e2f5] bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_18px_46px_rgba(15,23,42,0.18)]">
+            <div className="min-w-0">
+              <p className="font-bold text-slate-900">Productor creado</p>
+              <p className="truncate text-xs text-slate-500">{productorCreadoToast.nombre}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                seleccionarProductor(productorCreadoToast);
+                setProductorCreadoToast(null);
+              }}
+              className="shrink-0 rounded-full bg-[#eef2ff] px-3 py-2 text-xs font-bold text-[#102d92] transition hover:bg-[#dfe7ff]"
+            >
+              Usar este
+            </button>
           </div>
         </div>
       ) : null}

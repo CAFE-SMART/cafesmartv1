@@ -94,10 +94,6 @@ export async function obtenerDetalleLote(tipoCafeId: string, calidadId: string) 
   return apiFetch(`/lotes/${tipoCafeId}/${calidadId}/sublotes`) as Promise<LoteDetalle>;
 }
 
-export async function obtenerDetalleLotePorId(loteId: string) {
-  return apiFetch(`/lotes/detalle/${loteId}`) as Promise<LoteDetalle>;
-}
-
 export async function obtenerResultadosFinancierosSublote(subloteId: string) {
   return apiFetch(`/lotes/sublotes/${subloteId}/resultados-financieros`) as Promise<ResultadosFinancierosSublote>;
 }

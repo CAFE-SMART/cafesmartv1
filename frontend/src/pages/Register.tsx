@@ -1,106 +1,70 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
-import { Capacitor } from '@capacitor/core';
 import {
-  ArrowRight,
   ArrowLeft,
+  ArrowRight,
   Check,
+  CircleHelp,
   Eye,
   EyeOff,
-  Loader,
-  Lock,
-  Mail,
-  Phone,
-  User,
-  UserPlus,
-  Users,
-  Store,
-  Settings,
-  CircleHelp,
   Headset,
+  Info,
+  Loader,
+  Settings,
+  Store,
+  Users,
   X,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import {
-  createGuidedError,
-  InlineGuidedError,
-  type GuidedErrorMessage,
-} from '../components/forms/GuidedError';
 import { RegisterProgress } from '../components/register/RegisterProgress';
-import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
-  EMAIL_REGEX,
-  getPasswordChecks,
   getPasswordStrength,
   type RegisterLocationState,
   type TipoOrg,
 } from '../utils/registerValidators';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
-type RegisterField =
-  | 'nombreOrganizacion'
-  | 'tipoOrganizacion'
-  | 'otroTipoDetalle'
-  | 'nombre'
-  | 'apellidos'
-  | 'telefono'
-  | 'correo'
-  | 'password'
-  | 'confirmPassword';
+type BusinessType = {
+  value: TipoOrg;
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+};
 
-function SimpleFieldError({ id, message }: { id: string; message: string }) {
-  return (
-    <p id={id} className="mt-2 text-sm font-semibold leading-5 text-red-600">
-      {message}
-    </p>
-  );
-}
+const businessTypes: BusinessType[] = [
+  {
+    value: 'COMPRAVENTA',
+    label: 'COMPRAVENTA',
+    desc: 'Compras cafe para revenderlo y obtener ganancias.',
+    icon: <Store size={19} />,
+  },
+  {
+    value: 'COOPERATIVA',
+    label: 'COOPERATIVA',
+    desc: 'Recibes cafe de productores y lo vendes por ellos.',
+    icon: <Users size={19} />,
+  },
+  {
+    value: 'PERSONALIZADO',
+    label: 'PERSONALIZADO',
+    desc: 'Otro tipo de negocio cafetero.',
+    icon: <Settings size={19} />,
+  },
+];
 
-function formatColombianMobileInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 10);
-  const first = digits.slice(0, 3);
-  const second = digits.slice(3, 6);
-  const third = digits.slice(6, 10);
-
-  return [first, second, third].filter(Boolean).join(' ');
-}
-
-function passwordRequirementClass(isMet: boolean) {
-  return isMet ? 'text-emerald-700' : 'text-slate-500';
-}
-
-function SectionTitle({ children, icon }: { children: React.ReactNode; icon: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 pt-2">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#2563eb]">
-        {icon}
-      </span>
-      <p className="text-[1.18rem] font-extrabold tracking-normal text-slate-900">
-        {children}
-      </p>
-    </div>
-  );
-}
-
-function fieldStateClass(hasError: boolean, isValid: boolean) {
-  if (hasError) return 'border-red-300 bg-white text-gray-800 shadow-[0_10px_22px_rgba(248,113,113,0.14)]';
-  if (isValid) return 'border-emerald-400 bg-white text-gray-800 shadow-[0_10px_22px_rgba(52,211,153,0.12)]';
-  return 'border-white bg-white text-gray-800 shadow-[0_10px_22px_rgba(15,23,42,0.08)]';
-}
+const colorByType: Record<TipoOrg, string> = {
+  COOPERATIVA: 'bg-[#eef4ff] text-[#2f5ec4]',
+  COMPRAVENTA: 'bg-[#fff5d8] text-[#b58214]',
+  PERSONALIZADO: 'bg-[#fff0f2] text-[#d24861]',
+};
 
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
-  const googleButtonWidth =
-    typeof window !== 'undefined'
-      ? String(Math.min(360, Math.max(240, window.innerWidth - 64)))
-      : '320';
   const isGoogleAuthEnabled = Boolean(
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
-  const isAndroidApp = Capacitor.getPlatform() === 'android';
   const [googleLoading, setGoogleLoading] = useState(false);
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
   const initialRouteState = useMemo(
@@ -118,7 +82,6 @@ export default function Register() {
   }, [initialRouteState]);
 
   const hasGoogleFlow = Boolean(googleRouteState.googleToken);
-  const googlePrefill = googleRouteState.googlePrefill;
   const {
     step,
     nombreOrganizacion,
@@ -153,147 +116,10 @@ export default function Register() {
     validateEmailAvailability,
   } = useRegisterForm({ hasGoogleFlow, routeState: googleRouteState, navigate });
 
-  const tiposOrg: { value: TipoOrg; label: string; desc: string; icon: React.ReactNode }[] = [
-    {
-      value: 'COMPRAVENTA',
-      label: 'Compraventa',
-      desc: 'Compras cafe para revenderlo y obtener ganancias.',
-      icon: <Store size={22} />,
-    },
-    {
-      value: 'COOPERATIVA',
-      label: 'Cooperativa',
-      desc: 'Recibes cafe de productores y lo vendes por ellos.',
-      icon: <Users size={22} />,
-    },
-    {
-      value: 'PERSONALIZADO',
-      label: 'Personalizado',
-      desc: 'Otro tipo de negocio cafetero',
-      icon: <Settings size={22} />,
-    },
-  ];
-
-  const colorByType: Record<TipoOrg, string> = {
-    COOPERATIVA: 'bg-blue-100 text-blue-700',
-    COMPRAVENTA: 'bg-amber-100 text-amber-700',
-    PERSONALIZADO: 'bg-rose-100 text-rose-700',
-  };
-
   const progressPercent = step === 1 ? 50 : 100;
-  const [animatedProgress, setAnimatedProgress] = useState(0);
-  const isStepOneComplete =
-    nombreOrganizacion.trim().replace(/\s+/g, ' ').length >= 2 && Boolean(tipoOrganizacion);
   const passwordStrength = getPasswordStrength(password);
-  const passwordChecks = getPasswordChecks(password);
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
-  const isNombreValid = nombre.trim().length > 0;
-  const isApellidosValid = apellidos.trim().length > 0;
-  const isTelefonoValid = /^3\d{9}$/.test(telefono.replace(/\D/g, ''));
-  const isCorreoValid = EMAIL_REGEX.test(correo.trim());
-  const isPasswordValid =
-    passwordChecks.minLength &&
-    passwordChecks.hasUpper &&
-    passwordChecks.hasLower &&
-    passwordChecks.hasNumber;
-
-  useEffect(() => {
-    const progressTimer = window.setTimeout(() => {
-      setAnimatedProgress(progressPercent);
-    }, 40);
-
-    return () => window.clearTimeout(progressTimer);
-  }, [progressPercent]);
-
-  const getRegisterFieldGuidance = (field: RegisterField, message: string): GuidedErrorMessage => {
-    if (field === 'nombreOrganizacion') {
-      return createGuidedError(
-        message,
-        'Falta el nombre.',
-        'No sabemos cómo se llama tu negocio.',
-        'Escribe el nombre de tu empresa.',
-      );
-    }
-
-    if (field === 'tipoOrganizacion') {
-      return createGuidedError(
-        message,
-        'Falta el tipo.',
-        'Cuéntanos a qué se dedica el negocio.',
-        'Elige cooperativa, compraventa u otro.',
-      );
-    }
-
-    if (field === 'otroTipoDetalle') {
-      return createGuidedError(
-        message,
-        'Falta especificar.',
-        'Queremos conocer más sobre tu actividad.',
-        'Describe muy brevemente a qué te dedicas.',
-      );
-    }
-
-    if (field === 'nombre') {
-      return createGuidedError(
-        message,
-        'Falta el nombre.',
-        'No sabemos cómo llamarte.',
-        'Escribe el nombre del administrador.',
-      );
-    }
-
-    if (field === 'apellidos') {
-      return createGuidedError(
-        message,
-        'Faltan tus apellidos.',
-        'Es importante registrarlos por seguridad.',
-        'Escribe tus apellidos.',
-      );
-    }
-
-    if (field === 'telefono') {
-      return createGuidedError(
-        message,
-        'Revisa el teléfono.',
-        'Parece que falta algún número.',
-        'Ingresa un celular válido.',
-      );
-    }
-
-    if (field === 'correo') {
-      return createGuidedError(
-        message,
-        'Revisa tu correo.',
-        'O no está bien escrito, o alguien ya lo usa.',
-        'Corrige y verifica el correo.',
-      );
-    }
-
-    if (field === 'password') {
-      return createGuidedError(
-        message,
-        'La contraseña es débil.',
-        'Usa al menos 6 letras, incluyendo mayúscula y minúscula.',
-        'Mejora tu contraseña.',
-      );
-    }
-
-    return createGuidedError(
-      message,
-      'Las contraseñas son distintas.',
-      'Asegúrate de escribir la misma en ambos campos.',
-      'Repite la contraseña.',
-    );
-  };
-
-  const getRegisterGlobalGuidance = (message: string) =>
-    createGuidedError(
-      message,
-      'Problema registrando.',
-      'Algo salió mal validando tus datos.',
-      'Revisa lo que marcamos en rojo e intenta de nuevo.',
-    );
 
   const handleGoogleRegisterSuccess = (credentialResponse: CredentialResponse) => {
     const idToken = credentialResponse?.credential;
@@ -329,702 +155,594 @@ export default function Register() {
     goBackToStep1();
   };
 
-  const closeSupportModal = () => {
-    setSupportModal(null);
-  };
-
   return (
-    <div className="min-h-screen bg-[#f3f4f6] flex flex-col font-sans text-gray-900">
-      <main className="flex-1 flex flex-col items-center px-0 pb-0">
-        <div className="w-full max-w-[520px]">
-          {step === 1 && (
-            <section
-              aria-labelledby="register-business-title"
-              className="flex h-[100dvh] min-h-screen flex-col overflow-hidden bg-[#f3f4f6]"
-            >
-              <div className="shrink-0 border-b border-slate-200 px-4 py-3">
-                <div className="relative flex min-h-[34px] items-center justify-center">
-                <button
-                  type="button"
-                  onClick={handleHeaderBack}
-                    className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900"
-                  aria-label="Volver al ingreso"
-                >
-                  <ArrowLeft size={18} />
-                </button>
-                  <h1 id="register-business-title" className="text-center text-[1.78rem] font-semibold text-[#111827]">
-                  Crear cuenta
-                </h1>
-                </div>
-                <CafeSmartLogo size="sm" compact className="mt-3" />
+    <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
+      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-[#f7f8fb]">
+        {step === 1 ? (
+          <section className="flex min-h-screen flex-col" aria-labelledby="register-business-title">
+            <RegisterHeader
+              title="Crear cuenta"
+              onBack={handleHeaderBack}
+              labelledBy="register-business-title"
+            />
+
+            <div className="flex-1 px-4 pt-5">
+              <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+
+              <h2 className="mt-2 text-[1.28rem] font-black leading-tight tracking-normal text-[#111827]">
+                Comencemos configurando tu negocio
+              </h2>
+
+              {error ? <AlertBanner message={error} className="mt-4" /> : null}
+
+              <div className="mt-6">
+                <TextInput
+                  id="register-business-name"
+                  label="NOMBRE DEL NEGOCIO"
+                  value={nombreOrganizacion}
+                  onChange={(value) => {
+                    setNombreOrganizacion(value);
+                    setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
+                  }}
+                  placeholder="Ej: Cafe Los Alpes"
+                  autoComplete="organization"
+                  error={stepOneErrors.nombreOrganizacion}
+                />
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
-                <div className="mb-6">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-[0.95rem] font-bold text-slate-700">Paso 1: Información del negocio</p>
-                    <p className="text-[0.95rem] font-black text-[#4f46e5]">1 de 2</p>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full rounded-full bg-[#4f46e5] transition-[width] duration-500 ease-in-out"
-                      style={{ width: `${animatedProgress}%` }}
+              <div className="mt-6">
+                <p className="mb-3 text-[10px] font-black uppercase tracking-[0.08em] text-[#1f2937]">
+                  TIPO DE NEGOCIO
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                  {businessTypes.map((type) => (
+                    <BusinessTypeCard
+                      key={type.value}
+                      type={type}
+                      selected={tipoOrganizacion === type.value}
+                      onSelect={() => {
+                        setTipoOrganizacion(type.value);
+                        setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
+                      }}
                     />
-                  </div>
+                  ))}
                 </div>
-
-                <h2 className="mb-5 text-[1.92rem] font-semibold leading-[1.12] tracking-[-0.02em] text-[#111827]">
-                  Comencemos configurando tu negocio
-                </h2>
-
-                {error ? (
-                  <InlineGuidedError
-                    message={getRegisterGlobalGuidance(error)}
-                    className="mb-6"
-                  />
+                {stepOneErrors.tipoOrganizacion ? (
+                  <FieldError message={stepOneErrors.tipoOrganizacion} />
                 ) : null}
+              </div>
 
-                <div className="mb-5">
-                  <label htmlFor="register-business-name" className="mb-2 block text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#1f2937]">
-                    Nombre del negocio
-                  </label>
-                  <input
-                    id="register-business-name"
-                    name="businessName"
-                    type="text"
-                    value={nombreOrganizacion}
-                    onChange={(e) => {
-                      setNombreOrganizacion(e.target.value);
-                      setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
+              {tipoOrganizacion === 'PERSONALIZADO' ? (
+                <div className="mt-4">
+                  <TextInput
+                    id="register-business-custom"
+                    label="DESCRIPCION"
+                    value={otroTipoDetalle}
+                    onChange={(value) => {
+                      setOtroTipoDetalle(value);
+                      setStepOneErrors((prev) => ({ ...prev, otroTipoDetalle: undefined }));
                     }}
-                    placeholder="Ej: Café Los Alpes"
-                    autoComplete="organization"
-                    aria-invalid={Boolean(stepOneErrors.nombreOrganizacion)}
-                    aria-describedby={
-                      stepOneErrors.nombreOrganizacion ? 'register-business-name-error' : undefined
-                    }
-                    className={`block min-h-[52px] w-full rounded-2xl border px-4 py-3 text-[1.02rem] text-[#111827] placeholder:text-[#9ca3af] focus:border-[#274397] focus:outline-none focus:ring-2 focus:ring-[#274397]/15 ${
-                      stepOneErrors.nombreOrganizacion
-                        ? 'border-red-300 bg-red-50/50'
-                        : 'border-[#e5e7eb] bg-[#f8fafc]'
-                    }`}
+                    placeholder="Ej: Trilla, laboratorio o finca"
+                    error={stepOneErrors.otroTipoDetalle}
                   />
-                  {stepOneErrors.nombreOrganizacion && (
-                    <InlineGuidedError
-                      id="register-business-name-error"
-                      message={getRegisterFieldGuidance(
-                        'nombreOrganizacion',
-                        stepOneErrors.nombreOrganizacion,
-                      )}
-                      className="mt-2"
-                    />
-                  )}
+                </div>
+              ) : null}
+            </div>
+
+            <RegisterFooter
+              primaryLabel="Siguiente paso"
+              onPrimary={goToStep2}
+              icon={<ArrowRight size={16} />}
+              onHelp={() => setSupportModal('help')}
+              onContact={() => setSupportModal('contact')}
+            />
+          </section>
+        ) : (
+          <section className="flex min-h-screen flex-col" aria-labelledby="register-admin-title">
+            <RegisterHeader
+              title="Crear cuenta"
+              onBack={handleHeaderBack}
+              labelledBy="register-admin-title"
+            />
+
+            <div className="flex-1 px-4 pb-5 pt-5">
+              <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+
+              {error ? <AlertBanner message={error} className="mb-4" /> : null}
+
+              <div className="mb-5 flex items-start gap-3 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#274ab8] text-white">
+                  <Info size={14} />
+                </span>
+                <p className="text-sm font-semibold leading-5 text-[#355070]">
+                  Este usuario sera el administrador del sistema.
+                </p>
+              </div>
+
+              {hasGoogleFlow ? (
+                <p className="mb-5 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3 text-sm font-semibold text-[#355070]">
+                  Google completo tus datos. Revisalos y termina el registro.
+                </p>
+              ) : null}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <TextInput
+                    id="register-admin-name"
+                    label="Nombre"
+                    value={nombre}
+                    onChange={(value) => {
+                      setNombre(value);
+                      setStepTwoErrors((prev) => ({ ...prev, nombre: undefined }));
+                    }}
+                    placeholder="Ej: Juan"
+                    autoComplete="given-name"
+                    error={stepTwoErrors.nombre}
+                    compactLabel
+                  />
+
+                  <TextInput
+                    id="register-admin-lastname"
+                    label="Apellidos"
+                    value={apellidos}
+                    onChange={(value) => {
+                      setApellidos(value);
+                      setStepTwoErrors((prev) => ({ ...prev, apellidos: undefined }));
+                    }}
+                    placeholder="Ej: Perez Gomez"
+                    autoComplete="family-name"
+                    error={stepTwoErrors.apellidos}
+                    compactLabel
+                  />
+                </div>
+
+                <TextInput
+                  id="register-admin-phone"
+                  label="Telefono"
+                  value={telefono}
+                  onChange={(value) => {
+                    setTelefono(value);
+                    setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
+                  }}
+                  placeholder="+57 300 123 4567"
+                  autoComplete="tel"
+                  error={stepTwoErrors.telefono}
+                  compactLabel
+                />
+
+                <div>
+                  <TextInput
+                    id="register-admin-email"
+                    label="Correo electronico"
+                    value={correo}
+                    onChange={(value) => {
+                      setCorreo(value);
+                      setStepTwoErrors((prev) => ({ ...prev, correo: undefined }));
+                    }}
+                    onBlur={async () => {
+                      const emailExistsError = await validateEmailAvailability(correo);
+                      if (emailExistsError) {
+                        setStepTwoErrors((prev) => ({ ...prev, correo: emailExistsError }));
+                      }
+                    }}
+                    placeholder="admin@empresa.com"
+                    autoComplete="email"
+                    error={stepTwoErrors.correo}
+                    compactLabel
+                  />
+                  {isCheckingEmail && !stepTwoErrors.correo ? (
+                    <p className="mt-2 text-xs font-semibold text-[#64748b]">Validando correo...</p>
+                  ) : null}
                 </div>
 
                 <div>
-                  <label className="mb-3 block text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#1f2937]" id="register-business-type-label">
-                    Tipo de negocio
-                  </label>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="register-business-type-label"
-                  aria-describedby={
-                    stepOneErrors.tipoOrganizacion ? 'register-business-type-error' : undefined
-                  }
-                    className="grid grid-cols-1 gap-3"
-                >
-                  {tiposOrg.map((t) => {
-                    const selected = tipoOrganizacion === t.value;
-                    return (
-                      <button
-                        key={t.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => {
-                          setTipoOrganizacion(t.value);
-                          setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
-                        }}
-                          className={`w-full rounded-[16px] border px-4 py-3 text-left transition-all ${
-                          selected
-                              ? 'border-[#2f4da2] bg-[#f5f8ff] shadow-[0_0_0_1px_rgba(47,77,162,0.08)]'
-                              : 'border-[#d6dbe3] bg-white hover:border-[#c7cfdb]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex-shrink-0">
-                            <div
-                                className={`flex h-11 w-11 items-center justify-center rounded-xl ${colorByType[t.value]}`}
-                            >
-                              {t.icon}
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                              <p className="text-[1.08rem] font-semibold tracking-normal text-[#111827]">
-                              {t.label}
-                            </p>
-                              <p className="mt-1 text-[0.96rem] leading-5 text-slate-500">
-                              {t.desc}
-                            </p>
-                          </div>
-                          <div
-                              className={`flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
-                              selected
-                                ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
-                                  : 'border-slate-300 bg-white text-transparent'
-                            }`}
-                            aria-hidden="true"
-                          >
-                            <Check size={14} strokeWidth={3} />
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {stepOneErrors.tipoOrganizacion && (
-                  <InlineGuidedError
-                    id="register-business-type-error"
-                    message={getRegisterFieldGuidance(
-                      'tipoOrganizacion',
-                      stepOneErrors.tipoOrganizacion,
-                    )}
-                    className="mt-2"
-                  />
-                )}
-                </div>
-              </div>
-
-              <div className="shrink-0 border-t border-slate-200 bg-[#f3f4f6]/95 px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_24px_rgba(15,23,42,0.08)] backdrop-blur">
-                <button
-                  type="button"
-                  onClick={goToStep2}
-                  disabled={!isStepOneComplete}
-                  className={`w-full rounded-full px-4 py-4 text-[1.08rem] font-bold text-white shadow-[0_12px_24px_rgba(30,64,175,0.24)] transition-all duration-200 ease-in-out active:scale-[0.98] ${
-                    isStepOneComplete
-                      ? 'bg-[#1d4ed8] hover:bg-[#1e40af] active:shadow-[0_8px_18px_rgba(30,64,175,0.28)]'
-                      : 'bg-[#1d4ed8]/45 shadow-none'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    Siguiente paso
-                    <ArrowRight size={18} />
-                  </span>
-                </button>
-
-                <div className="pt-3 text-center">
-                  <p className="text-[0.86rem] font-medium text-slate-500">¿Necesitas ayuda con el registro?</p>
-                  <div className="mt-2 flex items-center justify-center gap-6">
-                    <button
-                      type="button"
-                      onClick={() => setSupportModal('help')}
-                      className="inline-flex items-center gap-1.5 text-[0.96rem] font-semibold text-slate-600 transition-colors hover:text-[#28449b]"
-                    >
-                      <CircleHelp size={15} />
-                      Ayuda
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSupportModal('contact')}
-                      className="inline-flex items-center gap-1.5 text-[0.96rem] font-semibold text-slate-600 transition-colors hover:text-[#28449b]"
-                    >
-                      <Headset size={15} />
-                      Contacto
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {step === 2 && (
-            <section
-              aria-labelledby="register-admin-title"
-              className="min-h-screen bg-[#f3f4f6] px-4 pb-[calc(32px+env(safe-area-inset-bottom))] pt-3"
-            >
-              <div className="relative mb-3 flex min-h-[40px] items-center justify-center">
-                <button
-                  type="button"
-                  onClick={handleHeaderBack}
-                  className="absolute left-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-white hover:text-gray-900 hover:shadow-sm"
-                  aria-label="Volver al negocio"
-                >
-                  <ArrowLeft size={18} />
-                </button>
-                <h2 id="register-admin-title" className="text-center text-[1.9rem] font-semibold text-[#111827]">
-                  Crear cuenta
-                </h2>
-              </div>
-              <CafeSmartLogo size="sm" compact className="mb-4" />
-
-              <div className="mb-5">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-[1rem] font-semibold text-slate-600">
-                    Paso 2: Datos del administrador
-                  </p>
-                  <p className="text-sm font-black text-[#1e3a8a]">2 de 2</p>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
-                  <div
-                    className="h-full rounded-full bg-[#2563eb] transition-[width] duration-500 ease-in-out"
-                    style={{ width: `${animatedProgress}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="mb-5 flex items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 shadow-[0_12px_26px_rgba(30,58,138,0.1)]">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#2563eb] text-white shadow-[0_10px_18px_rgba(37,99,235,0.22)]">
-                  <User size={25} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[1.05rem] font-black leading-5 text-[#2563eb]">
-                    Cuenta administradora
-                  </p>
-                  <p className="mt-1 text-[0.95rem] leading-5 text-slate-600">
-                    Gestiona usuarios, compras e inventario.
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-                {hasGoogleFlow && (
-                  <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    Google completo nombre, apellidos y correo. Solo revisalos y termina el registro.
-                  </p>
-                )}
-
-                <SectionTitle icon={<User size={20} strokeWidth={2.2} />}>Datos personales</SectionTitle>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label htmlFor="register-admin-name" className="mb-2 block text-sm font-bold text-slate-700">
-                      Nombre
-                    </label>
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="register-admin-name"
-                        name="firstName"
-                        type="text"
-                        value={nombre}
-                        onChange={(e) => {
-                          setNombre(e.target.value);
-                          setStepTwoErrors((prev) => ({ ...prev, nombre: undefined }));
-                        }}
-                        placeholder="Ej. Juan"
-                        autoComplete="given-name"
-                        aria-invalid={Boolean(stepTwoErrors.nombre)}
-                        aria-describedby={stepTwoErrors.nombre ? 'register-admin-name-error' : undefined}
-                        className={`block min-h-[52px] w-full rounded-xl border py-3 pl-12 pr-4 text-base transition-all placeholder-gray-400 focus:border-[#1e3a8a] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 ${fieldStateClass(
-                          Boolean(stepTwoErrors.nombre),
-                          isNombreValid,
-                        )}`}
-                      />
-                    </div>
-                    {stepTwoErrors.nombre && (
-                      <SimpleFieldError
-                        id="register-admin-name-error"
-                        message={stepTwoErrors.nombre}
-                      />
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="register-admin-lastname" className="mb-2 block text-sm font-bold text-slate-700">
-                      Apellidos
-                    </label>
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        id="register-admin-lastname"
-                        name="lastName"
-                        type="text"
-                        value={apellidos}
-                        onChange={(e) => {
-                          setApellidos(e.target.value);
-                          setStepTwoErrors((prev) => ({ ...prev, apellidos: undefined }));
-                        }}
-                        placeholder="Ej. Pérez Gómez"
-                        autoComplete="family-name"
-                        aria-invalid={Boolean(stepTwoErrors.apellidos)}
-                        aria-describedby={
-                          stepTwoErrors.apellidos ? 'register-admin-lastname-error' : undefined
-                        }
-                        className={`block min-h-[52px] w-full rounded-xl border py-3 pl-12 pr-4 text-base transition-all placeholder-gray-400 focus:border-[#1e3a8a] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 ${fieldStateClass(
-                          Boolean(stepTwoErrors.apellidos),
-                          isApellidosValid,
-                        )}`}
-                      />
-                    </div>
-                    {stepTwoErrors.apellidos && (
-                      <SimpleFieldError
-                        id="register-admin-lastname-error"
-                        message={stepTwoErrors.apellidos}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-200 pt-4">
-                  <SectionTitle icon={<Phone size={20} strokeWidth={2.2} />}>Contacto</SectionTitle>
-                </div>
-                <div>
-                  <label htmlFor="register-admin-phone" className="block text-sm font-bold text-slate-700 mb-2">
-                    Número de celular
+                  <label
+                    htmlFor="register-admin-password"
+                    className="mb-2 block text-xs font-black text-[#344054]"
+                  >
+                    Contrase&ntilde;a
                   </label>
                   <div
-                    className={`flex min-h-[52px] w-full items-center overflow-hidden rounded-xl border bg-white shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition-all focus-within:border-[#1e3a8a] focus-within:ring-2 focus-within:ring-[#1e3a8a]/20 ${
-                      stepTwoErrors.telefono
-                        ? 'border-red-300'
-                        : isTelefonoValid
-                          ? 'border-emerald-400'
-                          : 'border-white'
+                    className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
+                      stepTwoErrors.password
+                        ? 'border-rose-300 bg-rose-50/50'
+                        : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
                     }`}
                   >
-                    <span className="flex min-h-[52px] items-center border-r border-slate-200 bg-slate-50 px-5 text-base font-black text-[#1e3a8a]">
-                      +57
-                    </span>
-                    <input
-                      id="register-admin-phone"
-                      name="phone"
-                      type="tel"
-                      inputMode="numeric"
-                      value={formatColombianMobileInput(telefono)}
-                      onChange={(e) => {
-                        setTelefono(e.target.value.replace(/\D/g, '').slice(0, 10));
-                        setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
-                      }}
-                      placeholder="300 123 4567"
-                      autoComplete="tel-national"
-                      aria-invalid={Boolean(stepTwoErrors.telefono)}
-                      aria-describedby={stepTwoErrors.telefono ? 'register-admin-phone-error' : undefined}
-                      className="min-w-0 flex-1 bg-transparent px-5 py-3 text-base text-gray-700 placeholder-gray-400 outline-none"
-                    />
-                  </div>
-                  {stepTwoErrors.telefono && (
-                    <SimpleFieldError
-                      id="register-admin-phone-error"
-                      message={stepTwoErrors.telefono}
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="register-admin-email" className="mb-2 block text-sm font-bold text-slate-700">
-                    Correo electrónico
-                  </label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      id="register-admin-email"
-                      name="email"
-                      type="text"
-                      inputMode="email"
-                      value={correo}
-                      onChange={(e) => {
-                        setCorreo(e.target.value);
-                        setStepTwoErrors((prev) => ({ ...prev, correo: undefined }));
-                      }}
-                      onBlur={async () => {
-                        const emailExistsError = await validateEmailAvailability(correo);
-                        if (emailExistsError) {
-                          setStepTwoErrors((prev) => ({ ...prev, correo: emailExistsError }));
-                        }
-                      }}
-                      placeholder="admin@empresa.com"
-                      autoComplete="email"
-                      aria-invalid={Boolean(stepTwoErrors.correo)}
-                      aria-describedby={
-                        stepTwoErrors.correo
-                          ? 'register-admin-email-error'
-                          : isCheckingEmail
-                            ? 'register-admin-email-status'
-                            : undefined
-                      }
-                      className={`block min-h-[52px] w-full rounded-xl border py-3 pl-12 pr-4 text-base transition-all placeholder-gray-400 focus:border-[#1e3a8a] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 ${fieldStateClass(
-                        Boolean(stepTwoErrors.correo),
-                        isCorreoValid,
-                      )}`}
-                    />
-                  </div>
-                  {isCheckingEmail && !stepTwoErrors.correo && (
-                    <p id="register-admin-email-status" className="mt-2 text-xs font-medium text-slate-500">
-                      Validando correo...
-                    </p>
-                  )}
-                  {stepTwoErrors.correo && (
-                    <SimpleFieldError
-                      id="register-admin-email-error"
-                      message={stepTwoErrors.correo}
-                    />
-                  )}
-                </div>
-
-                <div className="border-t border-slate-200 pt-4">
-                  <SectionTitle icon={<Lock size={20} strokeWidth={2.2} />}>Seguridad</SectionTitle>
-                </div>
-                <div>
-                  <label htmlFor="register-admin-password" className="block text-sm font-bold text-slate-700 mb-2">
-                    Contraseña
-                  </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       id="register-admin-password"
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
+                      onChange={(event) => {
+                        setPassword(event.target.value);
                         setStepTwoErrors((prev) => ({ ...prev, password: undefined }));
                       }}
-                      placeholder="Crea una contraseña segura"
-                      autoComplete={hasGoogleFlow ? 'new-password' : 'new-password'}
-                      aria-invalid={Boolean(stepTwoErrors.password)}
-                      aria-describedby={stepTwoErrors.password ? 'register-admin-password-error' : undefined}
-                      className={`block min-h-[52px] w-full rounded-xl border py-3 pl-12 pr-11 text-base transition-all placeholder-gray-400 focus:border-[#1e3a8a] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 ${fieldStateClass(
-                        Boolean(stepTwoErrors.password),
-                        isPasswordValid,
-                      )}`}
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                      )}
-                    </button>
-                  </div>
-                  {stepTwoErrors.password && (
-                    <SimpleFieldError
-                      id="register-admin-password-error"
-                      message={stepTwoErrors.password}
-                    />
-                  )}
-                  <div className="mt-3">
-                    <div className="flex items-center gap-3">
-                      <p className="shrink-0 text-sm font-extrabold text-slate-800">
-                        Seguridad: <strong className="text-orange-600">{passwordStrength.label}</strong>
-                      </p>
-                      <div className="grid flex-1 grid-cols-3 gap-2">
-                        {[1, 2, 3].map((level) => (
-                          <span
-                            key={level}
-                            className={`h-1.5 rounded-full ${
-                              passwordStrength.score >= level + 1
-                                ? level === 3
-                                  ? 'bg-emerald-500'
-                                  : level === 2
-                                    ? 'bg-amber-400'
-                                    : 'bg-orange-500'
-                                : 'bg-slate-200'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm font-medium">
-                      {[
-                        ['Mínimo 6 caracteres', passwordChecks.minLength],
-                        ['Una mayúscula', passwordChecks.hasUpper],
-                        ['Una minúscula', passwordChecks.hasLower],
-                        ['Un número', passwordChecks.hasNumber],
-                      ].map(([label, isMet]) => (
-                        <p
-                          key={label as string}
-                          className={`flex items-center gap-2 ${passwordRequirementClass(Boolean(isMet))}`}
-                        >
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                              isMet
-                                ? 'border-emerald-500 bg-emerald-500 text-white'
-                                : 'border-slate-300 bg-white text-slate-300'
-                            }`}
-                          >
-                            <Check size={12} strokeWidth={3} />
-                          </span>
-                          {label as string}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="register-admin-password-confirm" className="block text-sm font-bold text-slate-700 mb-2">
-                    Confirmar contraseña
-                  </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      id="register-admin-password-confirm"
-                      name="confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
-                      }}
-                      placeholder="Repite la contraseña"
+                      placeholder="********"
                       autoComplete="new-password"
-                      aria-invalid={Boolean(stepTwoErrors.confirmPassword)}
-                      aria-describedby={
-                        stepTwoErrors.confirmPassword
-                          ? 'register-admin-password-confirm-error'
-                          : hasStartedConfirming
-                            ? 'register-admin-password-confirm-status'
-                            : undefined
-                      }
-                        className={`block min-h-[52px] w-full rounded-xl border py-3 pl-12 pr-11 text-base transition-all placeholder-gray-400 focus:border-[#1e3a8a] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 ${fieldStateClass(
-                        Boolean(stepTwoErrors.confirmPassword),
-                        passwordsMatch,
-                      )}`}
+                      className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                      required
                       minLength={6}
                     />
                     <button
                       type="button"
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                      )}
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
-                  {stepTwoErrors.confirmPassword && (
-                    <SimpleFieldError
-                      id="register-admin-password-confirm-error"
-                      message={stepTwoErrors.confirmPassword}
-                    />
-                  )}
-                  {!stepTwoErrors.confirmPassword && hasStartedConfirming && (
-                    <p
-                      id="register-admin-password-confirm-status"
-                      className={`mt-2 text-xs font-medium ${
-                        passwordsMatch ? 'text-emerald-600' : 'text-red-600'
-                      }`}
-                    >
-                      {passwordsMatch
-                        ? 'Las contraseñas coinciden.'
-                        : 'Las contraseñas no coinciden.'}
+                  {stepTwoErrors.password ? <FieldError message={stepTwoErrors.password} /> : null}
+                  <div className="mt-2">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e6ebf3]">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          passwordStrength.score <= 1
+                            ? 'bg-rose-500'
+                            : passwordStrength.score === 2
+                              ? 'bg-amber-500'
+                              : passwordStrength.score === 3
+                                ? 'bg-sky-500'
+                                : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] font-medium text-[#73829a]">
+                      Minimo 6 caracteres, una minuscula, una mayuscula y un numero.
                     </p>
-                  )}
-                  {hasGoogleFlow && (
-                    <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
-                      Google no comparte tu contraseña con esta aplicación. Escribe aquí
-                      la misma que recuerdas de Google o crea una nueva para iniciar
-                      sesión en Cafe Smart.
-                    </p>
-                  )}
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <button
-                    type="submit"
-                    className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl bg-[#1d4ed8] px-4 py-4 text-[1.05rem] font-extrabold text-white shadow-[0_14px_28px_rgba(29,78,216,0.28)] transition-all hover:bg-[#1e40af] active:scale-[0.99]"
+                <TextInput
+                  id="register-admin-password-confirm"
+                  label="Confirma tu contrasena"
+                  value={confirmPassword}
+                  onChange={(value) => {
+                    setConfirmPassword(value);
+                    setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                  }}
+                  placeholder="Vuelve a escribir tu contrasena"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  error={stepTwoErrors.confirmPassword}
+                  compactLabel
+                />
+
+                {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
+                  <p
+                    className={`text-xs font-semibold ${
+                      passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                    }`}
                   >
-                    <UserPlus size={22} strokeWidth={2.4} />
-                    Crear cuenta
-                  </button>
-                  {!hasGoogleFlow && isGoogleAuthEnabled && !isAndroidApp && (
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
-                      {googleLoading ? (
-                        <div className="flex flex-col items-center justify-center py-2">
-                          <Loader className="h-8 w-8 animate-spin text-[#1e3a8a]" />
-                          <p className="mt-2 text-sm font-medium text-slate-700">
-                            Conectando con Google...
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex justify-center">
-                          <GoogleLogin
-                            onSuccess={(response) => {
-                              setGoogleLoading(true);
-                              handleGoogleRegisterSuccess(response);
-                            }}
-                            onError={handleGoogleRegisterError}
-                            text="continue_with"
-                            theme="outline"
-                            size="large"
-                            width={googleButtonWidth}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    {passwordsMatch ? 'Las contrasenas coinciden.' : 'Las contrasenas no coinciden.'}
+                  </p>
+                ) : null}
+
+                <button
+                  type="submit"
+                  className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+                >
+                  Crear cuenta
+                </button>
+
+                {!hasGoogleFlow && isGoogleAuthEnabled ? (
+                  <div className="space-y-3 pt-1">
+                    <Divider label="O continua con" />
+                    {googleLoading ? (
+                      <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
+                        <Loader size={18} className="mx-auto animate-spin text-[#274ab8]" />
+                        <p className="mt-2 text-sm font-semibold text-slate-700">
+                          Validando Google...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center">
+                        <GoogleLogin
+                          onSuccess={(response) => {
+                            setGoogleLoading(true);
+                            handleGoogleRegisterSuccess(response);
+                          }}
+                          onError={handleGoogleRegisterError}
+                          text="continue_with"
+                          theme="outline"
+                          size="large"
+                          width="100%"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </form>
-            </section>
-          )}
-        </div>
+
+              <RegisterLinks onHelp={() => setSupportModal('help')} onContact={() => setSupportModal('contact')} />
+            </div>
+          </section>
+        )}
       </main>
 
-      {step === 1 && supportModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="register-support-modal-title"
-            className="w-full max-w-[420px] rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.24)]"
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-[#28449b]">
-                  Soporte de registro
-                </p>
-                <h3 id="register-support-modal-title" className="mt-1 text-[1.2rem] font-semibold text-slate-900">
-                  {supportModal === 'help' ? 'Ayuda básica' : 'Contacto'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={closeSupportModal}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                aria-label="Cerrar modal"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {supportModal === 'help' ? (
-              <div className="space-y-3 text-[0.95rem] text-slate-600">
-                <p>1. Escribe el nombre del negocio tal como lo usas diariamente.</p>
-                <p>2. Selecciona el tipo que mejor describa tu operación cafetera.</p>
-                <p>3. Pulsa Siguiente paso para continuar con los datos del administrador.</p>
-              </div>
-            ) : (
-              <div className="space-y-3 text-[0.95rem] text-slate-600">
-                <p>Si tienes problemas con el registro, puedes comunicarte por:</p>
-                <p>Correo: soporte@cafesmart.com</p>
-                <p>Teléfono: +57 300 000 0000</p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={closeSupportModal}
-              className="mt-5 w-full rounded-xl bg-[#28449b] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#233b86]"
-            >
-              Entendido
-            </button>
-          </div>
-        </div>
+      {supportModal ? (
+        <SupportModal type={supportModal} onClose={() => setSupportModal(null)} />
       ) : null}
-
     </div>
   );
 }
 
+function RegisterHeader({
+  title,
+  onBack,
+  labelledBy,
+}: {
+  title: string;
+  onBack: () => void;
+  labelledBy: string;
+}) {
+  return (
+    <header className="border-b border-[#e6ebf3] bg-[#f7f8fb] px-4 py-3">
+      <div className="relative flex min-h-[28px] items-center justify-center">
+        <button
+          type="button"
+          onClick={onBack}
+          className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#111827]"
+          aria-label="Volver"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <h1 id={labelledBy} className="text-center text-xs font-black text-[#111827]">
+          {title}
+        </h1>
+      </div>
+    </header>
+  );
+}
 
+function BusinessTypeCard({
+  type,
+  selected,
+  onSelect,
+}: {
+  type: BusinessType;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`w-full rounded-[13px] border px-4 py-4 text-left transition ${
+        selected
+          ? 'border-[#274ab8] bg-[#f6f8ff] shadow-[0_0_0_1px_rgba(39,74,184,0.10)]'
+          : 'border-[#dfe5f1] bg-white hover:border-[#cbd6e8]'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] ${
+            colorByType[type.value]
+          }`}
+        >
+          {type.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] font-black text-[#111827]">{type.label}</span>
+          <span className="mt-1 block text-[11px] font-medium leading-4 text-[#73829a]">
+            {type.desc}
+          </span>
+        </span>
+        <span
+          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+            selected ? 'border-[#274ab8] bg-[#274ab8] text-white' : 'border-[#c8d2e2] text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <Check size={13} strokeWidth={3} />
+        </span>
+      </div>
+    </button>
+  );
+}
 
+function TextInput({
+  id,
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  type = 'text',
+  autoComplete,
+  error,
+  compactLabel = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void | Promise<void>;
+  placeholder: string;
+  type?: string;
+  autoComplete?: string;
+  error?: string;
+  compactLabel?: boolean;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className={`mb-2 block font-black text-[#344054] ${
+          compactLabel ? 'text-xs' : 'text-[10px] uppercase tracking-[0.08em]'
+        }`}
+      >
+        {label}
+      </label>
+      <input
+        id={id}
+        name={id}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={() => void onBlur?.()}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        aria-invalid={Boolean(error)}
+        className={`block min-h-[50px] w-full rounded-[10px] border px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-[#a8b4c5] ${
+          error
+            ? 'border-rose-300 bg-rose-50/50'
+            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/10'
+        }`}
+      />
+      {error ? <FieldError message={error} /> : null}
+    </div>
+  );
+}
 
+function RegisterFooter({
+  primaryLabel,
+  onPrimary,
+  icon,
+  onHelp,
+  onContact,
+}: {
+  primaryLabel: string;
+  onPrimary: () => void;
+  icon: React.ReactNode;
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <footer className="mt-8 border-t border-[#e6ebf3] bg-[#f7f8fb] px-4 py-4">
+      <button
+        type="button"
+        onClick={onPrimary}
+        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+      >
+        {primaryLabel}
+        {icon}
+      </button>
 
+      <RegisterLinks onHelp={onHelp} onContact={onContact} />
+    </footer>
+  );
+}
 
+function RegisterLinks({
+  onHelp,
+  onContact,
+}: {
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <div className="pt-5 text-center">
+      <p className="text-[11px] font-medium text-[#73829a]">
+        &iquest;Necesitas ayuda con el registro?
+      </p>
+      <div className="mt-2 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onHelp}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+        >
+          <CircleHelp size={13} />
+          Ayuda
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+        >
+          <Headset size={13} />
+          Contacto
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Divider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1 bg-[#e3e8f0]" />
+      <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#93a1b6]">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-[#e3e8f0]" />
+    </div>
+  );
+}
+
+function FieldError({ message }: { message: string }) {
+  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>;
+}
+
+function AlertBanner({ message, className = '' }: { message: string; className?: string }) {
+  return (
+    <div
+      className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ${className}`.trim()}
+    >
+      {message}
+    </div>
+  );
+}
+
+function SupportModal({
+  type,
+  onClose,
+}: {
+  type: 'help' | 'contact';
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="register-support-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#274ab8]">
+              Soporte
+            </p>
+            <h2 id="register-support-title" className="mt-1 text-lg font-black text-[#111827]">
+              {type === 'help' ? 'Ayuda basica' : 'Contacto'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            aria-label="Cerrar modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {type === 'help' ? (
+          <div className="space-y-2 text-sm leading-6 text-[#536178]">
+            <p>1. Escribe el nombre real del negocio.</p>
+            <p>2. Elige el tipo de operacion cafetera.</p>
+            <p>3. Completa los datos del administrador.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 text-sm leading-6 text-[#536178]">
+            <p>Correo: soporte@cafesmart.com</p>
+            <p>Telefono: +57 300 000 0000</p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 min-h-[44px] w-full rounded-full bg-[#284bc1] px-4 text-sm font-black text-white transition hover:bg-[#203fa8]"
+        >
+          Entendido
+        </button>
+      </div>
+    </div>
+  );
+}

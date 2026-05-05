@@ -25,7 +25,7 @@ export class CrearGastoDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'montoGasto debe ser un número' })
-  @Min(0, { message: 'El monto del gasto no puede ser negativo' })
+  @Min(0.01, { message: 'El monto del gasto debe ser mayor a 0' })
   montoGasto: number;
 
   @IsDateString({}, { message: 'fechaGasto debe ser una fecha ISO 8601' })

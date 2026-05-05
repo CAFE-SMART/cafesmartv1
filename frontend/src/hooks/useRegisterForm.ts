@@ -23,41 +23,23 @@ type UseRegisterFormParams = {
 export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegisterFormParams) {
   const [step, setStep] = useState(1);
 
-  const [nombreOrganizacion, setNombreOrganizacion] = useState(
-    normalizePossiblyMojibake(routeState.registerDraft?.nombreOrganizacion || ''),
-  );
-  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>(
-    routeState.registerDraft?.tipoOrganizacion || '',
-  );
-  const [otroTipoDetalle, setOtroTipoDetalle] = useState(
-    normalizePossiblyMojibake(routeState.registerDraft?.otroTipoDetalle || ''),
-  );
+  const [nombreOrganizacion, setNombreOrganizacion] = useState('');
+  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>('');
+  const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
   const [nombre, setNombre] = useState(
-    normalizePossiblyMojibake(
-      routeState.googlePrefill?.nombre ||
-        routeState.registerDraft?.nombre?.trim().split(/\s+/).slice(0, 1).join(' ') ||
-        '',
-    ),
+    normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
   );
   const [apellidos, setApellidos] = useState(
-    normalizePossiblyMojibake(
-      routeState.googlePrefill?.apellidos ||
-        routeState.registerDraft?.nombre?.trim().split(/\s+/).slice(1).join(' ') ||
-        '',
-    ),
+    normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
   );
-  const [telefono, setTelefono] = useState(
-    routeState.registerDraft?.telefono?.replace(/\D/g, '').slice(-10) || '',
-  );
+  const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState(
-    normalizePossiblyMojibake(
-      routeState.googlePrefill?.correo || routeState.registerDraft?.correo || '',
-    ),
+    normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
   );
-  const [password, setPassword] = useState(routeState.registerDraft?.password || '');
-  const [confirmPassword, setConfirmPassword] = useState(routeState.registerDraft?.password || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>({});
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
@@ -105,39 +87,29 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     setIsCheckingEmail(true);
     try {
       const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
-      return exists ? 'Este correo ya está registrado. Usa otro o inicia sesión.' : null;
-    } catch (checkError) {
-      const message =
-        checkError && typeof checkError === 'object' && 'message' in checkError
-          ? String((checkError as { message?: unknown }).message)
-          : 'No se pudo validar el correo con el servidor.';
-
-      return message || 'No se pudo validar el correo con el servidor.';
+      return exists ? 'Este correo ya esta registrado.' : null;
+    } catch {
+      return null;
     } finally {
       setIsCheckingEmail(false);
     }
   };
 
-  const nombreOrganizacionNormalizado = nombreOrganizacion.trim().replace(/\s+/g, ' ');
-
   const goToStep2 = () => {
     setError(null);
     const nextErrors: StepOneErrors = {};
 
-    if (!nombreOrganizacionNormalizado) {
-      nextErrors.nombreOrganizacion = 'El nombre de la empresa es obligatorio.';
-    } else if (nombreOrganizacionNormalizado.length < 2) {
-      nextErrors.nombreOrganizacion =
-        'El nombre de la empresa debe tener mínimo 2 caracteres.';
+    if (!nombreOrganizacion.trim()) {
+      nextErrors.nombreOrganizacion = 'Escribe el nombre del negocio.';
     }
 
     if (!tipoOrganizacion) {
-      nextErrors.tipoOrganizacion = 'Debes seleccionar el tipo de negocio.';
+      nextErrors.tipoOrganizacion = 'Elige un tipo de negocio.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrígelos para continuar.');
+      setError('Revisa los campos marcados.');
       return;
     }
 
@@ -155,49 +127,40 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     setError(null);
     const nextErrors: StepTwoErrors = {};
 
-    if (!nombreOrganizacionNormalizado) {
-      setError('El nombre del negocio es obligatorio.');
-      setStepOneErrors({ nombreOrganizacion: 'El nombre de la empresa es obligatorio.' });
-      setStep(1);
-      return;
-    }
-
-    if (nombreOrganizacionNormalizado.length < 2) {
-      setError('El nombre del negocio debe tener mínimo 2 caracteres.');
-      setStepOneErrors({
-        nombreOrganizacion: 'El nombre de la empresa debe tener mínimo 2 caracteres.',
-      });
+    if (!nombreOrganizacion.trim()) {
+      setError('Falta el nombre del negocio.');
+      setStepOneErrors({ nombreOrganizacion: 'Escribe el nombre del negocio.' });
       setStep(1);
       return;
     }
 
     if (!tipoOrganizacion) {
-      setError('Debes seleccionar el tipo de negocio.');
-      setStepOneErrors({ tipoOrganizacion: 'Debes seleccionar el tipo de negocio.' });
+      setError('Falta el tipo de negocio.');
+      setStepOneErrors({ tipoOrganizacion: 'Elige un tipo de negocio.' });
       setStep(1);
       return;
     }
 
     if (!nombre.trim()) {
-      nextErrors.nombre = 'Completa este campo para continuar.';
+      nextErrors.nombre = 'Escribe el nombre.';
     }
 
     if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Completa este campo para continuar.';
+      nextErrors.apellidos = 'Escribe los apellidos.';
     } else if (!hasAtLeastOneSurname(apellidos)) {
-      nextErrors.apellidos = 'Ingresa al menos un apellido válido.';
+      nextErrors.apellidos = 'Ingresa un apellido valido.';
     }
 
     if (!telefono.trim()) {
-      nextErrors.telefono = 'Completa este campo para continuar.';
+      nextErrors.telefono = 'Escribe el telefono.';
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Ingresa un número de celular colombiano de 10 dígitos.';
+      nextErrors.telefono = 'Telefono invalido.';
     }
 
     if (!correo.trim()) {
-      nextErrors.correo = 'Completa este campo para continuar.';
+      nextErrors.correo = 'Escribe el correo.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Revisa que el correo incluya @ y un dominio.';
+      nextErrors.correo = 'Correo invalido.';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -206,27 +169,27 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
     }
 
     const checks = getPasswordChecks(password);
-    if (!checks.minLength || !checks.hasLower || !checks.hasUpper || !checks.hasNumber) {
+    if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
       nextErrors.password =
-        'Completa los requisitos de seguridad para continuar.';
+        'Minimo 6 caracteres, minuscula y mayuscula.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Completa este campo para continuar.';
+      nextErrors.confirmPassword = 'Confirma tu contrasena.';
     } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Las contraseñas no coinciden. Revísalas e intenta otra vez.';
+      nextErrors.confirmPassword = 'No coinciden.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
-      setError('Revisa los campos en rojo y corrígelos para continuar.');
+      setError('Revisa los campos marcados.');
       return;
     }
 
     setStepTwoErrors({});
 
     if (hasGoogleFlow && !routeState.googleToken) {
-      setError('No detectamos tu sesión de Google. Vuelve a iniciar con Google.');
+      setError('Vuelve a iniciar con Google.');
       return;
     }
 
@@ -234,14 +197,14 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
       state: {
         hasGoogleFlow,
         googleToken: routeState.googleToken,
-        nombreOrganizacion: nombreOrganizacionNormalizado,
+        nombreOrganizacion,
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
         otroTipoDetalle:
           tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()
             ? otroTipoDetalle.trim()
             : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono: `+57 ${telefono.replace(/\D/g, '')}`,
+        telefono,
         correo,
         password,
       },

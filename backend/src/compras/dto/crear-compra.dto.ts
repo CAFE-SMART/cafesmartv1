@@ -30,7 +30,7 @@ export class CreateSubloteDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'precioKg debe ser un número' })
-  @Min(0.1, { message: 'El precio por kg debe ser mayor a 0' })
+  @Min(1000, { message: 'El precio por kg debe ser mínimo $1,000' })
   @Max(100000, { message: 'El precio por kg no puede exceder los 100,000' })
   precioKg: number;
 

@@ -34,10 +34,6 @@ type DashboardSummaryResponse = {
   }>;
   utilidadTotalAcumulada: number;
   mermaTotalKg: number;
-  totalRevenue: number;
-  totalExpenses: number;
-  totalProfit: number;
-  totalWasteKg: number;
   movimientosRecientes: DashboardMovimiento[];
 };
 
@@ -64,15 +60,10 @@ export class DashboardService {
       totalGastosHoy,
       totalProductores,
       kgActual,
-      kgCapacidad,
-      totalVentas,
-      totalCompras,
-      totalGastos,
-      sublotesParaMerma,
       comprasRecientes,
       ventasRecientes,
       gastosRecientes,
-    ] = await Promise.all([
+    ] = await this.prisma.$transaction([
       this.prisma.compra.count({
         where: {
           organizacionId,
@@ -160,53 +151,6 @@ export class DashboardService {
         _sum: { pesoTotal: true },
         where: { organizacionId },
       }),
-      this.obtenerCapacidadBodegaKg(organizacionId),
-      this.prisma.venta.aggregate({
-        _sum: { totalVenta: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.compra.aggregate({
-        _sum: { totalCompra: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.gastoOperativo.aggregate({
-        _sum: { montoGasto: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.sublote.findMany({
-        where: {
-          deletedAt: null,
-          compra: {
-            deletedAt: null,
-            organizacionId,
-          },
-        },
-        select: {
-          pesoInicial: true,
-          pesoActual: true,
-          detallesVenta: {
-            where: {
-              deletedAt: null,
-              venta: {
-                deletedAt: null,
-                organizacionId,
-              },
-            },
-            select: {
-              pesoVendido: true,
-            },
-          },
-        },
-      }),
       this.prisma.compra.findMany({
         where: {
           organizacionId,
@@ -273,6 +217,7 @@ export class DashboardService {
         },
       }),
     ]);
+    const kgCapacidad = await this.obtenerCapacidadBodegaKg(organizacionId);
     const resumenFinanciero = await this.obtenerResumenFinanciero(organizacionId);
 
     const movimientosCompras = comprasRecientes.map((compra) => ({
@@ -328,24 +273,6 @@ export class DashboardService {
       .slice(0, LIMITE_MOVIMIENTOS_RECIENTES)
       .map(({ orden, ...movimiento }) => movimiento);
 
-    const totalRevenue = Number(totalVentas._sum.totalVenta ?? 0);
-    const totalCompraCost = Number(totalCompras._sum.totalCompra ?? 0);
-    const totalOperationalExpenses = Number(totalGastos._sum.montoGasto ?? 0);
-    const totalExpenses = totalCompraCost + totalOperationalExpenses;
-    const mermaDesdeSublotes = sublotesParaMerma.reduce((total, sublote) => {
-      const pesoVendido = sublote.detallesVenta.reduce(
-        (subtotal, detalle) => subtotal + Number(detalle.pesoVendido),
-        0,
-      );
-
-      const merma = Math.max(
-        0,
-        Number(sublote.pesoInicial) - Number(sublote.pesoActual) - pesoVendido,
-      );
-
-      return total + merma;
-    }, 0);
-
     return {
       comprasHoy,
       ventasHoy,
@@ -360,10 +287,6 @@ export class DashboardService {
       inventarioPorTipo: resumenFinanciero.inventarioPorTipo,
       utilidadTotalAcumulada: resumenFinanciero.utilidadTotalAcumulada,
       mermaTotalKg: resumenFinanciero.mermaTotalKg,
-      totalRevenue,
-      totalExpenses,
-      totalProfit: resumenFinanciero.utilidadTotalAcumulada,
-      totalWasteKg: resumenFinanciero.mermaTotalKg || mermaDesdeSublotes,
       movimientosRecientes,
     };
   }

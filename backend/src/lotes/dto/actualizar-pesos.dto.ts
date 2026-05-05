@@ -11,11 +11,11 @@ import {
 } from 'class-validator';
 
 export class ActualizarPesoSubloteDto {
-  @IsUUID('4', { message: 'El id del sublote debe ser un UUID valido' })
+  @IsUUID('4', { message: 'El id del sublote debe ser un UUID válido' })
   id!: string;
 
   @Type(() => Number)
-  @IsNumber({}, { message: 'El peso debe ser un numero' })
+  @IsNumber({}, { message: 'El peso debe ser un número' })
   @Min(0, { message: 'El peso no puede ser negativo' })
   pesoActual!: number;
 
