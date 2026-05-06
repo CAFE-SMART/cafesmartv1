@@ -221,7 +221,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-[#f4f6fa] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-[340px] flex-col px-5 py-7">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 py-7">
         <header className="flex items-center justify-between">
           <div className="rounded-full bg-white px-3 py-2 shadow-[0_10px_26px_rgba(15,23,42,0.08)]">
             <CafeSmartLogo />

@@ -17,6 +17,9 @@ import { CreateCompraDto } from './dto/crear-compra.dto';
 import {
   CompraProcesada,
   ContextoCapacidadCompra,
+  EstadoCapacidadCompra,
+  crearCapacidadRequerida,
+  crearCapacidadSinValidacion,
   normalizarADosDecimales,
   procesarCompra,
 } from './procesar-compra';
@@ -28,6 +31,7 @@ type CrearCompraResultado = {
   sublotes: Sublote[];
   warning?: string;
   exceso?: number;
+  capacidad: EstadoCapacidadCompra;
 };
 
 type CatalogoItem = {
@@ -195,11 +199,6 @@ export class ComprasService {
           organizacionIdFinal,
         );
         const compraProcesada = procesarCompra(input, contextoCapacidad);
-        if (compraProcesada.exceso && compraProcesada.exceso > 0) {
-          throw new BadRequestException(
-            'No hay espacio suficiente en bodega para registrar esta compra',
-          );
-        }
 
         const lotesCompra = await this.asegurarLotesCompra(
           tx,
@@ -257,6 +256,7 @@ export class ComprasService {
           sublotes,
           warning: compraProcesada.warning,
           exceso: compraProcesada.exceso,
+          capacidad: compraProcesada.capacidad,
         };
       }, { maxWait: 10000, timeout: 25000 });
     } catch (error) {
@@ -275,6 +275,27 @@ export class ComprasService {
       }
 
       throw error;
+    }
+  }
+
+  async validarCapacidadCompra(
+    input: CreateCompraDto,
+    userId: string,
+  ): Promise<EstadoCapacidadCompra> {
+    try {
+      const organizacionId = await this.obtenerOrganizacionId(this.prisma, userId);
+      const contextoCapacidad = await this.obtenerContextoCapacidad(
+        this.prisma,
+        organizacionId,
+      );
+
+      if (!contextoCapacidad) {
+        return crearCapacidadRequerida();
+      }
+
+      return procesarCompra(input, contextoCapacidad).capacidad;
+    } catch {
+      return crearCapacidadSinValidacion();
     }
   }
 
@@ -493,7 +514,7 @@ export class ComprasService {
    * Obtiene la capacidad configurada de la bodega y el inventario agregado actual.
    */
   private async obtenerContextoCapacidad(
-    tx: Prisma.TransactionClient,
+    tx: Prisma.TransactionClient | PrismaService,
     organizacionId: string,
   ): Promise<ContextoCapacidadCompra | null> {
     const parametro = await tx.parametroOrganizacion.findUnique({
@@ -842,6 +863,7 @@ export class ComprasService {
     return {
       compra,
       sublotes,
+      capacidad: crearCapacidadSinValidacion(),
     };
   }
 
@@ -913,4 +935,3 @@ export class ComprasService {
     return valor / 100;
   }
 }
-

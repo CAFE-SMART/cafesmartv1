@@ -31,7 +31,7 @@ export default function SecadoResumen() {
   if (!session) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
-        <div className="mx-auto w-full max-w-[340px] rounded-[20px] bg-white p-6 text-center shadow-sm">
+        <div className="mx-auto w-full max-w-[430px] rounded-[20px] bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-bold">No encontre el resumen de secado.</p>
           <button
             type="button"
@@ -47,7 +47,7 @@ export default function SecadoResumen() {
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <main className="mx-auto flex min-h-screen w-full max-w-[340px] flex-col items-center bg-[#fbfbfb] px-4 py-6 text-center">
+      <main className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col items-center bg-[#fbfbfb] px-4 py-6 text-center">
         <div className="mt-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#dff7ee]">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#12bf84] text-white">
             <Check size={16} strokeWidth={3} />

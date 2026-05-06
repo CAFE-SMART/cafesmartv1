@@ -673,7 +673,7 @@ export default function Ventas() {
   if (ventaGuardada) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-10 text-slate-900">
-        <div className="mx-auto max-w-[520px] space-y-4">
+        <div className="mx-auto max-w-[430px] space-y-4">
           <section className="rounded-[22px] border border-[#daf0e3] bg-white p-5 text-center shadow-sm">
             <span className="inline-flex rounded-full bg-[#e8fff3] px-3 py-1 text-xs font-semibold text-[#0d7b67]">Venta exitosa</span>
             <div className="mx-auto mt-3 inline-flex rounded-full bg-[#e8fff3] p-3 text-[#0d7b67]"><CheckCircle2 size={28} /></div>
@@ -719,7 +719,7 @@ export default function Ventas() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900">
-      <div className="mx-auto max-w-[520px] space-y-4">
+      <div className="mx-auto max-w-[430px] space-y-4">
         <header className="px-4 py-4 pt-6">
           <div className="relative flex items-center justify-center">
             <button

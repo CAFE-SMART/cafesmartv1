@@ -5,6 +5,25 @@ export type ContextoCapacidadCompra = {
   inventarioActualKg: number;
 };
 
+export type NivelCapacidadCompra =
+  | 'normal'
+  | 'alerta'
+  | 'exceso'
+  | 'sin_validacion'
+  | 'requiere_configuracion';
+
+export type EstadoCapacidadCompra = {
+  validada: boolean;
+  nivel: NivelCapacidadCompra;
+  mensaje: string;
+  capacidadBodegaKg?: number;
+  inventarioActualKg?: number;
+  capacidadUsadaKg?: number;
+  capacidadRestanteKg?: number;
+  porcentajeOcupacion?: number;
+  excesoKg?: number;
+};
+
 export type CompraProcesada = {
   compra: {
     fecha: string;
@@ -24,6 +43,7 @@ export type CompraProcesada = {
   }>;
   warning?: string;
   exceso?: number;
+  capacidad: EstadoCapacidadCompra;
 };
 
 type SubloteInput = CreateCompraDto['sublotes'][number];
@@ -106,11 +126,13 @@ function construirCompra(
 export function evaluarCapacidadCompra(
   totalKg: number,
   contextoCapacidad: ContextoCapacidadCompra,
-): Pick<CompraProcesada, 'warning' | 'exceso'> {
+): Pick<CompraProcesada, 'warning' | 'exceso' | 'capacidad'> {
   const capacidadCenti = aCentiUnidades(contextoCapacidad.capacidadBodegaKg);
 
   if (capacidadCenti <= 0) {
-    return {};
+    return {
+      capacidad: crearCapacidadSinValidacion(),
+    };
   }
 
   const inventarioActualCenti = aCentiUnidades(contextoCapacidad.inventarioActualKg);
@@ -119,20 +141,78 @@ export function evaluarCapacidadCompra(
   const limiteWarningCenti = Math.round(capacidadCenti * 0.8);
   const capacidadBodegaKg = desdeCentiUnidades(capacidadCenti);
   const nuevoTotalKg = desdeCentiUnidades(nuevoTotalCenti);
+  const capacidadRestanteKg = desdeCentiUnidades(capacidadCenti - nuevoTotalCenti);
+  const porcentajeOcupacion = normalizarADosDecimales(
+    (nuevoTotalCenti / capacidadCenti) * 100,
+  );
+
   if (nuevoTotalCenti > capacidadCenti) {
+    const excesoKg = desdeCentiUnidades(nuevoTotalCenti - capacidadCenti);
+    const mensaje = `La compra supera la capacidad de bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
+
     return {
-      warning: `La compra supera la capacidad de bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`,
-      exceso: desdeCentiUnidades(nuevoTotalCenti - capacidadCenti),
+      warning: mensaje,
+      exceso: excesoKg,
+      capacidad: {
+        validada: true,
+        nivel: 'exceso',
+        mensaje,
+        capacidadBodegaKg,
+        inventarioActualKg: desdeCentiUnidades(inventarioActualCenti),
+        capacidadUsadaKg: nuevoTotalKg,
+        capacidadRestanteKg,
+        porcentajeOcupacion,
+        excesoKg,
+      },
     };
   }
 
   if (nuevoTotalCenti >= limiteWarningCenti) {
+    const mensaje = `La compra deja la bodega en nivel de alerta. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
+
     return {
-      warning: `La compra deja la bodega en nivel de alerta. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`,
+      warning: mensaje,
+      capacidad: {
+        validada: true,
+        nivel: 'alerta',
+        mensaje,
+        capacidadBodegaKg,
+        inventarioActualKg: desdeCentiUnidades(inventarioActualCenti),
+        capacidadUsadaKg: nuevoTotalKg,
+        capacidadRestanteKg,
+        porcentajeOcupacion,
+      },
     };
   }
 
-  return {};
+  return {
+    capacidad: {
+      validada: true,
+      nivel: 'normal',
+      mensaje: `Capacidad validada. La compra deja la bodega en ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`,
+      capacidadBodegaKg,
+      inventarioActualKg: desdeCentiUnidades(inventarioActualCenti),
+      capacidadUsadaKg: nuevoTotalKg,
+      capacidadRestanteKg,
+      porcentajeOcupacion,
+    },
+  };
+}
+
+export function crearCapacidadSinValidacion(): EstadoCapacidadCompra {
+  return {
+    validada: false,
+    nivel: 'sin_validacion',
+    mensaje: 'Compra registrada sin validacion de capacidad',
+  };
+}
+
+export function crearCapacidadRequerida(): EstadoCapacidadCompra {
+  return {
+    validada: false,
+    nivel: 'requiere_configuracion',
+    mensaje: 'Registra la capacidad total de la bodega para validar esta compra.',
+  };
 }
 
 /**
@@ -150,7 +230,7 @@ export function procesarCompra(
     sublotes,
     ...(contextoCapacidad
       ? evaluarCapacidadCompra(compra.totalKg, contextoCapacidad)
-      : {}),
+      : { capacidad: crearCapacidadSinValidacion() }),
   };
 }
 

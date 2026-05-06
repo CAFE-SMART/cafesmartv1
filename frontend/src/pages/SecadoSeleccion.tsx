@@ -177,7 +177,7 @@ export default function SecadoSeleccion() {
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <div className="mx-auto flex min-h-screen w-full max-w-[340px] flex-col bg-[#fbfbfb]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#fbfbfb]">
         <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
           <button
             type="button"
@@ -292,7 +292,7 @@ export default function SecadoSeleccion() {
           ) : null}
         </main>
 
-        <footer className="sticky bottom-0 z-20 mx-auto w-full max-w-[340px] bg-[#fbfbfb] px-4 pb-4 pt-2 shadow-[0_-10px_24px_rgba(15,23,42,0.06)]">
+        <footer className="sticky bottom-0 z-20 mx-auto w-full max-w-[430px] bg-[#fbfbfb] px-4 pb-4 pt-2 shadow-[0_-10px_24px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between rounded-t-[2px] bg-[#0647d6] px-4 py-2 text-white">
             <span className="text-[0.62rem] font-black uppercase tracking-[0.12em]">Total seleccionado</span>
             <span className="inline-flex items-center gap-2 text-sm font-black">
@@ -313,7 +313,7 @@ export default function SecadoSeleccion() {
 
       {editing ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-black">Ajustar cantidad</h2>
               <button type="button" onClick={() => setEditing(null)} className="text-slate-400">

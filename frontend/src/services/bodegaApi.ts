@@ -2,7 +2,7 @@ import { apiFetch } from './apiService';
 
 export type ConfiguracionBodega = {
   nombreBodega: string;
-  capacidadKg: number;
+  capacidadKg: number | null;
   updatedAt: string;
 };
 
@@ -17,7 +17,7 @@ export async function obtenerConfiguracionBodega(): Promise<ConfiguracionBodega>
  * Guarda la configuración de bodega en el servidor.
  */
 export async function guardarConfiguracionBodega(
-  config: Omit<ConfiguracionBodega, 'updatedAt'>,
+  config: { nombreBodega: string; capacidadKg: number },
 ): Promise<ConfiguracionBodega> {
   return apiFetch('/bodega/configuracion', {
     method: 'POST',

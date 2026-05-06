@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "install:all": "pnpm install -r",
+    "check:local": "node scripts/check-local-env.mjs",
+    "dev": "pnpm check:local && pnpm --parallel --filter cafe-smart-backend --filter cafe-smart-frontend dev",
     "dev:backend": "pnpm --filter cafe-smart-backend start:dev",
     "dev:frontend": "pnpm --filter cafe-smart-frontend dev",
     "docker:up": "docker-compose up --build",

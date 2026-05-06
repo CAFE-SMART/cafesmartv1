@@ -11,9 +11,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(200, contexto);
       
-      expect(resultado).toEqual({});
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
 
     it('debería permitir compra cuando el inventario está vacío', () => {
@@ -24,9 +24,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(100, contexto);
       
-      expect(resultado).toEqual({});
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
 
     it('debería permitir compra pequeña cuando el inventario está casi lleno pero debajo del 80%', () => {
@@ -37,9 +37,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(0.5, contexto);
       
-      expect(resultado).toEqual({});
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
 
     it('debería manejar valores decimales correctamente', () => {
@@ -50,9 +50,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(199.75, contexto);
       
-      expect(resultado).toEqual({});
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
   });
 
@@ -192,7 +192,8 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(50, contexto);
       
-      expect(resultado).toEqual({});
+      expect(resultado.capacidad.validada).toBe(false);
+      expect(resultado.capacidad.nivel).toBe('sin_validacion');
     });
 
     it('debería manejar capacidad negativa sin evaluar', () => {
@@ -203,7 +204,8 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(25, contexto);
       
-      expect(resultado).toEqual({});
+      expect(resultado.capacidad.validada).toBe(false);
+      expect(resultado.capacidad.nivel).toBe('sin_validacion');
     });
 
     it('debería manejar compra de cero kg', () => {
@@ -214,7 +216,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(0, contexto);
       
-      expect(resultado).toEqual({});
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
 
     it('debería manejar inventario actual negativo (caso borde)', () => {
@@ -225,7 +227,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       
       const resultado = evaluarCapacidadCompra(100, contexto);
       
-      expect(resultado).toEqual({});
+      expect(resultado.capacidad.nivel).toBe('normal');
     });
   });
 
@@ -281,6 +283,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
 
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.validada).toBe(false);
       expect(resultado.compra.totalKg).toBe(200);
     });
 
@@ -305,6 +308,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
 
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
+      expect(resultado.capacidad.validada).toBe(false);
       expect(resultado.compra.totalKg).toBe(200);
     });
   });

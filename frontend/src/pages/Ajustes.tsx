@@ -210,7 +210,7 @@ export default function Ajustes() {
 
   const initialConfig = useMemo(() => ({
     nombreBodega: 'Bodega principal',
-    capacidadKg: 3000,
+    capacidadKg: null as number | null,
     updatedAt: new Date().toISOString(),
   }), []);
 
@@ -222,7 +222,7 @@ export default function Ajustes() {
   });
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
-  const [capacidadKg, setCapacidadKg] = useState(String(initialConfig.capacidadKg));
+  const [capacidadKg, setCapacidadKg] = useState('');
   const [updatedAt, setUpdatedAt] = useState(initialConfig.updatedAt);
   const [inventarioActualKg, setInventarioActualKg] = useState(0);
   const [loadingStock, setLoadingStock] = useState(true);
@@ -301,12 +301,11 @@ export default function Ajustes() {
       try {
         const config = await obtenerConfiguracionBodega();
         setNombreBodega(config.nombreBodega);
-        setCapacidadKg(String(config.capacidadKg));
+        setCapacidadKg(config.capacidadKg ? String(config.capacidadKg) : '');
         setUpdatedAt(config.updatedAt);
       } catch {
-        // Si falla, usar valores por defecto
         setNombreBodega(initialConfig.nombreBodega);
-        setCapacidadKg(String(initialConfig.capacidadKg));
+        setCapacidadKg('');
         setUpdatedAt(initialConfig.updatedAt);
       }
     };
@@ -316,7 +315,7 @@ export default function Ajustes() {
 
   const capacidadRestante = useMemo(() => {
     const numeric = Number(capacidadKg);
-    if (!Number.isFinite(numeric)) return 0;
+    if (!capacidadKg.trim() || !Number.isFinite(numeric)) return null;
     return Math.max(0, numeric - inventarioActualKg);
   }, [capacidadKg, inventarioActualKg]);
 
@@ -365,21 +364,18 @@ export default function Ajustes() {
     if (!nombreBodega.trim()) {
       const message = 'Escribe un nombre para la bodega.';
       setError(message);
-      setFloatingError(getAjustesGuidance(message));
       return;
     }
 
     if (!Number.isFinite(capacidad) || capacidad <= 0) {
       const message = 'La capacidad debe ser mayor que 0.';
       setError(message);
-      setFloatingError(getAjustesGuidance(message));
       return;
     }
 
     if (capacidad < inventarioActualKg) {
       const message = 'La capacidad no puede ser menor al inventario actual almacenado.';
       setError(message);
-      setFloatingError(getAjustesGuidance(message));
       return;
     }
 
@@ -390,14 +386,13 @@ export default function Ajustes() {
       });
 
       setNombreBodega(result.nombreBodega);
-      setCapacidadKg(String(result.capacidadKg));
+      setCapacidadKg(result.capacidadKg ? String(result.capacidadKg) : '');
       setUpdatedAt(result.updatedAt);
       setSuccess('Capacidad de bodega actualizada.');
       setIsEditingBodega(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al guardar la bodega.';
       setError(message);
-      setFloatingError(getAjustesGuidance(message));
     }
   };
 
@@ -508,7 +503,7 @@ export default function Ajustes() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[340px] flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
         <header className="relative flex items-center justify-center py-1">
           <button
             type="button"
@@ -737,7 +732,7 @@ export default function Ajustes() {
           </section>
         ) : null}
 
-        {error && !activeErrorSection ? (
+        {error && !activeErrorSection && !isEditingBodega ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
         ) : null}
 
@@ -760,7 +755,7 @@ export default function Ajustes() {
 
       {isEditingBodega ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[380px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
             <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
             <div className="mt-4 flex items-center justify-between gap-3">
               <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827]">Capacidad de bodega</h3>
@@ -816,7 +811,7 @@ export default function Ajustes() {
                 <div className="rounded-[10px] bg-[#f6f7fd] px-3 py-2.5">
                   <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500">Disponible</p>
                   <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900">
-                    {Number.isFinite(Number(capacidadKg)) ? `${formatKg(capacidadRestante)} kg` : 'Sin dato'}
+                    {capacidadRestante !== null ? `${formatKg(capacidadRestante)} kg` : 'Sin dato'}
                   </p>
                   <p className="mt-0.5 text-[0.58rem] text-slate-500">Libres</p>
                 </div>
@@ -831,7 +826,7 @@ export default function Ajustes() {
                   Guardar cambios
                 </button>
               </div>
-              {error && activeErrorSection === 'bodega' ? (
+              {error ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500">
@@ -843,7 +838,7 @@ export default function Ajustes() {
         </div>
       ) : null}
 
-      {floatingError ? (
+      {floatingError && !isEditingBodega ? (
         <FloatingGuidedNotice
           message={floatingError}
           onClose={() => setFloatingError(null)}

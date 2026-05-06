@@ -19,7 +19,7 @@ export type DashboardSummary = {
   totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
-  kgCapacidad: number;
+  kgCapacidad: number | null;
   inventarioPorTipo: {
     tipoCafeId: string;
     tipoCafe: string;

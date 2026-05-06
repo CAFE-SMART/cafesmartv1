@@ -26,7 +26,7 @@ type DashboardSummaryResponse = {
   totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
-  kgCapacidad: number;
+  kgCapacidad: number | null;
   inventarioPorTipo: Array<{
     tipoCafeId: string;
     tipoCafe: string;
@@ -503,7 +503,7 @@ export class DashboardService {
     return usuario.organizacionId;
   }
 
-  private async obtenerCapacidadBodegaKg(organizacionId: string): Promise<number> {
+  private async obtenerCapacidadBodegaKg(organizacionId: string): Promise<number | null> {
     const capacidadKgStr = await this.parametrosService.getParametroString(
       'capacidad_bodega',
       organizacionId,
@@ -514,7 +514,7 @@ export class DashboardService {
       return capacidadKg;
     }
 
-    return 3000;
+    return null;
   }
 
   private obtenerRangoHoyBogota(): { inicioDia: Date; finDia: Date } {

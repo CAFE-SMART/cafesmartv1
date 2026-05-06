@@ -22,6 +22,7 @@ import {
   Trash2,
   User,
   UserPlus,
+  Warehouse,
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -36,15 +37,19 @@ import {
   toIsoDateAtUtcNoon,
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
+import { ApiRequestError } from '../services/apiService';
+import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import {
   crearCompra,
   listarCompras,
   obtenerCatalogosCompra,
+  validarCapacidadCompra,
   type CatalogoItem,
   type CatalogosCompra,
   type CompraListadoItem,
+  type CreateCompraPayload,
+  type EstadoCapacidadCompra,
 } from '../services/comprasService';
-import { obtenerInventarioResumen } from '../services/inventarioService';
 import {
   crearProductor,
   listarProductores,
@@ -65,6 +70,7 @@ type CompraGuardadaResumen = {
   productorDocumento: string;
   totalKg: number;
   totalCompra: number;
+  capacidad?: EstadoCapacidadCompra;
   sublotes: Array<{
     id: string;
     tipoCafe: string;
@@ -136,6 +142,34 @@ function formatoMoneda(valor: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(valor);
+}
+
+function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
+  if (!capacidad || capacidad.nivel === 'normal') {
+    return {
+      contenedor: 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]',
+      icono: 'bg-[#dbeafe] text-[#1d4ed8]',
+    };
+  }
+
+  if (capacidad.nivel === 'exceso') {
+    return {
+      contenedor: 'border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]',
+      icono: 'bg-[#ffedd5] text-[#ea580c]',
+    };
+  }
+
+  if (capacidad.nivel === 'alerta') {
+    return {
+      contenedor: 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]',
+      icono: 'bg-[#fef3c7] text-[#d97706]',
+    };
+  }
+
+  return {
+    contenedor: 'border-[#e5e7eb] bg-[#f8fafc] text-slate-700',
+    icono: 'bg-[#e2e8f0] text-slate-600',
+  };
 }
 
 function esperarPintadoInterfaz() {
@@ -373,10 +407,16 @@ export default function Compras() {
   const [error, setError] = useState<string | null>(null);
   const [mostrarErrorFormulario, setMostrarErrorFormulario] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
+  const [capacidadPrevia, setCapacidadPrevia] = useState<EstadoCapacidadCompra | null>(null);
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
   const [mostrarModalCapacidad, setMostrarModalCapacidad] = useState(false);
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
+  const [mostrarModalConfigurarCapacidad, setMostrarModalConfigurarCapacidad] = useState(false);
+  const [nombreBodegaNueva, setNombreBodegaNueva] = useState('Bodega principal');
+  const [capacidadNuevaKg, setCapacidadNuevaKg] = useState('');
+  const [capacidadNuevaError, setCapacidadNuevaError] = useState<string | null>(null);
+  const [guardandoCapacidad, setGuardandoCapacidad] = useState(false);
   const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
   const [registroErrorMensaje, setRegistroErrorMensaje] = useState<string | null>(null);
   const [datosCapacidad, setDatosCapacidad] = useState<{
@@ -500,9 +540,18 @@ export default function Compras() {
     navigate('/inicio');
   };
 
+  const invalidarValidacionCapacidad = () => {
+    setCapacidadPrevia(null);
+    setAlerta80Mostrada(false);
+    setDatosAlerta80(null);
+    setDatosCapacidad(null);
+    setCapacidadNuevaError(null);
+  };
+
   const actualizarSublote = (id: string, campo: keyof Omit<SubloteForm, 'id'>, valor: string) => {
     setMostrarErrorFormulario(false);
     setError(null);
+    invalidarValidacionCapacidad();
     setSublotes((actual) => actual.map((sublote) => (sublote.id === id ? { ...sublote, [campo]: valor } : sublote)));
   };
 
@@ -526,11 +575,13 @@ export default function Compras() {
     const nuevoSublote = crearSubloteVacio();
     setError(null);
     setMostrarErrorFormulario(false);
+    invalidarValidacionCapacidad();
     setSubloteActivoId(nuevoSublote.id);
     setSublotes((items) => [...items, nuevoSublote]);
   };
 
   const eliminarSublote = (id: string) => {
+    invalidarValidacionCapacidad();
     setSublotes((actual) => {
       if (actual.length === 1) {
         return actual.map((sublote) =>
@@ -648,12 +699,18 @@ export default function Compras() {
     setMostrarModalConfirmar(false);
     setCheckingConfirmacion(false);
     setMostrarModalAlerta80(false);
+    setMostrarModalConfigurarCapacidad(false);
+    setNombreBodegaNueva('Bodega principal');
+    setCapacidadNuevaKg('');
+    setCapacidadNuevaError(null);
+    setGuardandoCapacidad(false);
     setAlerta80Mostrada(false);
     setDatosAlerta80(null);
     setStep(1);
     setError(null);
     setMostrarErrorFormulario(false);
     setWarning(null);
+    setCapacidadPrevia(null);
   };
 
   const iniciarNuevaCompra = () => {
@@ -669,6 +726,7 @@ export default function Compras() {
     }
 
     setSublotes((actual) => actual.filter((sublote) => sublote.id !== id));
+    invalidarValidacionCapacidad();
     if (subloteActivoId === id) {
       setSubloteActivoId(null);
     }
@@ -734,43 +792,135 @@ export default function Compras() {
     setStep((actual) => Math.max(1, actual - 1) as Step);
   };
 
+  const construirPayloadCompra = async (): Promise<CreateCompraPayload> => {
+    const compraLocalId = compraLocalIdRef.current ?? generarId();
+    compraLocalIdRef.current = compraLocalId;
+    const deviceId = await obtenerDeviceId();
+    const fechaActual = fecha.trim() || hoyLocal();
+    setFecha(fechaActual);
+    const fechaNormalizada = toIsoDateAtUtcNoon(fechaActual);
+
+    const payload: CreateCompraPayload = {
+      ...(fechaNormalizada ? { fecha: fechaNormalizada } : {}),
+      deviceId,
+      localId: compraLocalId,
+      sublotes: sublotes.map((sublote) => ({
+        tipoCafeId: sublote.tipoCafeId,
+        calidadId: sublote.calidadId,
+        pesoInicial: Number(sublote.pesoInicial),
+        precioKg: Number(sublote.precioKg),
+        deviceId,
+        localId: sublote.id,
+      })),
+    };
+
+    if (productorSeleccionado && !productorSeleccionado.rapido) {
+      payload.productorId = productorSeleccionado.id;
+    }
+
+    return payload;
+  };
+
   const validarCapacidadBodega = async (): Promise<boolean> => {
     try {
-      const inventarioResumen = await obtenerInventarioResumen();
-      const capacidadKg = inventarioResumen.kgCapacidad;
-      const inventarioActual = inventarioResumen.kgActual;
-      const nuevoTotal = inventarioActual + resumen.totalKg;
-      const limiteWarning = capacidadKg * 0.8;
-      
-      if (nuevoTotal > capacidadKg) {
+      const payload = await construirPayloadCompra();
+      const capacidad = await validarCapacidadCompra(payload);
+      setCapacidadPrevia(capacidad);
+
+      if (capacidad.nivel === 'requiere_configuracion') {
+        setMostrarModalConfigurarCapacidad(true);
+        return false;
+      }
+
+      if (!capacidad.validada) {
+        return true;
+      }
+
+      const capacidadKg = capacidad.capacidadBodegaKg ?? 0;
+      const inventarioActual = capacidad.inventarioActualKg ?? 0;
+      const nuevoTotal = capacidad.capacidadUsadaKg ?? inventarioActual + resumen.totalKg;
+
+      if (capacidad.nivel === 'exceso') {
         setDatosCapacidad({
           capacidadKg,
           inventarioActual,
           nuevoTotal,
         });
         setMostrarModalCapacidad(true);
-        return false; // No continuar automáticamente
+        return false;
       }
-      
-      // Warning informativo al 80% - mostrar modal y bloquear solo si no se ha mostrado antes
-      if (nuevoTotal >= limiteWarning && !alerta80Mostrada) {
+
+      if (capacidad.nivel === 'alerta' && !alerta80Mostrada) {
         setDatosAlerta80({
           capacidadKg,
           inventarioActual,
           nuevoTotal,
-          porcentaje: Math.round((nuevoTotal / capacidadKg) * 100),
+          porcentaje: Math.round(capacidad.porcentajeOcupacion ?? 0),
         });
         setMostrarModalAlerta80(true);
         setAlerta80Mostrada(true);
-        return false; // No continuar automáticamente hasta cerrar modal
+        return false;
       }
-      
-      return true; // Puede continuar directamente
+
+      return true;
     } catch (error) {
       console.error('No se pudo validar capacidad:', error);
-      setRegistroErrorMensaje('No se pudo validar la capacidad de bodega. Intenta de nuevo más tarde.');
+
+      if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+        setRegistroErrorMensaje(error.message);
+        return false;
+      }
+
+      const mensajeValidacion =
+        error instanceof ApiRequestError && error.status === 0
+          ? 'No se pudo conectar con el backend para validar la capacidad.'
+          : 'No se pudo validar la capacidad de bodega antes de registrar.';
+
+      setCapacidadPrevia({
+        validada: false,
+        nivel: 'sin_validacion',
+        mensaje: mensajeValidacion,
+      });
       setMostrarModalCapacidad(false);
-      return false;
+      return true;
+    }
+  };
+
+  const guardarCapacidadDesdeCompra = async () => {
+    const nombreBodega = nombreBodegaNueva.trim();
+    const capacidad = Number(capacidadNuevaKg);
+    setCapacidadNuevaError(null);
+
+    if (!nombreBodega) {
+      setCapacidadNuevaError('Ingresa el nombre de la bodega.');
+      return;
+    }
+
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      setCapacidadNuevaError('Ingresa la capacidad total de la bodega en kg.');
+      return;
+    }
+
+    setGuardandoCapacidad(true);
+
+    try {
+      await guardarConfiguracionBodega({
+        nombreBodega,
+        capacidadKg: capacidad,
+      });
+
+      setMostrarModalConfigurarCapacidad(false);
+      setNombreBodegaNueva('Bodega principal');
+      setCapacidadNuevaKg('');
+      setCapacidadPrevia(null);
+      setAlerta80Mostrada(false);
+      await abrirConfirmacionCompra();
+    } catch (error) {
+      setCapacidadNuevaError(
+        error instanceof Error ? error.message : 'No se pudo guardar la capacidad de bodega.',
+      );
+    } finally {
+      setGuardandoCapacidad(false);
     }
   };
 
@@ -839,26 +989,7 @@ export default function Compras() {
     await esperarPintadoInterfaz();
 
     try {
-      const compraLocalId = compraLocalIdRef.current ?? generarId();
-      compraLocalIdRef.current = compraLocalId;
-      const deviceId = await obtenerDeviceId();
-      const fechaActual = fecha.trim() || hoyLocal();
-      setFecha(fechaActual);
-      const fechaNormalizada = toIsoDateAtUtcNoon(fechaActual);
-      const payload = {
-        ...(fechaNormalizada ? { fecha: fechaNormalizada } : {}),
-        ...(!productorSeleccionado.rapido ? { productorId: productorSeleccionado.id } : {}),
-        deviceId,
-        localId: compraLocalId,
-        sublotes: sublotes.map((sublote) => ({
-          tipoCafeId: sublote.tipoCafeId,
-          calidadId: sublote.calidadId,
-          pesoInicial: Number(sublote.pesoInicial),
-          precioKg: Number(sublote.precioKg),
-          deviceId,
-          localId: sublote.id,
-        })),
-      };
+      const payload = await construirPayloadCompra();
       const respuesta = await crearCompra(payload);
       if (respuesta.warning) setWarning(respuesta.warning);
       setCompraGuardada({
@@ -867,6 +998,7 @@ export default function Compras() {
         productorDocumento: productorSeleccionado.documento,
         totalKg: resumen.totalKg,
         totalCompra: Number(respuesta.compra.totalCompra),
+        capacidad: respuesta.capacidad ?? capacidadPrevia ?? undefined,
         sublotes: sublotes.map((sublote) => {
           const peso = Number(sublote.pesoInicial) || 0;
           return {
@@ -909,7 +1041,7 @@ export default function Compras() {
   if (compraGuardada) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[520px] items-center">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[430px] items-center">
           <div className="w-full rounded-[28px] border border-[#dfe5f3] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
             <div className="text-center">
               <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#edf3ff]">
@@ -920,6 +1052,22 @@ export default function Compras() {
               <h1 className="mt-6 text-[2rem] font-semibold text-[#1f3f97]">Compra registrada</h1>
               <p className="mt-2 text-[1.04rem] text-slate-500">La compra se guardó correctamente.</p>
             </div>
+
+            {compraGuardada.capacidad ? (
+              <section className={`mt-6 rounded-[16px] border p-4 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}>
+                <div className="flex items-start gap-3">
+                  <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${estiloCapacidad(compraGuardada.capacidad).icono}`}>
+                    <AlertTriangle size={18} />
+                  </span>
+                  <div>
+                    <p className="text-[0.95rem] font-semibold">
+                      {compraGuardada.capacidad.validada ? 'Capacidad de bodega validada' : 'Sin validación de capacidad'}
+                    </p>
+                    <p className="mt-1 text-sm leading-5">{compraGuardada.capacidad.mensaje}</p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="mt-7 rounded-[18px] border border-[#dfe5f3] bg-[#fbfcff] p-4">
               <p className="text-[0.92rem] font-semibold text-slate-600">Resumen de compra</p>
@@ -983,7 +1131,7 @@ export default function Compras() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
-      <header className="mx-auto w-full max-w-[520px] px-4 py-4 pt-6">
+      <header className="mx-auto w-full max-w-[430px] px-4 py-4 pt-6">
         <div className="relative flex items-center justify-center">
           <button
             type="button"
@@ -1013,7 +1161,7 @@ export default function Compras() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[520px] flex-col gap-5 py-2">
+      <main className="mx-auto flex w-full max-w-[430px] flex-col gap-5 py-2">
 
         {step === 1 ? (
           <section className="flex flex-col gap-4">
@@ -1230,7 +1378,10 @@ export default function Compras() {
                         type="date"
                         value={fecha}
                         max={hoyLocal()}
-                        onChange={(event) => setFecha(event.target.value)}
+                        onChange={(event) => {
+                          setFecha(event.target.value);
+                          invalidarValidacionCapacidad();
+                        }}
                         className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
                       />
                     </div>
@@ -1504,6 +1655,84 @@ export default function Compras() {
         </div>
       ) : null}
 
+      {mostrarModalConfigurarCapacidad ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef3ff] text-[#1f3fa7]">
+                <Warehouse size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.65rem] font-semibold leading-tight text-slate-900">
+                Registra la capacidad de la bodega
+              </h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
+                Necesitamos la capacidad total para validar esta compra. También puedes cambiarla luego en Ajustes.
+              </p>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="block text-[0.86rem] font-semibold text-slate-700">
+                  Nombre de la bodega
+                </label>
+                <input
+                  type="text"
+                  value={nombreBodegaNueva}
+                  onChange={(event) => {
+                    setNombreBodegaNueva(event.target.value);
+                    setCapacidadNuevaError(null);
+                  }}
+                  className="mt-2 w-full rounded-[16px] border border-[#dde4f1] bg-[#f8faff] px-4 py-4 text-[1.05rem] font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
+                  placeholder="Ej. Bodega principal"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.86rem] font-semibold text-slate-700">
+                  Capacidad total (kg)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={capacidadNuevaKg}
+                  onChange={(event) => {
+                    setCapacidadNuevaKg(event.target.value);
+                    setCapacidadNuevaError(null);
+                  }}
+                  className="mt-2 w-full rounded-[16px] border border-[#dde4f1] bg-[#f8faff] px-4 py-4 text-[1.2rem] font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
+                  placeholder="Ej. 6000"
+                />
+              </div>
+
+              {capacidadNuevaError ? (
+                <p className="mt-2 text-sm font-semibold text-rose-600">{capacidadNuevaError}</p>
+              ) : null}
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => void guardarCapacidadDesdeCompra()}
+                disabled={guardandoCapacidad}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.08rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardandoCapacidad ? 'Guardando...' : 'Guardar y validar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalConfigurarCapacidad(false)}
+                disabled={guardandoCapacidad}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]"
+              >
+                Volver a la compra
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarModalCapacidad && datosCapacidad ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
@@ -1512,7 +1741,8 @@ export default function Compras() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
                 <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">No hay espacio suficiente</h2><p className="mt-3 text-[1rem] leading-7 text-slate-500">Esta compra supera la capacidad de tu bodega. Ajusta el peso o libera espacio antes de guardar.</p>
+              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">Capacidad superada</h2>
+              <p className="mt-3 text-[1rem] leading-7 text-slate-500">Esta compra supera la capacidad registrada de tu bodega. Puedes revisar los datos o continuar bajo tu criterio.</p>
             </div>
 
             <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
@@ -1533,10 +1763,20 @@ export default function Compras() {
             <div className="mt-6 grid gap-3">
               <button
                 type="button"
-                onClick={() => setMostrarModalCapacidad(false)}
+                onClick={() => {
+                  setMostrarModalCapacidad(false);
+                  setMostrarModalConfirmar(true);
+                }}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
               >
-                Entendido, revisar compra
+                Continuar
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarModalCapacidad(false)}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#c2410c]"
+              >
+                Revisar compra
               </button>
             </div>
           </div>
@@ -1586,10 +1826,13 @@ export default function Compras() {
             <div className="mt-6 grid gap-3">
               <button
                 type="button"
-                onClick={() => setMostrarModalAlerta80(false)}
+                onClick={() => {
+                  setMostrarModalAlerta80(false);
+                  setMostrarModalConfirmar(true);
+                }}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
               >
-                Entendido
+                Continuar
               </button>
             </div>
           </div>
@@ -1715,7 +1958,7 @@ export default function Compras() {
           aria-live="polite"
           className="fixed inset-x-0 bottom-6 z-40 px-4"
         >
-          <div className="mx-auto flex w-full max-w-[520px] items-center justify-between gap-3 rounded-[18px] border border-[#d9e2f5] bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_18px_46px_rgba(15,23,42,0.18)]">
+          <div className="mx-auto flex w-full max-w-[430px] items-center justify-between gap-3 rounded-[18px] border border-[#d9e2f5] bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_18px_46px_rgba(15,23,42,0.18)]">
             <div className="min-w-0">
               <p className="font-bold text-slate-900">Productor creado</p>
               <p className="truncate text-xs text-slate-500">{productorCreadoToast.nombre}</p>

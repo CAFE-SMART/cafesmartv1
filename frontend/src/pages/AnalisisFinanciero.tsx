@@ -101,7 +101,7 @@ export default function AnalisisFinanciero() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] px-4 py-5 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
         <header className="flex items-center gap-3">
           <button
             type="button"

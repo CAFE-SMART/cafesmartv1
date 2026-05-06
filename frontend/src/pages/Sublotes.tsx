@@ -817,7 +817,7 @@ export default function Sublotes() {
   return (
     <div className="min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
       <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white">
-        <div className="mx-auto grid h-[50px] w-full max-w-[340px] grid-cols-[42px_1fr_42px] items-center px-3">
+        <div className="mx-auto grid h-[50px] w-full max-w-[430px] grid-cols-[42px_1fr_42px] items-center px-3">
           <button
             type="button"
             onClick={() => {
@@ -851,7 +851,7 @@ export default function Sublotes() {
 
       {(offlineNoticeVisible || !isOnline) && (
         <div className="border-b border-[#ececec] bg-white px-4 py-3">
-          <div className="mx-auto max-w-[340px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
+          <div className="mx-auto max-w-[430px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
             Para refrescar los datos necesitas conexion a internet.
             {'\n'}
             Tus cambios estan guardados y se sincronizaran automáticamente.
@@ -859,7 +859,7 @@ export default function Sublotes() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[340px] px-3 pb-3 pt-2.5">
+      <main className="mx-auto w-full max-w-[430px] px-3 pb-3 pt-2.5">
         {error ? <InlineGuidedError message={getSublotesGuidance(error)} className="mb-4" /> : null}
 
         {loading && !detalle ? (
@@ -1070,7 +1070,7 @@ export default function Sublotes() {
 
       {subloteActivo ? (
         <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1">
-          <div className="mx-auto grid w-full max-w-[340px] gap-1.5">
+          <div className="mx-auto grid w-full max-w-[430px] gap-1.5">
             <button
               type="button"
               onClick={() => navigate('/ventas')}
@@ -1103,7 +1103,7 @@ export default function Sublotes() {
 
       {editModal ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
+          <div className="w-full max-w-[430px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
             <p className="text-center text-[16px] font-semibold text-[#1f1f1f]">
               {editModal.field === 'humedad' ? 'Editar humedad' : 'Editar factor'}
             </p>
@@ -1211,7 +1211,7 @@ export default function Sublotes() {
 
       {factorNotice ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
+          <div className="w-full max-w-[430px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
             <div className="mb-2 flex justify-center text-amber-500">
               <AlertTriangle size={22} strokeWidth={2.3} />
             </div>

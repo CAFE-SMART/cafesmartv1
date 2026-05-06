@@ -149,8 +149,31 @@ function CapacityRing({
   capacityKg,
 }: {
   totalKg: number;
-  capacityKg: number;
+  capacityKg: number | null;
 }) {
+  if (!capacityKg) {
+    return (
+      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
+        <p className="text-[0.95rem] font-extrabold text-black" style={{ fontWeight: 900 }}>
+          Resumen de Inventario
+        </p>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[2.1rem] font-extrabold leading-none text-[#102d92]" style={{ fontWeight: 900 }}>
+              {formatNumber(totalKg)} kg
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-600" style={{ fontWeight: 700 }}>
+              Capacidad de bodega sin configurar
+            </p>
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+            <Coffee size={18} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const safeCapacity = Math.max(1, capacityKg);
   const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
   const displayPercentage =
@@ -160,6 +183,9 @@ function CapacityRing({
         ? rawPercentage.toFixed(1)
         : rawPercentage.toFixed(0);
   const ringPercentage = totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
+  const isCapacityExceeded = rawPercentage > 100;
+  const accentColor = isCapacityExceeded ? '#d92d20' : '#102d92';
+  const accentTextClass = isCapacityExceeded ? 'text-[#b42318]' : 'text-[#102d92]';
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
@@ -171,14 +197,14 @@ function CapacityRing({
       <div className="mt-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-end gap-2">
-            <p className="text-[2.1rem] font-extrabold leading-none text-[#102d92]" style={{ fontWeight: 900 }}>
+            <p className={`text-[2.1rem] font-extrabold leading-none ${accentTextClass}`} style={{ fontWeight: 900 }}>
               {formatNumber(totalKg)}
             </p>
             <span className="pb-0.5 text-[1.2rem] font-bold text-slate-400" style={{ fontWeight: 900 }}>
               / {formatNumber(safeCapacity)} kg
             </span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-slate-600" style={{ fontWeight: 700 }}>
+          <p className={`mt-1 text-sm font-semibold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`} style={{ fontWeight: 700 }}>
             Capacidad usada: {displayPercentage}%
           </p>
         </div>
@@ -190,7 +216,7 @@ function CapacityRing({
               cx="70"
               cy="70"
               r="58"
-              stroke="#102d92"
+              stroke={accentColor}
               strokeWidth="12"
               fill="none"
               strokeLinecap="round"
@@ -198,7 +224,7 @@ function CapacityRing({
               strokeDashoffset={offset}
             />
           </svg>
-          <div className="absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+          <div className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${accentTextClass}`}>
             <Coffee size={16} />
           </div>
         </div>
@@ -354,9 +380,9 @@ export default function Inventario() {
   const [typeKey, setTypeKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
-  const [bodegaConfig, setBodegaConfig] = useState<{ nombreBodega: string; capacidadKg: number }>({
+  const [bodegaConfig, setBodegaConfig] = useState<{ nombreBodega: string; capacidadKg: number | null }>({
     nombreBodega: 'Bodega principal',
-    capacidadKg: 3000,
+    capacidadKg: null,
   });
 
   const loadLots = async () => {
@@ -522,7 +548,7 @@ export default function Inventario() {
       }`}
     >
       <main
-        className={`mx-auto flex w-full max-w-[520px] px-4 py-6 ${
+        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
           showGlobalEmptyState
             ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
             : 'flex-col gap-5'

@@ -168,7 +168,7 @@ export default function LogoutStatus() {
         }}
       />
 
-      <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[390px] flex-col items-center pb-28 text-center">
+      <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
         <div className="animate-[cafesmartFadeScale_300ms_ease-out_both]">
           <CafeSmartLogo size="sm" compact />
         </div>

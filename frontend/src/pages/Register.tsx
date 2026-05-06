@@ -157,7 +157,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
-      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-[#f7f8fb]">
+      <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb]">
         {step === 1 ? (
           <section className="flex min-h-screen flex-col" aria-labelledby="register-business-title">
             <RegisterHeader
@@ -701,7 +701,7 @@ function SupportModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>

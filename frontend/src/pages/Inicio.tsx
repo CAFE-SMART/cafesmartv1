@@ -282,14 +282,16 @@ export default function Inicio() {
       return {
         porcentaje: 0,
         etiqueta: loading ? '...' : '0%',
+        excedida: false,
       };
     }
 
-    const porcentaje = Math.max(0, Math.min(100, (kgActual / kgCapacidad) * 100));
+    const porcentajeReal = Math.max(0, (kgActual / kgCapacidad) * 100);
 
     return {
-      porcentaje,
-      etiqueta: `${Math.round(porcentaje)}%`,
+      porcentaje: Math.min(100, porcentajeReal),
+      etiqueta: `${Math.round(porcentajeReal)}%`,
+      excedida: porcentajeReal > 100,
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
 
@@ -419,14 +421,14 @@ export default function Inicio() {
               <div className={`mt-3 ${cardClass}`}>
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-[0.9rem] font-black text-[#1f2937]">Ocupaci&oacute;n actual</h2>
-                  <span className="text-[1rem] font-black text-[#18479d]">
+                  <span className={`text-[1rem] font-black ${ocupacion.excedida ? 'text-[#b42318]' : 'text-[#18479d]'}`}>
                     {ocupacion.etiqueta}
                   </span>
                 </div>
 
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
                   <div
-                    className="h-full rounded-full bg-[#17489c] transition-[width] duration-500"
+                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacion.excedida ? 'bg-[#d92d20]' : 'bg-[#17489c]'}`}
                     style={{ width: `${ocupacion.porcentaje}%` }}
                   />
                 </div>

@@ -33,7 +33,7 @@ const CONFIRMATION_DURATION_MS = 1700;
 function ConfirmSuccessView() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
         <section className="w-full max-w-[320px] rounded-[14px] border border-slate-200 bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
             <Check size={18} strokeWidth={3.2} />
@@ -51,7 +51,7 @@ function ConfirmSuccessView() {
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
     <div className="min-h-screen bg-[#f7f8fb] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
         <section className="w-full rounded-[16px] border border-[#dfe5f1] bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#274ab8]">
             <Coffee size={21} strokeWidth={2.4} />
