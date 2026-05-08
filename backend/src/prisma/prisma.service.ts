@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 
@@ -13,11 +18,22 @@ function normalizeDatabaseUrl(value: string) {
     url.searchParams.set('sslmode', 'require');
   }
 
+  if (!url.searchParams.has('connection_limit')) {
+    url.searchParams.set('connection_limit', '5');
+  }
+
+  if (!url.searchParams.has('pool_timeout')) {
+    url.searchParams.set('pool_timeout', '20');
+  }
+
   return url.toString();
 }
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(PrismaService.name);
   private readonly maxConnectAttempts: number;
   private readonly retryDelayMs: number;
@@ -27,8 +43,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       configService.getOrThrow<string>('DATABASE_URL'),
     );
 
-    const attempts = Number(configService.get('PRISMA_CONNECT_MAX_ATTEMPTS') ?? '5');
-    const delayMs = Number(configService.get('PRISMA_CONNECT_RETRY_DELAY_MS') ?? '3000');
+    const attempts = Number(
+      configService.get('PRISMA_CONNECT_MAX_ATTEMPTS') ?? '5',
+    );
+    const delayMs = Number(
+      configService.get('PRISMA_CONNECT_RETRY_DELAY_MS') ?? '3000',
+    );
 
     super({
       datasources: {
@@ -38,8 +58,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       },
     });
 
-    this.maxConnectAttempts = Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
-    this.retryDelayMs = Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 3000;
+    this.maxConnectAttempts =
+      Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
+    this.retryDelayMs =
+      Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 3000;
   }
 
   /**
@@ -52,7 +74,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       try {
         await this.$connect();
         if (attempt > 1) {
-          this.logger.log(`Conexion Prisma recuperada en el intento ${attempt}.`);
+          this.logger.log(
+            `Conexion Prisma recuperada en el intento ${attempt}.`,
+          );
         }
         return;
       } catch (error) {

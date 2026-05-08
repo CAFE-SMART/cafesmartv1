@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -13,10 +14,15 @@ import {
   TipoMovimientoInventario,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { apiError } from '../common/errors/api-error';
 import { CreateCompraDto } from './dto/crear-compra.dto';
 import {
   CompraProcesada,
+  CompraValidacionCriticaError,
   ContextoCapacidadCompra,
+  EstadoCapacidadCompra,
+  crearCapacidadRequerida,
+  crearCapacidadSinValidacion,
   normalizarADosDecimales,
   procesarCompra,
 } from './procesar-compra';
@@ -28,6 +34,7 @@ type CrearCompraResultado = {
   sublotes: Sublote[];
   warning?: string;
   exceso?: number;
+  capacidad: EstadoCapacidadCompra;
 };
 
 type CatalogoItem = {
@@ -66,6 +73,8 @@ const CALIDADES_BASE = ['BUENO', 'REGULAR', 'MALO'];
 
 @Injectable()
 export class ComprasService {
+  private readonly logger = new Logger(ComprasService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private async asegurarCatalogosBase(
@@ -84,7 +93,10 @@ export class ComprasService {
   }
 
   async listarCompras(userId: string): Promise<CompraListadoItem[]> {
-    const organizacionId = await this.obtenerOrganizacionId(this.prisma, userId);
+    const organizacionId = await this.obtenerOrganizacionId(
+      this.prisma,
+      userId,
+    );
     const compras = await this.prisma.compra.findMany({
       where: {
         deletedAt: null,
@@ -164,96 +176,129 @@ export class ComprasService {
     organizacionId?: string,
   ): Promise<CrearCompraResultado> {
     try {
+      const organizacionIdCapacidad = await this.obtenerOrganizacionId(
+        this.prisma,
+        userId,
+        organizacionId,
+      );
+      const contextoCapacidad = await this.obtenerContextoCapacidadSeguro(
+        this.prisma,
+        organizacionIdCapacidad,
+      );
+
       /**
        * Ejecuta la compra como una sola unidad de trabajo:
        * crea la compra, crea sublotes, actualiza el agregado y registra trazabilidad.
        */
-      return await this.prisma.$transaction(async (tx) => {
-        const organizacionIdFinal = await this.obtenerOrganizacionId(
-          tx,
-          userId,
-          organizacionId,
-        );
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const organizacionIdFinal = await this.obtenerOrganizacionId(
+            tx,
+            userId,
+            organizacionId,
+          );
 
-        const compraExistente = await this.buscarCompraActivaPorSync(
-          tx,
-          input.deviceId,
-          input.localId,
-        );
+          const compraExistente = await this.buscarCompraActivaPorSync(
+            tx,
+            input.deviceId,
+            input.localId,
+          );
 
-        if (compraExistente) {
-          return this.construirRespuestaDesdeCompraExistente(compraExistente);
-        }
+          if (compraExistente) {
+            return this.construirRespuestaDesdeCompraExistente(compraExistente);
+          }
 
-        this.validarSublotesDuplicadosEnRequest(input);
-        await this.asegurarCatalogosBase(tx);
-        await this.validarCatalogos(tx, input);
-        await this.validarProductor(tx, organizacionIdFinal, input.productorId);
+          this.validarSublotesDuplicadosEnRequest(input);
+          await this.asegurarCatalogosBase(tx);
+          await this.validarCatalogos(tx, input);
+          await this.validarProductor(
+            tx,
+            organizacionIdFinal,
+            input.productorId,
+          );
 
-        const contextoCapacidad = await this.obtenerContextoCapacidad(
-          tx,
-          organizacionIdFinal,
-        );
-        const compraProcesada = procesarCompra(input, contextoCapacidad);
-        const lotesCompra = await this.asegurarLotesCompra(
-          tx,
-          organizacionIdFinal,
-          compraProcesada.sublotes,
-        );
-        const movimientosCompra = this.construirMovimientosCompra(
-          compraProcesada.sublotes,
-        );
+          const compraProcesada = procesarCompra(input, contextoCapacidad);
 
-        const compra = await tx.compra.create({
-          data: {
-            fecha: new Date(compraProcesada.compra.fecha),
-            totalCompra: compraProcesada.compra.totalCompra,
-            deviceId: compraProcesada.compra.deviceId,
-            localId: compraProcesada.compra.localId,
-            usuarioId: userId,
-            organizacionId: organizacionIdFinal,
-            productorId: input.productorId?.trim() || null,
-          },
-        });
-
-        await tx.sublote.createMany({
-          data: this.construirSublotesData(
-            compra.id,
-            input,
+          const lotesCompra = await this.asegurarLotesCompra(
+            tx,
+            organizacionIdFinal,
             compraProcesada.sublotes,
-            lotesCompra,
-          ),
-        });
+          );
+          const movimientosCompra = this.construirMovimientosCompra(
+            compraProcesada.sublotes,
+          );
 
-        await this.actualizarInventarioSnapshot(
-          tx,
-          organizacionIdFinal,
-          movimientosCompra,
-        );
+          const compra = await tx.compra.create({
+            data: {
+              fecha: new Date(compraProcesada.compra.fecha),
+              totalCompra: compraProcesada.compra.totalCompra,
+              deviceId: compraProcesada.compra.deviceId,
+              localId: compraProcesada.compra.localId,
+              usuarioId: userId,
+              organizacionId: organizacionIdFinal,
+              productorId: input.productorId?.trim() || null,
+            },
+          });
 
-        await this.registrarMovimientosInventario(
-          tx,
-          organizacionIdFinal,
-          userId,
-          compra.id,
-          movimientosCompra,
-        );
+          await tx.sublote.createMany({
+            data: this.construirSublotesData(
+              compra.id,
+              input,
+              compraProcesada.sublotes,
+              lotesCompra,
+            ),
+          });
 
-        const sublotes = await tx.sublote.findMany({
-          where: this.obtenerWhereSubloteActivo({
-            compraId: compra.id,
-          }),
-          orderBy: { creadoEn: 'asc' },
-        });
+          await this.actualizarInventarioSnapshot(
+            tx,
+            organizacionIdFinal,
+            movimientosCompra,
+          );
 
-        return {
-          compra,
-          sublotes,
-          warning: compraProcesada.warning,
-          exceso: compraProcesada.exceso,
-        };
-      }, { maxWait: 10000, timeout: 25000 });
+          await this.registrarMovimientosInventario(
+            tx,
+            organizacionIdFinal,
+            userId,
+            compra.id,
+            movimientosCompra,
+          );
+
+          if (!compraProcesada.capacidad.validada) {
+            this.logger.warn(
+              JSON.stringify({
+                event: 'compra_sin_validacion_capacidad',
+                compraId: compra.id,
+                organizacionId: organizacionIdFinal,
+                usuarioId: userId,
+                motivo: compraProcesada.capacidad.nivel,
+              }),
+            );
+          }
+
+          const sublotes = await tx.sublote.findMany({
+            where: this.obtenerWhereSubloteActivo({
+              compraId: compra.id,
+            }),
+            orderBy: { creadoEn: 'asc' },
+          });
+
+          return {
+            compra,
+            sublotes,
+            warning: compraProcesada.warning,
+            exceso: compraProcesada.exceso,
+            capacidad: compraProcesada.capacidad,
+          };
+        },
+        { maxWait: 10000, timeout: 25000 },
+      );
     } catch (error) {
+      if (error instanceof CompraValidacionCriticaError) {
+        throw new BadRequestException(
+          apiError(error.code, error.message, { details: error.details }),
+        );
+      }
+
       if (this.esErrorUnico(error)) {
         const compraExistente = await this.buscarCompraActivaPorSync(
           this.prisma,
@@ -270,6 +315,111 @@ export class ComprasService {
 
       throw error;
     }
+  }
+
+  async validarCapacidadCompra(
+    input: CreateCompraDto,
+    userId: string,
+  ): Promise<EstadoCapacidadCompra> {
+    try {
+      const organizacionId = await this.obtenerOrganizacionId(
+        this.prisma,
+        userId,
+      );
+      const contextoCapacidad = await this.obtenerContextoCapacidad(
+        this.prisma,
+        organizacionId,
+      );
+
+      if (!contextoCapacidad) {
+        return crearCapacidadRequerida();
+      }
+
+      return procesarCompra(input, contextoCapacidad).capacidad;
+    } catch {
+      return crearCapacidadSinValidacion();
+    }
+  }
+
+  async eliminarCompra(compraId: string, userId: string): Promise<void> {
+    await this.prisma.$transaction(
+      async (tx) => {
+        const organizacionId = await this.obtenerOrganizacionId(tx, userId);
+        const compra = await tx.compra.findFirst({
+          where: {
+            id: compraId,
+            organizacionId,
+            deletedAt: null,
+          },
+          include: {
+            sublotes: {
+              where: this.obtenerWhereSubloteActivo(),
+              include: {
+                detallesVenta: {
+                  where: { deletedAt: null },
+                  select: { id: true },
+                },
+              },
+            },
+          },
+        });
+
+        if (!compra) {
+          throw new BadRequestException(
+            'La compra no existe o ya fue eliminada',
+          );
+        }
+
+        const tieneVentas = compra.sublotes.some(
+          (sublote) => sublote.detallesVenta.length > 0,
+        );
+
+        if (tieneVentas) {
+          throw new BadRequestException(
+            'No se puede eliminar una compra que ya tiene ventas registradas',
+          );
+        }
+
+        const ahora = new Date();
+        const movimientosReversa: MovimientoInventario[] = compra.sublotes.map(
+          (sublote) => ({
+            tipoCafeId: sublote.tipoCafeId,
+            calidadId: sublote.calidadId,
+            cantidad: -Number(sublote.pesoActual),
+            tipoMovimiento: TipoMovimientoInventario.COMPRA,
+            referenciaTipo: TipoReferenciaInventario.COMPRA,
+          }),
+        );
+
+        await this.actualizarInventarioSnapshot(
+          tx,
+          organizacionId,
+          movimientosReversa,
+        );
+
+        await this.registrarMovimientosInventario(
+          tx,
+          organizacionId,
+          userId,
+          compra.id,
+          movimientosReversa,
+        );
+
+        await tx.sublote.updateMany({
+          where: {
+            compraId: compra.id,
+            deletedAt: null,
+          },
+          data: { deletedAt: ahora },
+        });
+
+        await tx.compra.update({
+          where: { id: compra.id },
+          data: { deletedAt: ahora },
+        });
+      },
+      { maxWait: 10000, timeout: 25000 },
+    );
   }
 
   /**
@@ -290,7 +440,9 @@ export class ComprasService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organizacion asignada',
+      );
     }
 
     if (organizacionId && usuario.organizacionId !== organizacionId) {
@@ -337,7 +489,11 @@ export class ComprasService {
 
     if (clavesDuplicadas.size > 0) {
       throw new BadRequestException(
-        `Hay sublotes duplicados en la compra: ${[...clavesDuplicadas].join(', ')}`,
+        apiError(
+          'COMPRA_SUBLOTES_DUPLICADOS',
+          'Hay sublotes duplicados en la compra.',
+          { details: { sublotes: [...clavesDuplicadas] } },
+        ),
       );
     }
   }
@@ -367,7 +523,11 @@ export class ComprasService {
       const encontrados = new Set(tiposCafe.map((tipoCafe) => tipoCafe.id));
       const faltantes = tipoCafeIds.filter((id) => !encontrados.has(id));
       throw new BadRequestException(
-        `Tipo(s) de cafe no encontrado(s): ${faltantes.join(', ')}`,
+        apiError(
+          'COMPRA_TIPO_CAFE_INVALIDO',
+          'El tipo de cafe seleccionado no es valido.',
+          { details: { tipoCafeIds: faltantes } },
+        ),
       );
     }
 
@@ -375,7 +535,11 @@ export class ComprasService {
       const encontrados = new Set(calidades.map((calidad) => calidad.id));
       const faltantes = calidadIds.filter((id) => !encontrados.has(id));
       throw new BadRequestException(
-        `Calidad(es) no encontrada(s): ${faltantes.join(', ')}`,
+        apiError(
+          'COMPRA_CALIDAD_INVALIDA',
+          'La calidad seleccionada no es valida.',
+          { details: { calidadIds: faltantes } },
+        ),
       );
     }
   }
@@ -402,7 +566,10 @@ export class ComprasService {
 
     if (!productor) {
       throw new BadRequestException(
-        'El productor seleccionado no esta disponible para esta organizacion',
+        apiError(
+          'COMPRA_PRODUCTOR_INVALIDO',
+          'El productor seleccionado no esta disponible para esta organizacion.',
+        ),
       );
     }
   }
@@ -411,7 +578,7 @@ export class ComprasService {
    * Obtiene la capacidad configurada de la bodega y el inventario agregado actual.
    */
   private async obtenerContextoCapacidad(
-    tx: Prisma.TransactionClient,
+    tx: Prisma.TransactionClient | PrismaService,
     organizacionId: string,
   ): Promise<ContextoCapacidadCompra | null> {
     const parametro = await tx.parametroOrganizacion.findUnique({
@@ -434,17 +601,79 @@ export class ComprasService {
       return null;
     }
 
-    const inventarioActual = await tx.inventario.aggregate({
-      _sum: { pesoTotal: true },
-      where: { organizacionId },
-    });
+    const inventarioActualKg = await this.obtenerPesoInventarioActual(
+      tx,
+      organizacionId,
+    );
 
     return {
       capacidadBodegaKg: normalizarADosDecimales(capacidadBodegaKg),
-      inventarioActualKg: normalizarADosDecimales(
-        Number(inventarioActual._sum.pesoTotal ?? 0),
-      ),
+      inventarioActualKg: normalizarADosDecimales(inventarioActualKg),
     };
+  }
+
+  private async obtenerContextoCapacidadSeguro(
+    tx: Prisma.TransactionClient | PrismaService,
+    organizacionId: string,
+  ): Promise<ContextoCapacidadCompra | null> {
+    try {
+      return await this.obtenerContextoCapacidad(tx, organizacionId);
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'compra_sin_validacion_capacidad',
+          organizacionId,
+          motivo: 'fallo_calculo_inventario',
+          error: error instanceof Error ? error.message : 'Error desconocido',
+        }),
+      );
+      return null;
+    }
+  }
+
+  private async obtenerPesoInventarioActual(
+    tx: Prisma.TransactionClient | PrismaService,
+    organizacionId: string,
+  ): Promise<number> {
+    try {
+      const inventarioActual = await tx.inventario.aggregate({
+        _sum: { pesoTotal: true },
+        where: { organizacionId },
+      });
+      const pesoTotal = Number(inventarioActual._sum.pesoTotal ?? 0);
+
+      if (!Number.isFinite(pesoTotal)) {
+        throw new Error('El snapshot de inventario devolvio un valor invalido');
+      }
+
+      return pesoTotal;
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'inventario_snapshot_no_disponible',
+          organizacionId,
+          error: error instanceof Error ? error.message : 'Error desconocido',
+        }),
+      );
+    }
+
+    const sublotesActuales = await tx.sublote.aggregate({
+      _sum: { pesoActual: true },
+      where: {
+        deletedAt: null,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+    });
+    const pesoActual = Number(sublotesActuales._sum.pesoActual ?? 0);
+
+    if (!Number.isFinite(pesoActual)) {
+      throw new Error('El fallback de sublotes devolvio un valor invalido');
+    }
+
+    return pesoActual;
   }
 
   private construirClaveLote(tipoCafeId: string, calidadId: string): string {
@@ -456,7 +685,9 @@ export class ComprasService {
     organizacionId: string,
     sublotesProcesados: CompraProcesada['sublotes'],
   ): Promise<Map<string, string>> {
-    const tipoCafeIds = [...new Set(sublotesProcesados.map((s) => s.tipoCafeId))];
+    const tipoCafeIds = [
+      ...new Set(sublotesProcesados.map((s) => s.tipoCafeId)),
+    ];
     const calidadIds = [...new Set(sublotesProcesados.map((s) => s.calidadId))];
 
     const [tiposCafe, calidades, lotesExistentes] = await Promise.all([
@@ -478,8 +709,12 @@ export class ComprasService {
       }),
     ]);
 
-    const nombreTipoPorId = new Map(tiposCafe.map((tipoCafe) => [tipoCafe.id, tipoCafe.nombre]));
-    const nombreCalidadPorId = new Map(calidades.map((calidad) => [calidad.id, calidad.nombre]));
+    const nombreTipoPorId = new Map(
+      tiposCafe.map((tipoCafe) => [tipoCafe.id, tipoCafe.nombre]),
+    );
+    const nombreCalidadPorId = new Map(
+      calidades.map((calidad) => [calidad.id, calidad.nombre]),
+    );
 
     const lotesPorClave = new Map<string, string>();
     for (const lote of lotesExistentes) {
@@ -490,13 +725,17 @@ export class ComprasService {
     }
 
     for (const sublote of sublotesProcesados) {
-      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
+      const clave = this.construirClaveLote(
+        sublote.tipoCafeId,
+        sublote.calidadId,
+      );
       if (lotesPorClave.has(clave)) {
         continue;
       }
 
       const tipoNombre = nombreTipoPorId.get(sublote.tipoCafeId) ?? 'TIPO';
-      const calidadNombre = nombreCalidadPorId.get(sublote.calidadId) ?? 'CALIDAD';
+      const calidadNombre =
+        nombreCalidadPorId.get(sublote.calidadId) ?? 'CALIDAD';
       const codigo = `${tipoNombre} ${calidadNombre}`.trim();
 
       try {
@@ -550,26 +789,32 @@ export class ComprasService {
     lotesCompra: Map<string, string>,
   ): Prisma.SubloteCreateManyInput[] {
     return sublotesProcesados.map((sublote, index) => {
-      const clave = this.construirClaveLote(sublote.tipoCafeId, sublote.calidadId);
+      const clave = this.construirClaveLote(
+        sublote.tipoCafeId,
+        sublote.calidadId,
+      );
       const idLote = lotesCompra.get(clave);
 
       if (!idLote) {
         throw new BadRequestException(
-          'No se encontró el lote para uno de los sublotes de la compra',
+          apiError(
+            'COMPRA_LOTE_INVALIDO',
+            'No se encontro el lote para uno de los sublotes de la compra.',
+          ),
         );
       }
 
       return {
-      compraId,
-      tipoCafeId: sublote.tipoCafeId,
-      calidadId: sublote.calidadId,
-      pesoInicial: sublote.pesoInicial,
-      pesoActual: sublote.pesoActual,
-      precioKg: sublote.precioKg,
-      costoTotal: sublote.costoTotal,
-      idLote,
-      deviceId: input.sublotes[index].deviceId,
-      localId: input.sublotes[index].localId,
+        compraId,
+        tipoCafeId: sublote.tipoCafeId,
+        calidadId: sublote.calidadId,
+        pesoInicial: sublote.pesoInicial,
+        pesoActual: sublote.pesoActual,
+        precioKg: sublote.precioKg,
+        costoTotal: sublote.costoTotal,
+        idLote,
+        deviceId: input.sublotes[index].deviceId,
+        localId: input.sublotes[index].localId,
       };
     });
   }
@@ -673,7 +918,9 @@ export class ComprasService {
         continue;
       }
 
-      movimientoActual.cantidadCenti += this.aCentiUnidades(movimiento.cantidad);
+      movimientoActual.cantidadCenti += this.aCentiUnidades(
+        movimiento.cantidad,
+      );
     }
 
     return [...acumulados.values()].map((movimiento) => ({
@@ -760,6 +1007,7 @@ export class ComprasService {
     return {
       compra,
       sublotes,
+      capacidad: crearCapacidadSinValidacion(),
     };
   }
 
@@ -789,25 +1037,42 @@ export class ComprasService {
 
     if (compraEliminada?.deletedAt !== null) {
       throw new ConflictException(
-        'Ya existe una compra eliminada con ese identificador de sincronizacion',
+        apiError(
+          'COMPRA_SYNC_ELIMINADA',
+          'Ya existe una compra eliminada con ese identificador de sincronizacion.',
+        ),
       );
     }
 
-    const subloteExistente = await this.buscarSublotePorSync(this.prisma, input);
+    const subloteExistente = await this.buscarSublotePorSync(
+      this.prisma,
+      input,
+    );
 
     if (subloteExistente?.deletedAt !== null) {
       throw new ConflictException(
-        'Ya existe un sublote eliminado con ese identificador de sincronizacion',
+        apiError(
+          'COMPRA_SUBLOTE_SYNC_ELIMINADO',
+          'Ya existe un sublote eliminado con ese identificador de sincronizacion.',
+        ),
       );
     }
 
     if (subloteExistente) {
       throw new ConflictException(
-        'Uno o mas sublotes ya existen y no pueden asociarse a una nueva compra',
+        apiError(
+          'COMPRA_SUBLOTE_SYNC_DUPLICADO',
+          'Uno o mas sublotes ya existen y no pueden asociarse a una nueva compra.',
+        ),
       );
     }
 
-    throw new ConflictException('Conflicto de sincronizacion al crear la compra');
+    throw new ConflictException(
+      apiError(
+        'COMPRA_SYNC_CONFLICT',
+        'Conflicto de sincronizacion al crear la compra.',
+      ),
+    );
   }
 
   /**
@@ -831,4 +1096,3 @@ export class ComprasService {
     return valor / 100;
   }
 }
-

@@ -26,7 +26,10 @@ export class ProductoresController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  crear(@Body() dto: GuardarProductorDto, @Req() req: { user: { sub: string } }) {
+  crear(
+    @Body() dto: GuardarProductorDto,
+    @Req() req: { user: { sub: string } },
+  ) {
     return this.productoresService.crear(req.user.sub, dto);
   }
 

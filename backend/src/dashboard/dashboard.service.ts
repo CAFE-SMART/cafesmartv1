@@ -3,12 +3,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ParametrosService } from '../parametros/parametros.service';
 
 type DashboardMovimiento = {
   id: string;
-  tipo: 'COMPRA' | 'VENTA';
+  tipo: 'COMPRA' | 'VENTA' | 'GASTO';
   nombre: string;
   kg: number;
   valor: number;
@@ -18,14 +19,21 @@ type DashboardMovimiento = {
 type DashboardSummaryResponse = {
   comprasHoy: number;
   ventasHoy: number;
+  gastosHoy: number;
   kgCompradosHoy: number;
+  totalComprasHoy: number;
+  totalVentasHoy: number;
+  totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
-  kgCapacidad: number;
-  totalRevenue: number;
-  totalExpenses: number;
-  totalProfit: number;
-  totalWasteKg: number;
+  kgCapacidad: number | null;
+  inventarioPorTipo: Array<{
+    tipoCafeId: string;
+    tipoCafe: string;
+    kgDisponible: number;
+  }>;
+  utilidadTotalAcumulada: number;
+  mermaTotalKg: number;
   movimientosRecientes: DashboardMovimiento[];
 };
 
@@ -45,17 +53,16 @@ export class DashboardService {
     const [
       comprasHoy,
       ventasHoy,
+      gastosHoy,
       kgCompradosHoy,
+      totalComprasHoy,
+      totalVentasHoy,
+      totalGastosHoy,
       totalProductores,
-      kgActual,
-      kgCapacidad,
-      totalVentas,
-      totalCompras,
-      totalGastos,
-      sublotesParaMerma,
       comprasRecientes,
       ventasRecientes,
-    ] = await Promise.all([
+      gastosRecientes,
+    ] = await this.prisma.$transaction([
       this.prisma.compra.count({
         where: {
           organizacionId,
@@ -76,6 +83,16 @@ export class DashboardService {
           },
         },
       }),
+      this.prisma.gastoOperativo.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
       this.prisma.sublote.aggregate({
         _sum: { pesoInicial: true },
         where: {
@@ -90,29 +107,26 @@ export class DashboardService {
           },
         },
       }),
-      this.prisma.productor.count({
-        where: {
-          organizacionId,
-          deletedAt: null,
-        },
-      }),
-      this.prisma.inventario.aggregate({
-        _sum: { pesoTotal: true },
-        where: { organizacionId },
-      }),
-      this.obtenerCapacidadBodegaKg(organizacionId),
-      this.prisma.venta.aggregate({
-        _sum: { totalVenta: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-        },
-      }),
       this.prisma.compra.aggregate({
         _sum: { totalCompra: true },
         where: {
           organizacionId,
           deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
+          },
+        },
+      }),
+      this.prisma.venta.aggregate({
+        _sum: { totalVenta: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioDia,
+            lt: finDia,
+          },
         },
       }),
       this.prisma.gastoOperativo.aggregate({
@@ -120,31 +134,16 @@ export class DashboardService {
         where: {
           organizacionId,
           deletedAt: null,
+          fechaGasto: {
+            gte: inicioDia,
+            lt: finDia,
+          },
         },
       }),
-      this.prisma.sublote.findMany({
+      this.prisma.productor.count({
         where: {
+          organizacionId,
           deletedAt: null,
-          compra: {
-            deletedAt: null,
-            organizacionId,
-          },
-        },
-        select: {
-          pesoInicial: true,
-          pesoActual: true,
-          detallesVenta: {
-            where: {
-              deletedAt: null,
-              venta: {
-                deletedAt: null,
-                organizacionId,
-              },
-            },
-            select: {
-              pesoVendido: true,
-            },
-          },
         },
       }),
       this.prisma.compra.findMany({
@@ -197,7 +196,25 @@ export class DashboardService {
           },
         },
       }),
+      this.prisma.gastoOperativo.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+        orderBy: [{ fechaGasto: 'desc' }, { createdAt: 'desc' }],
+        take: LIMITE_MOVIMIENTOS_RECIENTES,
+        select: {
+          id: true,
+          conceptoGasto: true,
+          fechaGasto: true,
+          createdAt: true,
+          montoGasto: true,
+        },
+      }),
     ]);
+    const kgCapacidad = await this.obtenerCapacidadBodegaKg(organizacionId);
+    const resumenFinanciero =
+      await this.obtenerResumenFinanciero(organizacionId);
 
     const movimientosCompras = comprasRecientes.map((compra) => ({
       id: compra.id,
@@ -225,7 +242,21 @@ export class DashboardService {
       orden: venta.createdAt.getTime(),
     }));
 
-    const movimientosRecientes = [...movimientosCompras, ...movimientosVentas]
+    const movimientosGastos = gastosRecientes.map((gasto) => ({
+      id: gasto.id,
+      tipo: 'GASTO' as const,
+      nombre: gasto.conceptoGasto.trim() || 'Gasto operativo',
+      kg: 0,
+      valor: Number(gasto.montoGasto),
+      fecha: gasto.fechaGasto.toISOString(),
+      orden: gasto.createdAt.getTime(),
+    }));
+
+    const movimientosRecientes = [
+      ...movimientosCompras,
+      ...movimientosVentas,
+      ...movimientosGastos,
+    ]
       .sort((a, b) => {
         const fechaA = new Date(a.fecha).getTime();
         const fechaB = new Date(b.fecha).getTime();
@@ -236,39 +267,235 @@ export class DashboardService {
         return b.orden - a.orden;
       })
       .slice(0, LIMITE_MOVIMIENTOS_RECIENTES)
-      .map(({ orden, ...movimiento }) => movimiento);
-
-    const totalRevenue = Number(totalVentas._sum.totalVenta ?? 0);
-    const totalCompraCost = Number(totalCompras._sum.totalCompra ?? 0);
-    const totalOperationalExpenses = Number(totalGastos._sum.montoGasto ?? 0);
-    const totalExpenses = totalCompraCost + totalOperationalExpenses;
-    const totalWasteKg = sublotesParaMerma.reduce((total, sublote) => {
-      const pesoVendido = sublote.detallesVenta.reduce(
-        (subtotal, detalle) => subtotal + Number(detalle.pesoVendido),
-        0,
-      );
-
-      const merma = Math.max(
-        0,
-        Number(sublote.pesoInicial) - Number(sublote.pesoActual) - pesoVendido,
-      );
-
-      return total + merma;
-    }, 0);
+      .map((movimientoConOrden) => {
+        const { orden: _orden, ...movimiento } = movimientoConOrden;
+        return movimiento;
+      });
 
     return {
       comprasHoy,
       ventasHoy,
+      gastosHoy,
       kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
+      totalComprasHoy: Number(totalComprasHoy._sum.totalCompra ?? 0),
+      totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
+      totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
       totalProductores,
-      kgActual: Number(kgActual._sum.pesoTotal ?? 0),
+      kgActual: resumenFinanciero.kgActual,
       kgCapacidad,
-      totalRevenue,
-      totalExpenses,
-      totalProfit: totalRevenue - totalExpenses,
-      totalWasteKg,
+      inventarioPorTipo: resumenFinanciero.inventarioPorTipo,
+      utilidadTotalAcumulada: resumenFinanciero.utilidadTotalAcumulada,
+      mermaTotalKg: resumenFinanciero.mermaTotalKg,
       movimientosRecientes,
     };
+  }
+
+  private async obtenerResumenFinanciero(organizacionId: string) {
+    const sublotes = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        id: true,
+        pesoInicial: true,
+        pesoActual: true,
+        costoTotal: true,
+        tipoCafeId: true,
+        tipoCafe: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
+    });
+
+    if (sublotes.length === 0) {
+      return {
+        kgActual: 0,
+        inventarioPorTipo: [],
+        utilidadTotalAcumulada: 0,
+        mermaTotalKg: 0,
+      };
+    }
+
+    const subloteIds = sublotes.map((sublote) => sublote.id);
+    const [detallesVenta, gastosSublote, gastosGenerales] =
+      await this.prisma.$transaction([
+        this.prisma.ventaDetalle.findMany({
+          where: {
+            deletedAt: null,
+            subloteId: { in: subloteIds },
+          },
+          select: {
+            subloteId: true,
+            pesoVendido: true,
+            subtotal: true,
+          },
+        }),
+        this.prisma.gastoSublote.findMany({
+          where: {
+            subloteId: { in: subloteIds },
+            gastoOperativo: {
+              deletedAt: null,
+              organizacionId,
+            },
+          },
+          select: {
+            gastoOperativoId: true,
+            subloteId: true,
+            gastoOperativo: {
+              select: {
+                montoGasto: true,
+              },
+            },
+          },
+        }),
+        this.prisma.gastoOperativo.findMany({
+          where: {
+            organizacionId,
+            deletedAt: null,
+            sublotes: { none: {} },
+          },
+          select: {
+            montoGasto: true,
+          },
+        }),
+      ]);
+
+    const ventasPorSublote = new Map<
+      string,
+      { pesoVendido: number; totalVentas: number }
+    >();
+    for (const detalle of detallesVenta) {
+      const actual = ventasPorSublote.get(detalle.subloteId) ?? {
+        pesoVendido: 0,
+        totalVentas: 0,
+      };
+      actual.pesoVendido += Number(detalle.pesoVendido);
+      actual.totalVentas += Number(detalle.subtotal);
+      ventasPorSublote.set(detalle.subloteId, actual);
+    }
+
+    const gastosPorSublote = this.calcularGastosPorSublote(
+      gastosSublote,
+      sublotes,
+      ventasPorSublote,
+    );
+    const totalGastosGenerales = gastosGenerales.reduce(
+      (sum, gasto) => sum + Number(gasto.montoGasto),
+      0,
+    );
+    const pesoBaseTotal = sublotes.reduce((sum, sublote) => {
+      const venta = ventasPorSublote.get(sublote.id);
+      return sum + Number(sublote.pesoActual) + (venta?.pesoVendido ?? 0);
+    }, 0);
+
+    let utilidadTotalAcumulada = 0;
+    let mermaTotalKg = 0;
+    let kgActual = 0;
+    const inventarioPorTipoMap = new Map<
+      string,
+      { tipoCafeId: string; tipoCafe: string; kgDisponible: number }
+    >();
+
+    for (const sublote of sublotes) {
+      const pesoInicial = Number(sublote.pesoInicial);
+      const pesoActual = Number(sublote.pesoActual);
+      kgActual += pesoActual;
+      const venta = ventasPorSublote.get(sublote.id);
+      const pesoVendido = venta?.pesoVendido ?? 0;
+      const totalVentas = venta?.totalVentas ?? 0;
+      const costoTotal = Number(sublote.costoTotal || 0);
+      const mermaKg = Math.max(0, pesoInicial - pesoActual - pesoVendido);
+      const costoPorKg = pesoInicial > 0 ? costoTotal / pesoInicial : 0;
+      const costoVendido = pesoVendido * costoPorKg;
+      const mermaValor = mermaKg * costoPorKg;
+      const pesoBase = pesoActual + pesoVendido;
+      const proporcionVendida =
+        pesoBase > 0 ? pesoVendido / pesoBase : pesoVendido > 0 ? 1 : 0;
+      const gastoGeneralAsignado =
+        totalGastosGenerales > 0
+          ? pesoBaseTotal > 0
+            ? (pesoBase / pesoBaseTotal) * totalGastosGenerales
+            : totalGastosGenerales / sublotes.length
+          : 0;
+      const totalGastos =
+        (gastosPorSublote.get(sublote.id) ?? 0) + gastoGeneralAsignado;
+      const gastosRealizados = totalGastos * proporcionVendida;
+
+      utilidadTotalAcumulada +=
+        totalVentas - costoVendido - gastosRealizados - mermaValor;
+      mermaTotalKg += mermaKg;
+
+      const actual = inventarioPorTipoMap.get(sublote.tipoCafeId) ?? {
+        tipoCafeId: sublote.tipoCafeId,
+        tipoCafe: sublote.tipoCafe.nombre,
+        kgDisponible: 0,
+      };
+      actual.kgDisponible += pesoActual;
+      inventarioPorTipoMap.set(sublote.tipoCafeId, actual);
+    }
+
+    return {
+      kgActual,
+      inventarioPorTipo: [...inventarioPorTipoMap.values()],
+      utilidadTotalAcumulada,
+      mermaTotalKg,
+    };
+  }
+
+  private calcularGastosPorSublote(
+    gastosSublote: Array<{
+      gastoOperativoId: string;
+      subloteId: string;
+      gastoOperativo: { montoGasto: Prisma.Decimal | number };
+    }>,
+    sublotes: Array<{ id: string; pesoActual: Prisma.Decimal | number }>,
+    ventasPorSublote: Map<string, { pesoVendido: number }>,
+  ): Map<string, number> {
+    const linksPorGasto = new Map<string, typeof gastosSublote>();
+    const pesoBasePorSublote = new Map<string, number>();
+
+    for (const sublote of sublotes) {
+      pesoBasePorSublote.set(
+        sublote.id,
+        Number(sublote.pesoActual) +
+          (ventasPorSublote.get(sublote.id)?.pesoVendido ?? 0),
+      );
+    }
+
+    for (const link of gastosSublote) {
+      const current = linksPorGasto.get(link.gastoOperativoId) ?? [];
+      current.push(link);
+      linksPorGasto.set(link.gastoOperativoId, current);
+    }
+
+    const gastosPorSublote = new Map<string, number>();
+    for (const links of linksPorGasto.values()) {
+      const montoGasto = Number(links[0]?.gastoOperativo.montoGasto ?? 0);
+      const pesoBaseTotal = links.reduce(
+        (sum, link) => sum + (pesoBasePorSublote.get(link.subloteId) ?? 0),
+        0,
+      );
+
+      for (const link of links) {
+        const pesoBase = pesoBasePorSublote.get(link.subloteId) ?? 0;
+        const gastoAsignado =
+          pesoBaseTotal > 0
+            ? (pesoBase / pesoBaseTotal) * montoGasto
+            : montoGasto / links.length;
+        gastosPorSublote.set(
+          link.subloteId,
+          (gastosPorSublote.get(link.subloteId) ?? 0) + gastoAsignado,
+        );
+      }
+    }
+
+    return gastosPorSublote;
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {
@@ -282,13 +509,17 @@ export class DashboardService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organizacion asignada',
+      );
     }
 
     return usuario.organizacionId;
   }
 
-  private async obtenerCapacidadBodegaKg(organizacionId: string): Promise<number> {
+  private async obtenerCapacidadBodegaKg(
+    organizacionId: string,
+  ): Promise<number | null> {
     const capacidadKgStr = await this.parametrosService.getParametroString(
       'capacidad_bodega',
       organizacionId,
@@ -299,7 +530,7 @@ export class DashboardService {
       return capacidadKg;
     }
 
-    return 3000;
+    return null;
   }
 
   private obtenerRangoHoyBogota(): { inicioDia: Date; finDia: Date } {

@@ -13,11 +13,20 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { SecadoService } from './secado.service';
 import { StartSecadoDto } from './dto/start-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
+import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 
 @Controller('secado')
 @UseGuards(JwtAuthGuard)
 export class SecadoController {
   constructor(private readonly secadoService: SecadoService) {}
+
+  @Post('transformar')
+  transformar(
+    @Body() dto: TransformarSecadoDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.secadoService.transformarSecado(req.user.sub, dto);
+  }
 
   @Post('start/:tipoCafeId/:calidadId')
   start(
@@ -72,4 +81,3 @@ export class SecadoController {
     return this.secadoService.getSecadoSession(req.user.sub, sessionId);
   }
 }
-

@@ -18,14 +18,19 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { EmptyState } from '../components/EmptyState';
-import { SystemSaveError } from '../components/SystemSaveError';
 import { ApiRequestError } from '../services/apiService';
-import { listarCompras, type CompraListadoItem } from '../services/comprasService';
+import {
+  listarCompras,
+  type CompraListadoItem,
+} from '../services/comprasService';
 import { crearGasto, type CrearGastoPayload } from '../services/gastosService';
-import { getTodayLocalDateValue, toIsoDateAtUtcNoon } from '../utils/date';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  getTodayLocalDateValue,
+  toIsoDateAtUtcNoon,
+  validateBusinessDateRange,
+} from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
-import { UI_MESSAGES } from '../utils/uiMessages';
 
 type TipoGastoValue =
   | 'TRANSPORTE'
@@ -63,7 +68,10 @@ const BACKEND_FIELD_MAP: Record<string, FieldKey> = {
 };
 
 function generarId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
 
@@ -71,7 +79,7 @@ function generarId() {
 }
 
 function getInputClassName(hasError: boolean, extraClasses = '') {
-  return `w-full rounded-[14px] border bg-white text-[15px] outline-none transition shadow-sm ${extraClasses} ${
+  return `w-full rounded-[8px] border bg-white outline-none transition shadow-sm ${extraClasses} ${
     hasError
       ? 'border-rose-300 bg-rose-50/60 text-rose-950 placeholder:text-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
       : 'border-slate-200 focus:border-[#102d92] focus:ring-1 focus:ring-[#102d92]/20'
@@ -98,9 +106,9 @@ function getFieldGuidance(
 
   if (field === 'monto') {
     return {
-      what: whatOverride ?? 'El monto del gasto no es válido.',
+      what: whatOverride ?? 'El monto del gasto no es valido.',
       why: 'Solo se permiten valores mayores a cero.',
-      how: 'Ingresa solo números y un monto mayor a 0.',
+      how: 'Ingresa solo numeros y un monto mayor a 0.',
       action: 'Escribe un monto mayor a $0.',
     };
   }
@@ -109,15 +117,16 @@ function getFieldGuidance(
     return {
       what: whatOverride ?? 'Falta la fecha del gasto.',
       why: 'Es obligatoria para registrar el gasto.',
-      how: 'Selecciona el día del gasto.',
+      how: 'Selecciona el dia del gasto.',
       action: 'Elige la fecha del gasto.',
     };
   }
 
   if (!hasAvailableSublotes) {
     return {
-      what: whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
-      why: 'Aún no existen sublotes registrados.',
+      what:
+        whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
+      why: 'Aun no existen sublotes registrados.',
       how: 'Registra sublotes o cambia a gasto general.',
       action: 'Selecciona "Gasto general" o crea sublotes.',
     };
@@ -134,7 +143,7 @@ function getFieldGuidance(
 function getSaveErrorGuidance(message: string): GuidanceMessage {
   return {
     what: 'No pude guardar el gasto.',
-    why: message || 'Hubo un problema de conexión o del servidor.',
+    why: message || 'Hubo un problema interno. Intenta de nuevo.',
     how: 'Revisa tus datos y vuelve a intentarlo.',
     action: 'Toca "Reintentar" para guardar de nuevo.',
   };
@@ -142,26 +151,6 @@ function getSaveErrorGuidance(message: string): GuidanceMessage {
 
 function getFirstErrorField(errors: FormErrors) {
   return FIELD_ORDER.find((field) => errors[field]) ?? null;
-}
-
-function InlineFieldError({ id, feedback }: { id: string; feedback: GuidanceMessage }) {
-  return (
-    <div
-      id={id}
-      role="alert"
-      className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm"
-    >
-      <div className="flex items-start gap-3">
-        <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-600" />
-        <div className="space-y-1.5 leading-relaxed">
-          <p>{feedback.what}</p>
-          <p>{feedback.why}</p>
-          <p>{feedback.how}</p>
-          <p className="font-semibold text-rose-700">{feedback.action}</p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function FloatingNoticeCard({
@@ -174,37 +163,31 @@ function FloatingNoticeCard({
   onPrimaryAction: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 px-4">
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-rose-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)]">
-        <div className="flex items-start gap-3 p-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-            <AlertCircle size={20} />
+    <div className="fixed inset-x-0 bottom-20 z-50 px-4">
+      <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
+        <div className="flex items-start gap-2.5 p-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+            <AlertCircle size={15} />
           </div>
 
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-sm font-black uppercase text-rose-600">
-              Revision necesaria
-            </p>
-
-            <div className="space-y-1 text-sm leading-relaxed text-slate-700">
-              <p>{notice.what}</p>
-              <p>{notice.why}</p>
-              <p>{notice.how}</p>
-              <p className="font-semibold text-rose-700">{notice.action}</p>
+          <div className="min-w-0 flex-1">
+            <div className="text-[0.72rem] leading-snug text-slate-700">
+              <p className="font-bold">{notice.what}</p>
+              <p className="mt-0.5 text-rose-700">{notice.action}</p>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={onPrimaryAction}
-                className="rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-700"
+                className="rounded-full bg-rose-600 px-3 py-1.5 text-[0.68rem] font-bold text-white transition hover:bg-rose-700"
               >
                 {notice.primaryLabel}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-[0.68rem] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 Cerrar
               </button>
@@ -215,9 +198,9 @@ function FloatingNoticeCard({
             type="button"
             onClick={onClose}
             aria-label="Cerrar aviso"
-            className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
-            <X size={18} />
+            <X size={14} />
           </button>
         </div>
       </div>
@@ -237,17 +220,23 @@ export default function GastosOperativos() {
   const [aplicaA, setAplicaA] = useState<AplicaAValue>('GENERAL');
 
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
-  const [sublotesSeleccionados, setSublotesSeleccionados] = useState<string[]>([]);
+  const [sublotesSeleccionados, setSublotesSeleccionados] = useState<string[]>(
+    [],
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [botonGuardarPresionado, setBotonGuardarPresionado] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
-  const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(null);
-  const [systemSaveError, setSystemSaveError] = useState<unknown>(null);
+  const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(
+    null,
+  );
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState<GuidanceMessage | null>(
+    null,
+  );
   const [showSublotesSelector, setShowSublotesSelector] = useState(false);
 
   const conceptoSectionRef = useRef<HTMLDivElement | null>(null);
@@ -281,7 +270,10 @@ export default function GastosOperativos() {
           fechaCompra: compra.fecha,
         })),
       )
-      .sort((a, b) => new Date(b.fechaCompra).getTime() - new Date(a.fechaCompra).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.fechaCompra).getTime() - new Date(a.fechaCompra).getTime(),
+      );
   }, [compras]);
 
   useEffect(() => {
@@ -369,6 +361,7 @@ export default function GastosOperativos() {
 
   const validarFormulario = (): FormErrors => {
     const errors: FormErrors = {};
+    const fechaValidacion = validateBusinessDateRange(fecha);
 
     if (!concepto.trim()) {
       errors.concepto = getFieldGuidance('concepto');
@@ -378,8 +371,10 @@ export default function GastosOperativos() {
       errors.monto = getFieldGuidance('monto');
     }
 
-    if (!fecha) {
-      errors.fecha = getFieldGuidance('fecha');
+    if (!fechaValidacion.isValid) {
+      errors.fecha = getFieldGuidance('fecha', {
+        whatOverride: fechaValidacion.message ?? undefined,
+      });
     }
 
     if (aplicaA === 'SUBLOTES' && sublotesSeleccionados.length === 0) {
@@ -421,7 +416,9 @@ export default function GastosOperativos() {
     const estabaSeleccionado = sublotesSeleccionados.includes(id);
 
     setSublotesSeleccionados((prev) =>
-      prev.includes(id) ? prev.filter((currentId) => currentId !== id) : [...prev, id],
+      prev.includes(id)
+        ? prev.filter((currentId) => currentId !== id)
+        : [...prev, id],
     );
 
     if (!estabaSeleccionado) {
@@ -464,7 +461,6 @@ export default function GastosOperativos() {
     setSaving(true);
     setBotonGuardarPresionado(true);
     setShowConfirmModal(false);
-    setSystemSaveError(null);
 
     try {
       const payload: CrearGastoPayload = {
@@ -516,7 +512,15 @@ export default function GastosOperativos() {
         }
       }
 
-      setSystemSaveError(error);
+      const feedback = getSaveErrorGuidance(
+        error instanceof Error ? error.message : '',
+      );
+      setShowErrorModal(feedback);
+      setFloatingNotice({
+        ...feedback,
+        primaryLabel: 'Reintentar',
+        primaryAction: 'retry-save',
+      });
     } finally {
       setSaving(false);
       setBotonGuardarPresionado(false);
@@ -548,57 +552,68 @@ export default function GastosOperativos() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fc] pb-28 font-sans text-slate-900">
-      <main className="mx-auto max-w-[520px] space-y-6 px-4 py-5">
-        <div className="relative min-h-[36px]">
+    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 font-sans text-slate-900">
+      <main className="mx-auto max-w-[430px] space-y-3 rounded-[24px] border border-[#dbe2ee] bg-[#fbfbfb] px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+        <div className="relative min-h-[28px]">
           <button
             type="button"
-            onClick={() => navigate('/ajustes')}
-            className="absolute left-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-slate-100"
+            onClick={() => navigate(-1)}
+            className="absolute left-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-slate-100"
             aria-label="Volver"
           >
-            <ArrowLeft size={20} className="text-[#102d92]" />
+            <ArrowLeft size={14} className="text-[#102d92]" />
           </button>
-          <h1 className="text-center text-lg font-black text-black">Registro de Gastos</h1>
+          <h1 className="text-center text-[0.78rem] font-black text-black">
+            Registro de gastos
+          </h1>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <div ref={conceptoSectionRef} className="space-y-1.5">
-            <label className="ml-1 text-sm font-bold text-slate-700">Concepto del gasto</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Concepto del gasto
+            </label>
             <input
               ref={conceptoInputRef}
               type="text"
               placeholder="Ej. Pago de jornaleros - Cosecha Oct"
-              className={getInputClassName(Boolean(fieldErrors.concepto), 'px-4 py-3.5')}
+              className={getInputClassName(
+                Boolean(fieldErrors.concepto),
+                'px-3 py-2 text-[0.66rem] font-semibold',
+              )}
               value={concepto}
               aria-invalid={Boolean(fieldErrors.concepto)}
-              aria-describedby={fieldErrors.concepto ? 'gasto-concepto-error' : undefined}
+              aria-describedby={undefined}
               onChange={(event) => {
                 setConcepto(event.target.value);
                 limpiarErrorCampo('concepto');
               }}
             />
-            {fieldErrors.concepto ? (
-              <InlineFieldError id="gasto-concepto-error" feedback={fieldErrors.concepto} />
-            ) : null}
           </div>
 
           <div className="space-y-1.5">
-            <label className="ml-1 text-sm font-bold text-slate-700">Descripcion breve</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Descripción breve
+            </label>
             <textarea
-              placeholder="Detalles adicionales..."
-              rows={3}
-              className={getInputClassName(false, 'resize-none px-4 py-3.5')}
+              placeholder="Ej: Pago transporte lote octubre"
+              rows={2}
+              className={getInputClassName(
+                false,
+                'resize-none px-3 py-2 text-[0.66rem] font-semibold',
+              )}
               value={descripcion}
               onChange={(event) => setDescripcion(event.target.value)}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div ref={montoSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-sm font-bold text-slate-700">Monto ($)</label>
+              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                Monto ($)
+              </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[0.7rem] font-bold text-slate-400">
                   $
                 </span>
                 <input
@@ -607,51 +622,51 @@ export default function GastosOperativos() {
                   placeholder="0.00"
                   className={getInputClassName(
                     Boolean(fieldErrors.monto),
-                    'pl-8 pr-4 py-3.5 font-semibold',
+                    'pl-6 pr-3 py-2 text-[0.66rem] font-semibold',
                   )}
                   value={formatearMonedaInput(montoStr)}
                   aria-invalid={Boolean(fieldErrors.monto)}
-                  aria-describedby={fieldErrors.monto ? 'gasto-monto-error' : undefined}
+                  aria-describedby={undefined}
                   onChange={handleMontoChange}
                 />
               </div>
-              {fieldErrors.monto ? (
-                <InlineFieldError id="gasto-monto-error" feedback={fieldErrors.monto} />
-              ) : null}
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-sm font-bold text-slate-700">Fecha</label>
+              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                Fecha
+              </label>
               <div className="relative">
                 <input
                   ref={fechaInputRef}
                   type="date"
+                  min={BUSINESS_MIN_DATE_VALUE}
+                  max={getTodayLocalDateValue()}
                   className={getInputClassName(
                     Boolean(fieldErrors.fecha),
-                    'appearance-none pl-4 pr-10 py-3.5 font-semibold',
+                    'appearance-none pl-3 pr-7 py-2 text-[0.66rem] font-semibold',
                   )}
                   value={fecha}
                   aria-invalid={Boolean(fieldErrors.fecha)}
-                  aria-describedby={fieldErrors.fecha ? 'gasto-fecha-error' : undefined}
+                  aria-describedby={undefined}
                   onChange={(event) => {
                     setFecha(event.target.value);
                     limpiarErrorCampo('fecha');
                   }}
                 />
                 <Calendar
-                  size={18}
-                  className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={13}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
               </div>
-              {fieldErrors.fecha ? (
-                <InlineFieldError id="gasto-fecha-error" feedback={fieldErrors.fecha} />
-              ) : null}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-sm font-bold text-slate-700">Tipo de gasto</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Tipo de gasto
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
               {tipoOpciones.map((opcion) => {
                 const Icon = opcion.icon;
                 const isSelected = tipoGasto === opcion.value;
@@ -661,17 +676,17 @@ export default function GastosOperativos() {
                     key={opcion.value}
                     type="button"
                     onClick={() => setTipoGasto(opcion.value)}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-[16px] border p-3 transition-colors ${
+                    className={`flex min-h-[42px] flex-col items-center justify-center gap-1 rounded-[8px] border p-1.5 transition-colors ${
                       isSelected
-                        ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                        ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                         : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     <Icon
-                      size={22}
-                      className={isSelected ? 'text-[#102d92]' : 'text-slate-400'}
+                      size={12}
+                      className={isSelected ? 'text-white' : 'text-slate-400'}
                     />
-                    <span className="text-sm font-black uppercase">
+                    <span className="text-[0.42rem] font-black uppercase tracking-normal">
                       {opcion.label}
                     </span>
                   </button>
@@ -681,14 +696,16 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-sm font-bold text-slate-700">Estado del pago</label>
-            <div className="flex rounded-full bg-slate-100 p-1">
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Estado de pago
+            </label>
+            <div className="flex rounded-full bg-slate-100 p-0.5">
               <button
                 type="button"
                 onClick={() => setEstadoPago('PAGADO')}
-                className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all ${
+                className={`flex-1 rounded-full py-1.5 text-[0.58rem] font-bold transition-all ${
                   estadoPago === 'PAGADO'
-                    ? 'bg-white text-[#102d92] shadow'
+                    ? 'bg-[#102d92] text-white shadow-[0_6px_14px_rgba(16,45,146,0.2)]'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -697,19 +714,21 @@ export default function GastosOperativos() {
               <button
                 type="button"
                 onClick={() => setEstadoPago('PENDIENTE')}
-                className={`flex-1 rounded-full py-2.5 text-sm font-bold transition-all ${
+                className={`flex-1 rounded-full py-1.5 text-[0.58rem] font-bold transition-all ${
                   estadoPago === 'PENDIENTE'
-                    ? 'bg-white text-[#102d92] shadow'
+                    ? 'bg-[#102d92] text-white shadow-[0_6px_14px_rgba(16,45,146,0.2)]'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                Pendiente
+                Pendiente de pago
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-sm font-bold text-slate-700">A que aplica este gasto?</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              A qué aplica este gasto?
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -717,36 +736,40 @@ export default function GastosOperativos() {
                   setAplicaA('GENERAL');
                   limpiarErrorCampo('sublotes');
                 }}
-                className={`flex flex-col items-center justify-center gap-2 rounded-[16px] border p-4 transition-colors ${
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
                   aplicaA === 'GENERAL'
-                    ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                     : 'border-slate-200 bg-white text-slate-500'
                 }`}
               >
                 <Wallet
-                  size={24}
-                  className={aplicaA === 'GENERAL' ? 'text-[#102d92]' : 'text-slate-400'}
+                  size={12}
+                  className={
+                    aplicaA === 'GENERAL' ? 'text-white' : 'text-slate-400'
+                  }
                 />
-                <span className="text-sm font-black uppercase">
-                  Gasto General
+                <span className="text-[0.44rem] font-black uppercase tracking-normal">
+                  Gasto general
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setAplicaA('SUBLOTES')}
-                className={`flex flex-col items-center justify-center gap-2 rounded-[16px] border p-4 transition-colors ${
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
                   aplicaA === 'SUBLOTES'
-                    ? 'border-[#102d92] bg-[#f0f4ff] text-[#102d92]'
+                    ? 'border-[#102d92] bg-[#102d92] text-white shadow-[0_8px_16px_rgba(16,45,146,0.22)]'
                     : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >
                 <Layers
-                  size={24}
-                  className={aplicaA === 'SUBLOTES' ? 'text-[#102d92]' : 'text-slate-400'}
+                  size={12}
+                  className={
+                    aplicaA === 'SUBLOTES' ? 'text-white' : 'text-slate-400'
+                  }
                 />
-                <span className="text-sm font-black uppercase">
-                  Asociar a Sublotes
+                <span className="text-[0.44rem] font-black uppercase tracking-normal">
+                  Asociar a sublotes
                 </span>
               </button>
             </div>
@@ -758,9 +781,11 @@ export default function GastosOperativos() {
               className="mt-2 animate-in space-y-2 fade-in slide-in-from-top-2"
             >
               <div className="flex items-center justify-between">
-                <label className="ml-1 text-sm font-bold text-slate-700">Seleccionar sublotes</label>
+                <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                  Seleccionar sublotes
+                </label>
                 {sublotesSeleccionados.length > 0 ? (
-                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-sm font-bold text-[#102d92] animate-in zoom-in">
+                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-xs font-bold text-[#102d92] animate-in zoom-in">
                     {sublotesSeleccionados.length} seleccionados
                   </span>
                 ) : null}
@@ -769,10 +794,13 @@ export default function GastosOperativos() {
               <button
                 ref={sublotesButtonRef}
                 type="button"
-                onClick={() => setShowSublotesSelector((prev) => !prev)}
+                onClick={() => {
+                  limpiarErrorCampo('sublotes');
+                  setShowSublotesSelector((prev) => !prev);
+                }}
                 aria-invalid={Boolean(fieldErrors.sublotes)}
-                aria-describedby={fieldErrors.sublotes ? 'gasto-sublotes-error' : undefined}
-                className={`w-full rounded-[14px] px-4 py-3.5 text-left shadow-sm transition ${
+                aria-describedby={undefined}
+                className={`w-full rounded-[8px] px-3 py-2.5 text-left shadow-sm transition ${
                   fieldErrors.sublotes
                     ? 'border border-rose-300 bg-rose-50/60 hover:border-rose-400'
                     : 'border border-slate-200 bg-white hover:border-slate-300'
@@ -780,7 +808,7 @@ export default function GastosOperativos() {
               >
                 <div className="flex items-center justify-between gap-3">
                   <span
-                    className={`text-sm ${
+                    className={`text-[0.62rem] ${
                       sublotesSeleccionados.length > 0
                         ? 'font-semibold text-slate-800'
                         : 'text-slate-400'
@@ -798,27 +826,22 @@ export default function GastosOperativos() {
                 </div>
               </button>
 
-              <p className="ml-1 text-sm text-slate-500">
+              <p className="ml-1 text-[0.55rem] text-slate-500">
                 Selecciona los sublotes a los que aplica este gasto.
               </p>
 
-              {fieldErrors.sublotes ? (
-                <InlineFieldError id="gasto-sublotes-error" feedback={fieldErrors.sublotes} />
-              ) : null}
-
               {showSublotesSelector ? (
-                <div className="max-h-[220px] w-full overflow-y-auto rounded-[14px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
+                <div className="max-h-[180px] w-full overflow-y-auto rounded-[8px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
                   {todosSublotes.length === 0 && !loading ? (
-                    <EmptyState
-                      icon={Layers}
-                      title="No hay sublotes disponibles"
-                      description="Registra una compra primero o cambia el gasto a general si no necesitas asociarlo a inventario."
-                      className="m-3 py-5"
-                    />
+                    <div className="p-4 text-center text-sm text-slate-500">
+                      No hay sublotes disponibles en el sistema.
+                    </div>
                   ) : null}
 
                   {todosSublotes.map((sublote) => {
-                    const seleccionado = sublotesSeleccionados.includes(sublote.id);
+                    const seleccionado = sublotesSeleccionados.includes(
+                      sublote.id,
+                    );
 
                     return (
                       <label
@@ -838,14 +861,17 @@ export default function GastosOperativos() {
                               : 'border-slate-300 bg-white'
                           }`}
                         >
-                          {seleccionado ? <CheckCircle2 size={14} className="text-white" /> : null}
+                          {seleccionado ? (
+                            <CheckCircle2 size={14} className="text-white" />
+                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold leading-tight text-slate-800">
+                          <p className="text-[13px] font-bold leading-tight text-slate-800">
                             {sublote.tipoCafe} {sublote.calidad}
                           </p>
-                          <p className="mt-0.5 text-sm text-slate-500">
-                            Comprado: {sublote.fechaCompra.slice(0, 10)} - {sublote.pesoActual} kg
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            Comprado: {sublote.fechaCompra.slice(0, 10)} -{' '}
+                            {sublote.pesoActual} kg
                           </p>
                         </div>
                       </label>
@@ -857,12 +883,12 @@ export default function GastosOperativos() {
           ) : null}
         </div>
 
-        <div className="space-y-3 pt-6">
+        <div className="space-y-3 pt-3">
           <button
             type="button"
             disabled={saving || botonGuardarPresionado}
             onClick={handleConfirmar}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2051e5] py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-[0_4px_14px_0_rgba(32,81,229,0.39)] transition active:scale-[0.98] hover:bg-[#102d92] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2051e5] px-4 text-[0.68rem] font-black text-white shadow-[0_8px_18px_rgba(32,81,229,0.26)] transition active:scale-[0.98] hover:bg-[#102d92] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {saving || botonGuardarPresionado ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -874,8 +900,8 @@ export default function GastosOperativos() {
           <button
             type="button"
             disabled={saving}
-            onClick={() => navigate('/ajustes')}
-            className="w-full rounded-xl bg-transparent py-3.5 text-sm font-bold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={() => navigate(-1)}
+            className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
             Cancelar
           </button>
@@ -883,15 +909,15 @@ export default function GastosOperativos() {
       </main>
 
       {showConfirmModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-[340px] rounded-[24px] bg-white p-6 shadow-2xl animate-in zoom-in-95">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#f0f4ff] text-[#102d92]">
-              <Info size={24} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+            <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#2051e5]">
+              <Info size={16} />
             </div>
-            <h3 className="mb-2 text-center text-xl font-black text-slate-900">
+            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
               Registrar este gasto?
             </h3>
-            <p className="mb-6 text-center text-sm leading-relaxed text-slate-500">
+            <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
               Se guardara este gasto en el sistema{' '}
               {aplicaA === 'SUBLOTES'
                 ? `asociado a ${sublotesSeleccionados.length} sublotes.`
@@ -902,15 +928,17 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="w-full rounded-xl bg-[#2051e5] py-3 font-bold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving || botonGuardarPresionado ? 'Guardando gasto...' : 'Registrar gasto'}
+                {saving || botonGuardarPresionado
+                  ? 'Guardando gasto...'
+                  : 'Registrar gasto'}
               </button>
               <button
                 type="button"
                 disabled={saving}
                 onClick={cerrarModalConfirmar}
-                className="w-full rounded-xl border border-slate-200 bg-white py-3 font-bold text-slate-600 transition"
+                className="w-full rounded-[8px] border border-slate-200 bg-white py-2.5 text-[0.62rem] font-bold text-slate-600 transition"
               >
                 Cancelar
               </button>
@@ -920,16 +948,16 @@ export default function GastosOperativos() {
       ) : null}
 
       {showSuccessModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-[340px] rounded-[24px] bg-white p-6 shadow-2xl animate-in zoom-in-95">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <CheckCircle2 size={24} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+            <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 size={16} />
             </div>
-            <h3 className="mb-2 text-center text-xl font-black text-slate-900">
-              {UI_MESSAGES.success.expenseCreated.titulo}
+            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
+              Gasto registrado con exito
             </h3>
-            <p className="mb-6 text-center text-sm leading-relaxed text-slate-500">
-              {UI_MESSAGES.success.expenseCreated.mensaje}
+            <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
+              El gasto fue guardado correctamente en el sistema.
             </p>
             <div className="space-y-2">
               <button
@@ -939,17 +967,52 @@ export default function GastosOperativos() {
                   setShowSuccessModal(false);
                   resetForm();
                 }}
-                className="w-full rounded-xl bg-[#2051e5] py-3 font-bold text-white transition active:scale-[0.98]"
+                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
               >
                 Registrar otro gasto
               </button>
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => navigate('/inicio')}
-                className="w-full rounded-xl bg-transparent py-3 font-bold text-slate-500 transition hover:text-slate-800"
+                onClick={() => navigate('/gastos')}
+                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
               >
-                Ir a inicio
+                Ver gastos
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showErrorModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+            <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <AlertCircle size={16} />
+            </div>
+            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
+              Error al registrar
+            </h3>
+            <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
+              {showErrorModal.what} {showErrorModal.action}
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowErrorModal(null);
+                  void handleGuardar();
+                }}
+                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
+              >
+                Reintentar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowErrorModal(null)}
+                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
+              >
+                Cancelar
               </button>
             </div>
           </div>
@@ -962,20 +1025,6 @@ export default function GastosOperativos() {
           onClose={() => setFloatingNotice(null)}
           onPrimaryAction={handleFloatingNoticeAction}
         />
-      ) : null}
-
-      {systemSaveError ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[420px]">
-            <SystemSaveError
-              operation="Registrar gasto operativo"
-              error={systemSaveError}
-              onRetry={() => void handleGuardar()}
-              onHome={() => navigate('/inicio', { replace: true })}
-              retrying={saving}
-            />
-          </div>
-        </div>
       ) : null}
     </div>
   );

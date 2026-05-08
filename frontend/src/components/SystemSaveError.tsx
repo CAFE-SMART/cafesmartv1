@@ -1,5 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Home, LifeBuoy, RefreshCcw, Send, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Home,
+  LifeBuoy,
+  RefreshCcw,
+  Send,
+  X,
+} from 'lucide-react';
 import API_URL from '../config/api';
 
 type SystemSaveErrorProps = {
@@ -25,31 +32,22 @@ function errorToTechnical(error: unknown) {
   return { value: String(error ?? 'Unknown error') };
 }
 
-function saveLocalSupportReport(report: Record<string, unknown>) {
-  try {
-    const key = 'cafesmart_pending_support_reports_v1';
-    const raw = window.localStorage.getItem(key);
-    const current = raw ? JSON.parse(raw) : [];
-    const next = Array.isArray(current) ? [report, ...current].slice(0, 20) : [report];
-    window.localStorage.setItem(key, JSON.stringify(next));
-  } catch {
-    // If local storage is unavailable, the UI still confirms the user was heard.
-  }
-}
-
 async function sendSupportReport(report: Record<string, unknown>) {
   try {
-    const response = await fetch(`${API_URL.replace(/\/$/, '')}/support/error-report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(report),
-    });
+    const response = await fetch(
+      `${API_URL.replace(/\/$/, '')}/support/error-report`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report),
+      },
+    );
 
     if (!response.ok) {
       throw new Error('Support report failed');
     }
   } catch {
-    saveLocalSupportReport(report);
+    // No guardamos reportes localmente: los datos operativos deben vivir en backend.
   }
 }
 
@@ -64,7 +62,10 @@ export function SystemSaveError({
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportText, setSupportText] = useState('');
   const [supportSent, setSupportSent] = useState(false);
-  const reportId = useMemo(() => `CS-${Date.now().toString(36).toUpperCase()}`, []);
+  const reportId = useMemo(
+    () => `CS-${Date.now().toString(36).toUpperCase()}`,
+    [],
+  );
 
   const submitSupport = async () => {
     await sendSupportReport({
@@ -73,7 +74,8 @@ export function SystemSaveError({
       userMessage: supportText.trim(),
       createdAt: new Date().toISOString(),
       technical: errorToTechnical(error),
-      location: typeof window !== 'undefined' ? window.location.pathname : undefined,
+      location:
+        typeof window !== 'undefined' ? window.location.pathname : undefined,
     });
     setSupportSent(true);
   };
@@ -91,7 +93,8 @@ export function SystemSaveError({
           No pudimos guardar la información
         </h2>
         <p className="mx-auto mt-2 max-w-[340px] text-base leading-6 text-slate-600">
-          Puede ser un problema temporal o de conexión. Tus datos siguen en pantalla para que no tengas que escribirlos otra vez.
+          Puede ser un problema temporal o de conexión. Tus datos siguen en
+          pantalla para que no tengas que escribirlos otra vez.
         </p>
 
         <div className="mt-5 grid gap-2">
@@ -147,12 +150,14 @@ export function SystemSaveError({
 
             {supportSent ? (
               <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-base leading-6 text-emerald-700">
-                Gracias. Registramos tu mensaje y adjuntamos la información necesaria para revisar el problema.
+                Gracias. Registramos tu mensaje y adjuntamos la información
+                necesaria para revisar el problema.
               </div>
             ) : (
               <>
                 <p className="mt-3 text-base leading-6 text-slate-600">
-                  Escribe una frase breve. El sistema enviará automáticamente el contexto del error sin mostrártelo.
+                  Escribe una frase breve. El sistema enviará automáticamente el
+                  contexto del error sin mostrártelo.
                 </p>
                 <textarea
                   value={supportText}

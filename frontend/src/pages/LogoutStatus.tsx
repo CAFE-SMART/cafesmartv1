@@ -70,10 +70,18 @@ function CoffeePlant({
       style={{ animationDelay: delay }}
       aria-hidden="true"
     >
-      <path d="M48 134C45 92 52 56 75 17" stroke="#86bfff" strokeWidth="5" strokeLinecap="round" />
+      <path
+        d="M48 134C45 92 52 56 75 17"
+        stroke="#86bfff"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
       <path d="M49 96C28 90 16 76 14 58C35 60 49 75 49 96Z" fill="#9ccaff" />
       <path d="M57 78C77 73 89 61 91 43C71 43 58 58 57 78Z" fill="#7db5ff" />
-      <path d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z" fill="#9ccaff" />
+      <path
+        d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z"
+        fill="#9ccaff"
+      />
       <circle cx="55" cy="119" r="5" fill="#7db5ff" />
       <circle cx="69" cy="126" r="5" fill="#7db5ff" />
     </svg>
@@ -124,7 +132,9 @@ function SidePlants() {
 export default function LogoutStatus() {
   const navigate = useNavigate();
   const { logout } = useUser();
-  const [status, setStatus] = useState<'loading' | 'error' | 'leaving'>('loading');
+  const [status, setStatus] = useState<'loading' | 'error' | 'leaving'>(
+    'loading',
+  );
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -136,12 +146,16 @@ export default function LogoutStatus() {
 
       try {
         await logout();
-        await wait(Math.max(0, MIN_LOGOUT_DURATION_MS - (Date.now() - startedAt)));
+        await wait(
+          Math.max(0, MIN_LOGOUT_DURATION_MS - (Date.now() - startedAt)),
+        );
         setStatus('leaving');
         await wait(LOGIN_FADE_DELAY_MS);
         navigate('/login', { replace: true });
       } catch {
-        await wait(Math.max(0, MIN_LOGOUT_DURATION_MS - (Date.now() - startedAt)));
+        await wait(
+          Math.max(0, MIN_LOGOUT_DURATION_MS - (Date.now() - startedAt)),
+        );
         setStatus('error');
       }
     };
@@ -154,7 +168,9 @@ export default function LogoutStatus() {
   return (
     <main
       className={`relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 text-[#07153b] ${
-        status === 'leaving' ? 'animate-[cafesmartFadeOut_280ms_ease-in_both]' : ''
+        status === 'leaving'
+          ? 'animate-[cafesmartFadeOut_280ms_ease-in_both]'
+          : ''
       }`}
       aria-busy={!isError}
       aria-live="polite"
@@ -168,7 +184,7 @@ export default function LogoutStatus() {
         }}
       />
 
-      <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[390px] flex-col items-center pb-28 text-center">
+      <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
         <div className="animate-[cafesmartFadeScale_300ms_ease-out_both]">
           <CafeSmartLogo size="sm" compact />
         </div>
@@ -201,7 +217,9 @@ export default function LogoutStatus() {
         {!isError ? (
           <div className="mt-7 animate-[cafesmartFadeUp_420ms_ease-out_260ms_both]">
             <div className="mx-auto h-12 w-12 rounded-full border-[4px] border-blue-100 border-t-[#1683f7] animate-[cafesmartSpin_850ms_linear_infinite]" />
-            <p className="mt-4 text-xs font-black text-[#7da9e8]">Protegiendo tu información...</p>
+            <p className="mt-4 text-xs font-black text-[#7da9e8]">
+              Protegiendo tu información...
+            </p>
           </div>
         ) : null}
 
@@ -210,7 +228,9 @@ export default function LogoutStatus() {
             <ShieldCheck size={25} strokeWidth={2.3} />
           </div>
           <div>
-            <p className="text-sm font-black text-[#07153b]">Tu seguridad es importante</p>
+            <p className="text-sm font-black text-[#07153b]">
+              Tu seguridad es importante
+            </p>
             <p className="mt-1 text-[0.78rem] font-semibold leading-5 text-slate-500">
               {isError
                 ? 'Tus datos siguen protegidos. Revisaremos el cierre cuando lo intentes de nuevo.'

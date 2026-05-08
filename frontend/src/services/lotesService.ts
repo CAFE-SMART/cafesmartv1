@@ -52,6 +52,19 @@ export type SubloteDetalle = {
   costoPorKg: number;
 };
 
+export type ResultadosFinancierosSublote = {
+  subloteId: string;
+  costoTotal: number;
+  totalVentas: number;
+  pesoVendido: number;
+  totalGastos: number;
+  mermaKg: number;
+  mermaPorcentaje: number;
+  mermaValor: number;
+  utilidadNeta: number;
+  costoPorKg: number;
+};
+
 export type LoteDetalle = {
   lote: LoteResumen;
   sublotes: SubloteDetalle[];
@@ -67,16 +80,29 @@ export type ActualizarFactorPayload = {
   factor: number | null;
 };
 
+export type ActualizarPesoPayload = {
+  id: string;
+  pesoActual: number;
+  motivo?: string;
+};
+
 export async function obtenerLotes() {
   return apiFetch('/lotes') as Promise<LoteResumen[]>;
 }
 
-export async function obtenerDetalleLote(tipoCafeId: string, calidadId: string) {
-  return apiFetch(`/lotes/${tipoCafeId}/${calidadId}/sublotes`) as Promise<LoteDetalle>;
+export async function obtenerDetalleLote(
+  tipoCafeId: string,
+  calidadId: string,
+) {
+  return apiFetch(
+    `/lotes/${tipoCafeId}/${calidadId}/sublotes`,
+  ) as Promise<LoteDetalle>;
 }
 
-export async function obtenerDetalleLotePorId(loteId: string) {
-  return apiFetch(`/lotes/detalle/${loteId}`) as Promise<LoteDetalle>;
+export async function obtenerResultadosFinancierosSublote(subloteId: string) {
+  return apiFetch(
+    `/lotes/sublotes/${subloteId}/resultados-financieros`,
+  ) as Promise<ResultadosFinancierosSublote>;
 }
 
 export async function guardarHumedadesSublotes(
@@ -92,6 +118,13 @@ export async function guardarFactoresSublotes(
   sublotes: ActualizarFactorPayload[],
 ) {
   return apiFetch('/lotes/sublotes/factor', {
+    method: 'PATCH',
+    body: JSON.stringify({ sublotes }),
+  }) as Promise<{ totalActualizados: number }>;
+}
+
+export async function guardarPesosSublotes(sublotes: ActualizarPesoPayload[]) {
+  return apiFetch('/lotes/sublotes/peso', {
     method: 'PATCH',
     body: JSON.stringify({ sublotes }),
   }) as Promise<{ totalActualizados: number }>;

@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PRECIO_MINIMO_KG } from '../../common/business-rules';
 
 export class CreateVentaDetalleDto {
   @IsUUID('4', { message: 'El sublote seleccionado no es valido' })
@@ -26,7 +27,7 @@ export class CreateVentaDetalleDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'El precio por kg debe ser un numero' })
-  @Min(0.01, { message: 'El precio por kg debe ser mayor a 0' })
+  @Min(PRECIO_MINIMO_KG, { message: 'El precio por kg debe ser mínimo $1,000' })
   @Max(100000, { message: 'El precio por kg no puede superar los 100,000' })
   precioKg: number;
 }

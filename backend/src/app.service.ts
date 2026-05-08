@@ -18,4 +18,3 @@ export class AppService {
     return 'Cafe Smart API running';
   }
 }
-

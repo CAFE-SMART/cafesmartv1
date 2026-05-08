@@ -35,7 +35,8 @@ export class RegisterGoogleDto {
   nombreOrganizacion: string;
 
   @IsEnum(TipoOrganizacion, {
-    message: 'El tipo de organizacion debe ser COOPERATIVA, COMPRAVENTA u OTRO.',
+    message:
+      'El tipo de organizacion debe ser COOPERATIVA, COMPRAVENTA u OTRO.',
   })
   @IsNotEmpty()
   tipoOrganizacion: TipoOrganizacion;
@@ -56,7 +57,8 @@ export class RegisterGoogleDto {
   @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
   @MinLength(6, { message: 'La contrasena debe tener al menos 6 caracteres.' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z]).+$/, {
-    message: 'La contrasena debe incluir al menos una minuscula y una mayuscula.',
+    message:
+      'La contrasena debe incluir al menos una minuscula y una mayuscula.',
   })
   password: string;
 }

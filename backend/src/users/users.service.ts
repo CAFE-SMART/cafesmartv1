@@ -67,6 +67,16 @@ export class UsersService {
     });
   }
 
+  async findPasswordById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+      },
+    });
+  }
+
   /**
    * Crea un usuario en la transaccion actual o en el cliente principal si no se provee una.
    */

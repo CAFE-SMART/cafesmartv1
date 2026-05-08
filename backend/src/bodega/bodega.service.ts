@@ -5,7 +5,7 @@ import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
 
 export type ConfiguracionBodega = {
   nombreBodega: string;
-  capacidadKg: number;
+  capacidadKg: number | null;
   updatedAt: string;
 };
 
@@ -19,7 +19,9 @@ export class BodegaService {
   /**
    * Obtiene la configuración de bodega de una organización.
    */
-  async obtenerConfiguracion(organizacionId: string): Promise<ConfiguracionBodega> {
+  async obtenerConfiguracion(
+    organizacionId: string,
+  ): Promise<ConfiguracionBodega> {
     const [nombreBodega, capacidadKgStr] = await Promise.all([
       this.parametrosService.getParametroString(
         'nombre_bodega',
@@ -32,13 +34,9 @@ export class BodegaService {
       ),
     ]);
 
-    let capacidadKg = 3000; // valor por defecto
-    if (capacidadKgStr) {
-      const parsed = Number(capacidadKgStr);
-      if (Number.isFinite(parsed) && parsed > 0) {
-        capacidadKg = parsed;
-      }
-    }
+    const parsed = Number(capacidadKgStr);
+    const capacidadKg =
+      capacidadKgStr && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 
     return {
       nombreBodega: nombreBodega || 'Bodega principal',
@@ -60,9 +58,7 @@ export class BodegaService {
     }
 
     if (!Number.isFinite(dto.capacidadKg) || dto.capacidadKg <= 0) {
-      throw new BadRequestException(
-        'La capacidad debe ser un número positivo',
-      );
+      throw new BadRequestException('La capacidad debe ser un número positivo');
     }
 
     // Guardar en base de datos

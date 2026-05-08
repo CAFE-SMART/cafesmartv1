@@ -7,6 +7,7 @@ import {
   VentaDetalle,
 } from '@prisma/client';
 import { CreateVentaDto } from './dto/crear-venta.dto';
+import { PRECIO_MINIMO_KG } from '../common/business-rules';
 
 export type CrearVentaResultado = {
   venta: Venta;
@@ -82,13 +83,74 @@ export class InventarioInconsistenteError extends Error {
 
 export class InventarioNoEncontradoError extends Error {
   constructor(public readonly movimientos: MovimientoAgrupado[]) {
-    super('No se encontro el inventario agregado para uno o varios movimientos');
+    super(
+      'No se encontro el inventario agregado para uno o varios movimientos',
+    );
   }
 }
 
 export class ClienteNoEncontradoError extends Error {
   constructor(public readonly clienteId: string) {
     super('El cliente indicado no fue encontrado');
+  }
+}
+
+export class VentaValidacionCriticaError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+function textoObligatorio(valor: unknown): valor is string {
+  return typeof valor === 'string' && valor.trim().length > 0;
+}
+
+export function validarVentaCritica(data: ProcesarVentaInput): void {
+  if (!textoObligatorio(data.deviceId) || !textoObligatorio(data.localId)) {
+    throw new VentaValidacionCriticaError(
+      'DATOS_OBLIGATORIOS_INCOMPLETOS',
+      'Datos obligatorios faltantes.',
+    );
+  }
+
+  if (!Array.isArray(data.detalles) || data.detalles.length === 0) {
+    throw new VentaValidacionCriticaError(
+      'DATOS_OBLIGATORIOS_INCOMPLETOS',
+      'Debe registrar al menos un detalle de venta.',
+    );
+  }
+
+  for (const [index, detalle] of data.detalles.entries()) {
+    if (!textoObligatorio(detalle.subloteId)) {
+      throw new VentaValidacionCriticaError(
+        'VENTA_SUBLOTE_INVALIDO',
+        'El sublote seleccionado no es valido.',
+        { index },
+      );
+    }
+
+    if (!Number.isFinite(detalle.pesoVendido) || detalle.pesoVendido <= 0) {
+      throw new VentaValidacionCriticaError(
+        'VENTA_CANTIDAD_INVALIDA',
+        'La cantidad a vender debe ser mayor a 0.',
+        { index, subloteId: detalle.subloteId },
+      );
+    }
+
+    if (
+      !Number.isFinite(detalle.precioKg) ||
+      detalle.precioKg < PRECIO_MINIMO_KG
+    ) {
+      throw new VentaValidacionCriticaError(
+        'VENTA_PRECIO_INVALIDO',
+        'El precio por kg debe ser mínimo $1,000.',
+        { index, subloteId: detalle.subloteId },
+      );
+    }
   }
 }
 
@@ -100,220 +162,237 @@ export async function procesarVenta(
   data: ProcesarVentaInput,
   prisma: PrismaClient,
 ): Promise<CrearVentaResultado> {
+  validarVentaCritica(data);
   validarSublotesDuplicados(data);
 
-  return prisma.$transaction(async (tx) => {
-    const ventaPorSync = await buscarVentaPorSync(tx, data.deviceId, data.localId);
+  return prisma.$transaction(
+    async (tx) => {
+      const ventaPorSync = await buscarVentaPorSync(
+        tx,
+        data.deviceId,
+        data.localId,
+      );
 
-    if (ventaPorSync) {
-      if (ventaPorSync.deletedAt === null) {
-        return construirRespuestaDesdeVentaExistente(ventaPorSync);
-      }
-
-      throw new VentaEliminadaError();
-    }
-
-    const sublotes = await bloquearSublotesDisponibles(
-      tx,
-      data.detalles.map((detalle) => detalle.subloteId),
-      data.organizacionId,
-    );
-
-    const sublotesPorId = new Map(sublotes.map((sublote) => [sublote.id, sublote]));
-    const faltantes = data.detalles
-      .map((detalle) => detalle.subloteId)
-      .filter((subloteId) => !sublotesPorId.has(subloteId));
-
-    if (faltantes.length > 0) {
-      throw new SubloteNoEncontradoError([...new Set(faltantes)]);
-    }
-
-    const detallesProcesados = data.detalles.map((detalle) =>
-      procesarDetalleVenta({
-        detalle,
-        deviceIdVenta: data.deviceId,
-        localIdVenta: data.localId,
-        sublote: sublotesPorId.get(detalle.subloteId)!,
-      }),
-    );
-    const detallesOrdenados = ordenarDetallesPorSublote(detallesProcesados);
-
-    const stockInsuficiente = detallesOrdenados
-      .map((detalle) => {
-        const sublote = sublotesPorId.get(detalle.subloteId)!;
-        const disponibleKg = normalizarADosDecimales(Number(sublote.pesoActual));
-
-        if (aCentiUnidades(disponibleKg) >= aCentiUnidades(detalle.pesoVendido)) {
-          return null;
+      if (ventaPorSync) {
+        if (ventaPorSync.deletedAt === null) {
+          return construirRespuestaDesdeVentaExistente(ventaPorSync);
         }
 
-        return {
-          subloteId: detalle.subloteId,
-          disponibleKg,
-          solicitadoKg: detalle.pesoVendido,
-        };
-      })
-      .filter((detalle): detalle is StockInsuficienteDetalle => detalle !== null);
-
-    if (stockInsuficiente.length > 0) {
-      throw new StockInsuficienteError(stockInsuficiente);
-    }
-
-    if (data.clienteId?.trim()) {
-      const cliente = await tx.cliente.findFirst({
-        where: {
-          id: data.clienteId.trim(),
-          organizacionId: data.organizacionId,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (!cliente) {
-        throw new ClienteNoEncontradoError(data.clienteId.trim());
+        throw new VentaEliminadaError();
       }
-    }
 
-    const venta = await tx.venta.create({
-      data: {
-        fecha: data.fecha ? new Date(data.fecha) : undefined,
-        totalVenta: calcularTotalVenta(detallesOrdenados),
-        deviceId: data.deviceId,
-        localId: data.localId,
-        clienteId: data.clienteId?.trim() || null,
-        organizacionId: data.organizacionId,
-        creadoPor: data.userId,
-      },
-    });
+      const sublotes = await bloquearSublotesDisponibles(
+        tx,
+        data.detalles.map((detalle) => detalle.subloteId),
+        data.organizacionId,
+      );
 
-    const detallesCreados: VentaDetalle[] = [];
+      const sublotesPorId = new Map(
+        sublotes.map((sublote) => [sublote.id, sublote]),
+      );
+      const faltantes = data.detalles
+        .map((detalle) => detalle.subloteId)
+        .filter((subloteId) => !sublotesPorId.has(subloteId));
 
-    for (const detalle of detallesOrdenados) {
-      const actualizacionSublote = await tx.sublote.updateMany({
-        where: {
-          id: detalle.subloteId,
-          deletedAt: null,
-          pesoActual: {
-            gte: detalle.pesoVendido,
-          },
-          compra: {
-            is: {
-              organizacionId: data.organizacionId,
-              deletedAt: null,
-            },
-          },
-        },
-        data: {
-          pesoActual: {
-            decrement: detalle.pesoVendido,
-          },
-        },
-      });
+      if (faltantes.length > 0) {
+        throw new SubloteNoEncontradoError([...new Set(faltantes)]);
+      }
 
-      if (actualizacionSublote.count === 0) {
-        const subloteActualizado = await tx.sublote.findFirst({
+      const detallesProcesados = data.detalles.map((detalle) =>
+        procesarDetalleVenta({
+          detalle,
+          deviceIdVenta: data.deviceId,
+          localIdVenta: data.localId,
+          sublote: sublotesPorId.get(detalle.subloteId)!,
+        }),
+      );
+      const detallesOrdenados = ordenarDetallesPorSublote(detallesProcesados);
+
+      const stockInsuficiente = detallesOrdenados
+        .map((detalle) => {
+          const sublote = sublotesPorId.get(detalle.subloteId)!;
+          const disponibleKg = normalizarADosDecimales(
+            Number(sublote.pesoActual),
+          );
+
+          if (
+            aCentiUnidades(disponibleKg) >= aCentiUnidades(detalle.pesoVendido)
+          ) {
+            return null;
+          }
+
+          return {
+            subloteId: detalle.subloteId,
+            disponibleKg,
+            solicitadoKg: detalle.pesoVendido,
+          };
+        })
+        .filter(
+          (detalle): detalle is StockInsuficienteDetalle => detalle !== null,
+        );
+
+      if (stockInsuficiente.length > 0) {
+        throw new StockInsuficienteError(stockInsuficiente);
+      }
+
+      if (data.clienteId?.trim()) {
+        const cliente = await tx.cliente.findFirst({
           where: {
-            id: detalle.subloteId,
+            id: data.clienteId.trim(),
+            organizacionId: data.organizacionId,
             deletedAt: null,
           },
           select: {
-            pesoActual: true,
+            id: true,
           },
         });
 
-        if (!subloteActualizado) {
-          throw new SubloteNoEncontradoError([detalle.subloteId]);
+        if (!cliente) {
+          throw new ClienteNoEncontradoError(data.clienteId.trim());
         }
-
-        throw new StockInsuficienteError([
-          {
-            subloteId: detalle.subloteId,
-            disponibleKg: normalizarADosDecimales(
-              Number(subloteActualizado.pesoActual),
-            ),
-            solicitadoKg: detalle.pesoVendido,
-          },
-        ]);
       }
 
-      const detalleCreado = await tx.ventaDetalle.create({
+      const venta = await tx.venta.create({
         data: {
-          ventaId: venta.id,
-          subloteId: detalle.subloteId,
-          pesoVendido: detalle.pesoVendido,
-          precioKg: detalle.precioKg,
-          subtotal: detalle.subtotal,
-          deviceId: detalle.deviceId,
-          localId: detalle.localId,
-        },
-      });
-
-      detallesCreados.push(detalleCreado);
-
-      await tx.inventarioMovimiento.create({
-        data: {
+          fecha: data.fecha ? new Date(data.fecha) : undefined,
+          totalVenta: calcularTotalVenta(detallesOrdenados),
+          deviceId: data.deviceId,
+          localId: data.localId,
+          clienteId: data.clienteId?.trim() || null,
           organizacionId: data.organizacionId,
-          usuarioId: data.userId,
-          tipoCafeId: detalle.tipoCafeId,
-          calidadId: detalle.calidadId,
-          subloteId: detalle.subloteId,
-          cantidad: detalle.pesoVendido,
-          tipoMovimiento: TipoMovimientoInventario.VENTA,
-          referenciaTipo: TipoReferenciaInventario.VENTA,
-          referenciaId: venta.id,
+          creadoPor: data.userId,
         },
       });
-    }
 
-    const movimientosAgrupados = agruparMovimientosInventario(detallesOrdenados);
+      const detallesCreados: VentaDetalle[] = [];
 
-    for (const movimiento of movimientosAgrupados) {
-      const inventario = await tx.inventario.findUnique({
-        where: {
-          organizacionId_tipoCafeId_calidadId: {
+      for (const detalle of detallesOrdenados) {
+        const actualizacionSublote = await tx.sublote.updateMany({
+          where: {
+            id: detalle.subloteId,
+            deletedAt: null,
+            pesoActual: {
+              gte: detalle.pesoVendido,
+            },
+            compra: {
+              is: {
+                organizacionId: data.organizacionId,
+                deletedAt: null,
+              },
+            },
+          },
+          data: {
+            pesoActual: {
+              decrement: detalle.pesoVendido,
+            },
+          },
+        });
+
+        if (actualizacionSublote.count === 0) {
+          const subloteActualizado = await tx.sublote.findFirst({
+            where: {
+              id: detalle.subloteId,
+              deletedAt: null,
+            },
+            select: {
+              pesoActual: true,
+            },
+          });
+
+          if (!subloteActualizado) {
+            throw new SubloteNoEncontradoError([detalle.subloteId]);
+          }
+
+          throw new StockInsuficienteError([
+            {
+              subloteId: detalle.subloteId,
+              disponibleKg: normalizarADosDecimales(
+                Number(subloteActualizado.pesoActual),
+              ),
+              solicitadoKg: detalle.pesoVendido,
+            },
+          ]);
+        }
+
+        const detalleCreado = await tx.ventaDetalle.create({
+          data: {
+            ventaId: venta.id,
+            subloteId: detalle.subloteId,
+            pesoVendido: detalle.pesoVendido,
+            precioKg: detalle.precioKg,
+            subtotal: detalle.subtotal,
+            deviceId: detalle.deviceId,
+            localId: detalle.localId,
+          },
+        });
+
+        detallesCreados.push(detalleCreado);
+
+        await tx.inventarioMovimiento.create({
+          data: {
+            organizacionId: data.organizacionId,
+            usuarioId: data.userId,
+            tipoCafeId: detalle.tipoCafeId,
+            calidadId: detalle.calidadId,
+            subloteId: detalle.subloteId,
+            cantidad: detalle.pesoVendido,
+            tipoMovimiento: TipoMovimientoInventario.VENTA,
+            referenciaTipo: TipoReferenciaInventario.VENTA,
+            referenciaId: venta.id,
+          },
+        });
+      }
+
+      const movimientosAgrupados =
+        agruparMovimientosInventario(detallesOrdenados);
+
+      for (const movimiento of movimientosAgrupados) {
+        const inventario = await tx.inventario.findUnique({
+          where: {
+            organizacionId_tipoCafeId_calidadId: {
+              organizacionId: data.organizacionId,
+              tipoCafeId: movimiento.tipoCafeId,
+              calidadId: movimiento.calidadId,
+            },
+          },
+          select: {
+            id: true,
+            pesoTotal: true,
+          },
+        });
+
+        if (!inventario) {
+          throw new InventarioNoEncontradoError([movimiento]);
+        }
+
+        const actualizacionInventario = await tx.inventario.updateMany({
+          where: {
             organizacionId: data.organizacionId,
             tipoCafeId: movimiento.tipoCafeId,
             calidadId: movimiento.calidadId,
+            pesoTotal: {
+              gte: movimiento.cantidad,
+            },
           },
-        },
-        select: {
-          id: true,
-          pesoTotal: true,
-        },
-      });
+          data: {
+            pesoTotal: {
+              decrement: movimiento.cantidad,
+            },
+          },
+        });
 
-      if (!inventario) {
-        throw new InventarioNoEncontradoError([movimiento]);
+        if (actualizacionInventario.count === 0) {
+          throw new InventarioInconsistenteError([movimiento]);
+        }
       }
 
-      const actualizacionInventario = await tx.inventario.updateMany({
-        where: {
-          organizacionId: data.organizacionId,
-          tipoCafeId: movimiento.tipoCafeId,
-          calidadId: movimiento.calidadId,
-          pesoTotal: {
-            gte: movimiento.cantidad,
-          },
-        },
-        data: {
-          pesoTotal: {
-            decrement: movimiento.cantidad,
-          },
-        },
-      });
-
-      if (actualizacionInventario.count === 0) {
-        throw new InventarioInconsistenteError([movimiento]);
-      }
-    }
-
-    return {
-      venta,
-      detalles: detallesCreados,
-    };
-  }, { maxWait: 10000, timeout: 25000 });
+      return {
+        venta,
+        detalles: detallesCreados,
+      };
+    },
+    { maxWait: 10000, timeout: 25000 },
+  );
 }
 
 /**
@@ -410,7 +489,9 @@ async function bloquearSublotesDisponibles(
 /**
  * Valida que un request no intente vender dos veces el mismo sublote.
  */
-function validarSublotesDuplicados(data: Pick<ProcesarVentaInput, 'detalles'>): void {
+function validarSublotesDuplicados(
+  data: Pick<ProcesarVentaInput, 'detalles'>,
+): void {
   const vistos = new Set<string>();
   const duplicados = new Set<string>();
 
@@ -518,14 +599,19 @@ function agruparMovimientosInventario(
 /**
  * Genera un identificador estable por detalle para soportar reintentos idempotentes.
  */
-function construirLocalIdDetalle(localIdVenta: string, subloteId: string): string {
+function construirLocalIdDetalle(
+  localIdVenta: string,
+  subloteId: string,
+): string {
   return `${localIdVenta}::detalle::${subloteId}`;
 }
 
 /**
  * Ordena los detalles para procesarlos de forma determinista dentro de la transaccion.
  */
-function ordenarDetallesPorSublote(detalles: DetalleProcesado[]): DetalleProcesado[] {
+function ordenarDetallesPorSublote(
+  detalles: DetalleProcesado[],
+): DetalleProcesado[] {
   return [...detalles].sort((a, b) => a.subloteId.localeCompare(b.subloteId));
 }
 

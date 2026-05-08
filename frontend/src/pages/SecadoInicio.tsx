@@ -12,8 +12,16 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { EmptyState } from '../components/EmptyState';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { loadSecadoSessions, type SecadoSession } from '../utils/secadoFlow';
+import {
+  applySecadoToLots,
+  loadSecadoSessions,
+  type SecadoSession,
+} from '../utils/secadoFlow';
 import { UI_MESSAGES } from '../utils/uiMessages';
+import {
+  classifyHumidity,
+  formatHumidityWithClassification,
+} from '../utils/humidity';
 
 type SecadoView = 'start' | 'pending';
 
@@ -33,10 +41,15 @@ function totalSecadoKg(session: SecadoSession) {
 }
 
 function humedadInicial(session: SecadoSession) {
-  const conHumedad = session.sublotes.filter((sublote) => sublote.humedad !== null);
+  const conHumedad = session.sublotes.filter(
+    (sublote) => sublote.humedad !== null,
+  );
   if (conHumedad.length === 0) return null;
 
-  const totalKg = conHumedad.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  const totalKg = conHumedad.reduce(
+    (sum, sublote) => sum + sublote.pesoActual,
+    0,
+  );
   if (totalKg <= 0) return null;
 
   const promedio =
@@ -49,7 +62,9 @@ function humedadInicial(session: SecadoSession) {
 }
 
 function estadoLabel(session: SecadoSession) {
-  return session.estado === 'READY' ? 'Secado pendiente' : 'En proceso de secado';
+  return session.estado === 'READY'
+    ? 'Secado pendiente'
+    : 'En proceso de secado';
 }
 
 function formatDate(value: string) {
@@ -63,7 +78,8 @@ function formatDate(value: string) {
 export default function SecadoInicio() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialView = (location.state as { secadoView?: SecadoView } | null)?.secadoView;
+  const initialView = (location.state as { secadoView?: SecadoView } | null)
+    ?.secadoView;
   const [view, setView] = useState<SecadoView>(
     initialView === 'pending' ? 'pending' : 'start',
   );
@@ -76,7 +92,10 @@ export default function SecadoInicio() {
   const cargarPendientes = () => {
     const pendientes = loadSecadoSessions()
       .filter((session) => session.estado !== 'COMPLETED')
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
 
     setPendingSessions(pendientes);
   };
@@ -87,26 +106,34 @@ export default function SecadoInicio() {
     const sessions = loadSecadoSessions();
     const pendientes = sessions
       .filter((session) => session.estado !== 'COMPLETED')
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    const usedLotIds = new Set(sessions.map((session) => session.loteId));
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    const pendingLotIds = new Set(pendientes.map((session) => session.loteId));
     setPendingSessions(pendientes);
 
     try {
       const data = await obtenerLotes();
-      const verdesDisponibles = data.filter(
+      const lotesVisuales = applySecadoToLots(data);
+      const verdesDisponibles = lotesVisuales.filter(
         (lote) =>
           keyOf(lote.tipoCafe) === 'VERDE' &&
           lote.pesoActual > 0 &&
-          !usedLotIds.has(lote.id),
+          !pendingLotIds.has(lote.id),
       );
       setLotes(verdesDisponibles);
       setSelectedId((current) =>
         current && verdesDisponibles.some((lote) => lote.id === current)
           ? current
-          : verdesDisponibles[0]?.id ?? null,
+          : (verdesDisponibles[0]?.id ?? null),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el flujo de secado.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo cargar el flujo de secado.',
+      );
     } finally {
       setLoading(false);
     }
@@ -136,7 +163,7 @@ export default function SecadoInicio() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] px-4 py-5 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
         <header className="rounded-[22px] bg-white px-4 py-4 shadow-sm">
           <div className="flex items-center gap-3">
             <button
@@ -150,17 +177,17 @@ export default function SecadoInicio() {
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[1.25rem] font-black text-[#111827]">
                 {view === 'pending'
-                    ? 'Secados pendientes'
-                    : hasPending
-                      ? 'Secado en proceso'
-                      : 'Iniciar secado'}
+                  ? 'Secados pendientes'
+                  : hasPending
+                    ? 'Secado en proceso'
+                    : 'Iniciar secado'}
               </h1>
               <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
                 {view === 'pending'
-                    ? 'Finaliza lotes que ya están en proceso.'
-                    : hasPending
-                      ? 'Tienes un lote en secado. Finaliza este proceso antes de iniciar uno nuevo.'
-                      : 'Selecciona un lote verde disponible.'}
+                  ? 'Finaliza lotes que ya están en proceso.'
+                  : hasPending
+                    ? 'Tienes un lote en secado. Finaliza este proceso antes de iniciar uno nuevo.'
+                    : 'Selecciona un lote verde disponible.'}
               </p>
             </div>
           </div>
@@ -199,20 +226,27 @@ export default function SecadoInicio() {
                         <SunMedium size={18} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-black text-[#111827]">{session.loteCodigo}</p>
+                        <p className="text-base font-black text-[#111827]">
+                          {session.loteCodigo}
+                        </p>
                         <p className="mt-1 text-sm font-semibold text-[#9a5b00]">
                           {estadoLabel(session)}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           <span>{formatKg(totalSecadoKg(session))} kg</span>
-                          <span>{session.sublotes.length} sublote{session.sublotes.length === 1 ? '' : 's'}</span>
+                          <span>
+                            {session.sublotes.length} sublote
+                            {session.sublotes.length === 1 ? '' : 's'}
+                          </span>
                           <span>{session.calidad}</span>
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`/inventario/secado/${session.id}/finalizar`)}
+                      onClick={() =>
+                        navigate(`/inventario/secado/${session.id}/finalizar`)
+                      }
                       className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
                     >
                       Finalizar secado
@@ -239,7 +273,8 @@ export default function SecadoInicio() {
               <>
                 <section className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 shadow-sm">
                   <p className="text-sm font-black text-amber-900">
-                    Ya hay un secado activo. Puedes revisarlo y finalizarlo cuando esté listo.
+                    Ya hay un secado activo. Puedes revisarlo y finalizarlo
+                    cuando esté listo.
                   </p>
                 </section>
 
@@ -263,28 +298,38 @@ export default function SecadoInicio() {
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">Cantidad</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Cantidad
+                      </p>
                       <p className="mt-1 text-xl font-black text-[#102d92]">
                         {formatKg(totalSecadoKg(activeSession))} kg
                       </p>
                     </div>
                     <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">Estado</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Estado
+                      </p>
                       <p className="mt-1 text-sm font-black text-[#9a5b00]">
                         {estadoLabel(activeSession)}
                       </p>
                     </div>
                     <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">Fecha de inicio</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Fecha de inicio
+                      </p>
                       <p className="mt-1 text-sm font-black text-slate-900">
                         {formatDate(activeSession.startedAt)}
                       </p>
                     </div>
                     {activeHumidity !== null ? (
                       <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                        <p className="text-xs font-semibold text-slate-500">Humedad inicial</p>
-                        <p className="mt-1 text-sm font-black text-slate-900">
-                          {activeHumidity}%
+                        <p className="text-xs font-semibold text-slate-500">
+                          Humedad inicial
+                        </p>
+                        <p
+                          className={`mt-1 inline-flex rounded-[10px] px-2 py-1 text-sm font-black ${classifyHumidity(activeHumidity).toneClass}`}
+                        >
+                          {formatHumidityWithClassification(activeHumidity)}
                         </p>
                       </div>
                     ) : null}
@@ -293,14 +338,22 @@ export default function SecadoInicio() {
                   <div className="mt-5 grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => navigate(`/inventario/lote/${activeSession.loteId}/secado`)}
+                      onClick={() =>
+                        navigate(
+                          `/inventario/lote/${activeSession.loteId}/secado`,
+                        )
+                      }
                       className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#102d92]"
                     >
                       Ver detalle
                     </button>
                     <button
                       type="button"
-                      onClick={() => navigate(`/inventario/secado/${activeSession.id}/finalizar`)}
+                      onClick={() =>
+                        navigate(
+                          `/inventario/secado/${activeSession.id}/finalizar`,
+                        )
+                      }
                       className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
                     >
                       Finalizar secado
@@ -369,13 +422,26 @@ export default function SecadoInicio() {
                                 <span className="inline-flex rounded-xl bg-[#ecfdf5] p-2 text-[#0f766e]">
                                   <Droplets size={15} />
                                 </span>
-                                <p className="text-base font-black text-[#111827]">{lote.codigo}</p>
+                                <p className="text-base font-black text-[#111827]">
+                                  {lote.codigo}
+                                </p>
                               </div>
-                              <p className="mt-2 text-sm text-slate-600">Calidad {lote.calidad}</p>
+                              <p className="mt-2 text-sm text-slate-600">
+                                Calidad {lote.calidad}
+                              </p>
                               <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                                 <span>{formatKg(lote.pesoActual)} kg</span>
-                                <span>{lote.sublotes} sublote{lote.sublotes === 1 ? '' : 's'}</span>
-                                <span>{lote.humedadPromedio === null ? 'Sin humedad' : `${lote.humedadPromedio}% humedad`}</span>
+                                <span>
+                                  {lote.sublotes} sublote
+                                  {lote.sublotes === 1 ? '' : 's'}
+                                </span>
+                                <span>
+                                  {lote.humedadPromedio === null
+                                    ? 'Sin humedad'
+                                    : formatHumidityWithClassification(
+                                        lote.humedadPromedio,
+                                      )}
+                                </span>
                               </div>
                             </div>
                           </button>
@@ -401,7 +467,9 @@ export default function SecadoInicio() {
                     Total seleccionado
                   </p>
                   <p className="mt-2 text-[1.6rem] font-black text-[#102d92]">
-                    {loteSeleccionado ? `${formatKg(loteSeleccionado.pesoActual)} kg` : '0 kg'}
+                    {loteSeleccionado
+                      ? `${formatKg(loteSeleccionado.pesoActual)} kg`
+                      : '0 kg'}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
                     {loteSeleccionado

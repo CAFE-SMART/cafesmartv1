@@ -18,7 +18,9 @@ function tryDecodeUtf8Bytes(bytes: Uint8Array): string | null {
   }
 }
 
-export function normalizePossiblyMojibake(value: string | null | undefined): string {
+export function normalizePossiblyMojibake(
+  value: string | null | undefined,
+): string {
   const text = value ?? '';
 
   if (!/(Ã|Â|â)/.test(text)) {
@@ -30,7 +32,10 @@ export function normalizePossiblyMojibake(value: string | null | undefined): str
     const repaired =
       tryDecodeUtf8Bytes(bytes) ??
       decodeURIComponent(
-        Array.from(bytes, (byte) => `%${byte.toString(16).padStart(2, '0')}`).join(''),
+        Array.from(
+          bytes,
+          (byte) => `%${byte.toString(16).padStart(2, '0')}`,
+        ).join(''),
       );
 
     return repaired.includes('\uFFFD') ? text : repaired;

@@ -6,7 +6,18 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { defaultCodeForHttpStatus } from '../errors/api-error';
+
+type HttpRequestLike = {
+  method?: string;
+  url?: string;
+};
+
+type HttpResponseLike = {
+  status(status: number): {
+    json(body: unknown): unknown;
+  };
+};
 
 type DebugError = {
   name?: string;
@@ -58,8 +69,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const response = ctx.getResponse<HttpResponseLike>();
+    const request = ctx.getRequest<HttpRequestLike>();
     const isHttpException = exception instanceof HttpException;
     const status = isHttpException
       ? exception.getStatus()
@@ -69,7 +80,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method} ${request.url} fallo con ${status}: ${
+        `${request.method ?? 'HTTP'} ${request.url ?? ''} fallo con ${status}: ${
           debugError.message ?? 'Error sin mensaje'
         }`,
         debugError.stack,
@@ -89,14 +100,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const baseBody = isHttpException
       ? getResponseBody(exception)
       : {
-          message: 'Error interno del servidor. Revisa la terminal del backend.',
+          message: 'No pudimos completar la acción. Vuelve a intentarlo.',
           error: 'Internal Server Error',
         };
+
+    const code =
+      typeof baseBody.code === 'string'
+        ? baseBody.code
+        : defaultCodeForHttpStatus(status);
 
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request.url ?? '',
+      code,
       ...baseBody,
       ...(shouldExposeDebug && status >= HttpStatus.INTERNAL_SERVER_ERROR
         ? { debug: debugError }

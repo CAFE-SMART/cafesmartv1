@@ -12,5 +12,6 @@
     "incremental": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": false
-  }
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]
 }

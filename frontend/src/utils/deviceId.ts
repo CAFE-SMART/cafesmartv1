@@ -3,7 +3,10 @@ import { Preferences } from '@capacitor/preferences';
 const DEVICE_ID_KEY = 'cafesmart-device-id';
 
 function generarId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
 

@@ -1,5 +1,4 @@
 import { AlertCircle, X } from 'lucide-react';
-import type { MensajeUI } from '../../utils/uiMessages';
 
 export type GuidedErrorMessage = {
   what: string;
@@ -30,31 +29,24 @@ export function createGuidedError(
   return { what, why, how, action };
 }
 
-export function createGuidedErrorFromUi(message: MensajeUI): GuidedErrorMessage {
-  return createGuidedError(
-    message.mensaje,
-    message.titulo,
-    message.mensaje,
-    message.accion ?? 'Intenta nuevamente',
-  );
-}
-
 export function InlineGuidedError({
   id,
   message,
   className = '',
 }: InlineGuidedErrorProps) {
+  const guidance = message.action || message.how;
+
   return (
     <div
       id={id}
       role="alert"
-      className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-base text-rose-800 shadow-sm ${className}`.trim()}
+      className={`rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.68rem] text-rose-800 shadow-sm ${className}`.trim()}
     >
-      <div className="flex items-start gap-3">
-        <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-600" />
-        <div className="space-y-0.5 leading-snug">
-          <p className="font-bold">{message.why}</p>
-          <p>{message.how} <span className="font-medium text-rose-700">{message.action}</span></p>
+      <div className="flex items-start gap-2">
+        <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-600" />
+        <div className="leading-snug">
+          {message.why ? <p className="font-bold">{message.why}</p> : null}
+          {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
         </div>
       </div>
     </div>
@@ -67,30 +59,30 @@ export function FloatingGuidedNotice({
   onPrimaryAction,
   onClose,
 }: FloatingGuidedNoticeProps) {
+  const guidance = message.action || message.how;
+
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 px-4">
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-rose-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)]">
-        <div className="flex items-start gap-3 p-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-            <AlertCircle size={20} />
+    <div className="fixed inset-x-0 bottom-20 z-50 px-4">
+      <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
+        <div className="flex items-start gap-2.5 p-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+            <AlertCircle size={15} />
           </div>
 
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-sm font-black uppercase text-rose-600">
-              Revision necesaria
-            </p>
-
-            <div className="space-y-0.5 text-base leading-snug text-slate-700">
-              <p className="font-bold">{message.why}</p>
-              <p>{message.how} <span className="font-medium text-rose-700">{message.action}</span></p>
+          <div className="min-w-0 flex-1">
+            <div className="text-[0.72rem] leading-snug text-slate-700">
+              {message.why ? <p className="font-bold">{message.why}</p> : null}
+              {guidance ? (
+                <p className="mt-0.5 text-rose-700">{guidance}</p>
+              ) : null}
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="mt-2 flex flex-wrap gap-2">
               {onPrimaryAction ? (
                 <button
                   type="button"
                   onClick={onPrimaryAction}
-                  className="rounded-full bg-rose-600 px-4 py-2 text-base font-bold text-white transition hover:bg-rose-700"
+                  className="rounded-full bg-rose-600 px-3 py-1.5 text-[0.68rem] font-bold text-white transition hover:bg-rose-700"
                 >
                   {primaryLabel}
                 </button>
@@ -98,7 +90,7 @@ export function FloatingGuidedNotice({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-200 px-4 py-2 text-base font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-[0.68rem] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 Cerrar
               </button>
@@ -109,9 +101,9 @@ export function FloatingGuidedNotice({
             type="button"
             onClick={onClose}
             aria-label="Cerrar aviso"
-            className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
-            <X size={18} />
+            <X size={14} />
           </button>
         </div>
       </div>

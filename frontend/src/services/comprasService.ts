@@ -43,6 +43,25 @@ export type CreateCompraPayload = {
   }[];
 };
 
+export type NivelCapacidadCompra =
+  | 'normal'
+  | 'alerta'
+  | 'exceso'
+  | 'sin_validacion'
+  | 'requiere_configuracion';
+
+export type EstadoCapacidadCompra = {
+  validada: boolean;
+  nivel: NivelCapacidadCompra;
+  mensaje: string;
+  capacidadBodegaKg?: number;
+  inventarioActualKg?: number;
+  capacidadUsadaKg?: number;
+  capacidadRestanteKg?: number;
+  porcentajeOcupacion?: number;
+  excesoKg?: number;
+};
+
 export type CreateCompraResponse = {
   compra: {
     id: string;
@@ -57,6 +76,7 @@ export type CreateCompraResponse = {
   }[];
   warning?: string;
   exceso?: number;
+  capacidad?: EstadoCapacidadCompra;
 };
 
 export async function obtenerCatalogosCompra() {
@@ -81,4 +101,17 @@ export async function crearCompra(payload: CreateCompraPayload) {
     compra: response,
     sublotes: [],
   };
+}
+
+export async function validarCapacidadCompra(payload: CreateCompraPayload) {
+  return apiFetch('/compras/validar-capacidad', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }) as Promise<EstadoCapacidadCompra>;
+}
+
+export async function eliminarCompra(id: string) {
+  return apiFetch(`/compras/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
 }

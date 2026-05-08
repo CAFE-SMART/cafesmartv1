@@ -1,4 +1,10 @@
-﻿import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+﻿import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
@@ -73,7 +79,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     const hydrate = async () => {
-      const [storedUserRaw, storedToken, storedHasCompany, storedRememberSession] = await Promise.all([
+      const [
+        storedUserRaw,
+        storedToken,
+        storedHasCompany,
+        storedRememberSession,
+      ] = await Promise.all([
         getAuthStorageValue(AUTH_STORAGE_KEYS.user),
         getAuthStorageValue(AUTH_STORAGE_KEYS.token),
         getAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany),
@@ -107,7 +118,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (isExpired) {
         await clearAuthStorage();
         if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem(SESSION_EXPIRED_MESSAGE_KEY, 'Tu sesión expiró. Ingresa nuevamente.');
+          window.sessionStorage.setItem(
+            SESSION_EXPIRED_MESSAGE_KEY,
+            'Tu sesión expiró. Ingresa nuevamente.',
+          );
         }
         setUser(null);
         setToken(null);
@@ -118,7 +132,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
-        const nextHasCompany = storedHasCompany === 'true' || Boolean(parsed.organizacionId);
+        const nextHasCompany =
+          storedHasCompany === 'true' || Boolean(parsed.organizacionId);
 
         setToken(storedToken);
         setHasCompany(nextHasCompany);
@@ -184,8 +199,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (data.persist === false) {
       await clearAuthStorage();
       setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token);
-      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user));
-      setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany));
+      setRuntimeAuthStorageValue(
+        AUTH_STORAGE_KEYS.user,
+        JSON.stringify(data.user),
+      );
+      setRuntimeAuthStorageValue(
+        AUTH_STORAGE_KEYS.hasCompany,
+        String(nextHasCompany),
+      );
       return;
     }
 
@@ -203,7 +224,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setHasCompany(false);
 
     if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem(SESSION_EXPIRED_MESSAGE_KEY, 'Tu sesión expiró. Ingresa nuevamente.');
+      window.sessionStorage.setItem(
+        SESSION_EXPIRED_MESSAGE_KEY,
+        'Tu sesión expiró. Ingresa nuevamente.',
+      );
     }
 
     await clearAuthStorage();

@@ -57,7 +57,9 @@ export function CloudStatusBadge({
       type="button"
       onClick={() => void refreshHealth()}
       className={`inline-flex items-center gap-3 rounded-2xl border text-left shadow-sm transition-colors ${
-        compact ? 'w-full max-w-[260px] px-3 py-2.5' : 'max-w-[300px] px-3.5 py-2.5'
+        compact
+          ? 'w-full max-w-[260px] px-3 py-2.5'
+          : 'max-w-[300px] px-3.5 py-2.5'
       } ${toneClasses[tone]} ${className}`}
       title={detail}
     >

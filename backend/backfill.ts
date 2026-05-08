@@ -8,11 +8,13 @@ async function main() {
     const costo = Number(s.pesoInicial) * Number(s.precioKg);
     await prisma.sublote.update({
       where: { id: s.id },
-      data: { costoTotal: costo }
+      data: { costoTotal: costo },
     });
     updated++;
   }
   console.log(`Backfill complete: ${updated} sublotes updated.`);
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());

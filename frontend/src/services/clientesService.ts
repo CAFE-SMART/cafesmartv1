@@ -25,7 +25,10 @@ export async function crearCliente(payload: GuardarClientePayload) {
   }) as Promise<ClienteItem>;
 }
 
-export async function actualizarCliente(id: string, payload: GuardarClientePayload) {
+export async function actualizarCliente(
+  id: string,
+  payload: GuardarClientePayload,
+) {
   return apiFetch(`/clientes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),

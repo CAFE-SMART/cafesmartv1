@@ -1,126 +1,95 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
-import API_URL from '../config/api';
-import { UI_MESSAGES } from '../utils/uiMessages';
 
 const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
-const API_REQUEST_TIMEOUT_MS = 30000;
 
 type ApiErrorDetails = Record<string, string[]>;
 
-type ErrorTraducido = {
-  mensaje: string;
-  accion?: string;
-};
-
 type ApiRequestErrorOptions = {
   status: number;
+  code?: string | null;
   field?: string | null;
   details?: ApiErrorDetails | null;
-  action?: string | null;
 };
 
 export class ApiRequestError extends Error {
   status: number;
+  code: string | null;
   field: string | null;
   details: ApiErrorDetails | null;
-  action: string | null;
 
   constructor(message: string, options: ApiRequestErrorOptions) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = options.status;
+    this.code = options.code ?? null;
     this.field = options.field ?? null;
     this.details = options.details ?? null;
-    this.action = options.action ?? null;
   }
 }
 
-function traducirMensajeError(
-  message: string | null | undefined,
-  status: number
-): ErrorTraducido {
-  const texto = (message || '').trim().toLowerCase();
+function normalizarMensaje(message: unknown) {
+  if (Array.isArray(message)) {
+    return message.filter(Boolean).join(', ').trim();
+  }
 
-  const RESPUESTA_DEFAULT: ErrorTraducido = {
-    mensaje: UI_MESSAGES.system.saveFailed.mensaje,
-    accion: 'Intenta nuevamente',
-  };
+  return typeof message === 'string' ? message.trim() : '';
+}
 
-  if (/database|prisma|sql|internal server error|error 500/.test(texto) || status >= 500) {
-    return {
-      mensaje: UI_MESSAGES.system.saveFailed.mensaje,
-      accion: 'Intenta nuevamente en unos segundos',
-    };
+function traducirMensajeError(message: unknown, status: number) {
+  const texto = normalizarMensaje(message);
+
+  if (status >= 500) {
+    return 'No pudimos completar la acción. Vuelve a intentarlo.';
   }
 
   if (!texto) {
-    switch (status) {
-      case 401:
-        return {
-          mensaje: UI_MESSAGES.auth.sessionExpired.mensaje,
-          accion: UI_MESSAGES.auth.sessionExpired.accion,
-        };
-      case 403:
-        return {
-          mensaje: UI_MESSAGES.auth.forbidden.mensaje,
-          accion: UI_MESSAGES.auth.forbidden.accion,
-        };
-      case 404:
-        return {
-          mensaje: UI_MESSAGES.inventory.notFound.mensaje,
-          accion: UI_MESSAGES.inventory.notFound.accion,
-        };
-      default:
-        return RESPUESTA_DEFAULT;
+    if (status === 401) {
+      return 'Tu sesion expiro. Ingresa de nuevo.';
     }
+
+    if (status === 403) {
+      return 'No tienes permiso para esta accion.';
+    }
+
+    if (status === 404) {
+      return 'No encontramos la información solicitada. Verifica e intenta nuevamente.';
+    }
+
+    return 'No pudimos procesarlo. Intenta de nuevo.';
   }
 
-  const mapa: Record<string, ErrorTraducido> = {
-    'internal server error': {
-      mensaje: UI_MESSAGES.system.saveFailed.mensaje,
-      accion: 'Intenta nuevamente',
-    },
-    unauthorized: {
-      mensaje: UI_MESSAGES.auth.sessionExpired.mensaje,
-      accion: UI_MESSAGES.auth.sessionExpired.accion,
-    },
-    forbidden: {
-      mensaje: UI_MESSAGES.auth.forbidden.mensaje,
-      accion: UI_MESSAGES.auth.forbidden.accion,
-    },
-    'forbidden resource': {
-      mensaje: UI_MESSAGES.auth.forbidden.mensaje,
-      accion: UI_MESSAGES.auth.forbidden.accion,
-    },
-    'not found': {
-      mensaje: UI_MESSAGES.inventory.notFound.mensaje,
-      accion: UI_MESSAGES.inventory.notFound.accion,
-    },
-    'bad request': {
-      mensaje: 'Hay un problema con los datos ingresados.',
-      accion: 'Verifica la información',
-    },
-    'failed to fetch': {
-      mensaje: UI_MESSAGES.auth.offline.mensaje,
-      accion: UI_MESSAGES.auth.offline.accion,
-    },
-  };
-
-  for (const key in mapa) {
-    if (texto.includes(key)) {
-      return mapa[key];
-    }
+  if (
+    /terminal|backend|internal server error|server error|stack|exception|prisma|database|endpoint|localhost/i.test(
+      texto,
+    )
+  ) {
+    return 'No pudimos completar la acción. Vuelve a intentarlo.';
   }
 
-  return {
-    mensaje: message?.trim() || RESPUESTA_DEFAULT.mensaje,
-    accion: 'Intenta nuevamente',
+  if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto)) {
+    return 'Esta opcion aun no esta disponible.';
+  }
+
+  const mapa: Record<string, string> = {
+    'Internal server error':
+      'No pudimos completar la acción. Vuelve a intentarlo.',
+    Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
+    Forbidden: 'No tienes permiso para esta accion.',
+    'Forbidden resource': 'No tienes permiso para esta opcion.',
+    'Not Found': 'No encontramos esa informacion.',
+    'Bad Request': 'Revisa los datos e intenta de nuevo.',
+    'Failed to fetch': 'Revisa la conexión a internet y vuelve a intentarlo.',
   };
+
+  return mapa[texto] || texto;
 }
 
 function construirBasesApi() {
-  const apiBaseConfigurada = API_URL.replace(/\/$/, '');
-  const candidatas = [apiBaseConfigurada];
+  const apiBaseConfigurada =
+    (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+    'http://localhost:3000';
+
+  const candidatas = [apiBaseConfigurada.replace(/\/$/, '')];
 
   if (typeof window === 'undefined') {
     return candidatas;
@@ -138,7 +107,7 @@ function construirBasesApi() {
       candidatas.push(
         `${urlConfigurada.protocol}//${hostActual}${
           urlConfigurada.port ? `:${urlConfigurada.port}` : ''
-        }`
+        }`,
       );
     }
   } catch {
@@ -148,40 +117,13 @@ function construirBasesApi() {
   return [...new Set(candidatas)];
 }
 
-function traducirErrorConexion(error: unknown): ErrorTraducido {
+function traducirErrorConexion(error: unknown) {
   if (error instanceof Error) {
-    if (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted')) {
-      return {
-        mensaje: UI_MESSAGES.system.timeout.mensaje,
-        accion: 'Revisa que el backend esté encendido e intenta otra vez',
-      };
-    }
-
-    const errorTraducido = traducirMensajeError(error.message, 0);
-
-    if (errorTraducido.mensaje) {
-      return errorTraducido;
-    }
+    const mensaje = traducirMensajeError(error.message, 0);
+    if (mensaje) return mensaje;
   }
 
-  return {
-    mensaje: UI_MESSAGES.auth.offline.mensaje,
-    accion: UI_MESSAGES.auth.offline.accion,
-  };
-}
-
-async function fetchWithTimeout(url: string, options: RequestInit) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
-
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
+  return 'Revisa la conexión a internet y vuelve a intentarlo.';
 }
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
@@ -198,7 +140,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
   for (const apiBaseUrl of basesApi) {
     try {
-      const response = await fetchWithTimeout(`${apiBaseUrl}${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
         ...options,
         headers,
       });
@@ -206,16 +148,15 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const errorTraducido = traducirMensajeError(data?.message, response.status);
-
-        throw new ApiRequestError(errorTraducido.mensaje || 'No pudimos procesarlo.', {
+        const mensaje = traducirMensajeError(data?.message, response.status);
+        throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
           status: response.status,
+          code: typeof data?.code === 'string' ? data.code : null,
           field: typeof data?.field === 'string' ? data.field : null,
           details:
             data?.details && typeof data.details === 'object'
               ? (data.details as ApiErrorDetails)
               : null,
-          action: errorTraducido.accion ?? null,
         });
       }
 
@@ -223,16 +164,11 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     } catch (error) {
       ultimoError = error;
 
-      if (!(error instanceof TypeError) && !(error instanceof DOMException)) {
+      if (!(error instanceof TypeError)) {
         throw error;
       }
     }
   }
 
-  const errorConexion = traducirErrorConexion(ultimoError);
-
-  throw new ApiRequestError(errorConexion.mensaje, {
-    status: 0,
-    action: errorConexion.accion ?? null,
-  });
+  throw new ApiRequestError(traducirErrorConexion(ultimoError), { status: 0 });
 };

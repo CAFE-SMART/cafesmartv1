@@ -2,7 +2,7 @@ import { apiFetch } from './apiService';
 
 export type DashboardMovimiento = {
   id: string;
-  tipo: 'COMPRA' | 'VENTA';
+  tipo: 'COMPRA' | 'VENTA' | 'GASTO';
   nombre: string;
   kg: number;
   valor: number;
@@ -12,19 +12,24 @@ export type DashboardMovimiento = {
 export type DashboardSummary = {
   comprasHoy: number;
   ventasHoy: number;
+  gastosHoy: number;
   kgCompradosHoy: number;
+  totalComprasHoy: number;
+  totalVentasHoy: number;
+  totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
-  kgCapacidad: number;
+  kgCapacidad: number | null;
+  inventarioPorTipo: {
+    tipoCafeId: string;
+    tipoCafe: string;
+    kgDisponible: number;
+  }[];
+  utilidadTotalAcumulada: number;
+  mermaTotalKg: number;
   movimientosRecientes: DashboardMovimiento[];
-  totalRevenue?: number;
-  totalExpenses?: number;
-  totalProfit?: number;
-  totalWasteKg?: number;
 };
 
 export async function obtenerDashboardSummary() {
-  return apiFetch('/dashboard/summary', { cache: 'no-store' }) as Promise<DashboardSummary>;
+  return apiFetch('/dashboard/summary') as Promise<DashboardSummary>;
 }
-
-export const obtenerResumenDashboard = obtenerDashboardSummary;

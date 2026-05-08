@@ -87,21 +87,25 @@ export const UI_MESSAGES = {
   empty: {
     recentMovements: {
       titulo: 'Sin movimientos recientes',
-      mensaje: 'Cuando registres compras o gastos, aparecerán aquí para revisar la actividad del negocio.',
+      mensaje:
+        'Cuando registres compras o gastos, aparecerán aquí para revisar la actividad del negocio.',
       accion: 'Registrar compra',
     },
     dashboardMovements: {
       titulo: 'Todavía no hay movimientos',
-      mensaje: 'Registra una compra o una venta para que el resumen del día empiece a mostrar actividad.',
+      mensaje:
+        'Registra una compra o una venta para que el resumen del día empiece a mostrar actividad.',
     },
     inventoryByFilter: {
       titulo: 'No encontramos lotes en este filtro',
-      mensaje: 'Cambia el tipo de café o registra una compra para crear los primeros lotes.',
+      mensaje:
+        'Cambia el tipo de café o registra una compra para crear los primeros lotes.',
       accion: 'Registrar compra',
     },
     clients: {
       titulo: 'No encontramos clientes para mostrar',
-      mensaje: 'Prueba otra búsqueda o registra un cliente nuevo para completar la venta.',
+      mensaje:
+        'Prueba otra búsqueda o registra un cliente nuevo para completar la venta.',
     },
     dryLots: {
       titulo: 'No hay lotes verdes disponibles',
