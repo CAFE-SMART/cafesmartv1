@@ -37,10 +37,7 @@ export type StepTwoErrors = {
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function hasAtLeastOneSurname(value: string) {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = value.trim().split(/\s+/).filter(Boolean);
 
   return parts.length >= 1;
 }

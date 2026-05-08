@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GuardarClienteDto } from './dto/guardar-cliente.dto';
+import {
+  normalizarDocumentoPersona,
+  normalizarNombrePersona,
+  normalizarTelefonoPersona,
+} from '../common/validations/person-fields';
 
 type ClienteListadoItem = {
   id: string;
@@ -45,14 +50,17 @@ export class ClientesService {
     }));
   }
 
-  async crear(userId: string, dto: GuardarClienteDto): Promise<ClienteListadoItem> {
+  async crear(
+    userId: string,
+    dto: GuardarClienteDto,
+  ): Promise<ClienteListadoItem> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
     const cliente = await this.prisma.cliente.create({
       data: {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarTextoOpcional(dto.documento),
-        telefono: this.normalizarTextoOpcional(dto.telefono),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
         id: true,
@@ -95,8 +103,8 @@ export class ClientesService {
       where: { id: clienteId },
       data: {
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarTextoOpcional(dto.documento),
-        telefono: this.normalizarTextoOpcional(dto.telefono),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
         id: true,
@@ -127,24 +135,15 @@ export class ClientesService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organizacion asignada',
+      );
     }
 
     return usuario.organizacionId;
   }
 
-  private normalizarTextoOpcional(valor?: string): string | null {
-    const texto = valor?.trim();
-    return texto ? texto : null;
-  }
-
   private normalizarNombre(valor: string): string {
-    const nombre = valor.trim();
-
-    if (!nombre) {
-      throw new BadRequestException('El nombre del cliente es obligatorio');
-    }
-
-    return nombre;
+    return normalizarNombrePersona(valor, 'cliente');
   }
 }

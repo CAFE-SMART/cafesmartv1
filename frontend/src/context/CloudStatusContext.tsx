@@ -44,12 +44,20 @@ async function pingBackend(signal?: AbortSignal) {
   return response.ok;
 }
 
-export function CloudStatusProvider({ children }: { children: React.ReactNode }) {
+export function CloudStatusProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
-  const [backendReachable, setBackendReachable] = useState<boolean | null>(null);
-  const [lastEvent, setLastEvent] = useState<CloudStatusEventDetail | null>(null);
+  const [backendReachable, setBackendReachable] = useState<boolean | null>(
+    null,
+  );
+  const [lastEvent, setLastEvent] = useState<CloudStatusEventDetail | null>(
+    null,
+  );
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const clearEventTimerRef = useRef<number | null>(null);
 
@@ -127,10 +135,16 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       }
     };
 
-    window.addEventListener(CLOUD_STATUS_EVENT, handleCloudEvent as EventListener);
+    window.addEventListener(
+      CLOUD_STATUS_EVENT,
+      handleCloudEvent as EventListener,
+    );
 
     return () => {
-      window.removeEventListener(CLOUD_STATUS_EVENT, handleCloudEvent as EventListener);
+      window.removeEventListener(
+        CLOUD_STATUS_EVENT,
+        handleCloudEvent as EventListener,
+      );
       if (clearEventTimerRef.current !== null) {
         window.clearTimeout(clearEventTimerRef.current);
       }
@@ -142,7 +156,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
+        detail:
+          'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -181,7 +196,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
+        detail:
+          'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,
@@ -207,7 +223,8 @@ export function CloudStatusProvider({ children }: { children: React.ReactNode })
       return {
         tone: 'offline',
         title: 'Sin conexión',
-        detail: 'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
+        detail:
+          'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
         isSyncing: false,

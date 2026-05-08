@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, RefreshCcw, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import {
+  ArrowLeft,
+  BarChart3,
+  RefreshCcw,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
@@ -40,8 +47,12 @@ function Metric({
     <article className="rounded-[18px] border border-[#e6eaf4] bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</p>
-          <p className="mt-3 text-[1.45rem] font-black text-slate-900">{value}</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+            {title}
+          </p>
+          <p className="mt-3 text-[1.45rem] font-black text-slate-900">
+            {value}
+          </p>
           <p className="mt-2 text-sm text-slate-500">{hint}</p>
         </div>
         <div className={`rounded-[14px] p-3 ${accent}`}>{icon}</div>
@@ -63,7 +74,11 @@ export default function AnalisisFinanciero() {
       const data = await obtenerResumenDashboard();
       setSummary(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el análisis financiero.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo cargar el análisis financiero.',
+      );
     } finally {
       setLoading(false);
     }
@@ -101,7 +116,7 @@ export default function AnalisisFinanciero() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] px-4 py-5 pb-[150px] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
         <header className="flex items-center gap-3">
           <button
             type="button"
@@ -111,7 +126,9 @@ export default function AnalisisFinanciero() {
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-[1.2rem] font-black text-[#111827]">Análisis financiero</h1>
+            <h1 className="text-[1.2rem] font-black text-[#111827]">
+              Análisis financiero
+            </h1>
             <p className="mt-1 text-xs font-semibold text-slate-500">
               Ingresos, egresos y utilidad estimada del negocio.
             </p>
@@ -148,7 +165,10 @@ export default function AnalisisFinanciero() {
             {chartData.map((item) => {
               const height = Math.max(20, (item.value / maxValue) * 180);
               return (
-                <div key={item.key} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+                <div
+                  key={item.key}
+                  className="flex min-w-0 flex-1 flex-col items-center gap-3"
+                >
                   <span className="text-center text-xs font-black text-slate-500">
                     {loading ? '...' : formatMoney(item.value)}
                   </span>
@@ -191,7 +211,9 @@ export default function AnalisisFinanciero() {
           />
           <Metric
             title="Merma acumulada"
-            value={loading ? '...' : `${formatKg(summary?.totalWasteKg ?? 0)} kg`}
+            value={
+              loading ? '...' : `${formatKg(summary?.totalWasteKg ?? 0)} kg`
+            }
             hint="Impacto acumulado del secado."
             icon={<BarChart3 size={20} />}
             accent="bg-[#fff7ed] text-[#c2410c]"

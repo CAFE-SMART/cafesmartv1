@@ -15,6 +15,7 @@ import { ClientesModule } from './clientes/clientes.module';
 import { ProductoresModule } from './productores/productores.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SupportModule } from './support/support.module';
+import { SecadoModule } from './secado/secado.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SupportModule } from './support/support.module';
     ProductoresModule,
     DashboardModule,
     SupportModule,
+    SecadoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

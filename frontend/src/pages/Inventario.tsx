@@ -14,11 +14,25 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { obtenerConfiguracionBodega } from '../services/bodegaApi';
-import { applySecadoToLots, getActiveSecadoSession, getActiveSecadoSessions } from '../utils/secadoFlow';
+import {
+  applySecadoToLots,
+  getActiveSecadoSession,
+  getActiveSecadoSessions,
+} from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import {
+  classifyHumidity,
+  formatHumidityWithClassification,
+} from '../utils/humidity';
 
-const TYPE_ORDER = ['VERDE', 'EN SECADO', 'SECO', 'TRILLADO', 'PASILLA'] as const;
+const TYPE_ORDER = [
+  'VERDE',
+  'EN SECADO',
+  'SECO',
+  'TRILLADO',
+  'PASILLA',
+] as const;
 const BULTO_KG = 40.7;
 const QUALITY_SECTIONS = [
   { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
@@ -26,26 +40,14 @@ const QUALITY_SECTIONS = [
   { key: 'MALO', title: 'MALO', dot: 'bg-[#d82433]' },
 ] as const;
 
-const OPERATIONAL_CACHE_KEYS = [
-  'cafesmart-secado-flow-v1',
-  'cafesmart-sublote-detail-cache-v1',
-  'cafesmart-sublote-humedad-queue-v1',
-  'cafesmart-sublote-factor-queue-v1',
-  'cafesmart-sublote-peso-queue-v1',
-];
-
 function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value);
-}
-
-function formatKg(value: number) {
-  return new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: value % 1 === 0 ? 0 : 1,
-  }).format(value);
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
+    value,
+  );
 }
 
 function formatSacks(valueKg: number) {
@@ -127,11 +129,6 @@ function coffeeVisual(name: string) {
   };
 }
 
-function clearOperationalLocalCache() {
-  if (typeof window === 'undefined') return;
-  OPERATIONAL_CACHE_KEYS.forEach((key) => window.localStorage.removeItem(key));
-}
-
 function isSecadoProcessLot(lot: LoteResumen) {
   return keyOf(lot.tipoCafe) === 'EN SECADO';
 }
@@ -149,8 +146,40 @@ function CapacityRing({
   capacityKg,
 }: {
   totalKg: number;
-  capacityKg: number;
+  capacityKg: number | null;
 }) {
+  if (!capacityKg) {
+    return (
+      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
+        <p
+          className="text-[0.95rem] font-extrabold text-black"
+          style={{ fontWeight: 900 }}
+        >
+          Resumen de Inventario
+        </p>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div>
+            <p
+              className="text-[2.1rem] font-extrabold leading-none text-[#102d92]"
+              style={{ fontWeight: 900 }}
+            >
+              {formatNumber(totalKg)} kg
+            </p>
+            <p
+              className="mt-1 text-sm font-semibold text-slate-600"
+              style={{ fontWeight: 700 }}
+            >
+              Capacidad de bodega sin configurar
+            </p>
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+            <Coffee size={18} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const safeCapacity = Math.max(1, capacityKg);
   const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
   const displayPercentage =
@@ -159,38 +188,63 @@ function CapacityRing({
       : rawPercentage < 1
         ? rawPercentage.toFixed(1)
         : rawPercentage.toFixed(0);
-  const ringPercentage = totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
+  const ringPercentage =
+    totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
+  const isCapacityExceeded = rawPercentage > 100;
+  const accentColor = isCapacityExceeded ? '#d92d20' : '#102d92';
+  const accentTextClass = isCapacityExceeded
+    ? 'text-[#b42318]'
+    : 'text-[#102d92]';
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
   return (
     <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-      <p className="text-[0.95rem] font-extrabold text-black" style={{ fontWeight: 900 }}>
+      <p
+        className="text-[0.95rem] font-extrabold text-black"
+        style={{ fontWeight: 900 }}
+      >
         Resumen de Inventario
       </p>
       <div className="mt-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-end gap-2">
-            <p className="text-[2.1rem] font-extrabold leading-none text-[#102d92]" style={{ fontWeight: 900 }}>
+            <p
+              className={`text-[2.1rem] font-extrabold leading-none ${accentTextClass}`}
+              style={{ fontWeight: 900 }}
+            >
               {formatNumber(totalKg)}
             </p>
-            <span className="pb-0.5 text-[1.2rem] font-bold text-slate-400" style={{ fontWeight: 900 }}>
+            <span
+              className="pb-0.5 text-[1.2rem] font-bold text-slate-400"
+              style={{ fontWeight: 900 }}
+            >
               / {formatNumber(safeCapacity)} kg
             </span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-slate-600" style={{ fontWeight: 700 }}>
+          <p
+            className={`mt-1 text-sm font-semibold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`}
+            style={{ fontWeight: 700 }}
+          >
             Capacidad usada: {displayPercentage}%
           </p>
         </div>
 
         <div className="relative flex h-24 w-24 shrink-0 items-center justify-center self-start">
           <svg viewBox="0 0 140 140" className="h-24 w-24 -rotate-90">
-            <circle cx="70" cy="70" r="58" stroke="#edf1fa" strokeWidth="12" fill="none" />
             <circle
               cx="70"
               cy="70"
               r="58"
-              stroke="#102d92"
+              stroke="#edf1fa"
+              strokeWidth="12"
+              fill="none"
+            />
+            <circle
+              cx="70"
+              cy="70"
+              r="58"
+              stroke={accentColor}
               strokeWidth="12"
               fill="none"
               strokeLinecap="round"
@@ -198,7 +252,9 @@ function CapacityRing({
               strokeDashoffset={offset}
             />
           </svg>
-          <div className="absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+          <div
+            className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${accentTextClass}`}
+          >
             <Coffee size={16} />
           </div>
         </div>
@@ -227,21 +283,30 @@ function TypeSummaryCard({
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] ${visual.bg} ${visual.text}`}>
+          <span
+            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] ${visual.bg} ${visual.text}`}
+          >
             {visual.icon}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">{displayCoffeeName(lot.tipoCafe)}</p>
+            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">
+              {displayCoffeeName(lot.tipoCafe)}
+            </p>
             <p className="mt-0.5 text-sm text-slate-500">
-              {formatNumber(lot.pesoActual)} kg · {formatShortSacks(lot.pesoActual)} bultos
+              {formatNumber(lot.pesoActual)} kg ·{' '}
+              {formatShortSacks(lot.pesoActual)} bultos
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className={`rounded-[12px] px-4 py-2 text-sm font-semibold ${
-            isProcess ? 'bg-[#fff2cc] text-[#946200]' : 'bg-[#f2f3f7] text-slate-700'
-          }`}>
+          <span
+            className={`rounded-[12px] px-4 py-2 text-sm font-semibold ${
+              isProcess
+                ? 'bg-[#fff2cc] text-[#946200]'
+                : 'bg-[#f2f3f7] text-slate-700'
+            }`}
+          >
             {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
           <ArrowRight size={18} className="text-slate-400" />
@@ -251,9 +316,16 @@ function TypeSummaryCard({
   );
 }
 
-function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void }) {
+function QualityLotCard({
+  lot,
+  onOpen,
+}: {
+  lot: LoteResumen;
+  onOpen: () => void;
+}) {
   const lotDays = getLotDays(lot).max;
   const sublotesLabel = pluralLabel(lot.sublotes, 'sublote', 'sublotes');
+  const humidity = classifyHumidity(lot.humedadPromedio);
 
   return (
     <button
@@ -264,7 +336,9 @@ function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[1.05rem] font-semibold text-slate-900">
-            {isSecadoProcessLot(lot) ? 'En proceso de secado' : 'Sublotes disponibles'}
+            {isSecadoProcessLot(lot)
+              ? 'En proceso de secado'
+              : 'Sublotes disponibles'}
           </p>
           <p className="mt-0.5 text-sm text-slate-500">
             {formatNumber(lot.pesoActual)} kg
@@ -273,6 +347,13 @@ function QualityLotCard({ lot, onOpen }: { lot: LoteResumen; onOpen: () => void 
             <span className="h-2 w-2 rounded-full bg-slate-400" />
             {lotDays} días
           </p>
+          {lot.humedadPromedio !== null ? (
+            <p
+              className={`mt-2 inline-flex rounded-[10px] px-2 py-1 text-[0.68rem] font-black ${humidity.toneClass}`}
+            >
+              {formatHumidityWithClassification(lot.humedadPromedio)}
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="rounded-[12px] bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700">
@@ -292,12 +373,19 @@ function SecadoProcessCard({
   session: ReturnType<typeof getActiveSecadoSessions>[number];
   onOpen: () => void;
 }) {
-  const totalKg = session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  const totalKg = session.sublotes.reduce(
+    (sum, sublote) => sum + sublote.pesoActual,
+    0,
+  );
   const progress = secadoProgress(session.estado);
   const startedAt = new Date(session.startedAt);
   const fecha = Number.isNaN(startedAt.getTime())
     ? 'Hoy'
-    : startedAt.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    : startedAt.toLocaleDateString('es-CO', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
 
   return (
     <button
@@ -340,13 +428,11 @@ function SecadoProcessCard({
 export default function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = (location.state ?? null) as
-    | {
-        preferredTypeKey?: string;
-        activeSecadoId?: string;
-        completedSecadoId?: string;
-      }
-    | null;
+  const locationState = (location.state ?? null) as {
+    preferredTypeKey?: string;
+    activeSecadoId?: string;
+    completedSecadoId?: string;
+  } | null;
 
   const [lots, setLots] = useState<LoteResumen[]>([]);
   const [loading, setLoading] = useState(true);
@@ -354,9 +440,12 @@ export default function Inventario() {
   const [typeKey, setTypeKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
-  const [bodegaConfig, setBodegaConfig] = useState<{ nombreBodega: string; capacidadKg: number }>({
+  const [bodegaConfig, setBodegaConfig] = useState<{
+    nombreBodega: string;
+    capacidadKg: number | null;
+  }>({
     nombreBodega: 'Bodega principal',
-    capacidadKg: 3000,
+    capacidadKg: null,
   });
 
   const loadLots = async () => {
@@ -369,17 +458,15 @@ export default function Inventario() {
         obtenerConfiguracionBodega(),
       ]);
 
-      if (data.length === 0) {
-        clearOperationalLocalCache();
-      }
-
       setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
       setBodegaConfig({
         nombreBodega: config.nombreBodega,
         capacidadKg: config.capacidadKg,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el inventario.');
+      setError(
+        err instanceof Error ? err.message : 'No se pudo cargar el inventario.',
+      );
       setLots([]);
     } finally {
       setLoading(false);
@@ -422,23 +509,38 @@ export default function Inventario() {
 
     const preferred = keyOf(locationState?.preferredTypeKey ?? '');
 
-    if (!preferredApplied && preferred && availableTypes.some((type) => type.key === preferred)) {
+    if (
+      !preferredApplied &&
+      preferred &&
+      availableTypes.some((type) => type.key === preferred)
+    ) {
       setTypeKey(preferred);
       setPreferredApplied(true);
       return;
     }
 
-    if (typeKey !== '' && !availableTypes.some((type) => type.key === typeKey)) {
+    if (
+      typeKey !== '' &&
+      !availableTypes.some((type) => type.key === typeKey)
+    ) {
       setTypeKey('');
     }
-  }, [availableTypes, locationState?.preferredTypeKey, preferredApplied, typeKey]);
+  }, [
+    availableTypes,
+    locationState?.preferredTypeKey,
+    preferredApplied,
+    typeKey,
+  ]);
 
   const filteredLots = useMemo(() => {
     if (!typeKey) return [];
     return lots.filter((lot) => keyOf(lot.tipoCafe) === typeKey);
   }, [lots, typeKey]);
 
-  const visibleLots = useMemo(() => (typeKey ? filteredLots : lots), [filteredLots, lots, typeKey]);
+  const visibleLots = useMemo(
+    () => (typeKey ? filteredLots : lots),
+    [filteredLots, lots, typeKey],
+  );
 
   const orderedLots = useMemo(() => {
     const copy = [...visibleLots];
@@ -458,16 +560,18 @@ export default function Inventario() {
   }, [visibleLots, sortKey]);
 
   const typeSummaries = useMemo(() => {
-    const grouped = new Map<string, { key: string; name: string; lots: LoteResumen[] }>();
+    const grouped = new Map<
+      string,
+      { key: string; name: string; lots: LoteResumen[] }
+    >();
 
     for (const lot of lots) {
       const key = keyOf(lot.tipoCafe);
-      const current =
-        grouped.get(key) ?? {
-          key,
-          name: lot.tipoCafe,
-          lots: [],
-        };
+      const current = grouped.get(key) ?? {
+        key,
+        name: lot.tipoCafe,
+        lots: [],
+      };
 
       current.lots.push(lot);
       grouped.set(key, current);
@@ -476,7 +580,10 @@ export default function Inventario() {
     return TYPE_ORDER.flatMap((type) => {
       const current = grouped.get(type);
       if (!current) return [];
-      const totalKg = current.lots.reduce((sum, lot) => sum + lot.pesoActual, 0);
+      const totalKg = current.lots.reduce(
+        (sum, lot) => sum + lot.pesoActual,
+        0,
+      );
       return [
         {
           key: current.key,
@@ -497,22 +604,31 @@ export default function Inventario() {
     [orderedLots],
   );
 
-  const totalKg = useMemo(() => lots.reduce((sum, lot) => sum + lot.pesoActual, 0), [lots]);
+  const totalKg = useMemo(
+    () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
+    [lots],
+  );
   const activeSecadoSessions = useMemo(
     () =>
       ENABLE_SECADO_PROTOTYPE
         ? [...getActiveSecadoSessions()].sort(
-            (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+            (a, b) =>
+              new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
           )
         : [],
     [lots],
   );
-  const activeSessionBase = ENABLE_SECADO_PROTOTYPE ? getActiveSecadoSession() : null;
+  const activeSessionBase = ENABLE_SECADO_PROTOTYPE
+    ? getActiveSecadoSession()
+    : null;
   const activeSession =
     activeSessionBase && lots.some((lot) => lot.id === activeSessionBase.loteId)
       ? activeSessionBase
       : null;
-  const secadoTarget = ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0 ? orderedLots[0] : null;
+  const secadoTarget =
+    ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0
+      ? orderedLots[0]
+      : null;
   const showGlobalEmptyState = !loading && !error && lots.length === 0;
 
   return (
@@ -522,7 +638,7 @@ export default function Inventario() {
       }`}
     >
       <main
-        className={`mx-auto flex w-full max-w-[520px] px-4 py-6 ${
+        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
           showGlobalEmptyState
             ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
             : 'flex-col gap-5'
@@ -540,7 +656,9 @@ export default function Inventario() {
             <div className="w-full max-w-[180px]">
               <select
                 value={sortKey}
-                onChange={(event) => setSortKey(event.target.value as 'OLDEST' | 'NEWEST')}
+                onChange={(event) =>
+                  setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
+                }
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 py-2.5 text-[1rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
               >
                 <option value="OLDEST">Más antiguo</option>
@@ -550,7 +668,10 @@ export default function Inventario() {
             <div className="flex flex-wrap gap-2.5">
               {[
                 { key: '', label: 'Todos' },
-                ...availableTypes.map((type) => ({ key: type.key, label: type.name })),
+                ...availableTypes.map((type) => ({
+                  key: type.key,
+                  label: type.name,
+                })),
               ].map((item) => {
                 const active = item.key === typeKey;
                 return (
@@ -622,7 +743,10 @@ export default function Inventario() {
                     tipoCafe: group.name,
                     pesoActual: group.totalKg,
                   }}
-                  subloteCount={group.lots.reduce((sum, lot) => sum + lot.sublotes, 0)}
+                  subloteCount={group.lots.reduce(
+                    (sum, lot) => sum + lot.sublotes,
+                    0,
+                  )}
                   onOpen={() => {
                     if (group.key === 'EN SECADO') {
                       navigate('/inventario/secados');
@@ -652,7 +776,11 @@ export default function Inventario() {
         {typeKey === 'VERDE' && secadoTarget ? (
           <button
             type="button"
-            onClick={() => navigate(`/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`)}
+            onClick={() =>
+              navigate(
+                `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
+              )
+            }
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
           >
             <SunMedium size={17} />
@@ -665,10 +793,13 @@ export default function Inventario() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[#f6b81a]" />
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">Procesos de secado</p>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
+                  Procesos de secado
+                </p>
               </div>
               <p className="text-sm font-semibold text-slate-500">
-                {activeSecadoSessions.length} activo{activeSecadoSessions.length === 1 ? '' : 's'}
+                {activeSecadoSessions.length} activo
+                {activeSecadoSessions.length === 1 ? '' : 's'}
               </p>
             </div>
 
@@ -676,7 +807,11 @@ export default function Inventario() {
               <SecadoProcessCard
                 key={session.id}
                 session={session}
-                onOpen={() => navigate(`/inventario/secado/${session.id}/finalizar?step=finish`)}
+                onOpen={() =>
+                  navigate(
+                    `/inventario/secado/${session.id}/finalizar?step=finish`,
+                  )
+                }
               />
             ))}
           </section>
@@ -684,7 +819,8 @@ export default function Inventario() {
 
         {ENABLE_SECADO_PROTOTYPE && locationState?.completedSecadoId ? (
           <section className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm font-medium text-emerald-700">
-            El secado se envió al inventario y ya se refleja como sublote de café seco.
+            El secado se envió al inventario y ya se refleja como sublote de
+            café seco.
           </section>
         ) : null}
 
@@ -705,7 +841,9 @@ export default function Inventario() {
 
         {loading ? (
           <section className="rounded-[26px] border border-[#dde4f1] bg-white px-5 py-12 text-center shadow-sm">
-            <p className="text-lg font-semibold text-slate-500">Cargando inventario...</p>
+            <p className="text-lg font-semibold text-slate-500">
+              Cargando inventario...
+            </p>
           </section>
         ) : null}
 
@@ -714,52 +852,65 @@ export default function Inventario() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f5f6fc] text-slate-400">
               <Package2 size={22} />
             </div>
-            <p className="mt-4 text-lg text-slate-600">Todavia no hay sublotes registrados en este tipo de cafe.</p>
+            <p className="mt-4 text-lg text-slate-600">
+              Todavia no hay sublotes registrados en este tipo de cafe.
+            </p>
           </section>
         ) : null}
 
-        {!loading && !error && typeKey !== '' && typeKey !== 'EN SECADO' && orderedLots.length > 0
-          ? (
-              <section className="space-y-4">
-                {qualitySections
-                  .filter((section) => section.lots.length > 0)
-                  .map((section) => (
-                  <section key={section.key} className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`h-2.5 w-2.5 rounded-full ${section.dot}`} />
-                        <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">{section.title}</p>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-500">
-                        {pluralLabel(
-                          section.lots.reduce((sum, lot) => sum + lot.sublotes, 0),
-                          'sublote',
-                          'sublotes',
-                        )}
+        {!loading &&
+        !error &&
+        typeKey !== '' &&
+        typeKey !== 'EN SECADO' &&
+        orderedLots.length > 0 ? (
+          <section className="space-y-4">
+            {qualitySections
+              .filter((section) => section.lots.length > 0)
+              .map((section) => (
+                <section key={section.key} className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${section.dot}`}
+                      />
+                      <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
+                        {section.title}
                       </p>
                     </div>
+                    <p className="text-sm font-semibold text-slate-500">
+                      {pluralLabel(
+                        section.lots.reduce(
+                          (sum, lot) => sum + lot.sublotes,
+                          0,
+                        ),
+                        'sublote',
+                        'sublotes',
+                      )}
+                    </p>
+                  </div>
 
-                    <div className="space-y-3">
-                      {section.lots.map((lot) => (
-                        <QualityLotCard
-                          key={lot.id}
-                          lot={lot}
-                          onOpen={() => {
-                            if (isSecadoProcessLot(lot)) {
-                              navigate('/inventario/secados');
-                              return;
-                            }
+                  <div className="space-y-3">
+                    {section.lots.map((lot) => (
+                      <QualityLotCard
+                        key={lot.id}
+                        lot={lot}
+                        onOpen={() => {
+                          if (isSecadoProcessLot(lot)) {
+                            navigate('/inventario/secados');
+                            return;
+                          }
 
-                            navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </section>
-            )
-          : null}
+                          navigate(
+                            `/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`,
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+          </section>
+        ) : null}
       </main>
 
       <AppBottomNav />

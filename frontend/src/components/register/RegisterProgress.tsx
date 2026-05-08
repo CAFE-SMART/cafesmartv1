@@ -4,7 +4,11 @@ type RegisterProgressProps = {
   progressPercent: number;
 };
 
-export function RegisterProgress({ step, totalSteps, progressPercent }: RegisterProgressProps) {
+export function RegisterProgress({
+  step,
+  totalSteps,
+  progressPercent,
+}: RegisterProgressProps) {
   const stepLabel =
     step === 1
       ? 'Paso 1: Informaci\u00f3n del negocio'

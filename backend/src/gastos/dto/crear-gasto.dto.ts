@@ -70,6 +70,9 @@ export class CrearGastoDto {
    */
   @IsOptional()
   @IsArray({ message: 'subloteIds debe ser un arreglo de UUIDs' })
-  @IsUUID('4', { each: true, message: 'Cada subloteId debe ser un UUID v4 válido' })
+  @IsUUID('4', {
+    each: true,
+    message: 'Cada subloteId debe ser un UUID v4 válido',
+  })
   subloteIds?: string[];
 }

@@ -8,7 +8,7 @@ export class ParametrosService {
   /**
    * Obtiene un parámetro específico de una organización.
    * Valida existencia, valor no vacío y conversión numérica.
-   * 
+   *
    * @param nombre Nombre del parámetro a consultar.
    * @param organizacionId UUID de la organización.
    * @returns El valor del parámetro convertido a número.

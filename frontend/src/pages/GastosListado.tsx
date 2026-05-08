@@ -56,25 +56,34 @@ export default function GastosListado() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
+  const cargar = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
 
-    try {
-      const data = await listarGastos(subloteId);
-      setGastos(subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar los gastos.');
-      setGastos([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [subloteId]);
+      try {
+        const data = await listarGastos(subloteId);
+        setGastos(
+          subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral),
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudieron cargar los gastos.',
+        );
+        setGastos([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [subloteId],
+  );
 
   useEffect(() => {
     void cargar();
@@ -87,7 +96,7 @@ export default function GastosListado() {
 
   return (
     <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
-      <main className="mx-auto w-full max-w-[340px] rounded-[24px] border border-[#dbe2ee] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+      <main className="mx-auto w-full max-w-[430px] rounded-[24px] border border-[#dbe2ee] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <header className="grid h-10 grid-cols-[36px_1fr_36px] items-center">
           <button
             type="button"
@@ -106,7 +115,10 @@ export default function GastosListado() {
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400"
             aria-label="Recargar gastos"
           >
-            <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCcw
+              size={14}
+              className={refreshing ? 'animate-spin' : ''}
+            />
           </button>
         </header>
 

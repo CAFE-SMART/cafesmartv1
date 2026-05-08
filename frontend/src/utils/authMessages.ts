@@ -13,11 +13,13 @@ export const AUTH_MESSAGES = {
     'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
   googleNeedsRegister:
     'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
-  offline:
-    'Revisa tu conexión e intenta de nuevo.',
+  offline: 'Revisa tu conexión e intenta de nuevo.',
 } as const;
 
-export function normalizeMessage(message: string | string[] | undefined, fallback: string) {
+export function normalizeMessage(
+  message: string | string[] | undefined,
+  fallback: string,
+) {
   if (Array.isArray(message)) {
     return message.filter(Boolean).join(', ');
   }
@@ -47,7 +49,10 @@ export function mapFriendlyAuthMessage(
       return AUTH_MESSAGES.googleNeedsRegister;
     }
 
-    const rawMessage = normalizeMessage(data.message, AUTH_MESSAGES.googleGeneric);
+    const rawMessage = normalizeMessage(
+      data.message,
+      AUTH_MESSAGES.googleGeneric,
+    );
     const lowerMessage = rawMessage.toLowerCase();
 
     if (

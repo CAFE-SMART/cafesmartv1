@@ -20,11 +20,16 @@ type UseRegisterFormParams = {
   navigate: NavigateFunction;
 };
 
-export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegisterFormParams) {
+export function useRegisterForm({
+  hasGoogleFlow,
+  routeState,
+  navigate,
+}: UseRegisterFormParams) {
   const [step, setStep] = useState(1);
 
   const [nombreOrganizacion, setNombreOrganizacion] = useState('');
-  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>('');
+  const [tipoOrganizacion, setTipoOrganizacion] =
+    useState<TipoOrgSelection>('');
   const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
@@ -86,7 +91,9 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     setIsCheckingEmail(true);
     try {
-      const exists = await authService.checkEmailExists(correoValue.trim().toLowerCase());
+      const exists = await authService.checkEmailExists(
+        correoValue.trim().toLowerCase(),
+      );
       return exists ? 'Este correo ya esta registrado.' : null;
     } catch {
       return null;
@@ -129,7 +136,9 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     if (!nombreOrganizacion.trim()) {
       setError('Falta el nombre del negocio.');
-      setStepOneErrors({ nombreOrganizacion: 'Escribe el nombre del negocio.' });
+      setStepOneErrors({
+        nombreOrganizacion: 'Escribe el nombre del negocio.',
+      });
       setStep(1);
       return;
     }
@@ -170,8 +179,7 @@ export function useRegisterForm({ hasGoogleFlow, routeState, navigate }: UseRegi
 
     const checks = getPasswordChecks(password);
     if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
-      nextErrors.password =
-        'Minimo 6 caracteres, minuscula y mayuscula.';
+      nextErrors.password = 'Minimo 6 caracteres, minuscula y mayuscula.';
     }
 
     if (!confirmPassword.trim()) {

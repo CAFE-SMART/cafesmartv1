@@ -5,9 +5,9 @@ export function getTodayLocalDateValue(reference = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export const BUSINESS_MIN_DATE_VALUE = '2000-01-01';
+export const BUSINESS_MIN_DATE_VALUE = '2026-01-01';
 export const BUSINESS_DATE_RANGE_MESSAGE =
-  'Ingresa una fecha válida. Solo puedes registrar fechas desde el año 2000 hasta hoy.';
+  'Ingresa una fecha válida. Solo puedes registrar fechas desde 2026 hasta hoy.';
 
 function parseDateValueStrict(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -28,7 +28,10 @@ function parseDateValueStrict(value: string) {
   return date;
 }
 
-export function validateBusinessDateRange(value: string, reference = new Date()) {
+export function validateBusinessDateRange(
+  value: string,
+  reference = new Date(),
+) {
   if (!value.trim()) {
     return {
       isValid: false,

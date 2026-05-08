@@ -3,7 +3,9 @@ import { DashboardService } from './dashboard.service';
 describe('DashboardService', () => {
   function crearServicioConMocks() {
     const prisma = {
-      $transaction: jest.fn((operations: Array<Promise<unknown>>) => Promise.all(operations)),
+      $transaction: jest.fn((operations: Array<Promise<unknown>>) =>
+        Promise.all(operations),
+      ),
       user: {
         findUnique: jest.fn().mockResolvedValue({ organizacionId: 'org-1' }),
       },
@@ -44,7 +46,10 @@ describe('DashboardService', () => {
       getParametroString: jest.fn().mockResolvedValue('3000'),
     };
 
-    const service = new DashboardService(prisma as never, parametrosService as never);
+    const service = new DashboardService(
+      prisma as never,
+      parametrosService as never,
+    );
 
     return { service, prisma };
   }
@@ -55,7 +60,9 @@ describe('DashboardService', () => {
 
     prisma.compra.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
     prisma.venta.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    prisma.gastoOperativo.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    prisma.gastoOperativo.count
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
     prisma.sublote.aggregate
       .mockResolvedValueOnce({ _sum: { pesoInicial: null } })
       .mockResolvedValueOnce({ _sum: { pesoInicial: 120 } });
@@ -72,32 +79,41 @@ describe('DashboardService', () => {
     prisma.inventario.aggregate
       .mockResolvedValueOnce({ _sum: { pesoTotal: 0 } })
       .mockResolvedValueOnce({ _sum: { pesoTotal: 85 } });
+    prisma.sublote.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'sublote-1',
+        pesoInicial: 120,
+        pesoActual: 85,
+        costoTotal: 600000,
+        tipoCafeId: 'tipo-seco',
+        tipoCafe: { nombre: 'SECO' },
+      },
+    ]);
+    prisma.ventaDetalle.findMany.mockResolvedValue([]);
+    prisma.gastoSublote.findMany.mockResolvedValue([]);
 
-    prisma.compra.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'compra-1',
-          fecha,
-          creadoEn: fecha,
-          totalCompra: 600000,
-          productor: { nombre: 'Finca Norte' },
-          sublotes: [{ pesoInicial: 120 }],
-        },
-      ]);
-    prisma.venta.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'venta-1',
-          fecha,
-          createdAt: new Date(fecha.getTime() + 1000),
-          totalVenta: 700000,
-          cliente: { nombre: 'Cliente Centro' },
-          detalles: [{ pesoVendido: 35 }],
-        },
-      ]);
+    prisma.compra.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'compra-1',
+        fecha,
+        creadoEn: fecha,
+        totalCompra: 600000,
+        productor: { nombre: 'Finca Norte' },
+        sublotes: [{ pesoInicial: 120 }],
+      },
+    ]);
+    prisma.venta.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'venta-1',
+        fecha,
+        createdAt: new Date(fecha.getTime() + 1000),
+        totalVenta: 700000,
+        cliente: { nombre: 'Cliente Centro' },
+        detalles: [{ pesoVendido: 35 }],
+      },
+    ]);
     prisma.gastoOperativo.findMany
+      .mockResolvedValue([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
@@ -132,6 +148,14 @@ describe('DashboardService', () => {
       totalGastosHoy: 45000,
       kgActual: 85,
     });
+    expect(actualizado.inventarioPorTipo).toEqual([
+      {
+        tipoCafeId: 'tipo-seco',
+        tipoCafe: 'SECO',
+        kgDisponible: 85,
+      },
+    ]);
+    expect(prisma.inventario.aggregate).not.toHaveBeenCalled();
     expect(actualizado.movimientosRecientes).toEqual([
       expect.objectContaining({
         id: 'gasto-1',
@@ -151,9 +175,13 @@ describe('DashboardService', () => {
     prisma.venta.count.mockResolvedValue(0);
     prisma.gastoOperativo.count.mockResolvedValue(1);
     prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
-    prisma.compra.aggregate.mockResolvedValue({ _sum: { totalCompra: 900000 } });
+    prisma.compra.aggregate.mockResolvedValue({
+      _sum: { totalCompra: 900000 },
+    });
     prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: null } });
-    prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
+    prisma.gastoOperativo.aggregate.mockResolvedValue({
+      _sum: { montoGasto: 100000 },
+    });
     prisma.productor.count.mockResolvedValue(1);
     prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 100 } });
     prisma.compra.findMany.mockResolvedValue([]);
@@ -187,9 +215,13 @@ describe('DashboardService', () => {
     prisma.venta.count.mockResolvedValue(1);
     prisma.gastoOperativo.count.mockResolvedValue(1);
     prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: 100 } });
-    prisma.compra.aggregate.mockResolvedValue({ _sum: { totalCompra: 900000 } });
+    prisma.compra.aggregate.mockResolvedValue({
+      _sum: { totalCompra: 900000 },
+    });
     prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: 1904000 } });
-    prisma.gastoOperativo.aggregate.mockResolvedValue({ _sum: { montoGasto: 100000 } });
+    prisma.gastoOperativo.aggregate.mockResolvedValue({
+      _sum: { montoGasto: 100000 },
+    });
     prisma.productor.count.mockResolvedValue(1);
     prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 40 } });
     prisma.compra.findMany.mockResolvedValue([]);

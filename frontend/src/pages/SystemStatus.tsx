@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -10,7 +16,11 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import { authService, type AuthError, type AuthResponse } from '../services/authService';
+import {
+  authService,
+  type AuthError,
+  type AuthResponse,
+} from '../services/authService';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
@@ -33,7 +43,7 @@ const CONFIRMATION_DURATION_MS = 1700;
 function ConfirmSuccessView() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
         <section className="w-full max-w-[320px] rounded-[14px] border border-slate-200 bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
             <Check size={18} strokeWidth={3.2} />
@@ -41,7 +51,9 @@ function ConfirmSuccessView() {
           <h1 className="mt-3 text-[0.95rem] font-black tracking-tight text-[#121826]">
             Cuenta creada
           </h1>
-          <p className="mt-1 text-[0.68rem] text-slate-600">Preparando inicio...</p>
+          <p className="mt-1 text-[0.68rem] text-slate-600">
+            Preparando inicio...
+          </p>
         </section>
       </div>
     </div>
@@ -51,7 +63,7 @@ function ConfirmSuccessView() {
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
     <div className="min-h-screen bg-[#f7f8fb] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[340px] items-center justify-center">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
         <section className="w-full rounded-[16px] border border-[#dfe5f1] bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#274ab8]">
             <Coffee size={21} strokeWidth={2.4} />
@@ -62,7 +74,8 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
           </h1>
 
           <p className="mt-2 text-[0.76rem] leading-5 text-[#64748b]">
-            Tu empresa quedo lista para empezar a registrar compras, secado y ventas.
+            Tu empresa quedo lista para empezar a registrar compras, secado y
+            ventas.
           </p>
 
           <button
@@ -77,7 +90,12 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => window.open('mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart', '_self')}
+              onClick={() =>
+                window.open(
+                  'mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart',
+                  '_self',
+                )
+              }
               className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
             >
               <HelpCircle size={15} />
@@ -86,7 +104,10 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
             <button
               type="button"
               onClick={() =>
-                window.open('mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart', '_self')
+                window.open(
+                  'mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart',
+                  '_self',
+                )
               }
               className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
             >
@@ -142,7 +163,9 @@ export default function SystemStatus() {
       setStatus('creating');
       setSuccessStage('confirm');
       setErrorTitle('Error de conexion');
-      setErrorMessage('No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.');
+      setErrorMessage(
+        'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+      );
 
       try {
         let response: AuthResponse;
@@ -157,14 +180,18 @@ export default function SystemStatus() {
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
+              processState.tipoOrganizacion === 'OTRO'
+                ? processState.otroTipoDetalle
+                : undefined,
           });
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: processState.tipoOrganizacion,
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO' ? processState.otroTipoDetalle : undefined,
+              processState.tipoOrganizacion === 'OTRO'
+                ? processState.otroTipoDetalle
+                : undefined,
             nombre: processState.nombre,
             telefono: processState.telefono,
             correo: processState.correo,
@@ -229,7 +256,9 @@ export default function SystemStatus() {
   }
 
   if (status === 'success' && successStage === 'welcome') {
-    return <WelcomeView onStart={() => navigate('/inicio', { replace: true })} />;
+    return (
+      <WelcomeView onStart={() => navigate('/inicio', { replace: true })} />
+    );
   }
 
   return (
@@ -240,16 +269,24 @@ export default function SystemStatus() {
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
               <LoaderCircle className="h-5 w-5 animate-spin" />
             </div>
-            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">Creando cuenta...</h1>
-            <p className="mt-1 text-[0.68rem] text-slate-600">Configurando tu espacio.</p>
+            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">
+              Creando cuenta...
+            </h1>
+            <p className="mt-1 text-[0.68rem] text-slate-600">
+              Configurando tu espacio.
+            </p>
           </>
         ) : (
           <>
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-rose-700">
               <AlertTriangle size={18} />
             </div>
-            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">{errorTitle}</h1>
-            <p className="mt-1 text-[0.68rem] leading-5 text-slate-600">{errorMessage}</p>
+            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">
+              {errorTitle}
+            </h1>
+            <p className="mt-1 text-[0.68rem] leading-5 text-slate-600">
+              {errorMessage}
+            </p>
             <button
               type="button"
               onClick={() => void executeRegistration(true)}

@@ -66,14 +66,15 @@ export default function Register() {
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
+  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
+    null,
+  );
   const initialRouteState = useMemo(
-    () => ((location.state ?? null) as RegisterLocationState | null),
+    () => (location.state ?? null) as RegisterLocationState | null,
     [location.state],
   );
-  const [googleRouteState, setGoogleRouteState] = useState<RegisterLocationState>(
-    () => initialRouteState ?? {},
-  );
+  const [googleRouteState, setGoogleRouteState] =
+    useState<RegisterLocationState>(() => initialRouteState ?? {});
 
   useEffect(() => {
     if (initialRouteState?.googleToken) {
@@ -114,14 +115,20 @@ export default function Register() {
     goBackToStep1,
     handleSubmit,
     validateEmailAvailability,
-  } = useRegisterForm({ hasGoogleFlow, routeState: googleRouteState, navigate });
+  } = useRegisterForm({
+    hasGoogleFlow,
+    routeState: googleRouteState,
+    navigate,
+  });
 
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
 
-  const handleGoogleRegisterSuccess = (credentialResponse: CredentialResponse) => {
+  const handleGoogleRegisterSuccess = (
+    credentialResponse: CredentialResponse,
+  ) => {
     const idToken = credentialResponse?.credential;
 
     if (!idToken) {
@@ -157,9 +164,12 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
-      <main className="mx-auto min-h-screen w-full max-w-[340px] bg-[#f7f8fb]">
+      <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb]">
         {step === 1 ? (
-          <section className="flex min-h-screen flex-col" aria-labelledby="register-business-title">
+          <section
+            className="flex min-h-screen flex-col"
+            aria-labelledby="register-business-title"
+          >
             <RegisterHeader
               title="Crear cuenta"
               onBack={handleHeaderBack}
@@ -167,7 +177,11 @@ export default function Register() {
             />
 
             <div className="flex-1 px-4 pt-5">
-              <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+              <RegisterProgress
+                step={step}
+                totalSteps={2}
+                progressPercent={progressPercent}
+              />
 
               <h2 className="mt-2 text-[1.28rem] font-black leading-tight tracking-normal text-[#111827]">
                 Comencemos configurando tu negocio
@@ -182,7 +196,10 @@ export default function Register() {
                   value={nombreOrganizacion}
                   onChange={(value) => {
                     setNombreOrganizacion(value);
-                    setStepOneErrors((prev) => ({ ...prev, nombreOrganizacion: undefined }));
+                    setStepOneErrors((prev) => ({
+                      ...prev,
+                      nombreOrganizacion: undefined,
+                    }));
                   }}
                   placeholder="Ej: Cafe Los Alpes"
                   autoComplete="organization"
@@ -202,7 +219,10 @@ export default function Register() {
                       selected={tipoOrganizacion === type.value}
                       onSelect={() => {
                         setTipoOrganizacion(type.value);
-                        setStepOneErrors((prev) => ({ ...prev, tipoOrganizacion: undefined }));
+                        setStepOneErrors((prev) => ({
+                          ...prev,
+                          tipoOrganizacion: undefined,
+                        }));
                       }}
                     />
                   ))}
@@ -220,7 +240,10 @@ export default function Register() {
                     value={otroTipoDetalle}
                     onChange={(value) => {
                       setOtroTipoDetalle(value);
-                      setStepOneErrors((prev) => ({ ...prev, otroTipoDetalle: undefined }));
+                      setStepOneErrors((prev) => ({
+                        ...prev,
+                        otroTipoDetalle: undefined,
+                      }));
                     }}
                     placeholder="Ej: Trilla, laboratorio o finca"
                     error={stepOneErrors.otroTipoDetalle}
@@ -238,7 +261,10 @@ export default function Register() {
             />
           </section>
         ) : (
-          <section className="flex min-h-screen flex-col" aria-labelledby="register-admin-title">
+          <section
+            className="flex min-h-screen flex-col"
+            aria-labelledby="register-admin-title"
+          >
             <RegisterHeader
               title="Crear cuenta"
               onBack={handleHeaderBack}
@@ -246,7 +272,11 @@ export default function Register() {
             />
 
             <div className="flex-1 px-4 pb-5 pt-5">
-              <RegisterProgress step={step} totalSteps={2} progressPercent={progressPercent} />
+              <RegisterProgress
+                step={step}
+                totalSteps={2}
+                progressPercent={progressPercent}
+              />
 
               {error ? <AlertBanner message={error} className="mb-4" /> : null}
 
@@ -273,7 +303,10 @@ export default function Register() {
                     value={nombre}
                     onChange={(value) => {
                       setNombre(value);
-                      setStepTwoErrors((prev) => ({ ...prev, nombre: undefined }));
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        nombre: undefined,
+                      }));
                     }}
                     placeholder="Ej: Juan"
                     autoComplete="given-name"
@@ -287,7 +320,10 @@ export default function Register() {
                     value={apellidos}
                     onChange={(value) => {
                       setApellidos(value);
-                      setStepTwoErrors((prev) => ({ ...prev, apellidos: undefined }));
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        apellidos: undefined,
+                      }));
                     }}
                     placeholder="Ej: Perez Gomez"
                     autoComplete="family-name"
@@ -302,7 +338,10 @@ export default function Register() {
                   value={telefono}
                   onChange={(value) => {
                     setTelefono(value);
-                    setStepTwoErrors((prev) => ({ ...prev, telefono: undefined }));
+                    setStepTwoErrors((prev) => ({
+                      ...prev,
+                      telefono: undefined,
+                    }));
                   }}
                   placeholder="+57 300 123 4567"
                   autoComplete="tel"
@@ -317,12 +356,19 @@ export default function Register() {
                     value={correo}
                     onChange={(value) => {
                       setCorreo(value);
-                      setStepTwoErrors((prev) => ({ ...prev, correo: undefined }));
+                      setStepTwoErrors((prev) => ({
+                        ...prev,
+                        correo: undefined,
+                      }));
                     }}
                     onBlur={async () => {
-                      const emailExistsError = await validateEmailAvailability(correo);
+                      const emailExistsError =
+                        await validateEmailAvailability(correo);
                       if (emailExistsError) {
-                        setStepTwoErrors((prev) => ({ ...prev, correo: emailExistsError }));
+                        setStepTwoErrors((prev) => ({
+                          ...prev,
+                          correo: emailExistsError,
+                        }));
                       }
                     }}
                     placeholder="admin@empresa.com"
@@ -331,7 +377,9 @@ export default function Register() {
                     compactLabel
                   />
                   {isCheckingEmail && !stepTwoErrors.correo ? (
-                    <p className="mt-2 text-xs font-semibold text-[#64748b]">Validando correo...</p>
+                    <p className="mt-2 text-xs font-semibold text-[#64748b]">
+                      Validando correo...
+                    </p>
                   ) : null}
                 </div>
 
@@ -356,7 +404,10 @@ export default function Register() {
                       value={password}
                       onChange={(event) => {
                         setPassword(event.target.value);
-                        setStepTwoErrors((prev) => ({ ...prev, password: undefined }));
+                        setStepTwoErrors((prev) => ({
+                          ...prev,
+                          password: undefined,
+                        }));
                       }}
                       placeholder="********"
                       autoComplete="new-password"
@@ -368,12 +419,18 @@ export default function Register() {
                       type="button"
                       className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
                       onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                      aria-label={
+                        showPassword
+                          ? 'Ocultar contrasena'
+                          : 'Mostrar contrasena'
+                      }
                     >
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
-                  {stepTwoErrors.password ? <FieldError message={stepTwoErrors.password} /> : null}
+                  {stepTwoErrors.password ? (
+                    <FieldError message={stepTwoErrors.password} />
+                  ) : null}
                   <div className="mt-2">
                     <div className="h-1.5 overflow-hidden rounded-full bg-[#e6ebf3]">
                       <div
@@ -386,11 +443,14 @@ export default function Register() {
                                 ? 'bg-sky-500'
                                 : 'bg-emerald-500'
                         }`}
-                        style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                        style={{
+                          width: `${(passwordStrength.score / 4) * 100}%`,
+                        }}
                       />
                     </div>
                     <p className="mt-1 text-[11px] font-medium text-[#73829a]">
-                      Minimo 6 caracteres, una minuscula, una mayuscula y un numero.
+                      Minimo 6 caracteres, una minuscula, una mayuscula y un
+                      numero.
                     </p>
                   </div>
                 </div>
@@ -401,7 +461,10 @@ export default function Register() {
                   value={confirmPassword}
                   onChange={(value) => {
                     setConfirmPassword(value);
-                    setStepTwoErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                    setStepTwoErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: undefined,
+                    }));
                   }}
                   placeholder="Vuelve a escribir tu contrasena"
                   type={showPassword ? 'text' : 'password'}
@@ -416,7 +479,9 @@ export default function Register() {
                       passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
                     }`}
                   >
-                    {passwordsMatch ? 'Las contrasenas coinciden.' : 'Las contrasenas no coinciden.'}
+                    {passwordsMatch
+                      ? 'Las contrasenas coinciden.'
+                      : 'Las contrasenas no coinciden.'}
                   </p>
                 ) : null}
 
@@ -432,7 +497,10 @@ export default function Register() {
                     <Divider label="O continua con" />
                     {googleLoading ? (
                       <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
-                        <Loader size={18} className="mx-auto animate-spin text-[#274ab8]" />
+                        <Loader
+                          size={18}
+                          className="mx-auto animate-spin text-[#274ab8]"
+                        />
                         <p className="mt-2 text-sm font-semibold text-slate-700">
                           Validando Google...
                         </p>
@@ -456,14 +524,20 @@ export default function Register() {
                 ) : null}
               </form>
 
-              <RegisterLinks onHelp={() => setSupportModal('help')} onContact={() => setSupportModal('contact')} />
+              <RegisterLinks
+                onHelp={() => setSupportModal('help')}
+                onContact={() => setSupportModal('contact')}
+              />
             </div>
           </section>
         )}
       </main>
 
       {supportModal ? (
-        <SupportModal type={supportModal} onClose={() => setSupportModal(null)} />
+        <SupportModal
+          type={supportModal}
+          onClose={() => setSupportModal(null)}
+        />
       ) : null}
     </div>
   );
@@ -489,7 +563,10 @@ function RegisterHeader({
         >
           <ArrowLeft size={16} />
         </button>
-        <h1 id={labelledBy} className="text-center text-xs font-black text-[#111827]">
+        <h1
+          id={labelledBy}
+          className="text-center text-xs font-black text-[#111827]"
+        >
           {title}
         </h1>
       </div>
@@ -527,14 +604,18 @@ function BusinessTypeCard({
           {type.icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-black text-[#111827]">{type.label}</span>
+          <span className="block text-[12px] font-black text-[#111827]">
+            {type.label}
+          </span>
           <span className="mt-1 block text-[11px] font-medium leading-4 text-[#73829a]">
             {type.desc}
           </span>
         </span>
         <span
           className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
-            selected ? 'border-[#274ab8] bg-[#274ab8] text-white' : 'border-[#c8d2e2] text-transparent'
+            selected
+              ? 'border-[#274ab8] bg-[#274ab8] text-white'
+              : 'border-[#c8d2e2] text-transparent'
           }`}
           aria-hidden="true"
         >
@@ -678,7 +759,13 @@ function FieldError({ message }: { message: string }) {
   return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>;
 }
 
-function AlertBanner({ message, className = '' }: { message: string; className?: string }) {
+function AlertBanner({
+  message,
+  className = '',
+}: {
+  message: string;
+  className?: string;
+}) {
   return (
     <div
       className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ${className}`.trim()}
@@ -701,14 +788,17 @@ function SupportModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-[340px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#274ab8]">
               Soporte
             </p>
-            <h2 id="register-support-title" className="mt-1 text-lg font-black text-[#111827]">
+            <h2
+              id="register-support-title"
+              className="mt-1 text-lg font-black text-[#111827]"
+            >
               {type === 'help' ? 'Ayuda basica' : 'Contacto'}
             </h2>
           </div>

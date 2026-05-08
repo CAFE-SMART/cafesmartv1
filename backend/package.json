@@ -2,6 +2,7 @@
   "name": "cafe-smart-backend",
   "version": "1.0.0",
   "scripts": {
+    "dev": "nest start --watch",
     "build": "nest build",
     "build:clean": "pnpm exec prisma generate && pnpm run build",
     "start": "nest start",

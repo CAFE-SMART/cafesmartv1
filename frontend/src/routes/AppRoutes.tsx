@@ -35,10 +35,7 @@ export default function AppRoutes() {
         <Route path="/ajustes" element={<Ajustes />} />
         {ENABLE_SECADO_PROTOTYPE ? (
           <>
-            <Route
-              path="/inventario/secados"
-              element={<SecadosActivos />}
-            />
+            <Route path="/inventario/secados" element={<SecadosActivos />} />
             <Route
               path="/inventario/:tipoCafeId/:calidadId/secado"
               element={<SecadoSeleccion />}

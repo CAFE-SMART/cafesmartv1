@@ -10,7 +10,10 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { useCloudStatus } from '../context/CloudStatusContext';
-import { obtenerDashboardSummary, type DashboardSummary } from '../services/dashboardService';
+import {
+  obtenerDashboardSummary,
+  type DashboardSummary,
+} from '../services/dashboardService';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
@@ -73,7 +76,15 @@ function resolveDashboardErrorMessage(error: unknown) {
   }
 
   if (/failed to fetch|networkerror|load failed/i.test(message)) {
-    return 'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.';
+    return 'Revisa la conexión a internet y vuelve a intentarlo.';
+  }
+
+  if (
+    /terminal|backend|internal server error|server error|stack|exception|endpoint/i.test(
+      message,
+    )
+  ) {
+    return 'No pudimos cargar el inicio. Vuelve a intentarlo.';
   }
 
   return message || 'No pudimos cargar el inicio.';
@@ -115,13 +126,7 @@ function formatMetric(
   return formatter(value);
 }
 
-function MetricRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 text-[0.76rem]">
       <span className="text-[#5a6b84]">{label}</span>
@@ -148,19 +153,15 @@ type BodegaCoffeeItem = {
   dayWeight: number;
 };
 
-function BodegaCoffeeRow({
-  item,
-}: {
-  item: BodegaCoffeeItem;
-}) {
+function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
   const isGood = item.calidad === 'Bueno';
   const isDry = item.tipo === 'Seco';
   const Icon = isDry ? SunMedium : isGood ? ShieldCheck : Sparkles;
   const iconClass = isDry
     ? 'bg-[#fff1da] text-[#c4670e]'
     : isGood
-    ? 'bg-[#dcfce7] text-[#16845a]'
-    : 'bg-[#fff7d6] text-[#b77905]';
+      ? 'bg-[#dcfce7] text-[#16845a]'
+      : 'bg-[#fff7d6] text-[#b77905]';
   const qualityClass = isGood
     ? 'bg-[#dcfce7] text-[#16845a]'
     : 'bg-[#fff3c4] text-[#a15c00]';
@@ -168,7 +169,9 @@ function BodegaCoffeeRow({
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-3">
-        <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClass}`}>
+        <span
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClass}`}
+        >
           <Icon size={17} strokeWidth={2.35} />
         </span>
         <div className="min-w-0">
@@ -182,8 +185,12 @@ function BodegaCoffeeRow({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <p className="text-[0.78rem] font-black text-[#18479d]">{formatKgUpper(item.totalKg)}</p>
-        <span className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}>
+        <p className="text-[0.78rem] font-black text-[#18479d]">
+          {formatKgUpper(item.totalKg)}
+        </p>
+        <span
+          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}
+        >
           {item.calidad}
         </span>
       </div>
@@ -191,7 +198,11 @@ function BodegaCoffeeRow({
   );
 }
 
-function EmptyDashboardState({ onRegisterPurchase }: { onRegisterPurchase: () => void }) {
+function EmptyDashboardState({
+  onRegisterPurchase,
+}: {
+  onRegisterPurchase: () => void;
+}) {
   return (
     <section className="px-5 pt-6">
       <div className="rounded-[28px] border border-[#e1e8f3] bg-white px-6 py-9 text-center shadow-[0_18px_44px_rgba(15,23,42,0.09)]">
@@ -248,7 +259,11 @@ export default function Inicio() {
       }
 
       if (lotesResult.status === 'fulfilled') {
-        setLotesBodega(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotesResult.value) : lotesResult.value);
+        setLotesBodega(
+          ENABLE_SECADO_PROTOTYPE
+            ? applySecadoToLots(lotesResult.value)
+            : lotesResult.value,
+        );
       } else {
         setLotesBodega([]);
       }
@@ -282,28 +297,56 @@ export default function Inicio() {
       return {
         porcentaje: 0,
         etiqueta: loading ? '...' : '0%',
+        excedida: false,
       };
     }
 
-    const porcentaje = Math.max(0, Math.min(100, (kgActual / kgCapacidad) * 100));
+    const porcentajeReal = Math.max(0, (kgActual / kgCapacidad) * 100);
 
     return {
-      porcentaje,
-      etiqueta: `${Math.round(porcentaje)}%`,
+      porcentaje: Math.min(100, porcentajeReal),
+      etiqueta: `${Math.round(porcentajeReal)}%`,
+      excedida: porcentajeReal > 100,
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
 
   const cafeEnBodega = useMemo(() => {
     const sections: BodegaCoffeeItem[] = [
-      { key: 'VERDE_BUENO', tipo: 'Verde', calidad: 'Bueno', totalKg: 0, lots: 0, averageDays: 0, dayWeight: 0 },
-      { key: 'VERDE_REGULAR', tipo: 'Verde', calidad: 'Regular', totalKg: 0, lots: 0, averageDays: 0, dayWeight: 0 },
-      { key: 'SECO_BUENO', tipo: 'Seco', calidad: 'Bueno', totalKg: 0, lots: 0, averageDays: 0, dayWeight: 0 },
+      {
+        key: 'VERDE_BUENO',
+        tipo: 'Verde',
+        calidad: 'Bueno',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
+      {
+        key: 'VERDE_REGULAR',
+        tipo: 'Verde',
+        calidad: 'Regular',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
+      {
+        key: 'SECO_BUENO',
+        tipo: 'Seco',
+        calidad: 'Bueno',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
     ];
 
     lotesBodega.forEach((lot) => {
       const typeKey = keyOf(lot.tipoCafe);
       const qualityKey = keyOf(lot.calidad);
-      const section = sections.find((item) => item.key === `${typeKey}_${qualityKey}`);
+      const section = sections.find(
+        (item) => item.key === `${typeKey}_${qualityKey}`,
+      );
       if (!section) return;
 
       const weight = Math.max(1, lot.sublotes);
@@ -315,7 +358,10 @@ export default function Inicio() {
     return sections
       .map((section) => ({
         ...section,
-        averageDays: section.totalKg > 0 ? Math.round(section.dayWeight / Math.max(1, section.lots)) : 0,
+        averageDays:
+          section.totalKg > 0
+            ? Math.round(section.dayWeight / Math.max(1, section.lots))
+            : 0,
       }))
       .filter((section) => section.totalKg > 0);
   }, [lotesBodega]);
@@ -357,14 +403,16 @@ export default function Inicio() {
               className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
             >
               {refreshing ? (
-                <LoaderCircle size={13} className="animate-spin text-[#4b5c77]" />
+                <LoaderCircle
+                  size={13}
+                  className="animate-spin text-[#4b5c77]"
+                />
               ) : (
                 <RefreshCcw size={13} className="text-[#4b5c77]" />
               )}
               Recargar
             </button>
           </div>
-
         </header>
 
         {error ? (
@@ -381,7 +429,9 @@ export default function Inicio() {
         ) : null}
 
         {isEmptyDashboard ? (
-          <EmptyDashboardState onRegisterPurchase={() => navigate('/compras')} />
+          <EmptyDashboardState
+            onRegisterPurchase={() => navigate('/compras')}
+          />
         ) : (
           <>
             <section className="px-5 py-3">
@@ -391,15 +441,27 @@ export default function Inicio() {
                 <div className="space-y-2.5">
                   <MetricRow
                     label="Compras hoy:"
-                    value={formatMetric(loading, summary?.comprasHoy ?? null, formatInteger)}
+                    value={formatMetric(
+                      loading,
+                      summary?.comprasHoy ?? null,
+                      formatInteger,
+                    )}
                   />
                   <MetricRow
                     label="Ventas hoy:"
-                    value={formatMetric(loading, summary?.ventasHoy ?? null, formatInteger)}
+                    value={formatMetric(
+                      loading,
+                      summary?.ventasHoy ?? null,
+                      formatInteger,
+                    )}
                   />
                   <MetricRow
                     label="Kg comprados hoy:"
-                    value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)}
+                    value={formatMetric(
+                      loading,
+                      summary?.kgCompradosHoy ?? null,
+                      formatKg,
+                    )}
                   />
                   <MetricRow
                     label="Productores registrados:"
@@ -418,25 +480,35 @@ export default function Inicio() {
 
               <div className={`mt-3 ${cardClass}`}>
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-[0.9rem] font-black text-[#1f2937]">Ocupaci&oacute;n actual</h2>
-                  <span className="text-[1rem] font-black text-[#18479d]">
+                  <h2 className="text-[0.9rem] font-black text-[#1f2937]">
+                    Ocupaci&oacute;n actual
+                  </h2>
+                  <span
+                    className={`text-[1rem] font-black ${ocupacion.excedida ? 'text-[#b42318]' : 'text-[#18479d]'}`}
+                  >
                     {ocupacion.etiqueta}
                   </span>
                 </div>
 
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
                   <div
-                    className="h-full rounded-full bg-[#17489c] transition-[width] duration-500"
+                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacion.excedida ? 'bg-[#d92d20]' : 'bg-[#17489c]'}`}
                     style={{ width: `${ocupacion.porcentaje}%` }}
                   />
                 </div>
 
                 <div className="mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black text-[#74839a]">
                   <span>
-                    {formatMetric(loading, summary?.kgActual ?? null, formatKg)} usados
+                    {formatMetric(loading, summary?.kgActual ?? null, formatKg)}{' '}
+                    usados
                   </span>
                   <span>
-                    {formatMetric(loading, summary?.kgCapacidad ?? null, formatKg)} total
+                    {formatMetric(
+                      loading,
+                      summary?.kgCapacidad ?? null,
+                      formatKg,
+                    )}{' '}
+                    total
                   </span>
                 </div>
               </div>

@@ -15,7 +15,11 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerDashboardSummary, type DashboardMovimiento, type DashboardSummary } from '../services/dashboardService';
+import {
+  obtenerDashboardSummary,
+  type DashboardMovimiento,
+  type DashboardSummary,
+} from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 
 function formatCurrency(value: number) {
@@ -50,8 +54,10 @@ function formatDayShort(value: Date) {
 
 function formatCurrencyShort(value: number) {
   const abs = Math.abs(value);
-  if (abs >= 1000000) return `$${(value / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
-  if (abs >= 1000) return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
+  if (abs >= 1000000)
+    return `$${(value / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
+  if (abs >= 1000)
+    return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
   return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 }
 
@@ -108,7 +114,11 @@ export default function ResumenFinanciero() {
     try {
       setSummary(await obtenerDashboardSummary());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el resumen financiero.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo cargar el resumen financiero.',
+      );
       setSummary(null);
     } finally {
       setLoading(false);
@@ -131,7 +141,11 @@ export default function ResumenFinanciero() {
       setPassword('');
       await cargar();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo validar la contrasena.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo validar la contrasena.',
+      );
     } finally {
       setLoading(false);
     }
@@ -143,27 +157,42 @@ export default function ResumenFinanciero() {
 
     return [...(summary?.movimientosRecientes ?? [])]
       .filter((item) => {
-        const key = item.id || `${item.tipo}-${item.fecha}-${item.valor}-${item.nombre}`;
+        const key =
+          item.id || `${item.tipo}-${item.fecha}-${item.valor}-${item.nombre}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       })
-      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+      .sort(
+        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+      );
   }, [summary?.movimientosRecientes]);
-  const movimientosRecientes = useMemo(() => movimientos.slice(0, 8), [movimientos]);
+  const movimientosRecientes = useMemo(
+    () => movimientos.slice(0, 8),
+    [movimientos],
+  );
 
   const ventasTotal = summary?.totalVentasHoy ?? 0;
   const gastosTotal = summary?.totalGastosHoy ?? 0;
   const comprasTotal = summary?.totalComprasHoy ?? 0;
   const mermaTotalKg = summary?.mermaTotalKg ?? 0;
-  const hasData = utilidad !== 0 || ventasTotal > 0 || comprasTotal > 0 || gastosTotal > 0 || mermaTotalKg > 0 || movimientos.length > 0;
+  const hasData =
+    utilidad !== 0 ||
+    ventasTotal > 0 ||
+    comprasTotal > 0 ||
+    gastosTotal > 0 ||
+    mermaTotalKg > 0 ||
+    movimientos.length > 0;
   const periodoActual = new Date().toLocaleDateString('es-CO', {
     month: 'long',
     year: 'numeric',
   });
 
   const trend = useMemo(() => {
-    const byDay = new Map<string, { key: string; label: string; time: number; value: number }>();
+    const byDay = new Map<
+      string,
+      { key: string; label: string; time: number; value: number }
+    >();
     for (const item of movimientos) {
       const date = new Date(item.fecha);
       if (Number.isNaN(date.getTime())) continue;
@@ -179,18 +208,18 @@ export default function ResumenFinanciero() {
       byDay.set(key, bucket);
     }
 
-    let buckets = [...byDay.values()]
-      .sort((a, b) => a.time - b.time)
-      .slice(-6);
+    let buckets = [...byDay.values()].sort((a, b) => a.time - b.time).slice(-6);
 
     if (buckets.length === 0) {
       const now = new Date();
-      buckets = [{
-        key: now.toISOString().slice(0, 10),
-        label: formatDayShort(now),
-        time: now.getTime(),
-        value: utilidad,
-      }];
+      buckets = [
+        {
+          key: now.toISOString().slice(0, 10),
+          label: formatDayShort(now),
+          time: now.getTime(),
+          value: utilidad,
+        },
+      ];
     }
 
     const values = buckets.map((bucket) => bucket.value);
@@ -202,24 +231,33 @@ export default function ResumenFinanciero() {
     const range = Math.max(1, max - min);
     const chart = { left: 72, top: 30, width: 292, height: 148 };
     const points = buckets.map((bucket, index) => {
-      const x = buckets.length === 1
-        ? chart.left + chart.width / 2
-        : chart.left + (index / (buckets.length - 1)) * chart.width;
-      const y = chart.top + chart.height - ((bucket.value - min) / range) * chart.height;
+      const x =
+        buckets.length === 1
+          ? chart.left + chart.width / 2
+          : chart.left + (index / (buckets.length - 1)) * chart.width;
+      const y =
+        chart.top +
+        chart.height -
+        ((bucket.value - min) / range) * chart.height;
       return { ...bucket, x, y };
     });
 
     return {
       points,
-      polyline: points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
+      polyline: points
+        .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+        .join(' '),
       zeroY: chart.top + chart.height - ((0 - min) / range) * chart.height,
       yLabels: [rawMax, 0, rawMin]
-        .filter((value, index, list) => list.findIndex((item) => Math.abs(item - value) < 1) === index)
+        .filter(
+          (value, index, list) =>
+            list.findIndex((item) => Math.abs(item - value) < 1) === index,
+        )
         .map((value) => ({
-        value,
-        label: formatCurrencyShort(value),
-        y: chart.top + chart.height - ((value - min) / range) * chart.height,
-      })),
+          value,
+          label: formatCurrencyShort(value),
+          y: chart.top + chart.height - ((value - min) / range) * chart.height,
+        })),
       yAxisTitle: 'Dinero (COP)',
       xAxisTitle: 'Dias con movimiento',
     };
@@ -237,7 +275,9 @@ export default function ResumenFinanciero() {
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 className="text-center text-[1.05rem] font-black text-[#111827]">Resultado financiero</h1>
+          <h1 className="text-center text-[1.05rem] font-black text-[#111827]">
+            Resultado financiero
+          </h1>
           {authorized ? (
             <button
               type="button"
@@ -245,7 +285,10 @@ export default function ResumenFinanciero() {
               className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
               aria-label="Recargar resumen"
             >
-              <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+              <RefreshCcw
+                size={14}
+                className={refreshing ? 'animate-spin' : ''}
+              />
             </button>
           ) : (
             <span />
@@ -263,9 +306,12 @@ export default function ResumenFinanciero() {
             <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
               <Lock size={18} />
             </span>
-            <h2 className="mt-3 text-[1rem] font-black text-[#111827]">Acceso financiero</h2>
+            <h2 className="mt-3 text-[1rem] font-black text-[#111827]">
+              Acceso financiero
+            </h2>
             <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500">
-              Ingresa la contrasena del administrador para ver utilidad, merma y analisis.
+              Ingresa la contrasena del administrador para ver utilidad, merma y
+              analisis.
             </p>
             <input
               type="password"
@@ -292,8 +338,12 @@ export default function ResumenFinanciero() {
           <>
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#64748b]">Dashboard</p>
-                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-[#071126]">Finanzas</h2>
+                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#64748b]">
+                  Dashboard
+                </p>
+                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-[#071126]">
+                  Finanzas
+                </h2>
               </div>
               <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-[#111827] shadow-sm">
                 <CalendarDays size={15} className="text-[#102d92]" />
@@ -304,7 +354,9 @@ export default function ResumenFinanciero() {
             <section className="mt-5 overflow-hidden rounded-[16px] bg-[#0959d8] px-4 py-5 text-white shadow-[0_16px_34px_rgba(9,89,216,0.24)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">Utilidad neta</p>
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">
+                    Utilidad neta
+                  </p>
                   <p className="mt-3 text-[2.15rem] font-black leading-none tracking-normal">
                     {loading ? '...' : formatCurrency(utilidad)}
                   </p>
@@ -376,15 +428,15 @@ export default function ResumenFinanciero() {
                     <Scale size={22} />
                   </span>
                   <div className="min-w-0">
-                  <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
-                    Merma total
-                  </p>
-                  <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
-                    {loading ? '...' : formatKg(mermaTotalKg)}
-                  </p>
-                  <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
-                    Diferencia entre peso comprado y peso final.
-                  </p>
+                    <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
+                      Merma total
+                    </p>
+                    <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
+                      {loading ? '...' : formatKg(mermaTotalKg)}
+                    </p>
+                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
+                      Diferencia entre peso comprado y peso final.
+                    </p>
                   </div>
                 </div>
                 <span className="rounded-full bg-white/80 px-2 py-1 text-[0.56rem] font-black text-amber-700">
@@ -398,8 +450,12 @@ export default function ResumenFinanciero() {
                 <div className="flex items-center gap-2">
                   <LineChart size={15} className="text-[#102d92]" />
                   <div>
-                    <p className="text-[0.82rem] font-black text-[#111827]">Tendencia de utilidad</p>
-                    <p className="text-[0.62rem] font-semibold text-slate-500">Dinero por fecha</p>
+                    <p className="text-[0.82rem] font-black text-[#111827]">
+                      Tendencia de utilidad
+                    </p>
+                    <p className="text-[0.62rem] font-semibold text-slate-500">
+                      Dinero por fecha
+                    </p>
                   </div>
                 </div>
                 <p className="text-[0.56rem] font-black uppercase tracking-[0.1em] text-[#73829a]">
@@ -408,23 +464,68 @@ export default function ResumenFinanciero() {
               </div>
 
               <div className="mt-4 h-[245px]">
-                <svg viewBox="0 0 390 230" className="h-[220px] w-full overflow-visible" role="img" aria-label="Tendencia de utilidad">
-                  <text x="0" y="14" fill="#0f172a" fontSize="11" fontWeight="800">
+                <svg
+                  viewBox="0 0 390 230"
+                  className="h-[220px] w-full overflow-visible"
+                  role="img"
+                  aria-label="Tendencia de utilidad"
+                >
+                  <text
+                    x="0"
+                    y="14"
+                    fill="#0f172a"
+                    fontSize="11"
+                    fontWeight="800"
+                  >
                     {trend.yAxisTitle}
                   </text>
-                  <text x="364" y="228" textAnchor="end" fill="#0f172a" fontSize="11" fontWeight="800">
+                  <text
+                    x="364"
+                    y="228"
+                    textAnchor="end"
+                    fill="#0f172a"
+                    fontSize="11"
+                    fontWeight="800"
+                  >
                     Fecha
                   </text>
                   {trend.yLabels.map((tick) => (
                     <g key={tick.label}>
-                      <text x="0" y={tick.y + 4} fill="#475569" fontSize="11" fontWeight="700">
+                      <text
+                        x="0"
+                        y={tick.y + 4}
+                        fill="#475569"
+                        fontSize="11"
+                        fontWeight="700"
+                      >
                         {tick.label}
                       </text>
-                      <line x1="72" y1={tick.y} x2="364" y2={tick.y} stroke="#e6ecf4" strokeDasharray="5 5" />
+                      <line
+                        x1="72"
+                        y1={tick.y}
+                        x2="364"
+                        y2={tick.y}
+                        stroke="#e6ecf4"
+                        strokeDasharray="5 5"
+                      />
                     </g>
                   ))}
-                  <line x1="72" y1={trend.zeroY} x2="364" y2={trend.zeroY} stroke="#cbd5e1" strokeWidth="1.5" />
-                  <polyline points={trend.polyline} fill="none" stroke="#0f58bd" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  <line
+                    x1="72"
+                    y1={trend.zeroY}
+                    x2="364"
+                    y2={trend.zeroY}
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                  />
+                  <polyline
+                    points={trend.polyline}
+                    fill="none"
+                    stroke="#0f58bd"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                   {trend.points.map((point) => (
                     <g key={point.key}>
                       <text
@@ -437,8 +538,22 @@ export default function ResumenFinanciero() {
                       >
                         {formatCurrencyShort(point.value)}
                       </text>
-                      <circle cx={point.x} cy={point.y} r="6" fill="#0f58bd" stroke="#ffffff" strokeWidth="3" />
-                      <text x={point.x} y="212" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700">
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="6"
+                        fill="#0f58bd"
+                        stroke="#ffffff"
+                        strokeWidth="3"
+                      />
+                      <text
+                        x={point.x}
+                        y="212"
+                        textAnchor="middle"
+                        fill="#475569"
+                        fontSize="11"
+                        fontWeight="700"
+                      >
                         {point.label}
                       </text>
                     </g>
@@ -449,7 +564,9 @@ export default function ResumenFinanciero() {
 
             <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[0.82rem] font-black text-[#111827]">Movimientos recientes</p>
+                <p className="text-[0.82rem] font-black text-[#111827]">
+                  Movimientos recientes
+                </p>
                 <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
                   {movimientosRecientes.length}
                 </span>
@@ -465,20 +582,32 @@ export default function ResumenFinanciero() {
                     const copy = getMovimientoCopy(item);
                     const Icon = copy.icon;
                     return (
-                      <article key={`${item.tipo}-${item.id}`} className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0">
-                        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${copy.tone}`}>
+                      <article
+                        key={`${item.tipo}-${item.id}`}
+                        className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0"
+                      >
+                        <span
+                          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
+                        >
                           <Icon size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[0.82rem] font-black text-[#111827]">{copy.title}</p>
+                          <p className="truncate text-[0.82rem] font-black text-[#111827]">
+                            {copy.title}
+                          </p>
                           <p className="truncate text-[0.68rem] font-semibold text-slate-500">
                             {copy.detail}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[0.62rem] font-semibold text-slate-500">{formatDate(item.fecha)}</p>
-                        <p className={`mt-1 text-[0.74rem] font-black ${copy.amountTone}`}>
-                            {copy.sign ? `${copy.sign} ` : ''}{formatCurrency(item.valor)}
+                          <p className="text-[0.62rem] font-semibold text-slate-500">
+                            {formatDate(item.fecha)}
+                          </p>
+                          <p
+                            className={`mt-1 text-[0.74rem] font-black ${copy.amountTone}`}
+                          >
+                            {copy.sign ? `${copy.sign} ` : ''}
+                            {formatCurrency(item.valor)}
                           </p>
                         </div>
                       </article>

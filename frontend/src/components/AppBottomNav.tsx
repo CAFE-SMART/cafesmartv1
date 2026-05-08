@@ -1,11 +1,22 @@
 import React from 'react';
-import { Settings, ShoppingCart, House, Warehouse, Banknote } from 'lucide-react';
+import {
+  Settings,
+  ShoppingCart,
+  House,
+  Warehouse,
+  Banknote,
+} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const items = [
   { id: 'inicio', label: 'Inicio', path: '/inicio', icon: House },
   { id: 'compras', label: 'Compras', path: '/compras', icon: ShoppingCart },
-  { id: 'inventario', label: 'Inventario', path: '/inventario', icon: Warehouse },
+  {
+    id: 'inventario',
+    label: 'Inventario',
+    path: '/inventario',
+    icon: Warehouse,
+  },
   { id: 'ventas', label: 'Ventas', path: '/ventas', icon: Banknote },
   { id: 'ajustes', label: 'Ajustes', path: '/ajustes', icon: Settings },
 ];
@@ -18,7 +29,7 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-white via-white/95 to-white/0 px-4 pb-3 pt-8">
-      <div className="mx-auto w-full max-w-[390px] rounded-[24px] border border-[#e3e8f2] bg-white/95 p-1.5 shadow-[0_-4px_28px_rgba(15,23,42,0.10)] backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-[430px] rounded-[24px] border border-[#e3e8f2] bg-white/95 p-1.5 shadow-[0_-4px_28px_rgba(15,23,42,0.10)] backdrop-blur-xl">
         <div className="grid grid-cols-5 gap-1">
           {items.map((item) => {
             const isActive = location.pathname === item.path;

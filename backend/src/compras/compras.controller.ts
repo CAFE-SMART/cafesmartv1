@@ -40,6 +40,16 @@ export class ComprasController {
     return this.comprasService.crearCompra(dto, req.user.sub);
   }
 
+  @Post('validar-capacidad')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async validarCapacidad(
+    @Body() dto: CreateCompraDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.comprasService.validarCapacidadCompra(dto, req.user.sub);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)

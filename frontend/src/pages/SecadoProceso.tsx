@@ -1,7 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CalendarDays, CheckCircle2, Play, Save, SunMedium } from 'lucide-react';
-import { getSecadoSession, saveSecadoResults } from '../utils/secadoFlow';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  Play,
+  Save,
+  SunMedium,
+} from 'lucide-react';
+import {
+  createGuidedError,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
+import {
+  getSecadoSession,
+  saveSecadoResults,
+  SecadoValidationError,
+} from '../utils/secadoFlow';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  getTodayLocalDateValue,
+  validateBusinessDateRange,
+} from '../utils/date';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -12,7 +34,8 @@ function kg(value: number) {
 
 function dateInput(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime()))
+    return new Date().toISOString().slice(0, 10);
   return date.toISOString().slice(0, 10);
 }
 
@@ -30,24 +53,79 @@ function QualityDot({ color }: { color: string }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getSecadoGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('fecha')) {
+    return createGuidedError(
+      message,
+      'Revisa la fecha del secado.',
+      'Solo puedes registrar fechas desde 2026 hasta hoy.',
+      'Elige una fecha valida para continuar.',
+    );
+  }
+
+  if (message.includes('salida no puede superar')) {
+    return createGuidedError(
+      message,
+      'La salida supera la entrada.',
+      'El peso seco no puede ser mayor que el cafe que entro al secado.',
+      'Ajusta los kilos de salida.',
+    );
+  }
+
+  if (message.includes('salida seca')) {
+    return createGuidedError(
+      message,
+      'Falta registrar la salida.',
+      'Necesitamos saber cuantos kilos secos quedaron.',
+      'Ingresa al menos un peso de salida.',
+    );
+  }
+
+  return createGuidedError(
+    message,
+    'Revisa el resultado del secado.',
+    'Hay un dato que no podemos guardar asi.',
+    'Ajusta el peso y vuelve a finalizar.',
+  );
+}
+
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
   const [step, setStep] = useState<'config' | 'active' | 'finish'>(
-    searchParams.get('step') === 'finish' || session?.estado === 'READY' ? 'finish' : 'config',
+    searchParams.get('step') === 'finish' || session?.estado === 'READY'
+      ? 'finish'
+      : 'config',
   );
-  const [startDate, setStartDate] = useState(session ? dateInput(session.startedAt) : dateInput(''));
+  const [startDate, setStartDate] = useState(
+    session ? dateInput(session.startedAt) : dateInput(''),
+  );
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
-  const [buenoKg, setBuenoKg] = useState(session?.outputBuenoKg ? String(session.outputBuenoKg) : '');
-  const [regularKg, setRegularKg] = useState(session?.outputRegularKg ? String(session.outputRegularKg) : '');
-  const [maloKg, setMaloKg] = useState(session?.outputMaloKg ? String(session.outputMaloKg) : '');
+  const [buenoKg, setBuenoKg] = useState(
+    session?.outputBuenoKg ? String(session.outputBuenoKg) : '',
+  );
+  const [regularKg, setRegularKg] = useState(
+    session?.outputRegularKg ? String(session.outputRegularKg) : '',
+  );
+  const [maloKg, setMaloKg] = useState(
+    session?.outputMaloKg ? String(session.outputMaloKg) : '',
+  );
   const [withExpense, setWithExpense] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
+    useState(false);
 
   const totalEntrada = useMemo(
-    () => (session ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0) : 0),
+    () =>
+      session
+        ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
+        : 0,
     [session],
   );
   const sourceQuality = keyOf(session?.calidad ?? '');
@@ -55,13 +133,18 @@ export default function SecadoProceso() {
     (quality) => !sourceQuality || sourceQuality === quality,
   );
   const showAllOutputs = visibleQualities.length === 0;
-  const outputQualities = showAllOutputs ? (['BUENO', 'REGULAR', 'MALO'] as const) : visibleQualities;
+  const outputQualities = showAllOutputs
+    ? (['BUENO', 'REGULAR', 'MALO'] as const)
+    : visibleQualities;
   const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
-  const regular = outputQualities.includes('REGULAR') ? Number(regularKg) || 0 : 0;
+  const regular = outputQualities.includes('REGULAR')
+    ? Number(regularKg) || 0
+    : 0;
   const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
   const totalSalida = bueno + regular + malo;
   const merma = Math.max(0, totalEntrada - totalSalida);
-  const mermaPct = totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
+  const mermaPct =
+    totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
   const outputFields = [
     {
       quality: 'BUENO' as const,
@@ -83,8 +166,47 @@ export default function SecadoProceso() {
     },
   ].filter((field) => outputQualities.includes(field.quality));
 
+  const guardarResultadoSecado = () => {
+    if (!sessionId || !session) return;
+
+    try {
+      saveSecadoResults(sessionId, {
+        outputBuenoKg: bueno,
+        outputBuenoHumedad: null,
+        outputRegularKg: regular,
+        outputRegularHumedad: null,
+        outputMaloKg: malo,
+        outputMaloHumedad: null,
+      });
+      setMostrarConfirmacionMermaCero(false);
+      navigate(`/inventario/secado/${sessionId}/resumen`);
+    } catch (err) {
+      if (err instanceof SecadoValidationError) {
+        setError(err.message);
+        return;
+      }
+
+      setError(
+        err instanceof Error ? err.message : 'No se pudo finalizar el secado.',
+      );
+    }
+  };
+
   const finalizar = () => {
     if (!sessionId || !session) return;
+    const fechaInicioValidacion = validateBusinessDateRange(startDate);
+    const fechaFinValidacion = validateBusinessDateRange(endDate);
+
+    if (!fechaInicioValidacion.isValid) {
+      setError(fechaInicioValidacion.message);
+      return;
+    }
+
+    if (!fechaFinValidacion.isValid) {
+      setError(fechaFinValidacion.message);
+      return;
+    }
+
     if (totalSalida <= 0) {
       setError('Registra por lo menos una salida seca.');
       return;
@@ -94,15 +216,13 @@ export default function SecadoProceso() {
       return;
     }
 
-    saveSecadoResults(sessionId, {
-      outputBuenoKg: bueno,
-      outputBuenoHumedad: null,
-      outputRegularKg: regular,
-      outputRegularHumedad: null,
-      outputMaloKg: malo,
-      outputMaloHumedad: null,
-    });
-    navigate(`/inventario/secado/${sessionId}/resumen`);
+    if (round2(totalSalida) === round2(totalEntrada)) {
+      setError(null);
+      setMostrarConfirmacionMermaCero(true);
+      return;
+    }
+
+    guardarResultadoSecado();
   };
 
   const handleBack = () => {
@@ -113,15 +233,19 @@ export default function SecadoProceso() {
 
     navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
   };
+  const fechaSecadoError = error?.includes('fecha') ? error : null;
+  const resultadoSecadoError = fechaSecadoError ? null : error;
 
   if (!session) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
-        <div className="mx-auto w-full max-w-[340px] rounded-[20px] bg-white p-6 text-center shadow-sm">
+        <div className="mx-auto w-full max-w-[430px] rounded-[20px] bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-bold">No encontré el secado en proceso.</p>
           <button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() =>
+              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
+            }
             className="mt-4 h-11 rounded-full bg-[#0647d6] px-5 text-xs font-black text-white"
           >
             Volver a inventario
@@ -133,7 +257,7 @@ export default function SecadoProceso() {
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <div className="mx-auto min-h-screen w-full max-w-[340px] bg-[#fbfbfb]">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfbfb]">
         <header className="relative flex h-12 items-center justify-center px-4">
           <button
             type="button"
@@ -144,7 +268,11 @@ export default function SecadoProceso() {
             <ArrowLeft size={18} />
           </button>
           <h1 className="text-sm font-extrabold">
-            {step === 'config' ? 'Fecha de inicio' : step === 'active' ? 'Secado en proceso' : 'Finalizar el secado'}
+            {step === 'config'
+              ? 'Fecha de inicio'
+              : step === 'active'
+                ? 'Secado en proceso'
+                : 'Finalizar el secado'}
           </h1>
         </header>
 
@@ -153,7 +281,9 @@ export default function SecadoProceso() {
             <section className="relative h-36 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#294730,#d7b46a)] p-4 text-white shadow-sm">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_35%,rgba(255,255,255,.22),transparent_24%),linear-gradient(135deg,rgba(6,29,19,.12),rgba(5,18,45,.55))]" />
               <div className="relative flex h-full items-end">
-                <p className="text-lg font-black drop-shadow">Configuración de secado</p>
+                <p className="text-lg font-black drop-shadow">
+                  Configuración de secado
+                </p>
               </div>
             </section>
 
@@ -166,11 +296,15 @@ export default function SecadoProceso() {
                 <input
                   type="date"
                   value={startDate}
+                  min={BUSINESS_MIN_DATE_VALUE}
+                  max={getTodayLocalDateValue()}
                   onChange={(event) => setStartDate(event.target.value)}
                   className="w-full bg-transparent text-sm font-black outline-none"
                 />
               </div>
-              <p className="mt-3 text-[0.68rem] text-slate-400">Registra cuándo inició el proceso.</p>
+              <p className="mt-3 text-[0.68rem] text-slate-400">
+                Registra cuándo inició el proceso.
+              </p>
             </section>
 
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
@@ -178,13 +312,29 @@ export default function SecadoProceso() {
                 Resumen del secado
               </p>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Total a secar</span>
-                <span className="text-lg font-black text-[#0647d6]">{kg(totalEntrada)}</span>
+                <span className="text-xs font-semibold text-slate-500">
+                  Total a secar
+                </span>
+                <span className="text-lg font-black text-[#0647d6]">
+                  {kg(totalEntrada)}
+                </span>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[0.65rem] font-black">
-                <span><QualityDot color="bg-emerald-500" /> Bueno<br />{sourceQuality === 'BUENO' ? kg(totalEntrada) : '0 kg'}</span>
-                <span><QualityDot color="bg-amber-400" /> Regular<br />{sourceQuality === 'REGULAR' ? kg(totalEntrada) : '0 kg'}</span>
-                <span><QualityDot color="bg-rose-500" /> Malo<br />{sourceQuality === 'MALO' ? kg(totalEntrada) : '0 kg'}</span>
+                <span>
+                  <QualityDot color="bg-emerald-500" /> Bueno
+                  <br />
+                  {sourceQuality === 'BUENO' ? kg(totalEntrada) : '0 kg'}
+                </span>
+                <span>
+                  <QualityDot color="bg-amber-400" /> Regular
+                  <br />
+                  {sourceQuality === 'REGULAR' ? kg(totalEntrada) : '0 kg'}
+                </span>
+                <span>
+                  <QualityDot color="bg-rose-500" /> Malo
+                  <br />
+                  {sourceQuality === 'MALO' ? kg(totalEntrada) : '0 kg'}
+                </span>
               </div>
             </section>
 
@@ -204,16 +354,22 @@ export default function SecadoProceso() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(255,255,255,.75),transparent_18%),linear-gradient(180deg,rgba(255,255,255,.08),rgba(8,24,44,.4))]" />
               <div className="relative flex h-full items-end">
                 <span className="inline-flex items-center gap-2 rounded-[12px] bg-white/80 px-3 py-2 text-xs font-black text-slate-700">
-                  <SunMedium size={17} className="rounded-full bg-[#0647d6] p-1 text-white" />
+                  <SunMedium
+                    size={17}
+                    className="rounded-full bg-[#0647d6] p-1 text-white"
+                  />
                   Proceso Activo
                 </span>
               </div>
             </section>
 
             <div className="mt-8">
-              <h2 className="text-2xl font-black leading-tight">El secado ha iniciado correctamente</h2>
+              <h2 className="text-2xl font-black leading-tight">
+                El secado ha iniciado correctamente
+              </h2>
               <p className="mt-4 text-sm leading-6 text-slate-500">
-                Cuando el proceso finalice, regresa aquí para registrar el resultado del secado.
+                Cuando el proceso finalice, regresa aquí para registrar el
+                resultado del secado.
               </p>
             </div>
 
@@ -239,15 +395,29 @@ export default function SecadoProceso() {
         {step === 'finish' ? (
           <main className="flex flex-col gap-4 px-4 py-4">
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
-              <label className="text-[0.62rem] font-black uppercase text-slate-500">Fecha de inicio</label>
-              <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">{startDate}</div>
-              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">Fecha de finalización</label>
+              <label className="text-[0.62rem] font-black uppercase text-slate-500">
+                Fecha de inicio
+              </label>
+              <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">
+                {startDate}
+              </div>
+              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">
+                Fecha de finalización
+              </label>
               <input
                 type="date"
                 value={endDate}
+                min={BUSINESS_MIN_DATE_VALUE}
+                max={getTodayLocalDateValue()}
                 onChange={(event) => setEndDate(event.target.value)}
                 className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-black outline-none"
               />
+              {fechaSecadoError ? (
+                <InlineGuidedError
+                  message={getSecadoGuidance(fechaSecadoError)}
+                  className="mt-3"
+                />
+              ) : null}
             </section>
 
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
@@ -257,7 +427,9 @@ export default function SecadoProceso() {
               </p>
               {outputFields.map((field) => (
                 <label key={field.quality} className="mt-4 block">
-                  <span className="text-[0.62rem] font-black uppercase text-slate-500">{field.label}</span>
+                  <span className="text-[0.62rem] font-black uppercase text-slate-500">
+                    {field.label}
+                  </span>
                   <input
                     type="number"
                     min="0"
@@ -266,12 +438,19 @@ export default function SecadoProceso() {
                     onChange={(event) => {
                       field.setter(event.target.value);
                       setError(null);
+                      setMostrarConfirmacionMermaCero(false);
                     }}
                     className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
                     placeholder="0"
                   />
                 </label>
               ))}
+              {resultadoSecadoError ? (
+                <InlineGuidedError
+                  message={getSecadoGuidance(resultadoSecadoError)}
+                  className="mt-3"
+                />
+              ) : null}
             </section>
 
             <section className="overflow-hidden rounded-[16px] bg-white shadow-sm">
@@ -281,17 +460,27 @@ export default function SecadoProceso() {
               </div>
               <div className="grid grid-cols-3 gap-2 p-4 text-center">
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Entrada</p>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                    Entrada
+                  </p>
                   <p className="mt-1 text-lg font-black">{kg(totalEntrada)}</p>
                 </div>
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Salida</p>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                    Salida
+                  </p>
                   <p className="mt-1 text-lg font-black">{kg(totalSalida)}</p>
                 </div>
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">Merma</p>
-                  <p className="mt-1 text-lg font-black text-rose-600">{kg(merma)}</p>
-                  <p className="text-[0.65rem] font-black text-rose-400">{mermaPct}%</p>
+                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                    Merma
+                  </p>
+                  <p className="mt-1 text-lg font-black text-rose-600">
+                    {kg(merma)}
+                  </p>
+                  <p className="text-[0.65rem] font-black text-rose-400">
+                    {mermaPct}%
+                  </p>
                 </div>
               </div>
             </section>
@@ -302,8 +491,12 @@ export default function SecadoProceso() {
                   <Save size={16} />
                 </span>
                 <div>
-                  <p className="text-sm font-black">Hubo gastos en el secado?</p>
-                  <p className="text-[0.68rem] text-slate-500">Mano de obra, combustible, etc.</p>
+                  <p className="text-sm font-black">
+                    Hubo gastos en el secado?
+                  </p>
+                  <p className="text-[0.68rem] text-slate-500">
+                    Mano de obra, combustible, etc.
+                  </p>
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -324,8 +517,6 @@ export default function SecadoProceso() {
               </div>
             </section>
 
-            {error ? <p className="text-center text-xs font-bold text-rose-600">{error}</p> : null}
-
             <button
               type="button"
               onClick={finalizar}
@@ -337,6 +528,43 @@ export default function SecadoProceso() {
           </main>
         ) : null}
       </div>
+
+      {mostrarConfirmacionMermaCero ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-6 backdrop-blur-sm">
+          <section className="w-full max-w-[430px] rounded-[24px] bg-white p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <AlertTriangle size={24} strokeWidth={2.5} />
+            </div>
+            <h2 className="mt-4 text-[1.35rem] font-black leading-tight text-slate-950">
+              El peso de salida es igual al de entrada
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Normalmente el cafe pierde peso durante el secado. Estas
+              registrando {kg(totalSalida)} como peso final, igual a los{' '}
+              {kg(totalEntrada)} de entrada.
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-5 text-slate-700">
+              Estas seguro de que ese es el nuevo peso despues del secado?
+            </p>
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={guardarResultadoSecado}
+                className="flex min-h-[52px] w-full items-center justify-center rounded-[16px] bg-[#102d92] px-5 text-sm font-black text-white"
+              >
+                Si, registrar asi
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarConfirmacionMermaCero(false)}
+                className="flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-slate-100 px-5 text-sm font-black text-[#102d92]"
+              >
+                Ajustar peso
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

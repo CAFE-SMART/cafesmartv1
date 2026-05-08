@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --app-font-sans: "Segoe UI", "Inter", "Noto Sans", Roboto, Helvetica, Arial, sans-serif;
+  --app-font-sans:
+    'Segoe UI', 'Inter', 'Noto Sans', Roboto, Helvetica, Arial, sans-serif;
   --app-title-size: clamp(1.85rem, 2.5vw, 2.2rem);
   --app-subtitle-size: clamp(1.35rem, 1.8vw, 1.6rem);
   --app-section-size: 1rem;
@@ -15,7 +16,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   font-family: var(--app-font-sans);
   font-size: 16px;
   line-height: 1.45;

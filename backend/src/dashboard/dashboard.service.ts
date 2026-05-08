@@ -26,7 +26,7 @@ type DashboardSummaryResponse = {
   totalGastosHoy: number;
   totalProductores: number;
   kgActual: number;
-  kgCapacidad: number;
+  kgCapacidad: number | null;
   inventarioPorTipo: Array<{
     tipoCafeId: string;
     tipoCafe: string;
@@ -59,7 +59,6 @@ export class DashboardService {
       totalVentasHoy,
       totalGastosHoy,
       totalProductores,
-      kgActual,
       comprasRecientes,
       ventasRecientes,
       gastosRecientes,
@@ -147,10 +146,6 @@ export class DashboardService {
           deletedAt: null,
         },
       }),
-      this.prisma.inventario.aggregate({
-        _sum: { pesoTotal: true },
-        where: { organizacionId },
-      }),
       this.prisma.compra.findMany({
         where: {
           organizacionId,
@@ -218,7 +213,8 @@ export class DashboardService {
       }),
     ]);
     const kgCapacidad = await this.obtenerCapacidadBodegaKg(organizacionId);
-    const resumenFinanciero = await this.obtenerResumenFinanciero(organizacionId);
+    const resumenFinanciero =
+      await this.obtenerResumenFinanciero(organizacionId);
 
     const movimientosCompras = comprasRecientes.map((compra) => ({
       id: compra.id,
@@ -271,7 +267,10 @@ export class DashboardService {
         return b.orden - a.orden;
       })
       .slice(0, LIMITE_MOVIMIENTOS_RECIENTES)
-      .map(({ orden, ...movimiento }) => movimiento);
+      .map((movimientoConOrden) => {
+        const { orden: _orden, ...movimiento } = movimientoConOrden;
+        return movimiento;
+      });
 
     return {
       comprasHoy,
@@ -282,7 +281,7 @@ export class DashboardService {
       totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
       totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
       totalProductores,
-      kgActual: Number(kgActual._sum.pesoTotal ?? 0),
+      kgActual: resumenFinanciero.kgActual,
       kgCapacidad,
       inventarioPorTipo: resumenFinanciero.inventarioPorTipo,
       utilidadTotalAcumulada: resumenFinanciero.utilidadTotalAcumulada,
@@ -316,6 +315,7 @@ export class DashboardService {
 
     if (sublotes.length === 0) {
       return {
+        kgActual: 0,
         inventarioPorTipo: [],
         utilidadTotalAcumulada: 0,
         mermaTotalKg: 0,
@@ -323,49 +323,53 @@ export class DashboardService {
     }
 
     const subloteIds = sublotes.map((sublote) => sublote.id);
-    const [detallesVenta, gastosSublote, gastosGenerales] = await this.prisma.$transaction([
-      this.prisma.ventaDetalle.findMany({
-        where: {
-          deletedAt: null,
-          subloteId: { in: subloteIds },
-        },
-        select: {
-          subloteId: true,
-          pesoVendido: true,
-          subtotal: true,
-        },
-      }),
-      this.prisma.gastoSublote.findMany({
-        where: {
-          subloteId: { in: subloteIds },
-          gastoOperativo: {
+    const [detallesVenta, gastosSublote, gastosGenerales] =
+      await this.prisma.$transaction([
+        this.prisma.ventaDetalle.findMany({
+          where: {
             deletedAt: null,
-            organizacionId,
+            subloteId: { in: subloteIds },
           },
-        },
-        select: {
-          gastoOperativoId: true,
-          subloteId: true,
-          gastoOperativo: {
-            select: {
-              montoGasto: true,
+          select: {
+            subloteId: true,
+            pesoVendido: true,
+            subtotal: true,
+          },
+        }),
+        this.prisma.gastoSublote.findMany({
+          where: {
+            subloteId: { in: subloteIds },
+            gastoOperativo: {
+              deletedAt: null,
+              organizacionId,
             },
           },
-        },
-      }),
-      this.prisma.gastoOperativo.findMany({
-        where: {
-          organizacionId,
-          deletedAt: null,
-          sublotes: { none: {} },
-        },
-        select: {
-          montoGasto: true,
-        },
-      }),
-    ]);
+          select: {
+            gastoOperativoId: true,
+            subloteId: true,
+            gastoOperativo: {
+              select: {
+                montoGasto: true,
+              },
+            },
+          },
+        }),
+        this.prisma.gastoOperativo.findMany({
+          where: {
+            organizacionId,
+            deletedAt: null,
+            sublotes: { none: {} },
+          },
+          select: {
+            montoGasto: true,
+          },
+        }),
+      ]);
 
-    const ventasPorSublote = new Map<string, { pesoVendido: number; totalVentas: number }>();
+    const ventasPorSublote = new Map<
+      string,
+      { pesoVendido: number; totalVentas: number }
+    >();
     for (const detalle of detallesVenta) {
       const actual = ventasPorSublote.get(detalle.subloteId) ?? {
         pesoVendido: 0,
@@ -392,6 +396,7 @@ export class DashboardService {
 
     let utilidadTotalAcumulada = 0;
     let mermaTotalKg = 0;
+    let kgActual = 0;
     const inventarioPorTipoMap = new Map<
       string,
       { tipoCafeId: string; tipoCafe: string; kgDisponible: number }
@@ -400,6 +405,7 @@ export class DashboardService {
     for (const sublote of sublotes) {
       const pesoInicial = Number(sublote.pesoInicial);
       const pesoActual = Number(sublote.pesoActual);
+      kgActual += pesoActual;
       const venta = ventasPorSublote.get(sublote.id);
       const pesoVendido = venta?.pesoVendido ?? 0;
       const totalVentas = venta?.totalVentas ?? 0;
@@ -409,7 +415,8 @@ export class DashboardService {
       const costoVendido = pesoVendido * costoPorKg;
       const mermaValor = mermaKg * costoPorKg;
       const pesoBase = pesoActual + pesoVendido;
-      const proporcionVendida = pesoBase > 0 ? pesoVendido / pesoBase : pesoVendido > 0 ? 1 : 0;
+      const proporcionVendida =
+        pesoBase > 0 ? pesoVendido / pesoBase : pesoVendido > 0 ? 1 : 0;
       const gastoGeneralAsignado =
         totalGastosGenerales > 0
           ? pesoBaseTotal > 0
@@ -420,7 +427,8 @@ export class DashboardService {
         (gastosPorSublote.get(sublote.id) ?? 0) + gastoGeneralAsignado;
       const gastosRealizados = totalGastos * proporcionVendida;
 
-      utilidadTotalAcumulada += totalVentas - costoVendido - gastosRealizados - mermaValor;
+      utilidadTotalAcumulada +=
+        totalVentas - costoVendido - gastosRealizados - mermaValor;
       mermaTotalKg += mermaKg;
 
       const actual = inventarioPorTipoMap.get(sublote.tipoCafeId) ?? {
@@ -433,6 +441,7 @@ export class DashboardService {
     }
 
     return {
+      kgActual,
       inventarioPorTipo: [...inventarioPorTipoMap.values()],
       utilidadTotalAcumulada,
       mermaTotalKg,
@@ -454,7 +463,8 @@ export class DashboardService {
     for (const sublote of sublotes) {
       pesoBasePorSublote.set(
         sublote.id,
-        Number(sublote.pesoActual) + (ventasPorSublote.get(sublote.id)?.pesoVendido ?? 0),
+        Number(sublote.pesoActual) +
+          (ventasPorSublote.get(sublote.id)?.pesoVendido ?? 0),
       );
     }
 
@@ -475,7 +485,9 @@ export class DashboardService {
       for (const link of links) {
         const pesoBase = pesoBasePorSublote.get(link.subloteId) ?? 0;
         const gastoAsignado =
-          pesoBaseTotal > 0 ? (pesoBase / pesoBaseTotal) * montoGasto : montoGasto / links.length;
+          pesoBaseTotal > 0
+            ? (pesoBase / pesoBaseTotal) * montoGasto
+            : montoGasto / links.length;
         gastosPorSublote.set(
           link.subloteId,
           (gastosPorSublote.get(link.subloteId) ?? 0) + gastoAsignado,
@@ -497,13 +509,17 @@ export class DashboardService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organizacion asignada',
+      );
     }
 
     return usuario.organizacionId;
   }
 
-  private async obtenerCapacidadBodegaKg(organizacionId: string): Promise<number> {
+  private async obtenerCapacidadBodegaKg(
+    organizacionId: string,
+  ): Promise<number | null> {
     const capacidadKgStr = await this.parametrosService.getParametroString(
       'capacidad_bodega',
       organizacionId,
@@ -514,7 +530,7 @@ export class DashboardService {
       return capacidadKg;
     }
 
-    return 3000;
+    return null;
   }
 
   private obtenerRangoHoyBogota(): { inicioDia: Date; finDia: Date } {
