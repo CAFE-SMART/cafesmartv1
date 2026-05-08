@@ -34,6 +34,13 @@ function formatKg(value: number) {
   }).format(value)} kg`;
 }
 
+function formatPercent(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value > 0 && value < 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(value)}%`;
+}
+
 function formatDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
@@ -176,6 +183,8 @@ export default function ResumenFinanciero() {
   const gastosTotal = summary?.totalGastosHoy ?? 0;
   const comprasTotal = summary?.totalComprasHoy ?? 0;
   const mermaTotalKg = summary?.mermaTotalKg ?? 0;
+  const mermaTotalPorcentaje = summary?.mermaTotalPorcentaje ?? 0;
+  const mermaTotalValor = summary?.mermaTotalValor ?? 0;
   const hasData =
     utilidad !== 0 ||
     ventasTotal > 0 ||
@@ -435,7 +444,9 @@ export default function ResumenFinanciero() {
                       {loading ? '...' : formatKg(mermaTotalKg)}
                     </p>
                     <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
-                      Diferencia entre peso comprado y peso final.
+                      {loading
+                        ? 'Calculando impacto.'
+                        : `${formatPercent(mermaTotalPorcentaje)} del peso comprado. Valor: ${formatCurrency(mermaTotalValor)}.`}
                     </p>
                   </div>
                 </div>

@@ -70,7 +70,11 @@ export class GastosService {
     if (!esGastoGeneral) {
       if (!dto.subloteIds || dto.subloteIds.length === 0) {
         throw new BadRequestException(
-          'Debe indicar al menos un subloteId cuando asociarASublotes es true',
+          apiError(
+            'GASTO_SUBLOTES_REQUERIDOS',
+            'Selecciona al menos un sublote para asociar este gasto.',
+            { field: 'subloteIds' },
+          ),
         );
       }
       await this.validarSublotesExistentes(dto.subloteIds, organizacionId);

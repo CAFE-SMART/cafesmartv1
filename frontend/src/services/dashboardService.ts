@@ -10,6 +10,7 @@ export type DashboardMovimiento = {
 };
 
 export type DashboardSummary = {
+  updatedAt: string;
   comprasHoy: number;
   ventasHoy: number;
   gastosHoy: number;
@@ -27,6 +28,8 @@ export type DashboardSummary = {
   }[];
   utilidadTotalAcumulada: number;
   mermaTotalKg: number;
+  mermaTotalPorcentaje: number;
+  mermaTotalValor: number;
   movimientosRecientes: DashboardMovimiento[];
 };
 

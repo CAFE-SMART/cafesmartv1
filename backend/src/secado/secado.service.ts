@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
+import { CrearSecadoDto } from './dto/crear-secado.dto';
 
 type FuenteSecado = {
   id: string;
@@ -20,11 +21,75 @@ type FuenteSecado = {
   costoTotal: Prisma.Decimal;
 };
 
+type TransformarSecadoInput = TransformarSecadoDto & {
+  referenciaSubloteOrigenId?: string;
+};
+
 @Injectable()
 export class SecadoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async transformarSecado(userId: string, dto: TransformarSecadoDto) {
+  async crearSecado(userId: string, dto: CrearSecadoDto) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const sublote = await this.prisma.sublote.findFirst({
+      where: {
+        id: dto.subloteId,
+        deletedAt: null,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        pesoActual: true,
+      },
+    });
+
+    if (!sublote) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+          'El sublote origen no esta disponible para secado.',
+        ),
+      );
+    }
+
+    const pesoEntrada = this.redondear(Number(sublote.pesoActual));
+    if (pesoEntrada <= 0) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_INVENTARIO_INSUFICIENTE',
+          'No hay cafe disponible para secar en este sublote.',
+        ),
+      );
+    }
+
+    if (dto.pesoSalida > pesoEntrada) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SALIDA_MAYOR_ENTRADA',
+          'La salida no puede superar el peso disponible del sublote.',
+          { details: { inputKg: pesoEntrada, outputKg: dto.pesoSalida } },
+        ),
+      );
+    }
+
+    return this.transformarSecado(userId, {
+      sessionId: `secado-${dto.subloteId}-${Date.now()}`,
+      deviceId: 'backend-secado',
+      referenciaSubloteOrigenId: dto.subloteId,
+      fuentes: [{ id: dto.subloteId, pesoKg: pesoEntrada }],
+      salidas: [
+        {
+          calidad: dto.calidadSalida,
+          pesoKg: dto.pesoSalida,
+        },
+      ],
+    } as TransformarSecadoInput);
+  }
+
+  async transformarSecado(userId: string, dto: TransformarSecadoInput) {
     const organizacionId = await this.getOrganizacionId(userId);
     const totalEntrada = this.redondear(
       dto.fuentes.reduce((sum, fuente) => sum + fuente.pesoKg, 0),
@@ -52,6 +117,9 @@ export class SecadoService {
       );
     }
 
+    const totalMermaKg = this.redondear(totalEntrada - totalSalida);
+    const referenciaSecadoId = dto.referenciaSubloteOrigenId ?? dto.sessionId;
+
     return this.prisma.$transaction(
       async (tx) => {
         const localIdsSalida = dto.salidas.map((salida) =>
@@ -75,6 +143,7 @@ export class SecadoService {
             sessionId: dto.sessionId,
             totalEntradaKg: totalEntrada,
             totalSalidaKg: totalSalida,
+            totalMermaKg,
             sublotes: salidasExistentes,
             alreadyProcessed: true,
           };
@@ -225,7 +294,7 @@ export class SecadoService {
               cantidad: -fuenteInput.pesoKg,
               tipoMovimiento: TipoMovimientoInventario.SECADO,
               referenciaTipo: TipoReferenciaInventario.SECADO,
-              referenciaId: dto.sessionId,
+              referenciaId: referenciaSecadoId,
             },
           });
         }
@@ -286,7 +355,7 @@ export class SecadoService {
               cantidad: salida.pesoKg,
               tipoMovimiento: TipoMovimientoInventario.SECADO,
               referenciaTipo: TipoReferenciaInventario.SECADO,
-              referenciaId: dto.sessionId,
+              referenciaId: referenciaSecadoId,
             },
           });
         }
@@ -295,6 +364,7 @@ export class SecadoService {
           sessionId: dto.sessionId,
           totalEntradaKg: totalEntrada,
           totalSalidaKg: totalSalida,
+          totalMermaKg,
           sublotes: sublotesSalida,
           alreadyProcessed: false,
         };

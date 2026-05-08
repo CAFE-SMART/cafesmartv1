@@ -126,6 +126,30 @@ function formatMetric(
   return formatter(value);
 }
 
+function formatUpdatedAgo(updatedAt: string | null, now: number) {
+  if (!updatedAt) {
+    return 'Sin actualizar';
+  }
+
+  const timestamp = new Date(updatedAt).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return 'Actualizacion reciente';
+  }
+
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (seconds < 60) {
+    return `Actualizado hace ${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `Actualizado hace ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  return `Actualizado hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+}
+
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 text-[0.76rem]">
@@ -229,6 +253,53 @@ function EmptyDashboardState({
   );
 }
 
+function DashboardLoadingState() {
+  return (
+    <section className="px-5 pt-6">
+      <div className="rounded-[18px] border border-[#dbe2ee] bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+        <div className="flex items-center gap-3">
+          <LoaderCircle size={18} className="animate-spin text-[#18479d]" />
+          <div>
+            <p className="text-[0.8rem] font-black text-[#1f2937]">
+              Cargando dashboard
+            </p>
+            <p className="mt-1 text-[0.68rem] font-semibold text-[#65758f]">
+              Consultando indicadores e inventario.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DashboardErrorState({
+  onRetry,
+}: {
+  onRetry: () => void;
+}) {
+  return (
+    <section className="px-5 pt-6">
+      <div className="rounded-[18px] border border-rose-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+        <p className="text-[0.8rem] font-black text-[#1f2937]">
+          No se pudo cargar el dashboard
+        </p>
+        <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
+          Presiona Recargar para intentarlo de nuevo.
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#173b9c] px-4 text-[0.78rem] font-black text-white"
+        >
+          <RefreshCcw size={14} />
+          Recargar
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
@@ -237,6 +308,7 @@ export default function Inicio() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const cargarDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -279,6 +351,14 @@ export default function Inicio() {
   useEffect(() => {
     void cargarDashboard();
   }, [cargarDashboard]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNow(Date.now()), 1000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
 
   const handleReload = useCallback(async () => {
     await Promise.allSettled([cargarDashboard(true), refreshHealth()]);
@@ -377,6 +457,11 @@ export default function Inicio() {
     summary.totalGastosHoy === 0 &&
     summary.kgActual === 0 &&
     lotesBodega.length === 0;
+  const dashboardState = loading
+    ? 'loading'
+    : error && !summary
+      ? 'error'
+      : 'valid';
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
@@ -394,6 +479,11 @@ export default function Inicio() {
                 />
                 <span>{resolveCloudLabel(tone)}</span>
               </div>
+              {dashboardState === 'valid' ? (
+                <p className="mt-2 text-[0.68rem] font-bold text-[#72809a]">
+                  {formatUpdatedAgo(summary?.updatedAt ?? null, now)}
+                </p>
+              ) : null}
             </div>
 
             <button
@@ -415,7 +505,13 @@ export default function Inicio() {
           </div>
         </header>
 
-        {error ? (
+        {dashboardState === 'loading' ? <DashboardLoadingState /> : null}
+
+        {dashboardState === 'error' ? (
+          <DashboardErrorState onRetry={() => void handleReload()} />
+        ) : null}
+
+        {dashboardState === 'valid' && error ? (
           <section className="px-5 pb-3">
             <div className="rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-3">
               <p className="text-[0.76rem] font-black text-[#1f2937]">
@@ -428,11 +524,11 @@ export default function Inicio() {
           </section>
         ) : null}
 
-        {isEmptyDashboard ? (
+        {dashboardState === 'valid' && isEmptyDashboard ? (
           <EmptyDashboardState
             onRegisterPurchase={() => navigate('/compras')}
           />
-        ) : (
+        ) : dashboardState === 'valid' ? (
           <>
             <section className="px-5 py-3">
               <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
@@ -541,7 +637,7 @@ export default function Inicio() {
               </div>
             </section>
           </>
-        )}
+        ) : null}
       </div>
 
       <AppBottomNav />

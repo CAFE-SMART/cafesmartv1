@@ -14,11 +14,20 @@ import { SecadoService } from './secado.service';
 import { StartSecadoDto } from './dto/start-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
+import { CrearSecadoDto } from './dto/crear-secado.dto';
 
 @Controller('secado')
 @UseGuards(JwtAuthGuard)
 export class SecadoController {
   constructor(private readonly secadoService: SecadoService) {}
+
+  @Post()
+  crear(
+    @Body() dto: CrearSecadoDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.secadoService.crearSecado(req.user.sub, dto);
+  }
 
   @Post('transformar')
   transformar(

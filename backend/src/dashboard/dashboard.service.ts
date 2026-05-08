@@ -17,6 +17,7 @@ type DashboardMovimiento = {
 };
 
 type DashboardSummaryResponse = {
+  updatedAt: string;
   comprasHoy: number;
   ventasHoy: number;
   gastosHoy: number;
@@ -34,6 +35,8 @@ type DashboardSummaryResponse = {
   }>;
   utilidadTotalAcumulada: number;
   mermaTotalKg: number;
+  mermaTotalPorcentaje: number;
+  mermaTotalValor: number;
   movimientosRecientes: DashboardMovimiento[];
 };
 
@@ -273,6 +276,7 @@ export class DashboardService {
       });
 
     return {
+      updatedAt: new Date().toISOString(),
       comprasHoy,
       ventasHoy,
       gastosHoy,
@@ -286,6 +290,8 @@ export class DashboardService {
       inventarioPorTipo: resumenFinanciero.inventarioPorTipo,
       utilidadTotalAcumulada: resumenFinanciero.utilidadTotalAcumulada,
       mermaTotalKg: resumenFinanciero.mermaTotalKg,
+      mermaTotalPorcentaje: resumenFinanciero.mermaTotalPorcentaje,
+      mermaTotalValor: resumenFinanciero.mermaTotalValor,
       movimientosRecientes,
     };
   }
@@ -319,6 +325,8 @@ export class DashboardService {
         inventarioPorTipo: [],
         utilidadTotalAcumulada: 0,
         mermaTotalKg: 0,
+        mermaTotalPorcentaje: 0,
+        mermaTotalValor: 0,
       };
     }
 
@@ -396,6 +404,8 @@ export class DashboardService {
 
     let utilidadTotalAcumulada = 0;
     let mermaTotalKg = 0;
+    let mermaTotalValor = 0;
+    let pesoInicialTotal = 0;
     let kgActual = 0;
     const inventarioPorTipoMap = new Map<
       string,
@@ -405,6 +415,7 @@ export class DashboardService {
     for (const sublote of sublotes) {
       const pesoInicial = Number(sublote.pesoInicial);
       const pesoActual = Number(sublote.pesoActual);
+      pesoInicialTotal += pesoInicial;
       kgActual += pesoActual;
       const venta = ventasPorSublote.get(sublote.id);
       const pesoVendido = venta?.pesoVendido ?? 0;
@@ -430,6 +441,7 @@ export class DashboardService {
       utilidadTotalAcumulada +=
         totalVentas - costoVendido - gastosRealizados - mermaValor;
       mermaTotalKg += mermaKg;
+      mermaTotalValor += mermaValor;
 
       const actual = inventarioPorTipoMap.get(sublote.tipoCafeId) ?? {
         tipoCafeId: sublote.tipoCafeId,
@@ -445,6 +457,9 @@ export class DashboardService {
       inventarioPorTipo: [...inventarioPorTipoMap.values()],
       utilidadTotalAcumulada,
       mermaTotalKg,
+      mermaTotalPorcentaje:
+        pesoInicialTotal > 0 ? (mermaTotalKg / pesoInicialTotal) * 100 : 0,
+      mermaTotalValor,
     };
   }
 
