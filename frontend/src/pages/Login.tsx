@@ -419,8 +419,12 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
       <main className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 w-full max-w-[480px]">
-          <div className="relative mb-4 sm:mb-6 flex items-start justify-center">
-            <CafeSmartLogo size="sm" compact />
+          <div className="relative mb-7 flex items-start justify-center">
+            <CafeSmartLogo
+              size="md"
+              compact
+              className="animate-[cafesmartFadeScale_360ms_ease-out_both]"
+            />
             <button
               type="button"
               onClick={() => void handleExitApp()}
@@ -432,16 +436,22 @@ export default function Login() {
             </button>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
-          <p className="text-center text-sm text-gray-500 mb-5 sm:mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-            Bienvenido de nuevo a la gestion inteligente de Cafe Smart
-          </p>
+          <div className="animate-[cafesmartFadeUp_380ms_ease-out_120ms_both]">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
+            <p className="text-center text-sm text-gray-500 mb-5 sm:mb-8 mx-auto" style={{ maxWidth: '300px' }}>
+              Bienvenido de nuevo a la gestion inteligente de Cafe Smart
+            </p>
+          </div>
 
           {error ? (
             <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
           ) : null}
 
-          <form onSubmit={handleLogin} noValidate className="space-y-4 sm:space-y-6">
+          <form
+            onSubmit={handleLogin}
+            noValidate
+            className="space-y-4 sm:space-y-6 animate-[cafesmartFadeUp_420ms_ease-out_220ms_both]"
+          >
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Correo electronico
@@ -598,7 +608,7 @@ export default function Login() {
           </form>
 
           {isGoogleAuthEnabled && (
-            <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center">
+            <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center animate-[cafesmartFadeUp_420ms_ease-out_320ms_both]">
               <div className="flex-1 border-t border-gray-200"></div>
               <span className="px-4 text-sm font-semibold text-gray-500">
                 O CONTINUA CON
@@ -608,7 +618,7 @@ export default function Login() {
           )}
 
           {isGoogleAuthEnabled && googleLoading && (
-            <div className="mb-6 flex flex-col items-center justify-center py-8">
+            <div className="mb-6 flex flex-col items-center justify-center py-8 animate-[cafesmartFadeUp_420ms_ease-out_360ms_both]">
               <div className="relative w-16 h-16 mb-4">
                 <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
               </div>
@@ -622,7 +632,7 @@ export default function Login() {
           )}
 
           {isGoogleAuthEnabled && !googleLoading && (
-            <div className="mb-5 sm:mb-6 w-full">
+            <div className="mb-5 sm:mb-6 w-full animate-[cafesmartFadeUp_420ms_ease-out_380ms_both]">
               <div
                 ref={googleButtonRef}
                 className="flex min-h-[44px] w-full items-center justify-center overflow-hidden"
@@ -656,14 +666,14 @@ export default function Login() {
           )}
 
           {!isGoogleAuthEnabled && (
-            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800">
+            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800 animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]">
               El acceso con Google no está disponible porque falta configurar
               <strong> VITE_GOOGLE_CLIENT_ID </strong>
               en el frontend.
             </div>
           )}
 
-          <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600">
+          <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600 animate-[cafesmartFadeUp_420ms_ease-out_420ms_both]">
             ¿No tienes una cuenta?{' '}
             <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
               Regístrate gratis

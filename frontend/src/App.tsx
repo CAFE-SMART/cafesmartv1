@@ -14,6 +14,8 @@ type ErrorBoundaryState = {
   hasError: boolean;
 };
 
+const BOOT_SPLASH_VISIBLE_MS = 2200;
+
 class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -122,7 +124,7 @@ function App() {
   useEffect(() => {
     const timerId = window.setTimeout(() => {
       setShowBootSplash(false);
-    }, 1200);
+    }, BOOT_SPLASH_VISIBLE_MS);
 
     return () => {
       window.clearTimeout(timerId);

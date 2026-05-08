@@ -1,5 +1,3 @@
-import { Coffee } from 'lucide-react';
-
 type CafeSmartLogoProps = {
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
@@ -10,32 +8,17 @@ type CafeSmartLogoProps = {
 
 const sizes = {
   sm: {
-    shell: 'h-[62px] w-[62px]',
-    steamOne: 'top-0 h-7 w-5 border-[3px]',
-    steamTwo: 'top-3 h-6 w-5 border-[3px]',
-    cup: 'bottom-0 h-[40px] w-[52px] rounded-b-[24px] rounded-t-[6px] border-[4px]',
-    handle: 'bottom-[18px] right-0 h-5 w-4 border-[4px]',
-    bean: 'h-4 w-4',
+    shell: 'h-[70px] w-[70px]',
     title: 'text-[1.35rem]',
     subtitle: 'text-[0.7rem]',
   },
   md: {
-    shell: 'h-[86px] w-[86px]',
-    steamOne: 'top-0 h-9 w-7 border-[4px]',
-    steamTwo: 'top-4 h-8 w-6 border-[4px]',
-    cup: 'bottom-0 h-[54px] w-[70px] rounded-b-[32px] rounded-t-[7px] border-[5px]',
-    handle: 'bottom-6 right-0 h-7 w-6 border-[5px]',
-    bean: 'h-6 w-6',
+    shell: 'h-[94px] w-[94px]',
     title: 'text-[2rem]',
     subtitle: 'text-sm',
   },
   lg: {
-    shell: 'h-[118px] w-[118px]',
-    steamOne: 'top-1 h-12 w-9 border-4',
-    steamTwo: 'top-5 h-10 w-8 border-4',
-    cup: 'bottom-1 h-[74px] w-[94px] rounded-b-[42px] rounded-t-[8px] border-[6px]',
-    handle: 'bottom-8 right-1 h-9 w-8 border-[6px]',
-    bean: 'h-8 w-8',
+    shell: 'h-[132px] w-[132px]',
     title: 'text-[42px]',
     subtitle: 'text-[17px]',
   },
@@ -52,25 +35,44 @@ export function CafeSmartLogo({
 
   return (
     <div className={`text-center ${className}`}>
-      <div className={`relative mx-auto flex ${style.shell} items-center justify-center`}>
-        <span
-          className={`absolute ${style.steamOne} rounded-full border-[#2f80ed] border-b-0 opacity-90 animate-[cafesmartSteam_2.2s_ease-in-out_infinite]`}
-          aria-hidden="true"
+      <svg
+        className={`mx-auto ${style.shell} overflow-visible`}
+        viewBox="0 0 120 150"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          className="origin-center animate-[cafesmartSteam_2.6s_ease-in-out_infinite]"
+          d="M72 5C82 9 76 20 59 27C39 35 31 43 39 51C46 58 63 50 78 48C97 45 103 62 84 72C73 78 62 79 54 88"
+          stroke="#1683f7"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        <span
-          className={`absolute ${style.steamTwo} rounded-full border-[#2f80ed] border-b-0 opacity-80 animate-[cafesmartSteam_2.4s_ease-in-out_infinite_160ms]`}
-          aria-hidden="true"
+        <path
+          d="M11 74H83V108C83 127 68 141 47 141C26 141 11 127 11 108V74Z"
+          stroke="#1683f7"
+          strokeWidth="8"
+          strokeLinejoin="round"
         />
-        <div
-          className={`absolute ${style.cup} flex items-center justify-center border-[#2f80ed] bg-white shadow-[0_22px_48px_rgba(37,99,235,0.12)]`}
-        >
-          <Coffee className={`${style.bean} text-[#8b572a]`} strokeWidth={2.4} aria-hidden="true" />
-        </div>
-        <div
-          className={`absolute ${style.handle} rounded-r-full border-l-0 border-[#2f80ed]`}
-          aria-hidden="true"
+        <path
+          d="M83 84H96C106 84 113 91 113 101C113 112 105 120 94 120H83"
+          stroke="#1683f7"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
-      </div>
+        <path
+          d="M49 118C40 112 37 101 42 91C46 82 56 78 68 81C70 92 67 103 59 111C56 114 53 116 49 118Z"
+          fill="#8b572a"
+        />
+        <path
+          d="M48 118C52 103 60 91 68 81"
+          stroke="#6f3f1f"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+      </svg>
 
       {showText ? (
         <p className={`${compact ? 'mt-1' : 'mt-3'} ${style.title} font-black leading-none tracking-normal`}>

@@ -1,6 +1,7 @@
 param(
   [string]$AvdName = "CafeSmart_Pixel_5",
   [string]$TargetId = "emulator-5554",
+  [int]$BootTimeoutSeconds = 300,
   [switch]$ForceWebBuild,
   [switch]$ForceGradleBuild,
   [switch]$LaunchOnly
@@ -43,8 +44,83 @@ function Get-LatestWriteTime {
 function Test-AdbDeviceReady {
   param([string]$AdbPath, [string]$DeviceId)
 
-  $devices = & $AdbPath devices
-  return $devices -match "^$([regex]::Escape($DeviceId))\s+device$"
+  try {
+    $devices = & $AdbPath devices
+    return ($devices -join "`n") -match "(?m)^$([regex]::Escape($DeviceId))\s+device\b"
+  } catch {
+    return $false
+  }
+}
+
+function Get-ConnectedEmulatorId {
+  param([string]$AdbPath)
+
+  try {
+    $devices = & $AdbPath devices
+  } catch {
+    return $null
+  }
+
+  foreach ($line in $devices) {
+    if ($line -match "^(emulator-\d+)\s+device\b") {
+      return $matches[1]
+    }
+  }
+
+  return $null
+}
+
+function Wait-ForAdbDevice {
+  param(
+    [string]$AdbPath,
+    [string]$PreferredDeviceId,
+    [int]$TimeoutSeconds = 90
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+
+  while ((Get-Date) -lt $deadline) {
+    if (Test-AdbDeviceReady -AdbPath $AdbPath -DeviceId $PreferredDeviceId) {
+      return $PreferredDeviceId
+    }
+
+    $connectedEmulator = Get-ConnectedEmulatorId -AdbPath $AdbPath
+    if ($connectedEmulator) {
+      Write-Host "Detectado $connectedEmulator; usando ese emulador para continuar." -ForegroundColor DarkCyan
+      return $connectedEmulator
+    }
+
+    Start-Sleep -Seconds 3
+  }
+
+  throw "ADB no detecto un emulador listo dentro de $TimeoutSeconds segundos."
+}
+
+function Restart-AdbServer {
+  param([string]$AdbPath)
+
+  try {
+    & $AdbPath kill-server | Out-Null
+  } catch {
+    Write-Host "ADB ya estaba detenido." -ForegroundColor DarkCyan
+  }
+
+  Start-Sleep -Seconds 2
+
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      & $AdbPath start-server | Out-Null
+      & $AdbPath devices | Out-Null
+      return
+    } catch {
+      if ($attempt -eq 3) {
+        throw
+      }
+
+      Write-Host "ADB no respondio en el intento $attempt; reintentando..." -ForegroundColor Yellow
+      Start-Sleep -Seconds 3
+    }
+  }
 }
 
 function Wait-ForBootComplete {
@@ -77,8 +153,14 @@ function Wait-ForBootComplete {
 function Clear-AndroidLocks {
   $androidDir = Join-Path $env:USERPROFILE ".android"
   if (Test-Path $androidDir) {
-    Get-ChildItem -Path $androidDir -Filter "*.lock" -Force -ErrorAction SilentlyContinue |
-      Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $androidDir -Filter "*.lock" -Recurse -Force -ErrorAction SilentlyContinue |
+      ForEach-Object {
+        if ($_.PSIsContainer) {
+          Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        } else {
+          Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+        }
+      }
   }
 }
 
@@ -124,8 +206,14 @@ try {
   }
 
   Invoke-Step "Reiniciando ADB" {
-    & $adbPath kill-server | Out-Null
-    & $adbPath start-server | Out-Null
+    Restart-AdbServer -AdbPath $adbPath
+  }
+
+  $connectedTarget = Get-ConnectedEmulatorId -AdbPath $adbPath
+  if ($connectedTarget -and -not (Test-AdbDeviceReady -AdbPath $adbPath -DeviceId $TargetId)) {
+    Write-Host ""
+    Write-Host "==> Usando emulador ya conectado: $connectedTarget" -ForegroundColor DarkCyan
+    $TargetId = $connectedTarget
   }
 
   if (-not (Test-AdbDeviceReady -AdbPath $adbPath -DeviceId $TargetId)) {
@@ -139,13 +227,17 @@ try {
       ) | Out-Null
     }
 
-    Invoke-Step "Esperando a que ADB detecte el emulador" {
-      & $adbPath wait-for-device
+    $detectedTargetId = Invoke-Step "Esperando a que ADB detecte el emulador" {
+      Wait-ForAdbDevice -AdbPath $adbPath -PreferredDeviceId $TargetId
+    }
+
+    if ($detectedTargetId) {
+      $TargetId = $detectedTargetId
     }
   }
 
   Invoke-Step "Esperando a que Android termine de arrancar" {
-    Wait-ForBootComplete -AdbPath $adbPath -DeviceId $TargetId
+    Wait-ForBootComplete -AdbPath $adbPath -DeviceId $TargetId -TimeoutSeconds $BootTimeoutSeconds
   }
 
   Invoke-Step "Desbloqueando el emulador" {
