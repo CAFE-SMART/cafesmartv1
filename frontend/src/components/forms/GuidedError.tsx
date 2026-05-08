@@ -40,10 +40,15 @@ export function InlineGuidedError({
     <div
       id={id}
       role="alert"
+      aria-live="assertive"
       className={`rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.68rem] text-rose-800 shadow-sm ${className}`.trim()}
     >
       <div className="flex items-start gap-2">
-        <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-600" />
+        <AlertCircle
+          size={14}
+          className="mt-0.5 shrink-0 text-rose-600"
+          aria-hidden="true"
+        />
         <div className="leading-snug">
           {message.why ? <p className="font-bold">{message.why}</p> : null}
           {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
@@ -62,11 +67,15 @@ export function FloatingGuidedNotice({
   const guidance = message.action || message.how;
 
   return (
-    <div className="fixed inset-x-0 bottom-20 z-50 px-4">
+    <div
+      className="fixed inset-x-0 bottom-20 z-50 px-4"
+      role="status"
+      aria-live="polite"
+    >
       <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
         <div className="flex items-start gap-2.5 p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-            <AlertCircle size={15} />
+            <AlertCircle size={15} aria-hidden="true" />
           </div>
 
           <div className="min-w-0 flex-1">

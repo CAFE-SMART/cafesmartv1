@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApiRequestError } from '../services/apiService';
+import { AccessibleModal } from '../components/AccessibleModal';
 import {
   listarCompras,
   type CompraListadoItem,
@@ -163,11 +164,15 @@ function FloatingNoticeCard({
   onPrimaryAction: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-20 z-50 px-4">
+    <div
+      className="fixed inset-x-0 bottom-20 z-50 px-4"
+      role="status"
+      aria-live="polite"
+    >
       <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
         <div className="flex items-start gap-2.5 p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-            <AlertCircle size={15} />
+            <AlertCircle size={15} aria-hidden="true" />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -909,14 +914,17 @@ export default function GastosOperativos() {
       </main>
 
       {showConfirmModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+        <AccessibleModal
+          title="Registrar este gasto"
+          description="Confirma que deseas guardar este gasto en el sistema."
+          onClose={cerrarModalConfirmar}
+        >
             <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#2051e5]">
-              <Info size={16} />
+              <Info size={16} aria-hidden="true" />
             </div>
-            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
+            <h2 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
               Registrar este gasto?
-            </h3>
+            </h2>
             <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
               Se guardara este gasto en el sistema{' '}
               {aplicaA === 'SUBLOTES'
@@ -943,19 +951,21 @@ export default function GastosOperativos() {
                 Cancelar
               </button>
             </div>
-          </div>
-        </div>
+        </AccessibleModal>
       ) : null}
 
       {showSuccessModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+        <AccessibleModal
+          title="Gasto registrado con exito"
+          description="El gasto fue guardado correctamente en el sistema."
+          onClose={() => setShowSuccessModal(false)}
+        >
             <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <CheckCircle2 size={16} />
+              <CheckCircle2 size={16} aria-hidden="true" />
             </div>
-            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
+            <h2 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
               Gasto registrado con exito
-            </h3>
+            </h2>
             <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
               El gasto fue guardado correctamente en el sistema.
             </p>
@@ -980,20 +990,25 @@ export default function GastosOperativos() {
                 Ver gastos
               </button>
             </div>
-          </div>
-        </div>
+        </AccessibleModal>
       ) : null}
 
       {showErrorModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm animate-in fade-in">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-2xl animate-in zoom-in-95">
+        <AccessibleModal
+          title="Error al registrar gasto"
+          description={`${showErrorModal.what} ${showErrorModal.action}`}
+          onClose={() => setShowErrorModal(null)}
+        >
             <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-              <AlertCircle size={16} />
+              <AlertCircle size={16} aria-hidden="true" />
             </div>
-            <h3 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
+            <h2 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
               Error al registrar
-            </h3>
-            <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
+            </h2>
+            <p
+              className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500"
+              role="alert"
+            >
               {showErrorModal.what} {showErrorModal.action}
             </p>
             <div className="space-y-2">
@@ -1015,8 +1030,7 @@ export default function GastosOperativos() {
                 Cancelar
               </button>
             </div>
-          </div>
-        </div>
+        </AccessibleModal>
       ) : null}
 
       {floatingNotice ? (

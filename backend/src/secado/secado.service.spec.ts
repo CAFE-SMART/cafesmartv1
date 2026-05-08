@@ -5,7 +5,11 @@ import { SecadoService } from './secado.service';
 describe('SecadoService', () => {
   function crearMocks() {
     const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ organizacionId: 'org-1' }),
+      },
       sublote: {
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
@@ -29,12 +33,6 @@ describe('SecadoService', () => {
     };
 
     const prisma = {
-      user: {
-        findUnique: jest.fn().mockResolvedValue({ organizacionId: 'org-1' }),
-      },
-      sublote: {
-        findFirst: jest.fn(),
-      },
       $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
         callback(tx),
       ),
@@ -44,8 +42,8 @@ describe('SecadoService', () => {
   }
 
   it('valida que el sublote exista y tenga peso disponible', async () => {
-    const { prisma, service } = crearMocks();
-    prisma.sublote.findFirst.mockResolvedValue(null);
+    const { tx, service } = crearMocks();
+    tx.sublote.findFirst.mockResolvedValue(null);
 
     await expect(
       service.crearSecado('user-1', {
@@ -55,7 +53,7 @@ describe('SecadoService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    prisma.sublote.findFirst.mockResolvedValue({ id: 'sub-1', pesoActual: 0 });
+    tx.sublote.findFirst.mockResolvedValue({ id: 'sub-1', pesoActual: 0 });
 
     await expect(
       service.crearSecado('user-1', {
@@ -67,10 +65,10 @@ describe('SecadoService', () => {
   });
 
   it('transforma el sublote a seco, actualiza inventarios y registra trazabilidad', async () => {
-    const { prisma, tx, service } = crearMocks();
+    const { tx, service } = crearMocks();
     const subloteId = '11111111-1111-4111-8111-111111111111';
 
-    prisma.sublote.findFirst.mockResolvedValue({
+    tx.sublote.findFirst.mockResolvedValue({
       id: subloteId,
       pesoActual: 100,
     });

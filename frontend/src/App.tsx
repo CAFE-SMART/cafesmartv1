@@ -109,7 +109,11 @@ function GlobalOfflineNotice() {
 
   return (
     <div className="border-b border-[#ececec] bg-white px-4 py-3">
-      <div className="mx-auto max-w-[390px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
+      <div
+        role="status"
+        aria-live="polite"
+        className="mx-auto max-w-[390px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#4b5563] whitespace-pre-line"
+      >
         Para refrescar los datos necesitas conexión a internet.
         {'\n'}
         Tus cambios están guardados y se sincronizarán automáticamente.
@@ -138,8 +142,13 @@ function App() {
           <AppLoadingScreen />
         ) : (
           <div className="min-h-screen bg-gray-50 text-gray-900">
+            <a href="#app-content" className="skip-link">
+              Saltar al contenido principal
+            </a>
             <GlobalOfflineNotice />
-            <AppRoutes />
+            <div id="app-content" tabIndex={-1}>
+              <AppRoutes />
+            </div>
           </div>
         )}
       </AppErrorBoundary>

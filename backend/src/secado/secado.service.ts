@@ -25,72 +25,103 @@ type TransformarSecadoInput = TransformarSecadoDto & {
   referenciaSubloteOrigenId?: string;
 };
 
+type SecadoDbClient = Prisma.TransactionClient | PrismaService;
+
 @Injectable()
 export class SecadoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async crearSecado(userId: string, dto: CrearSecadoDto) {
-    const organizacionId = await this.getOrganizacionId(userId);
-    const sublote = await this.prisma.sublote.findFirst({
-      where: {
-        id: dto.subloteId,
-        deletedAt: null,
-        compra: {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const organizacionId = await this.getOrganizacionId(userId, tx);
+        const sublote = await tx.sublote.findFirst({
+          where: {
+            id: dto.subloteId,
+            deletedAt: null,
+            compra: {
+              organizacionId,
+              deletedAt: null,
+            },
+          },
+          select: {
+            id: true,
+            pesoActual: true,
+          },
+        });
+
+        if (!sublote) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+              'El sublote origen no esta disponible para secado.',
+            ),
+          );
+        }
+
+        const pesoEntrada = this.redondear(Number(sublote.pesoActual));
+        if (pesoEntrada <= 0) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_INVENTARIO_INSUFICIENTE',
+              'No hay cafe disponible para secar en este sublote.',
+            ),
+          );
+        }
+
+        if (dto.pesoSalida > pesoEntrada) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SALIDA_MAYOR_ENTRADA',
+              'La salida no puede superar el peso disponible del sublote.',
+              { details: { inputKg: pesoEntrada, outputKg: dto.pesoSalida } },
+            ),
+          );
+        }
+
+        return this.transformarSecadoEnTransaccion(
+          tx,
+          userId,
           organizacionId,
-          deletedAt: null,
-        },
+          {
+            sessionId: `secado-${dto.subloteId}-${Date.now()}`,
+            deviceId: 'backend-secado',
+            referenciaSubloteOrigenId: dto.subloteId,
+            fuentes: [{ id: dto.subloteId, pesoKg: pesoEntrada }],
+            salidas: [
+              {
+                calidad: dto.calidadSalida,
+                pesoKg: dto.pesoSalida,
+              },
+            ],
+          } as TransformarSecadoInput,
+        );
       },
-      select: {
-        id: true,
-        pesoActual: true,
-      },
-    });
-
-    if (!sublote) {
-      throw new BadRequestException(
-        apiError(
-          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
-          'El sublote origen no esta disponible para secado.',
-        ),
-      );
-    }
-
-    const pesoEntrada = this.redondear(Number(sublote.pesoActual));
-    if (pesoEntrada <= 0) {
-      throw new BadRequestException(
-        apiError(
-          'SECADO_INVENTARIO_INSUFICIENTE',
-          'No hay cafe disponible para secar en este sublote.',
-        ),
-      );
-    }
-
-    if (dto.pesoSalida > pesoEntrada) {
-      throw new BadRequestException(
-        apiError(
-          'SECADO_SALIDA_MAYOR_ENTRADA',
-          'La salida no puede superar el peso disponible del sublote.',
-          { details: { inputKg: pesoEntrada, outputKg: dto.pesoSalida } },
-        ),
-      );
-    }
-
-    return this.transformarSecado(userId, {
-      sessionId: `secado-${dto.subloteId}-${Date.now()}`,
-      deviceId: 'backend-secado',
-      referenciaSubloteOrigenId: dto.subloteId,
-      fuentes: [{ id: dto.subloteId, pesoKg: pesoEntrada }],
-      salidas: [
-        {
-          calidad: dto.calidadSalida,
-          pesoKg: dto.pesoSalida,
-        },
-      ],
-    } as TransformarSecadoInput);
+      { maxWait: 10000, timeout: 25000 },
+    );
   }
 
   async transformarSecado(userId: string, dto: TransformarSecadoInput) {
-    const organizacionId = await this.getOrganizacionId(userId);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const organizacionId = await this.getOrganizacionId(userId, tx);
+        return this.transformarSecadoEnTransaccion(
+          tx,
+          userId,
+          organizacionId,
+          dto,
+        );
+      },
+      { maxWait: 10000, timeout: 25000 },
+    );
+  }
+
+  private async transformarSecadoEnTransaccion(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    organizacionId: string,
+    dto: TransformarSecadoInput,
+  ) {
     const totalEntrada = this.redondear(
       dto.fuentes.reduce((sum, fuente) => sum + fuente.pesoKg, 0),
     );
@@ -120,257 +151,252 @@ export class SecadoService {
     const totalMermaKg = this.redondear(totalEntrada - totalSalida);
     const referenciaSecadoId = dto.referenciaSubloteOrigenId ?? dto.sessionId;
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        const localIdsSalida = dto.salidas.map((salida) =>
-          this.getSalidaLocalId(dto.sessionId, salida.calidad),
-        );
-        const salidasExistentes = await tx.sublote.findMany({
-          where: {
-            deviceId: dto.deviceId,
-            localId: { in: localIdsSalida },
-            deletedAt: null,
-            compra: {
-              organizacionId,
-              deletedAt: null,
-            },
-          },
-          orderBy: { creadoEn: 'asc' },
-        });
-
-        if (salidasExistentes.length === dto.salidas.length) {
-          return {
-            sessionId: dto.sessionId,
-            totalEntradaKg: totalEntrada,
-            totalSalidaKg: totalSalida,
-            totalMermaKg,
-            sublotes: salidasExistentes,
-            alreadyProcessed: true,
-          };
-        }
-
-        if (salidasExistentes.length > 0) {
-          throw new ConflictException(
-            apiError(
-              'SECADO_SYNC_INCONSISTENTE',
-              'El secado ya fue procesado parcialmente. Refresca el inventario e intenta de nuevo.',
-            ),
-          );
-        }
-
-        const fuentes = await tx.sublote.findMany({
-          where: {
-            id: { in: dto.fuentes.map((fuente) => fuente.id) },
-            deletedAt: null,
-            compra: {
-              organizacionId,
-              deletedAt: null,
-            },
-          },
-          select: {
-            id: true,
-            pesoActual: true,
-            pesoInicial: true,
-            precioKg: true,
-            costoTotal: true,
-            compraId: true,
-            tipoCafeId: true,
-            calidadId: true,
-          },
-        });
-
-        if (fuentes.length !== dto.fuentes.length) {
-          throw new BadRequestException(
-            apiError(
-              'SECADO_SUBLOTE_ORIGEN_INVALIDO',
-              'Uno o varios sublotes origen no estan disponibles para secado.',
-            ),
-          );
-        }
-
-        const fuentesPorId = new Map(
-          fuentes.map((fuente) => [fuente.id, fuente]),
-        );
-
-        for (const fuenteInput of dto.fuentes) {
-          const fuente = fuentesPorId.get(fuenteInput.id);
-          const disponible = this.redondear(Number(fuente?.pesoActual ?? 0));
-
-          if (!fuente || disponible < fuenteInput.pesoKg) {
-            throw new BadRequestException(
-              apiError(
-                'SECADO_INVENTARIO_INSUFICIENTE',
-                'No hay suficiente cafe verde para completar el secado.',
-                {
-                  details: {
-                    subloteId: fuenteInput.id,
-                    disponibleKg: disponible,
-                    solicitadoKg: fuenteInput.pesoKg,
-                  },
-                },
-              ),
-            );
-          }
-        }
-
-        const [tipoSeco, calidades] = await Promise.all([
-          tx.tipoCafe.findUnique({
-            where: { nombre: 'SECO' },
-            select: { id: true },
-          }),
-          tx.calidad.findMany({
-            where: {
-              nombre: { in: dto.salidas.map((salida) => salida.calidad) },
-            },
-            select: { id: true, nombre: true },
-          }),
-        ]);
-
-        if (
-          !tipoSeco ||
-          calidades.length !== new Set(dto.salidas.map((s) => s.calidad)).size
-        ) {
-          throw new BadRequestException(
-            apiError(
-              'SECADO_CATALOGO_INVALIDO',
-              'No encontramos los catalogos necesarios para crear el cafe seco.',
-            ),
-          );
-        }
-
-        const calidadPorNombre = new Map(
-          calidades.map((calidad) => [calidad.nombre, calidad.id]),
-        );
-        const compraId = fuentes[0].compraId;
-        const precioPromedioKg = this.calcularPrecioPromedioEntrada(
-          dto,
-          fuentesPorId,
-        );
-        const sublotesSalida = [];
-
-        for (const fuenteInput of dto.fuentes) {
-          const fuente = fuentesPorId.get(fuenteInput.id)!;
-          const updated = await tx.sublote.updateMany({
-            where: {
-              id: fuente.id,
-              deletedAt: null,
-              pesoActual: { gte: fuenteInput.pesoKg },
-              compra: {
-                organizacionId,
-                deletedAt: null,
-              },
-            },
-            data: {
-              pesoActual: {
-                decrement: fuenteInput.pesoKg,
-              },
-            },
-          });
-
-          if (updated.count === 0) {
-            throw new ConflictException(
-              apiError(
-                'SECADO_INVENTARIO_INSUFICIENTE',
-                'No hay suficiente cafe verde para completar el secado.',
-              ),
-            );
-          }
-
-          await this.actualizarInventario(
-            tx,
-            organizacionId,
-            fuente.tipoCafeId,
-            fuente.calidadId,
-            -fuenteInput.pesoKg,
-          );
-
-          await tx.inventarioMovimiento.create({
-            data: {
-              organizacionId,
-              usuarioId: userId,
-              tipoCafeId: fuente.tipoCafeId,
-              calidadId: fuente.calidadId,
-              subloteId: fuente.id,
-              cantidad: -fuenteInput.pesoKg,
-              tipoMovimiento: TipoMovimientoInventario.SECADO,
-              referenciaTipo: TipoReferenciaInventario.SECADO,
-              referenciaId: referenciaSecadoId,
-            },
-          });
-        }
-
-        for (const salida of dto.salidas) {
-          const calidadId = calidadPorNombre.get(salida.calidad);
-
-          if (!calidadId) {
-            throw new BadRequestException(
-              apiError(
-                'SECADO_CALIDAD_INVALIDA',
-                'La calidad de salida del secado no es valida.',
-              ),
-            );
-          }
-
-          const loteSalida = await this.asegurarLote(
-            tx,
-            organizacionId,
-            tipoSeco.id,
-            calidadId,
-            `SECO ${salida.calidad}`,
-          );
-          const costoTotal = this.redondear(precioPromedioKg * salida.pesoKg);
-          const subloteSalida = await tx.sublote.create({
-            data: {
-              compraId,
-              tipoCafeId: tipoSeco.id,
-              calidadId,
-              idLote: loteSalida.id,
-              pesoInicial: salida.pesoKg,
-              pesoActual: salida.pesoKg,
-              precioKg: precioPromedioKg,
-              costoTotal,
-              humedad: salida.humedad ?? null,
-              deviceId: dto.deviceId,
-              localId: this.getSalidaLocalId(dto.sessionId, salida.calidad),
-            },
-          });
-
-          sublotesSalida.push(subloteSalida);
-
-          await this.actualizarInventario(
-            tx,
-            organizacionId,
-            tipoSeco.id,
-            calidadId,
-            salida.pesoKg,
-          );
-
-          await tx.inventarioMovimiento.create({
-            data: {
-              organizacionId,
-              usuarioId: userId,
-              tipoCafeId: tipoSeco.id,
-              calidadId,
-              subloteId: subloteSalida.id,
-              cantidad: salida.pesoKg,
-              tipoMovimiento: TipoMovimientoInventario.SECADO,
-              referenciaTipo: TipoReferenciaInventario.SECADO,
-              referenciaId: referenciaSecadoId,
-            },
-          });
-        }
-
-        return {
-          sessionId: dto.sessionId,
-          totalEntradaKg: totalEntrada,
-          totalSalidaKg: totalSalida,
-          totalMermaKg,
-          sublotes: sublotesSalida,
-          alreadyProcessed: false,
-        };
-      },
-      { maxWait: 10000, timeout: 25000 },
+    const localIdsSalida = dto.salidas.map((salida) =>
+      this.getSalidaLocalId(dto.sessionId, salida.calidad),
     );
+    const salidasExistentes = await tx.sublote.findMany({
+      where: {
+        deviceId: dto.deviceId,
+        localId: { in: localIdsSalida },
+        deletedAt: null,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      orderBy: { creadoEn: 'asc' },
+    });
+
+    if (salidasExistentes.length === dto.salidas.length) {
+      return {
+        sessionId: dto.sessionId,
+        totalEntradaKg: totalEntrada,
+        totalSalidaKg: totalSalida,
+        totalMermaKg,
+        sublotes: salidasExistentes,
+        alreadyProcessed: true,
+      };
+    }
+
+    if (salidasExistentes.length > 0) {
+      throw new ConflictException(
+        apiError(
+          'SECADO_SYNC_INCONSISTENTE',
+          'El secado ya fue procesado parcialmente. Refresca el inventario e intenta de nuevo.',
+        ),
+      );
+    }
+
+    const fuentes = await tx.sublote.findMany({
+      where: {
+        id: { in: dto.fuentes.map((fuente) => fuente.id) },
+        deletedAt: null,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        pesoActual: true,
+        pesoInicial: true,
+        precioKg: true,
+        costoTotal: true,
+        compraId: true,
+        tipoCafeId: true,
+        calidadId: true,
+      },
+    });
+
+    if (fuentes.length !== dto.fuentes.length) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+          'Uno o varios sublotes origen no estan disponibles para secado.',
+        ),
+      );
+    }
+
+    const fuentesPorId = new Map(
+      fuentes.map((fuente) => [fuente.id, fuente]),
+    );
+
+    for (const fuenteInput of dto.fuentes) {
+      const fuente = fuentesPorId.get(fuenteInput.id);
+      const disponible = this.redondear(Number(fuente?.pesoActual ?? 0));
+
+      if (!fuente || disponible < fuenteInput.pesoKg) {
+        throw new BadRequestException(
+          apiError(
+            'SECADO_INVENTARIO_INSUFICIENTE',
+            'No hay suficiente cafe verde para completar el secado.',
+            {
+              details: {
+                subloteId: fuenteInput.id,
+                disponibleKg: disponible,
+                solicitadoKg: fuenteInput.pesoKg,
+              },
+            },
+          ),
+        );
+      }
+    }
+
+    const [tipoSeco, calidades] = await Promise.all([
+      tx.tipoCafe.findUnique({
+        where: { nombre: 'SECO' },
+        select: { id: true },
+      }),
+      tx.calidad.findMany({
+        where: {
+          nombre: { in: dto.salidas.map((salida) => salida.calidad) },
+        },
+        select: { id: true, nombre: true },
+      }),
+    ]);
+
+    if (
+      !tipoSeco ||
+      calidades.length !== new Set(dto.salidas.map((s) => s.calidad)).size
+    ) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_CATALOGO_INVALIDO',
+          'No encontramos los catalogos necesarios para crear el cafe seco.',
+        ),
+      );
+    }
+
+    const calidadPorNombre = new Map(
+      calidades.map((calidad) => [calidad.nombre, calidad.id]),
+    );
+    const compraId = fuentes[0].compraId;
+    const precioPromedioKg = this.calcularPrecioPromedioEntrada(
+      dto,
+      fuentesPorId,
+    );
+    const sublotesSalida = [];
+
+    for (const fuenteInput of dto.fuentes) {
+      const fuente = fuentesPorId.get(fuenteInput.id)!;
+      const updated = await tx.sublote.updateMany({
+        where: {
+          id: fuente.id,
+          deletedAt: null,
+          pesoActual: { gte: fuenteInput.pesoKg },
+          compra: {
+            organizacionId,
+            deletedAt: null,
+          },
+        },
+        data: {
+          pesoActual: {
+            decrement: fuenteInput.pesoKg,
+          },
+        },
+      });
+
+      if (updated.count === 0) {
+        throw new ConflictException(
+          apiError(
+            'SECADO_INVENTARIO_INSUFICIENTE',
+            'No hay suficiente cafe verde para completar el secado.',
+          ),
+        );
+      }
+
+      await this.actualizarInventario(
+        tx,
+        organizacionId,
+        fuente.tipoCafeId,
+        fuente.calidadId,
+        -fuenteInput.pesoKg,
+      );
+
+      await tx.inventarioMovimiento.create({
+        data: {
+          organizacionId,
+          usuarioId: userId,
+          tipoCafeId: fuente.tipoCafeId,
+          calidadId: fuente.calidadId,
+          subloteId: fuente.id,
+          cantidad: -fuenteInput.pesoKg,
+          tipoMovimiento: TipoMovimientoInventario.SECADO,
+          referenciaTipo: TipoReferenciaInventario.SECADO,
+          referenciaId: referenciaSecadoId,
+        },
+      });
+    }
+
+    for (const salida of dto.salidas) {
+      const calidadId = calidadPorNombre.get(salida.calidad);
+
+      if (!calidadId) {
+        throw new BadRequestException(
+          apiError(
+            'SECADO_CALIDAD_INVALIDA',
+            'La calidad de salida del secado no es valida.',
+          ),
+        );
+      }
+
+      const loteSalida = await this.asegurarLote(
+        tx,
+        organizacionId,
+        tipoSeco.id,
+        calidadId,
+        `SECO ${salida.calidad}`,
+      );
+      const costoTotal = this.redondear(precioPromedioKg * salida.pesoKg);
+      const subloteSalida = await tx.sublote.create({
+        data: {
+          compraId,
+          tipoCafeId: tipoSeco.id,
+          calidadId,
+          idLote: loteSalida.id,
+          pesoInicial: salida.pesoKg,
+          pesoActual: salida.pesoKg,
+          precioKg: precioPromedioKg,
+          costoTotal,
+          humedad: salida.humedad ?? null,
+          deviceId: dto.deviceId,
+          localId: this.getSalidaLocalId(dto.sessionId, salida.calidad),
+        },
+      });
+
+      sublotesSalida.push(subloteSalida);
+
+      await this.actualizarInventario(
+        tx,
+        organizacionId,
+        tipoSeco.id,
+        calidadId,
+        salida.pesoKg,
+      );
+
+      await tx.inventarioMovimiento.create({
+        data: {
+          organizacionId,
+          usuarioId: userId,
+          tipoCafeId: tipoSeco.id,
+          calidadId,
+          subloteId: subloteSalida.id,
+          cantidad: salida.pesoKg,
+          tipoMovimiento: TipoMovimientoInventario.SECADO,
+          referenciaTipo: TipoReferenciaInventario.SECADO,
+          referenciaId: referenciaSecadoId,
+        },
+      });
+    }
+
+    return {
+      sessionId: dto.sessionId,
+      totalEntradaKg: totalEntrada,
+      totalSalidaKg: totalSalida,
+      totalMermaKg,
+      sublotes: sublotesSalida,
+      alreadyProcessed: false,
+    };
   }
 
   async startSecado(
@@ -422,8 +448,11 @@ export class SecadoService {
     return null;
   }
 
-  private async getOrganizacionId(userId: string): Promise<string> {
-    const user = await this.prisma.user.findUnique({
+  private async getOrganizacionId(
+    userId: string,
+    client: SecadoDbClient = this.prisma,
+  ): Promise<string> {
+    const user = await client.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
     });
