@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { apiError } from '../common/errors/api-error';
 import { CreateVentaDto } from './dto/crear-venta.dto';
 import {
   buscarVentaActivaPorSync,
@@ -20,6 +21,7 @@ import {
   SubloteNoEncontradoError,
   VentaConSublotesDuplicadosError,
   VentaEliminadaError,
+  VentaValidacionCriticaError,
 } from './procesar-venta';
 
 @Injectable()
@@ -55,8 +57,15 @@ export class VentasService {
         this.prisma,
       );
     } catch (error) {
+      if (error instanceof VentaValidacionCriticaError) {
+        throw new BadRequestException(
+          apiError(error.code, error.message, { details: error.details }),
+        );
+      }
+
       if (error instanceof VentaConSublotesDuplicadosError) {
         throw new BadRequestException({
+          code: 'VENTA_SUBLOTES_DUPLICADOS',
           message:
             'No es posible registrar la venta porque un mismo sublote aparece repetido.',
           details: {
@@ -67,6 +76,7 @@ export class VentasService {
 
       if (error instanceof SubloteNoEncontradoError) {
         throw new BadRequestException({
+          code: 'VENTA_SUBLOTE_INVALIDO',
           message:
             'Uno o varios sublotes ya no estan disponibles para la venta. Revise el inventario y vuelva a intentarlo.',
           details: {
@@ -77,6 +87,7 @@ export class VentasService {
 
       if (error instanceof ClienteNoEncontradoError) {
         throw new BadRequestException({
+          code: 'VENTA_CLIENTE_INVALIDO',
           message:
             'El cliente seleccionado no esta disponible para esta organizacion. Revise el dato e intente de nuevo.',
           details: {
@@ -87,8 +98,8 @@ export class VentasService {
 
       if (error instanceof StockInsuficienteError) {
         throw new ConflictException({
-          message:
-            'No se pudo completar la venta porque uno o varios sublotes no tienen suficiente cafe disponible.',
+          code: 'INSUFFICIENT_STOCK',
+          message: 'No hay suficiente inventario para realizar la venta',
           details: error.detalles.map((detalle) => ({
             subloteId: detalle.subloteId,
             disponibleKg: detalle.disponibleKg,
@@ -99,22 +110,23 @@ export class VentasService {
 
       if (error instanceof InventarioNoEncontradoError) {
         throw new ConflictException({
-          message:
-            'No pudimos guardar la venta porque falta un registro de inventario para uno de los tipos de cafe vendidos.',
+          code: 'INSUFFICIENT_STOCK',
+          message: 'No hay suficiente inventario para realizar la venta',
           details: error.movimientos,
         });
       }
 
       if (error instanceof InventarioInconsistenteError) {
         throw new ConflictException({
-          message:
-            'No pudimos guardar la venta porque el inventario general no coincide con los sublotes. Revise las existencias e intente de nuevo.',
+          code: 'INSUFFICIENT_STOCK',
+          message: 'No hay suficiente inventario para realizar la venta',
           details: error.movimientos,
         });
       }
 
       if (error instanceof VentaEliminadaError) {
         throw new ConflictException({
+          code: 'VENTA_SYNC_ELIMINADA',
           message:
             'Esta venta ya habia sido registrada y luego anulada. Para evitar duplicados, enviela con un nuevo identificador.',
         });
@@ -139,12 +151,14 @@ export class VentasService {
 
         if (ventaPorSync?.deletedAt !== null) {
           throw new ConflictException({
+            code: 'VENTA_SYNC_ELIMINADA',
             message:
               'Esta venta ya habia sido registrada y luego anulada. Para evitar duplicados, enviela con un nuevo identificador.',
           });
         }
 
         throw new ConflictException({
+          code: 'VENTA_SYNC_CONFLICT',
           message:
             'Ya recibimos una venta con ese identificador de sincronizacion. Revise si el equipo ya la envio antes.',
         });
@@ -168,12 +182,14 @@ export class VentasService {
 
     if (!usuario) {
       throw new UnauthorizedException({
+        code: 'AUTH_USER_NOT_FOUND',
         message: 'No encontramos el usuario que intenta registrar la venta.',
       });
     }
 
     if (!usuario.organizacionId) {
       throw new BadRequestException({
+        code: 'ORGANIZACION_REQUERIDA',
         message:
           'El usuario no tiene una organizacion asociada para registrar ventas.',
       });
@@ -181,6 +197,7 @@ export class VentasService {
 
     if (organizacionId && usuario.organizacionId !== organizacionId) {
       throw new UnauthorizedException({
+        code: 'AUTH_ORGANIZACION_INVALIDA',
         message:
           'El usuario no pertenece a la organizacion indicada para esta venta.',
       });

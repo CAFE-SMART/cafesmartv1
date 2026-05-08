@@ -3,9 +3,10 @@ import { LotesService } from './lotes.service';
 const USER_ID = 'user-1';
 const ORGANIZATION_ID = 'org-1';
 const SUBLOTE_ID = '11111111-1111-4111-8111-111111111111';
+type PrismaServiceMock = ConstructorParameters<typeof LotesService>[0];
 
 function createDecimal(value: number) {
-  return value as any;
+  return value;
 }
 
 function createSublote(gastoAsociado = 0) {
@@ -54,12 +55,17 @@ function createSublote(gastoAsociado = 0) {
   };
 }
 
-function createPrismaMock(options: { gastoGeneral?: number; gastoAsociado?: number }) {
+function createPrismaMock(options: {
+  gastoGeneral?: number;
+  gastoAsociado?: number;
+}) {
   const sublote = createSublote(options.gastoAsociado ?? 0);
 
   return {
     user: {
-      findUnique: jest.fn().mockResolvedValue({ organizacionId: ORGANIZATION_ID }),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ organizacionId: ORGANIZATION_ID }),
     },
     sublote: {
       findFirst: jest.fn().mockResolvedValue(sublote),
@@ -75,21 +81,30 @@ function createPrismaMock(options: { gastoGeneral?: number; gastoAsociado?: numb
       ]),
     },
     gastoOperativo: {
-      findMany: jest.fn().mockResolvedValue(
-        options.gastoGeneral
-          ? [{ montoGasto: createDecimal(options.gastoGeneral) }]
-          : [],
-      ),
+      findMany: jest
+        .fn()
+        .mockResolvedValue(
+          options.gastoGeneral
+            ? [{ montoGasto: createDecimal(options.gastoGeneral) }]
+            : [],
+        ),
     },
-    $transaction: jest.fn((queries: Array<Promise<unknown>>) => Promise.all(queries)),
+    $transaction: jest.fn((queries: Array<Promise<unknown>>) =>
+      Promise.all(queries),
+    ),
   };
 }
 
 describe('LotesService - resultados financieros por sublote', () => {
   it('calcula utilidad sin gastos', async () => {
-    const service = new LotesService(createPrismaMock({}) as any);
+    const service = new LotesService(
+      createPrismaMock({}) as unknown as PrismaServiceMock,
+    );
 
-    const result = await service.obtenerResultadosFinancierosSublote(USER_ID, SUBLOTE_ID);
+    const result = await service.obtenerResultadosFinancierosSublote(
+      USER_ID,
+      SUBLOTE_ID,
+    );
 
     expect(result.mermaKg).toBe(10);
     expect(result.mermaValor).toBe(10000);
@@ -98,18 +113,28 @@ describe('LotesService - resultados financieros por sublote', () => {
   });
 
   it('recalcula utilidad con gasto general asignado al sublote', async () => {
-    const service = new LotesService(createPrismaMock({ gastoGeneral: 10000 }) as any);
+    const service = new LotesService(
+      createPrismaMock({ gastoGeneral: 10000 }) as unknown as PrismaServiceMock,
+    );
 
-    const result = await service.obtenerResultadosFinancierosSublote(USER_ID, SUBLOTE_ID);
+    const result = await service.obtenerResultadosFinancierosSublote(
+      USER_ID,
+      SUBLOTE_ID,
+    );
 
     expect(result.totalGastos).toBe(10000);
     expect(result.utilidadNeta).toBe(130000);
   });
 
   it('recalcula utilidad con gasto asociado al sublote', async () => {
-    const service = new LotesService(createPrismaMock({ gastoAsociado: 5000 }) as any);
+    const service = new LotesService(
+      createPrismaMock({ gastoAsociado: 5000 }) as unknown as PrismaServiceMock,
+    );
 
-    const result = await service.obtenerResultadosFinancierosSublote(USER_ID, SUBLOTE_ID);
+    const result = await service.obtenerResultadosFinancierosSublote(
+      USER_ID,
+      SUBLOTE_ID,
+    );
 
     expect(result.totalGastos).toBe(5000);
     expect(result.utilidadNeta).toBe(135000);

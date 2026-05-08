@@ -19,7 +19,9 @@ export class BodegaService {
   /**
    * Obtiene la configuración de bodega de una organización.
    */
-  async obtenerConfiguracion(organizacionId: string): Promise<ConfiguracionBodega> {
+  async obtenerConfiguracion(
+    organizacionId: string,
+  ): Promise<ConfiguracionBodega> {
     const [nombreBodega, capacidadKgStr] = await Promise.all([
       this.parametrosService.getParametroString(
         'nombre_bodega',
@@ -56,9 +58,7 @@ export class BodegaService {
     }
 
     if (!Number.isFinite(dto.capacidadKg) || dto.capacidadKg <= 0) {
-      throw new BadRequestException(
-        'La capacidad debe ser un número positivo',
-      );
+      throw new BadRequestException('La capacidad debe ser un número positivo');
     }
 
     // Guardar en base de datos

@@ -52,11 +52,15 @@ const frontend = readEnv(FRONTEND_ENV);
 const backend = readEnv(BACKEND_ENV);
 
 if (!frontend) {
-  fail('Falta frontend/.env. Copia frontend/.env.example y completa los valores.');
+  fail(
+    'Falta frontend/.env. Copia frontend/.env.example y completa los valores.',
+  );
 }
 
 if (!backend) {
-  fail('Falta backend/.env. Copia backend/.env.example y completa los valores.');
+  fail(
+    'Falta backend/.env. Copia backend/.env.example y completa los valores.',
+  );
 }
 
 if (!frontend || !backend) {
@@ -72,7 +76,11 @@ try {
   fail('VITE_API_URL no es una URL valida. Ejemplo: http://localhost:3000');
 }
 
-if (parsedApiUrl && parsedApiUrl.protocol !== 'http:' && parsedApiUrl.protocol !== 'https:') {
+if (
+  parsedApiUrl &&
+  parsedApiUrl.protocol !== 'http:' &&
+  parsedApiUrl.protocol !== 'https:'
+) {
   fail('VITE_API_URL debe empezar por http:// o https://.');
 }
 
@@ -82,7 +90,9 @@ if (
   ['localhost', '127.0.0.1'].includes(parsedApiUrl.hostname) &&
   (parsedApiUrl.port || '80') !== backendPort
 ) {
-  fail(`VITE_API_URL apunta al puerto ${parsedApiUrl.port || '80'}, pero backend PORT=${backendPort}.`);
+  fail(
+    `VITE_API_URL apunta al puerto ${parsedApiUrl.port || '80'}, pero backend PORT=${backendPort}.`,
+  );
 }
 
 if (hasPlaceholder(frontend.VITE_GOOGLE_CLIENT_ID)) {
@@ -91,15 +101,23 @@ if (hasPlaceholder(frontend.VITE_GOOGLE_CLIENT_ID)) {
   fail('VITE_GOOGLE_CLIENT_ID no parece un Client ID valido de Google.');
 }
 
-const googleAudiences = (backend.GOOGLE_CLIENT_IDS || backend.GOOGLE_CLIENT_ID || '')
+const googleAudiences = (
+  backend.GOOGLE_CLIENT_IDS ||
+  backend.GOOGLE_CLIENT_ID ||
+  ''
+)
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 
 if (googleAudiences.length === 0 || googleAudiences.some(hasPlaceholder)) {
-  fail('GOOGLE_CLIENT_ID o GOOGLE_CLIENT_IDS no estan configurados con Client IDs reales.');
+  fail(
+    'GOOGLE_CLIENT_ID o GOOGLE_CLIENT_IDS no estan configurados con Client IDs reales.',
+  );
 } else if (!googleAudiences.includes(frontend.VITE_GOOGLE_CLIENT_ID)) {
-  fail('El VITE_GOOGLE_CLIENT_ID del frontend no esta incluido en GOOGLE_CLIENT_IDS del backend.');
+  fail(
+    'El VITE_GOOGLE_CLIENT_ID del frontend no esta incluido en GOOGLE_CLIENT_IDS del backend.',
+  );
 }
 
 if (hasPlaceholder(backend.DATABASE_URL)) {

@@ -1,5 +1,9 @@
 import React from 'react';
-import { formatPhone, getPhoneDigits, isValidPhone } from '../utils/formatPhone';
+import {
+  formatPhone,
+  getPhoneDigits,
+  isValidPhone,
+} from '../utils/formatPhone';
 
 type FormattedPhoneInputProps = {
   id?: string;
@@ -36,19 +40,32 @@ export function FormattedPhoneInput({
   const message = error ?? liveError;
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextDigits = getPhoneDigits(event.target.value);
-    onChange(nextDigits || optional ? (nextDigits ? formatPhone(nextDigits) : '') : '+57');
+    onChange(
+      nextDigits || optional
+        ? nextDigits
+          ? formatPhone(nextDigits)
+          : ''
+        : '+57',
+    );
   };
   const inputClass = `w-full bg-transparent px-4 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName}`;
 
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-2 block text-base font-black text-slate-900">
+      <label
+        htmlFor={id}
+        className="mb-2 block text-base font-black text-slate-900"
+      >
         {label}
-        {optional ? <span className="font-semibold text-slate-500"> (opcional)</span> : null}
+        {optional ? (
+          <span className="font-semibold text-slate-500"> (opcional)</span>
+        ) : null}
       </label>
       <div
         className={`overflow-hidden rounded-[20px] border bg-[#f7f9fd] transition-colors ${
-          message ? 'border-rose-300 bg-rose-50/50' : 'border-[#dde4f1] focus-within:border-[#173ea6]'
+          message
+            ? 'border-rose-300 bg-rose-50/50'
+            : 'border-[#dde4f1] focus-within:border-[#173ea6]'
         }`}
       >
         {message ? (
@@ -77,7 +94,9 @@ export function FormattedPhoneInput({
           />
         )}
       </div>
-      <p className={`mt-2 text-sm font-semibold ${message ? 'text-rose-600' : 'text-slate-500'}`}>
+      <p
+        className={`mt-2 text-sm font-semibold ${message ? 'text-rose-600' : 'text-slate-500'}`}
+      >
         {message ?? hint}
       </p>
     </div>

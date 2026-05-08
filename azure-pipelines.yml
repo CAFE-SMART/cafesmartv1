@@ -1,36 +1,36 @@
 trigger:
-- develop
+  - develop
 
 pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- task: NodeTool@0
-  inputs:
-    versionSpec: '20.x'
-  displayName: 'Install Node.js'
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
+    displayName: 'Install Node.js'
 
-# Instalar pnpm
-- script: |
-    npm install -g pnpm
-  displayName: 'Install pnpm'
+  # Instalar pnpm
+  - script: |
+      npm install -g pnpm
+    displayName: 'Install pnpm'
 
-# Instalar dependencias
-- script: |
-    pnpm install
-  displayName: 'Install dependencies'
+  # Instalar dependencias
+  - script: |
+      pnpm install
+    displayName: 'Install dependencies'
 
-# Ejecutar lint 
-- script: |
-    pnpm run lint
-  displayName: 'Run lint'
+  # Ejecutar lint
+  - script: |
+      pnpm run lint
+    displayName: 'Run lint'
 
-# Ejecutar tests
-- script: |
-    pnpm run test
-  displayName: 'Run tests'
+  # Ejecutar tests
+  - script: |
+      pnpm run test
+    displayName: 'Run tests'
 
-# Build
-- script: |
-    pnpm run build
-  displayName: 'Build project'
+  # Build
+  - script: |
+      pnpm run build
+    displayName: 'Build project'

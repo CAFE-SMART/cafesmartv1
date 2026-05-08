@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 
 // Tests unitarios para la lógica de validación de Compras
 // Estos tests son rápidos porque no renderizan UI, solo prueban la lógica
@@ -6,43 +7,43 @@ import { describe, it, expect } from 'vitest';
 describe('Compras - Validación de Precio Mínimo', () => {
   it('debería rechazar precio menor a 1000', () => {
     const precioKg = 500;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(false);
   });
 
   it('debería aceptar precio de 1000', () => {
     const precioKg = 1000;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(true);
   });
 
   it('debería aceptar precio mayor a 1000', () => {
     const precioKg = 1500;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(true);
   });
 
   it('debería rechazar precio negativo', () => {
     const precioKg = -100;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(false);
   });
 
   it('debería rechazar precio cero', () => {
     const precioKg = 0;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(false);
   });
 
   it('debería rechazar precio NaN', () => {
     const precioKg = NaN;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(false);
   });
 
   it('debería rechazar precio Infinity', () => {
     const precioKg = Infinity;
-    const esValido = Number.isFinite(precioKg) && precioKg >= 1000;
+    const esValido = Number.isFinite(precioKg) && precioKg >= PRECIO_MINIMO_KG;
     expect(esValido).toBe(false);
   });
 });

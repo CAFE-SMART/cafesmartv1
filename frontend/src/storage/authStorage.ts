@@ -39,7 +39,10 @@ export async function clearAuthStorage() {
   ]);
 }
 
-export async function saveRememberedAccount(account: { email: string; name?: string | null }) {
+export async function saveRememberedAccount(account: {
+  email: string;
+  name?: string | null;
+}) {
   await Promise.all([
     setAuthStorageValue(AUTH_STORAGE_KEYS.rememberedEmail, account.email),
     account.name

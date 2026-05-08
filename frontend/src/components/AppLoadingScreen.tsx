@@ -50,7 +50,9 @@ export function AppLoadingScreen() {
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">
           <div className="mx-auto h-16 w-16 rounded-full border-[5px] border-blue-100 border-t-[#1683f7] animate-[appSplashSpin_900ms_linear_infinite]" />
-          <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b]">Cargando...</p>
+          <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b]">
+            Cargando...
+          </p>
           <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">
             Preparando tu experiencia
           </p>
@@ -89,7 +91,12 @@ function DecorativeBottom() {
         fill="none"
         aria-hidden="true"
       >
-        <path d="M45 82C42 60 44 41 55 22" stroke="#6aa7ff" strokeWidth="4" strokeLinecap="round" />
+        <path
+          d="M45 82C42 60 44 41 55 22"
+          stroke="#6aa7ff"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
         <path d="M45 72C30 68 23 60 22 47C35 47 44 55 45 72Z" fill="#7fb5ff" />
         <path d="M50 56C66 51 73 43 72 30C58 30 50 40 50 56Z" fill="#7fb5ff" />
         <path d="M52 39C40 34 35 26 38 15C49 17 55 27 52 39Z" fill="#9ac7ff" />
@@ -101,8 +108,16 @@ function DecorativeBottom() {
         fill="none"
         aria-hidden="true"
       >
-        <path d="M53 145C44 101 46 62 73 17" stroke="#6aa7ff" strokeWidth="5" strokeLinecap="round" />
-        <path d="M48 112C28 104 16 91 17 73C37 73 50 88 48 112Z" fill="#7fb5ff" />
+        <path
+          d="M53 145C44 101 46 62 73 17"
+          stroke="#6aa7ff"
+          strokeWidth="5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M48 112C28 104 16 91 17 73C37 73 50 88 48 112Z"
+          fill="#7fb5ff"
+        />
         <path d="M57 91C80 85 92 72 91 52C68 52 56 69 57 91Z" fill="#7fb5ff" />
         <path d="M66 62C45 55 35 41 39 23C58 27 68 43 66 62Z" fill="#9ac7ff" />
         <circle cx="71" cy="109" r="6" fill="#c46b36" />

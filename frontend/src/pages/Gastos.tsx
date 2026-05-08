@@ -20,10 +20,22 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { SystemSaveError } from '../components/SystemSaveError';
-import { createGuidedErrorFromUi, InlineGuidedError } from '../components/forms/GuidedError';
-import { registrarGastoLocal, type GastoAplicaA, type GastoEstadoPago, type GastoTipo } from '../services/gastosService';
+import {
+  createGuidedErrorFromUi,
+  InlineGuidedError,
+} from '../components/forms/GuidedError';
+import {
+  registrarGastoLocal,
+  type GastoAplicaA,
+  type GastoEstadoPago,
+  type GastoTipo,
+} from '../services/gastosService';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { getTodayLocalDateValue, validateBusinessDateRange } from '../utils/date';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  getTodayLocalDateValue,
+  validateBusinessDateRange,
+} from '../utils/date';
 import { UI_MESSAGES } from '../utils/uiMessages';
 
 type ModalState = 'none' | 'confirm' | 'error' | 'success';
@@ -64,7 +76,10 @@ const FORM_INICIAL: GastoForm = {
 };
 
 function generarId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
 
@@ -87,9 +102,12 @@ function formatoMontoInput(valor: string) {
 }
 
 function resumenLote(lote: LoteResumen) {
-  return `${lote.codigo} · ${lote.tipoCafe} ${lote.calidad} · ${lote.pesoActual.toLocaleString('es-CO', {
-    maximumFractionDigits: 2,
-  })} kg`;
+  return `${lote.codigo} · ${lote.tipoCafe} ${lote.calidad} · ${lote.pesoActual.toLocaleString(
+    'es-CO',
+    {
+      maximumFractionDigits: 2,
+    },
+  )} kg`;
 }
 
 export default function Gastos() {
@@ -101,7 +119,9 @@ export default function Gastos() {
   const [submitting, setSubmitting] = React.useState(false);
   const [lotes, setLotes] = React.useState<LoteResumen[]>([]);
   const [loadingLotes, setLoadingLotes] = React.useState(false);
-  const [loadLotesError, setLoadLotesError] = React.useState<string | null>(null);
+  const [loadLotesError, setLoadLotesError] = React.useState<string | null>(
+    null,
+  );
 
   React.useEffect(() => {
     const cargarLotes = async () => {
@@ -112,7 +132,9 @@ export default function Gastos() {
         setLotes(data.filter((lote) => lote.pesoActual > 0));
       } catch (err) {
         setLoadLotesError(
-          err instanceof Error ? err.message : 'No pude cargar los lotes disponibles.',
+          err instanceof Error
+            ? err.message
+            : 'No pude cargar los lotes disponibles.',
         );
         setLotes([]);
       } finally {
@@ -124,8 +146,13 @@ export default function Gastos() {
   }, []);
 
   const montoNumero = Number(form.monto);
-  const lotesSeleccionados = lotes.filter((lote) => form.lotesIds.includes(lote.id));
-  const fechaValidacion = React.useMemo(() => validateBusinessDateRange(form.fecha), [form.fecha]);
+  const lotesSeleccionados = lotes.filter((lote) =>
+    form.lotesIds.includes(lote.id),
+  );
+  const fechaValidacion = React.useMemo(
+    () => validateBusinessDateRange(form.fecha),
+    [form.fecha],
+  );
 
   const validar = React.useCallback(() => {
     if (!form.concepto.trim()) {
@@ -213,7 +240,9 @@ export default function Gastos() {
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-center text-[1.1rem] font-black text-[#121826]">Registro de Gastos</p>
+            <p className="text-center text-[1.1rem] font-black text-[#121826]">
+              Registro de Gastos
+            </p>
           </div>
           <CloudStatusBadge compact className="max-w-[160px]" />
         </header>
@@ -221,21 +250,35 @@ export default function Gastos() {
         <section className="rounded-[24px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
           <div className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-black text-slate-700">Concepto del gasto</label>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Concepto del gasto
+              </label>
               <input
                 type="text"
                 value={form.concepto}
-                onChange={(event) => setForm((actual) => ({ ...actual, concepto: event.target.value }))}
+                onChange={(event) =>
+                  setForm((actual) => ({
+                    ...actual,
+                    concepto: event.target.value,
+                  }))
+                }
                 placeholder="Ej. Pago de jornaleros - Cosecha Oct"
                 className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-black text-slate-700">Descripción breve</label>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Descripción breve
+              </label>
               <textarea
                 value={form.descripcion}
-                onChange={(event) => setForm((actual) => ({ ...actual, descripcion: event.target.value }))}
+                onChange={(event) =>
+                  setForm((actual) => ({
+                    ...actual,
+                    descripcion: event.target.value,
+                  }))
+                }
                 placeholder="Detalles adicionales..."
                 rows={3}
                 className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
@@ -244,26 +287,43 @@ export default function Gastos() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-700">Monto ($)</label>
+                <label className="mb-2 block text-sm font-black text-slate-700">
+                  Monto ($)
+                </label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={form.monto}
-                  onChange={(event) => setForm((actual) => ({ ...actual, monto: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((actual) => ({
+                      ...actual,
+                      monto: event.target.value,
+                    }))
+                  }
                   placeholder="$ 0.00"
                   className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
                 />
-                <p className="mt-2 text-xs font-semibold text-slate-500">{formatoMontoInput(form.monto)}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  {formatoMontoInput(form.monto)}
+                </p>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-700">Fecha</label>
+                <label className="mb-2 block text-sm font-black text-slate-700">
+                  Fecha
+                </label>
                 <div className="flex items-center gap-3 rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3">
                   <input
                     type="date"
                     value={form.fecha}
+                    min={BUSINESS_MIN_DATE_VALUE}
                     max={getTodayLocalDateValue()}
-                    onChange={(event) => setForm((actual) => ({ ...actual, fecha: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((actual) => ({
+                        ...actual,
+                        fecha: event.target.value,
+                      }))
+                    }
                     className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
                   />
                   <CalendarDays size={16} className="text-slate-400" />
@@ -272,7 +332,9 @@ export default function Gastos() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-black text-slate-700">Tipo de gasto</label>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Tipo de gasto
+              </label>
               <div className="grid grid-cols-3 gap-2">
                 {TIPOS_GASTO.map((tipo) => {
                   const active = form.tipo === tipo.id;
@@ -280,14 +342,18 @@ export default function Gastos() {
                     <button
                       key={tipo.id}
                       type="button"
-                      onClick={() => setForm((actual) => ({ ...actual, tipo: tipo.id }))}
+                      onClick={() =>
+                        setForm((actual) => ({ ...actual, tipo: tipo.id }))
+                      }
                       className={`rounded-[16px] border px-2 py-3 text-[11px] font-black uppercase tracking-[0.04em] ${
                         active
                           ? 'border-[#2558e5] bg-[#eef3ff] text-[#2558e5]'
                           : 'border-[#e2e6f1] bg-white text-slate-500'
                       }`}
                     >
-                      <span className="mb-1 flex justify-center">{tipo.icon}</span>
+                      <span className="mb-1 flex justify-center">
+                        {tipo.icon}
+                      </span>
                       {tipo.label}
                     </button>
                   );
@@ -296,33 +362,60 @@ export default function Gastos() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-black text-slate-700">Estado del pago</label>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                Estado del pago
+              </label>
               <div className="grid grid-cols-2 gap-2 rounded-[16px] bg-[#eef2f8] p-1">
-                {(['PAGADO', 'PENDIENTE'] as GastoEstadoPago[]).map((estado) => {
-                  const active = form.estadoPago === estado;
-                  return (
-                    <button
-                      key={estado}
-                      type="button"
-                      onClick={() => setForm((actual) => ({ ...actual, estadoPago: estado }))}
-                      className={`rounded-[12px] px-3 py-3 text-sm font-black ${
-                        active ? 'bg-white text-[#2558e5] shadow-sm' : 'text-slate-500'
-                      }`}
-                    >
-                      {estado === 'PAGADO' ? 'Pagado' : 'Pendiente'}
-                    </button>
-                  );
-                })}
+                {(['PAGADO', 'PENDIENTE'] as GastoEstadoPago[]).map(
+                  (estado) => {
+                    const active = form.estadoPago === estado;
+                    return (
+                      <button
+                        key={estado}
+                        type="button"
+                        onClick={() =>
+                          setForm((actual) => ({
+                            ...actual,
+                            estadoPago: estado,
+                          }))
+                        }
+                        className={`rounded-[12px] px-3 py-3 text-sm font-black ${
+                          active
+                            ? 'bg-white text-[#2558e5] shadow-sm'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {estado === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                      </button>
+                    );
+                  },
+                )}
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-black text-slate-700">¿A qué aplica este gasto?</label>
+              <label className="mb-2 block text-sm font-black text-slate-700">
+                ¿A qué aplica este gasto?
+              </label>
               <div className="grid grid-cols-2 gap-2">
-                {([
-                  { id: 'GENERAL', label: 'Gasto general', icon: <ReceiptText size={16} /> },
-                  { id: 'SUBLOTES', label: 'Asociar a sublotes', icon: <HandCoins size={16} /> },
-                ] as Array<{ id: GastoAplicaA; label: string; icon: React.ReactNode }>).map((option) => {
+                {(
+                  [
+                    {
+                      id: 'GENERAL',
+                      label: 'Gasto general',
+                      icon: <ReceiptText size={16} />,
+                    },
+                    {
+                      id: 'SUBLOTES',
+                      label: 'Asociar a sublotes',
+                      icon: <HandCoins size={16} />,
+                    },
+                  ] as Array<{
+                    id: GastoAplicaA;
+                    label: string;
+                    icon: React.ReactNode;
+                  }>
+                ).map((option) => {
                   const active = form.aplicaA === option.id;
                   return (
                     <button
@@ -332,7 +425,8 @@ export default function Gastos() {
                         setForm((actual) => ({
                           ...actual,
                           aplicaA: option.id,
-                          lotesIds: option.id === 'GENERAL' ? [] : actual.lotesIds,
+                          lotesIds:
+                            option.id === 'GENERAL' ? [] : actual.lotesIds,
                         }))
                       }
                       className={`rounded-[16px] border px-3 py-4 text-sm font-black ${
@@ -341,7 +435,9 @@ export default function Gastos() {
                           : 'border-[#e2e6f1] bg-white text-slate-500'
                       }`}
                     >
-                      <span className="mb-1 flex justify-center">{option.icon}</span>
+                      <span className="mb-1 flex justify-center">
+                        {option.icon}
+                      </span>
                       {option.label}
                     </button>
                   );
@@ -351,7 +447,9 @@ export default function Gastos() {
 
             {form.aplicaA === 'SUBLOTES' ? (
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-700">Selecciona sublotes o lotes</label>
+                <label className="mb-2 block text-sm font-black text-slate-700">
+                  Selecciona sublotes o lotes
+                </label>
                 <div className="rounded-[18px] border border-[#e2e6f1] bg-[#fbfcff] p-3">
                   {loadingLotes ? (
                     <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -383,12 +481,18 @@ export default function Gastos() {
                             }`}
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-black text-slate-900">{lote.codigo}</p>
-                              <p className="mt-1 text-xs text-slate-500">{resumenLote(lote)}</p>
+                              <p className="text-sm font-black text-slate-900">
+                                {lote.codigo}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {resumenLote(lote)}
+                              </p>
                             </div>
                             <span
                               className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
-                                active ? 'bg-[#2558e5] text-white' : 'bg-slate-100 text-slate-400'
+                                active
+                                  ? 'bg-[#2558e5] text-white'
+                                  : 'bg-slate-100 text-slate-400'
                               }`}
                             >
                               <Check size={14} />
@@ -447,7 +551,9 @@ export default function Gastos() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-[#eef3ff] text-[#2558e5]">
                   <AlertTriangle size={22} />
                 </div>
-                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">¿Registrar este gasto?</h2>
+                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">
+                  ¿Registrar este gasto?
+                </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   Se guardará este gasto en el sistema.
                 </p>
@@ -485,7 +591,9 @@ export default function Gastos() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-600">
                   <CheckCircle2 size={22} />
                 </div>
-                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">{UI_MESSAGES.success.expenseCreated.titulo}</h2>
+                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">
+                  {UI_MESSAGES.success.expenseCreated.titulo}
+                </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   {UI_MESSAGES.success.expenseCreated.mensaje}
                 </p>

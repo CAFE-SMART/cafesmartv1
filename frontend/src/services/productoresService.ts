@@ -25,7 +25,10 @@ export async function crearProductor(payload: GuardarProductorPayload) {
   }) as Promise<ProductorItem>;
 }
 
-export async function actualizarProductor(id: string, payload: GuardarProductorPayload) {
+export async function actualizarProductor(
+  id: string,
+  payload: GuardarProductorPayload,
+) {
   return apiFetch(`/productores/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),

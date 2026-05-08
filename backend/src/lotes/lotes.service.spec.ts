@@ -12,20 +12,30 @@ describe('LotesService - resultados financieros por sublote', () => {
           gastoOperativo: { montoGasto: number };
         }>,
         sublotes: Array<{ id: string; pesoActual: number }>,
-        ventasPorSublote: Map<string, { pesoVendido: number; totalVentas: number }>,
+        ventasPorSublote: Map<
+          string,
+          { pesoVendido: number; totalVentas: number }
+        >,
         gastosGenerales?: Array<{ montoGasto: number }>,
       ) => Map<string, number>;
       calcularGastosGeneralesPorSublote: (
         gastosGenerales: Array<{ montoGasto: number }>,
         sublotes: Array<{ id: string; pesoActual: number }>,
-        ventasPorSublote: Map<string, { pesoVendido: number; totalVentas: number }>,
+        ventasPorSublote: Map<
+          string,
+          { pesoVendido: number; totalVentas: number }
+        >,
       ) => Map<string, number>;
       combinarGastosPorSublote: (
         gastosAsociados: Map<string, number>,
         gastosGenerales: Map<string, number>,
       ) => Map<string, number>;
       calcularFinancieroSubloteResumen: (
-        sublote: { costoTotal: number; pesoInicial: number; pesoActual: number },
+        sublote: {
+          costoTotal: number;
+          pesoInicial: number;
+          pesoActual: number;
+        },
         venta: { pesoVendido: number; totalVentas: number } | undefined,
         totalGastos: number,
       ) => {
@@ -43,7 +53,10 @@ describe('LotesService - resultados financieros por sublote', () => {
       calcularGastosGeneralesPorSublote: (
         gastosGenerales: Array<{ montoGasto: number }>,
         sublotes: Array<{ id: string; pesoActual: number }>,
-        ventasPorSublote: Map<string, { pesoVendido: number; totalVentas: number }>,
+        ventasPorSublote: Map<
+          string,
+          { pesoVendido: number; totalVentas: number }
+        >,
       ) => Map<string, number>;
     }
   ).calcularGastosGeneralesPorSublote.bind(service);
@@ -60,7 +73,11 @@ describe('LotesService - resultados financieros por sublote', () => {
   const calcularFinancieroSubloteResumen = (
     service as unknown as {
       calcularFinancieroSubloteResumen: (
-        sublote: { costoTotal: number; pesoInicial: number; pesoActual: number },
+        sublote: {
+          costoTotal: number;
+          pesoInicial: number;
+          pesoActual: number;
+        },
         venta: { pesoVendido: number; totalVentas: number } | undefined,
         totalGastos: number,
       ) => {
@@ -149,7 +166,10 @@ describe('LotesService - resultados financieros por sublote', () => {
       sublotes,
       ventasPorSublote,
     );
-    const gastosPorSublote = combinarGastosPorSublote(gastosAsociados, gastosGenerales);
+    const gastosPorSublote = combinarGastosPorSublote(
+      gastosAsociados,
+      gastosGenerales,
+    );
     const resultado = calcularFinancieroSubloteResumen(
       subloteBase,
       venta,

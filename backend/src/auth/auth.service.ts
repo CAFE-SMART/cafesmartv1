@@ -12,13 +12,6 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 
-type AuthResponseUser = {
-  id: string;
-  correo: string;
-  nombre: string;
-  organizacionId: string | null;
-};
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -124,7 +117,10 @@ export class AuthService {
       const linkedUser =
         existingUser.googleId === googleSubject
           ? existingUser
-          : await this.usersService.linkGoogleAccount(existingUser.id, googleSubject);
+          : await this.usersService.linkGoogleAccount(
+              existingUser.id,
+              googleSubject,
+            );
 
       return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
     }
@@ -154,7 +150,9 @@ export class AuthService {
    * Valida credenciales tradicionales y devuelve el contrato unificado de sesion.
    */
   async login(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email.trim().toLowerCase());
+    const user = await this.usersService.findByEmail(
+      email.trim().toLowerCase(),
+    );
 
     if (!user) {
       throw new UnauthorizedException({
@@ -265,7 +263,8 @@ export class AuthService {
       return;
     }
 
-    const metaTarget = (error as { meta?: { target?: string[] | string } }).meta?.target;
+    const metaTarget = (error as { meta?: { target?: string[] | string } }).meta
+      ?.target;
     const targets = Array.isArray(metaTarget)
       ? metaTarget.map((item) => String(item))
       : metaTarget
@@ -308,13 +307,23 @@ export class AuthService {
     }
   }
 
-  private async buildAuthResponse(user: { id: string; correo: string; nombre: string; organizacionId: string | null }, message: string) {
+  private async buildAuthResponse(
+    user: {
+      id: string;
+      correo: string;
+      nombre: string;
+      organizacionId: string | null;
+    },
+    message: string,
+  ) {
     const payload = { sub: user.id, email: user.correo };
     const token = this.jwtService.sign(payload);
-    
+
     // Intentar cargar datos adicionales de sesión (organización, tipo, etc.)
     // pero usar los datos del usuario como fuente de verdad principal
-    let sessionData: { organizacion?: { tipo?: string; otroTipoDetalle?: string | null } } = {};
+    const sessionData: {
+      organizacion?: { tipo?: string; otroTipoDetalle?: string | null };
+    } = {};
     try {
       const sessionUser = await this.usersService.findSessionById(user.id);
       if (sessionUser?.organizacion) {
@@ -337,8 +346,8 @@ export class AuthService {
         email: user.correo,
         name: user.nombre,
         organizacionId: user.organizacionId ?? null,
-        tipoOrganizacion: (sessionData.organizacion as any)?.tipo ?? null,
-        otroTipoDetalle: (sessionData.organizacion as any)?.otroTipoDetalle ?? null,
+        tipoOrganizacion: sessionData.organizacion?.tipo ?? null,
+        otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,
       },
     };
   }

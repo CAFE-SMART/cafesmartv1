@@ -1,4 +1,5 @@
 import type { CreateCompraDto } from './dto/crear-compra.dto';
+import { PRECIO_MINIMO_KG } from '../common/business-rules';
 
 export type ContextoCapacidadCompra = {
   capacidadBodegaKg: number;
@@ -50,6 +51,16 @@ type SubloteInput = CreateCompraDto['sublotes'][number];
 type SubloteProcesado = CompraProcesada['sublotes'][number];
 type ResumenCompra = CompraProcesada['compra'];
 
+export class CompraValidacionCriticaError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
 /**
  * Utilidades numericas para operar montos y pesos con precision estable a dos decimales.
  */
@@ -74,15 +85,88 @@ function resolverFechaCompra(fecha?: string): string {
   return new Date().toISOString();
 }
 
+function textoObligatorio(valor: unknown): valor is string {
+  return typeof valor === 'string' && valor.trim().length > 0;
+}
+
+export function validarCompraCritica(input: CreateCompraDto): void {
+  if (!input || typeof input !== 'object') {
+    throw new CompraValidacionCriticaError(
+      'DATOS_OBLIGATORIOS_INCOMPLETOS',
+      'Datos obligatorios faltantes.',
+    );
+  }
+
+  if (!textoObligatorio(input.deviceId) || !textoObligatorio(input.localId)) {
+    throw new CompraValidacionCriticaError(
+      'DATOS_OBLIGATORIOS_INCOMPLETOS',
+      'Datos obligatorios faltantes.',
+    );
+  }
+
+  if (!Array.isArray(input.sublotes) || input.sublotes.length === 0) {
+    throw new CompraValidacionCriticaError(
+      'DATOS_OBLIGATORIOS_INCOMPLETOS',
+      'Debe incluir al menos un sublote.',
+    );
+  }
+
+  for (const [index, sublote] of input.sublotes.entries()) {
+    if (!textoObligatorio(sublote.tipoCafeId)) {
+      throw new CompraValidacionCriticaError(
+        'COMPRA_TIPO_CAFE_INVALIDO',
+        'El tipo de cafe seleccionado no es valido.',
+        { index },
+      );
+    }
+
+    if (!textoObligatorio(sublote.calidadId)) {
+      throw new CompraValidacionCriticaError(
+        'COMPRA_CALIDAD_INVALIDA',
+        'La calidad seleccionada no es valida.',
+        { index },
+      );
+    }
+
+    if (
+      !textoObligatorio(sublote.deviceId) ||
+      !textoObligatorio(sublote.localId)
+    ) {
+      throw new CompraValidacionCriticaError(
+        'DATOS_OBLIGATORIOS_INCOMPLETOS',
+        'Datos obligatorios faltantes.',
+        { index },
+      );
+    }
+
+    if (!Number.isFinite(sublote.pesoInicial) || sublote.pesoInicial <= 0) {
+      throw new CompraValidacionCriticaError(
+        'COMPRA_CANTIDAD_INVALIDA',
+        'La cantidad de la compra debe ser mayor a 0.',
+        { index },
+      );
+    }
+
+    if (
+      !Number.isFinite(sublote.precioKg) ||
+      sublote.precioKg < PRECIO_MINIMO_KG
+    ) {
+      throw new CompraValidacionCriticaError(
+        'COMPRA_PRECIO_INVALIDO',
+        'El precio por kg debe ser mínimo $1,000.',
+        { index },
+      );
+    }
+  }
+}
+
 /**
  * Calcula los valores normalizados de un sublote antes de persistirlo.
  */
 function procesarSublote(sublote: SubloteInput): SubloteProcesado {
   const pesoInicialCenti = aCentiUnidades(sublote.pesoInicial);
   const precioKgCenti = aCentiUnidades(sublote.precioKg);
-  const subtotalCenti = Math.round(
-    (pesoInicialCenti * precioKgCenti) / 100,
-  );
+  const subtotalCenti = Math.round((pesoInicialCenti * precioKgCenti) / 100);
 
   return {
     tipoCafeId: sublote.tipoCafeId,
@@ -135,13 +219,17 @@ export function evaluarCapacidadCompra(
     };
   }
 
-  const inventarioActualCenti = aCentiUnidades(contextoCapacidad.inventarioActualKg);
+  const inventarioActualCenti = aCentiUnidades(
+    contextoCapacidad.inventarioActualKg,
+  );
   const totalKgCenti = aCentiUnidades(totalKg);
   const nuevoTotalCenti = inventarioActualCenti + totalKgCenti;
   const limiteWarningCenti = Math.round(capacidadCenti * 0.8);
   const capacidadBodegaKg = desdeCentiUnidades(capacidadCenti);
   const nuevoTotalKg = desdeCentiUnidades(nuevoTotalCenti);
-  const capacidadRestanteKg = desdeCentiUnidades(capacidadCenti - nuevoTotalCenti);
+  const capacidadRestanteKg = desdeCentiUnidades(
+    capacidadCenti - nuevoTotalCenti,
+  );
   const porcentajeOcupacion = normalizarADosDecimales(
     (nuevoTotalCenti / capacidadCenti) * 100,
   );
@@ -203,7 +291,7 @@ export function crearCapacidadSinValidacion(): EstadoCapacidadCompra {
   return {
     validada: false,
     nivel: 'sin_validacion',
-    mensaje: 'Compra registrada sin validacion de capacidad',
+    mensaje: 'No se pudo validar la capacidad de la bodega',
   };
 }
 
@@ -211,7 +299,8 @@ export function crearCapacidadRequerida(): EstadoCapacidadCompra {
   return {
     validada: false,
     nivel: 'requiere_configuracion',
-    mensaje: 'Registra la capacidad total de la bodega para validar esta compra.',
+    mensaje:
+      'Registra la capacidad total de la bodega para validar esta compra.',
   };
 }
 
@@ -222,6 +311,7 @@ export function procesarCompra(
   input: CreateCompraDto,
   contextoCapacidad?: ContextoCapacidadCompra | null,
 ): CompraProcesada {
+  validarCompraCritica(input);
   const sublotes = input.sublotes.map(procesarSublote);
   const compra = construirCompra(input, sublotes);
 

@@ -5,7 +5,10 @@ type CafeSmartLogoProps = {
   className?: string;
 };
 
-export function CafeSmartLogo({ compact = false, className = '' }: CafeSmartLogoProps) {
+export function CafeSmartLogo({
+  compact = false,
+  className = '',
+}: CafeSmartLogoProps) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`.trim()}>
       <span
@@ -21,7 +24,9 @@ export function CafeSmartLogo({ compact = false, className = '' }: CafeSmartLogo
         />
       </span>
 
-      <span className={`font-black tracking-[-0.02em] text-[#172033] ${compact ? 'text-sm' : 'text-xl'}`}>
+      <span
+        className={`font-black tracking-[-0.02em] text-[#172033] ${compact ? 'text-sm' : 'text-xl'}`}
+      >
         Caf&eacute; Smart
       </span>
     </div>

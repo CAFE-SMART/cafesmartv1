@@ -12,7 +12,10 @@ type ErrorBoundaryState = {
   hasError: boolean;
 };
 
-class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class AppErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
@@ -65,7 +68,9 @@ function GlobalOfflineNotice() {
   const { isOnline } = useCloudStatus();
   const location = useLocation();
 
-  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
+  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(
+    location.pathname,
+  );
 
   if (isOnline || isSubloteDetail) {
     return null;

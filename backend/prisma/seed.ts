@@ -55,8 +55,13 @@ async function main() {
 
   // ── 5. Usuario admin de prueba ──
   const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'admin123';
-  if (process.env.NODE_ENV === 'production' && seedAdminPassword === 'admin123') {
-    throw new Error('Define SEED_ADMIN_PASSWORD antes de ejecutar seed en produccion.');
+  if (
+    process.env.NODE_ENV === 'production' &&
+    seedAdminPassword === 'admin123'
+  ) {
+    throw new Error(
+      'Define SEED_ADMIN_PASSWORD antes de ejecutar seed en produccion.',
+    );
   }
 
   const hashedPassword = await bcrypt.hash(seedAdminPassword, 10);

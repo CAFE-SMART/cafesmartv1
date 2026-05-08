@@ -56,25 +56,34 @@ export default function GastosListado() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
+  const cargar = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
 
-    try {
-      const data = await listarGastos(subloteId);
-      setGastos(subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar los gastos.');
-      setGastos([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [subloteId]);
+      try {
+        const data = await listarGastos(subloteId);
+        setGastos(
+          subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral),
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudieron cargar los gastos.',
+        );
+        setGastos([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [subloteId],
+  );
 
   useEffect(() => {
     void cargar();
@@ -106,7 +115,10 @@ export default function GastosListado() {
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400"
             aria-label="Recargar gastos"
           >
-            <RefreshCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCcw
+              size={14}
+              className={refreshing ? 'animate-spin' : ''}
+            />
           </button>
         </header>
 

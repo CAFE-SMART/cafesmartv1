@@ -72,7 +72,9 @@ export function FloatingGuidedNotice({
           <div className="min-w-0 flex-1">
             <div className="text-[0.72rem] leading-snug text-slate-700">
               {message.why ? <p className="font-bold">{message.why}</p> : null}
-              {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
+              {guidance ? (
+                <p className="mt-0.5 text-rose-700">{guidance}</p>
+              ) : null}
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">

@@ -6,12 +6,14 @@ type ApiErrorDetails = Record<string, string[]>;
 
 type ApiRequestErrorOptions = {
   status: number;
+  code?: string | null;
   field?: string | null;
   details?: ApiErrorDetails | null;
 };
 
 export class ApiRequestError extends Error {
   status: number;
+  code: string | null;
   field: string | null;
   details: ApiErrorDetails | null;
 
@@ -19,6 +21,7 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = 'ApiRequestError';
     this.status = options.status;
+    this.code = options.code ?? null;
     this.field = options.field ?? null;
     this.details = options.details ?? null;
   }
@@ -35,11 +38,11 @@ function normalizarMensaje(message: unknown) {
 function traducirMensajeError(message: unknown, status: number) {
   const texto = normalizarMensaje(message);
 
-  if (!texto) {
-    if (status >= 500) {
-      return 'Surgió un problema interno. Intenta de nuevo.';
-    }
+  if (status >= 500) {
+    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+  }
 
+  if (!texto) {
     if (status === 401) {
       return 'Tu sesion expiro. Ingresa de nuevo.';
     }
@@ -55,19 +58,27 @@ function traducirMensajeError(message: unknown, status: number) {
     return 'No pudimos procesarlo. Intenta de nuevo.';
   }
 
+  if (
+    /terminal|backend|internal server error|server error|stack|exception|prisma|database|endpoint|localhost/i.test(
+      texto,
+    )
+  ) {
+    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+  }
+
   if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto)) {
     return 'Esta opcion aun no esta disponible.';
   }
 
   const mapa: Record<string, string> = {
-    'Internal server error': 'Surgió un problema interno. Intenta de nuevo.',
+    'Internal server error':
+      'No pudimos completar la acción. Vuelve a intentarlo.',
     Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
     Forbidden: 'No tienes permiso para esta accion.',
     'Forbidden resource': 'No tienes permiso para esta opcion.',
     'Not Found': 'No encontramos esa informacion.',
     'Bad Request': 'Revisa los datos e intenta de nuevo.',
-    'Failed to fetch':
-      'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.',
+    'Failed to fetch': 'Revisa la conexión a internet y vuelve a intentarlo.',
   };
 
   return mapa[texto] || texto;
@@ -75,7 +86,8 @@ function traducirMensajeError(message: unknown, status: number) {
 
 function construirBasesApi() {
   const apiBaseConfigurada =
-    (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
+    (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+    'http://localhost:3000';
 
   const candidatas = [apiBaseConfigurada.replace(/\/$/, '')];
 
@@ -111,7 +123,7 @@ function traducirErrorConexion(error: unknown) {
     if (mensaje) return mensaje;
   }
 
-  return 'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.';
+  return 'Revisa la conexión a internet y vuelve a intentarlo.';
 }
 
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
@@ -139,6 +151,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         const mensaje = traducirMensajeError(data?.message, response.status);
         throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
           status: response.status,
+          code: typeof data?.code === 'string' ? data.code : null,
           field: typeof data?.field === 'string' ? data.field : null,
           details:
             data?.details && typeof data.details === 'object'

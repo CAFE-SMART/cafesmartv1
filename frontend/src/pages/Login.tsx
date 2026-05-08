@@ -1,6 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Eye, EyeOff, Loader, Lock, LogIn, Mail } from 'lucide-react';
+import {
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  Loader,
+  Lock,
+  LogIn,
+  Mail,
+} from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { authService, type AuthError } from '../services/authService';
@@ -21,6 +29,19 @@ function normalizeTipoOrganizacion(
   return value ?? null;
 }
 
+type NativeShellWindow = Window & {
+  Capacitor?: {
+    Plugins?: {
+      App?: {
+        exitApp?: () => Promise<void> | void;
+      };
+    };
+  };
+  electronAPI?: {
+    closeApp?: () => void;
+  };
+};
+
 export default function Login() {
   const isGoogleAuthEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const [email, setEmail] = useState('');
@@ -28,7 +49,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
-  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
+  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -47,13 +70,14 @@ export default function Login() {
   };
 
   const handleExitApp = async () => {
-    const capacitorApp = (window as any)?.Capacitor?.Plugins?.App;
+    const nativeWindow = window as NativeShellWindow;
+    const capacitorApp = nativeWindow.Capacitor?.Plugins?.App;
     if (capacitorApp?.exitApp) {
       await capacitorApp.exitApp();
       return;
     }
 
-    const electronApi = (window as any)?.electronAPI;
+    const electronApi = nativeWindow.electronAPI;
     if (electronApi?.closeApp) {
       electronApi.closeApp();
       return;
@@ -115,7 +139,9 @@ export default function Login() {
           email: data.user.email,
           name: data.user.name,
           organizacionId: data.user.organizacionId ?? null,
-          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+          tipoOrganizacion: normalizeTipoOrganizacion(
+            data.user.tipoOrganizacion,
+          ),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
@@ -160,7 +186,9 @@ export default function Login() {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccess = async (
+    credentialResponse: CredentialResponse,
+  ) => {
     setError(null);
     setEmailFieldError(null);
     setPasswordFieldError(null);
@@ -181,7 +209,9 @@ export default function Login() {
           email: data.user.email,
           name: data.user.name,
           organizacionId: data.user.organizacionId ?? null,
-          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+          tipoOrganizacion: normalizeTipoOrganizacion(
+            data.user.tipoOrganizacion,
+          ),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
         token: data.access_token,
@@ -273,12 +303,17 @@ export default function Login() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="login-password" className="text-sm font-black text-[#344054]">
+                  <label
+                    htmlFor="login-password"
+                    className="text-sm font-black text-[#344054]"
+                  >
                     Contrase&ntilde;a
                   </label>
                   <button
                     type="button"
-                    onClick={() => setError('Recuperacion no disponible todavia.')}
+                    onClick={() =>
+                      setError('Recuperacion no disponible todavia.')
+                    }
                     className="text-[11px] font-black text-[#274ab8] hover:underline"
                   >
                     &iquest;Olvidaste tu contrase&ntilde;a?
@@ -310,13 +345,17 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowPassword((current) => !current)}
                     className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                    aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                    aria-label={
+                      showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'
+                    }
                   >
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
 
-                {passwordFieldError ? <FieldError message={passwordFieldError} /> : null}
+                {passwordFieldError ? (
+                  <FieldError message={passwordFieldError} />
+                ) : null}
               </div>
 
               <label className="flex items-center gap-3 text-sm text-[#5d6b82]">
@@ -365,7 +404,10 @@ export default function Login() {
 
                 {googleLoading ? (
                   <div className="mt-5 rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-5 text-center">
-                    <Loader size={18} className="mx-auto animate-spin text-[#274ab8]" />
+                    <Loader
+                      size={18}
+                      className="mx-auto animate-spin text-[#274ab8]"
+                    />
                     <p className="mt-2 text-sm font-semibold text-slate-700">
                       Validando Google...
                     </p>
@@ -391,7 +433,10 @@ export default function Login() {
 
             <p className="mt-7 text-center text-sm text-[#5d6b82]">
               &iquest;No tienes una cuenta?{' '}
-              <Link to="/register" className="font-black text-[#274ab8] hover:underline">
+              <Link
+                to="/register"
+                className="font-black text-[#274ab8] hover:underline"
+              >
                 Reg&iacute;strate gratis
               </Link>
             </p>
@@ -416,12 +461,25 @@ const TextField = React.forwardRef<
     icon: React.ReactNode;
   }
 >(function TextField(
-  { id, label, value, onChange, placeholder, type = 'text', autoComplete, error, icon },
+  {
+    id,
+    label,
+    value,
+    onChange,
+    placeholder,
+    type = 'text',
+    autoComplete,
+    error,
+    icon,
+  },
   ref,
 ) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-[0.68rem] font-black text-[#344054]">
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-[0.68rem] font-black text-[#344054]"
+      >
         {label}
       </label>
       <div

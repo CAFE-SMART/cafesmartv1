@@ -10,14 +10,15 @@ export type InventarioResumen = {
  * Usa el endpoint de dashboard que ya devuelve esta información.
  */
 export async function obtenerInventarioResumen(): Promise<InventarioResumen> {
-  const data = await apiFetch('/dashboard/summary') as {
+  const data = (await apiFetch('/dashboard/summary')) as {
     kgActual: number;
     kgCapacidad: number | null;
   };
   return {
     kgActual: Number(data.kgActual) || 0,
-    kgCapacidad: Number.isFinite(Number(data.kgCapacidad)) && Number(data.kgCapacidad) > 0
-      ? Number(data.kgCapacidad)
-      : null,
+    kgCapacidad:
+      Number.isFinite(Number(data.kgCapacidad)) && Number(data.kgCapacidad) > 0
+        ? Number(data.kgCapacidad)
+        : null,
   };
 }

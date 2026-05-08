@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { EstadoPago, Prisma, TipoGasto } from '@prisma/client';
+import { apiError } from '../common/errors/api-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
 
@@ -86,42 +88,45 @@ export class GastosService {
       }
     }
 
-    const gasto = await this.prisma.$transaction(async (tx) => {
-      const nuevoGasto = await tx.gastoOperativo.create({
-        data: {
-          conceptoGasto: dto.conceptoGasto,
-          descripcion: dto.descripcion ?? null,
-          montoGasto: dto.montoGasto,
-          fechaGasto: new Date(dto.fechaGasto),
-          tipoGasto: dto.tipoGasto,
-          estadoPago: dto.estadoPago,
-          organizacionId,
-          deviceId: dto.deviceId ?? null,
-          localId: dto.localId ?? null,
-          syncStatus: dto.syncStatus ?? null,
-          createdBy: userId,
-        },
-        include: this.incluirSublotes(),
-      });
-
-      // Asociar sublotes en la tabla pivot cuando aplica
-      if (!esGastoGeneral && dto.subloteIds && dto.subloteIds.length > 0) {
-        await tx.gastoSublote.createMany({
-          data: dto.subloteIds.map((subloteId) => ({
-            gastoOperativoId: nuevoGasto.id,
-            subloteId,
-          })),
-        });
-
-        // Recarga con sublotes incluidos
-        return tx.gastoOperativo.findUniqueOrThrow({
-          where: { id: nuevoGasto.id },
+    const gasto = await this.prisma.$transaction(
+      async (tx) => {
+        const nuevoGasto = await tx.gastoOperativo.create({
+          data: {
+            conceptoGasto: dto.conceptoGasto,
+            descripcion: dto.descripcion ?? null,
+            montoGasto: dto.montoGasto,
+            fechaGasto: new Date(dto.fechaGasto),
+            tipoGasto: dto.tipoGasto,
+            estadoPago: dto.estadoPago,
+            organizacionId,
+            deviceId: dto.deviceId ?? null,
+            localId: dto.localId ?? null,
+            syncStatus: dto.syncStatus ?? null,
+            createdBy: userId,
+          },
           include: this.incluirSublotes(),
         });
-      }
 
-      return nuevoGasto;
-    }, { maxWait: 10000, timeout: 25000 });
+        // Asociar sublotes en la tabla pivot cuando aplica
+        if (!esGastoGeneral && dto.subloteIds && dto.subloteIds.length > 0) {
+          await tx.gastoSublote.createMany({
+            data: dto.subloteIds.map((subloteId) => ({
+              gastoOperativoId: nuevoGasto.id,
+              subloteId,
+            })),
+          });
+
+          // Recarga con sublotes incluidos
+          return tx.gastoOperativo.findUniqueOrThrow({
+            where: { id: nuevoGasto.id },
+            include: this.incluirSublotes(),
+          });
+        }
+
+        return nuevoGasto;
+      },
+      { maxWait: 10000, timeout: 25000 },
+    );
 
     return this.formatearGasto(gasto, esGastoGeneral);
   }
@@ -132,18 +137,13 @@ export class GastosService {
    * Lista todos los gastos activos de la organización del usuario.
    * Soporta filtro opcional por subloteId.
    */
-  async listarGastos(
-    userId: string,
-    subloteId?: string,
-  ): Promise<GastoItem[]> {
+  async listarGastos(userId: string, subloteId?: string): Promise<GastoItem[]> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
 
     const where: Prisma.GastoOperativoWhereInput = {
       organizacionId,
       deletedAt: null,
-      ...(subloteId
-        ? { sublotes: { some: { subloteId } } }
-        : {}),
+      ...(subloteId ? { sublotes: { some: { subloteId } } } : {}),
     };
 
     const gastos = await this.prisma.gastoOperativo.findMany({
@@ -193,7 +193,9 @@ export class GastosService {
     });
 
     if (!sublote) {
-      throw new NotFoundException(`Sublote con id "${subloteId}" no encontrado`);
+      throw new NotFoundException(
+        `Sublote con id "${subloteId}" no encontrado`,
+      );
     }
 
     const gastos = await this.prisma.gastoOperativo.findMany({
@@ -225,14 +227,17 @@ export class GastosService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organización asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organización asignada',
+      );
     }
 
     return usuario.organizacionId;
   }
 
   /**
-   * Valida que todos los subloteIds existan y pertenezcan a la organización.
+   * Valida que todos los subloteIds existan, pertenezcan a la organización
+   * y aun tengan inventario disponible para recibir gastos asociados.
    */
   private async validarSublotesExistentes(
     subloteIds: string[],
@@ -244,7 +249,7 @@ export class GastosService {
         deletedAt: null,
         compra: { organizacionId },
       },
-      select: { id: true },
+      select: { id: true, pesoActual: true },
     });
 
     if (encontrados.length !== subloteIds.length) {
@@ -252,6 +257,25 @@ export class GastosService {
       const faltantes = subloteIds.filter((id) => !encontradosSet.has(id));
       throw new BadRequestException(
         `Sublote(s) no encontrado(s) o no pertenecen a la organización: ${faltantes.join(', ')}`,
+      );
+    }
+
+    const agotados = encontrados.filter(
+      (sublote) => Number(sublote.pesoActual) <= 0,
+    );
+
+    if (agotados.length > 0) {
+      throw new ConflictException(
+        apiError(
+          'SUBLOTE_SIN_INVENTARIO',
+          'No se pueden asociar gastos a sublotes que ya fueron vendidos.',
+          {
+            field: 'subloteIds',
+            details: {
+              subloteIds: agotados.map((sublote) => sublote.id),
+            },
+          },
+        ),
       );
     }
   }

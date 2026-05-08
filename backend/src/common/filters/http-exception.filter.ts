@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { defaultCodeForHttpStatus } from '../errors/api-error';
 
 type HttpRequestLike = {
   method?: string;
@@ -99,14 +100,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const baseBody = isHttpException
       ? getResponseBody(exception)
       : {
-          message: 'Error interno del servidor. Revisa la terminal del backend.',
+          message: 'No pudimos completar la acción. Vuelve a intentarlo.',
           error: 'Internal Server Error',
         };
+
+    const code =
+      typeof baseBody.code === 'string'
+        ? baseBody.code
+        : defaultCodeForHttpStatus(status);
 
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url ?? '',
+      code,
       ...baseBody,
       ...(shouldExposeDebug && status >= HttpStatus.INTERNAL_SERVER_ERROR
         ? { debug: debugError }

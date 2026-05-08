@@ -20,8 +20,16 @@ function daysSince(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 0;
   const now = new Date();
-  const currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const currentDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const targetDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  ).getTime();
   return Math.max(0, Math.floor((currentDay - targetDay) / 86400000));
 }
 
@@ -49,7 +57,8 @@ export default function SecadosActivos() {
   const sessions = useMemo(
     () =>
       [...getActiveSecadoSessions()].sort(
-        (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       ),
     [],
   );
@@ -62,7 +71,9 @@ export default function SecadosActivos() {
         <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
           <button
             type="button"
-            onClick={() => navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })}
+            onClick={() =>
+              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
+            }
             className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
             aria-label="Volver"
           >
@@ -73,9 +84,12 @@ export default function SecadosActivos() {
 
         <main className="px-4 py-4">
           <section>
-            <h2 className="text-[1.05rem] font-black leading-tight">Cafe en proceso de secado</h2>
+            <h2 className="text-[1.05rem] font-black leading-tight">
+              Cafe en proceso de secado
+            </h2>
             <p className="mt-2 text-[0.72rem] leading-5 text-slate-500">
-              Revisa los procesos que ya empezaron y entra directo a registrar el resultado cuando esten listos.
+              Revisa los procesos que ya empezaron y entra directo a registrar
+              el resultado cuando esten listos.
             </p>
           </section>
 
@@ -84,9 +98,12 @@ export default function SecadosActivos() {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
                 <Package2 size={20} />
               </div>
-              <p className="mt-4 text-sm font-black text-slate-800">No hay secados activos</p>
+              <p className="mt-4 text-sm font-black text-slate-800">
+                No hay secados activos
+              </p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Cuando inicies un secado, aparecera aqui para continuar el proceso.
+                Cuando inicies un secado, aparecera aqui para continuar el
+                proceso.
               </p>
             </section>
           ) : (
@@ -107,8 +124,11 @@ export default function SecadosActivos() {
                             {session.tipoCafe} - {session.calidad}
                           </p>
                           <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black uppercase text-slate-700">
-                            <span className={`h-2 w-2 rounded-full ${qualityTone(session.calidad)}`} />
-                            {session.sublotes.length} sublote{session.sublotes.length === 1 ? '' : 's'}
+                            <span
+                              className={`h-2 w-2 rounded-full ${qualityTone(session.calidad)}`}
+                            />
+                            {session.sublotes.length} sublote
+                            {session.sublotes.length === 1 ? '' : 's'}
                           </p>
                         </div>
                         <p className="shrink-0 text-right text-[0.95rem] font-black text-[#102d92]">
@@ -126,7 +146,11 @@ export default function SecadosActivos() {
 
                   <button
                     type="button"
-                    onClick={() => navigate(`/inventario/secado/${session.id}/finalizar?step=finish`)}
+                    onClick={() =>
+                      navigate(
+                        `/inventario/secado/${session.id}/finalizar?step=finish`,
+                      )
+                    }
                     className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-[0.9rem] font-black text-white"
                   >
                     Finalizar secado

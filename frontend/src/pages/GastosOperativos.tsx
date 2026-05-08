@@ -19,9 +19,17 @@ import {
   X,
 } from 'lucide-react';
 import { ApiRequestError } from '../services/apiService';
-import { listarCompras, type CompraListadoItem } from '../services/comprasService';
+import {
+  listarCompras,
+  type CompraListadoItem,
+} from '../services/comprasService';
 import { crearGasto, type CrearGastoPayload } from '../services/gastosService';
-import { getTodayLocalDateValue, toIsoDateAtUtcNoon } from '../utils/date';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  getTodayLocalDateValue,
+  toIsoDateAtUtcNoon,
+  validateBusinessDateRange,
+} from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
 
 type TipoGastoValue =
@@ -60,7 +68,10 @@ const BACKEND_FIELD_MAP: Record<string, FieldKey> = {
 };
 
 function generarId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
 
@@ -113,7 +124,8 @@ function getFieldGuidance(
 
   if (!hasAvailableSublotes) {
     return {
-      what: whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
+      what:
+        whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
       why: 'Aun no existen sublotes registrados.',
       how: 'Registra sublotes o cambia a gasto general.',
       action: 'Selecciona "Gasto general" o crea sublotes.',
@@ -139,24 +151,6 @@ function getSaveErrorGuidance(message: string): GuidanceMessage {
 
 function getFirstErrorField(errors: FormErrors) {
   return FIELD_ORDER.find((field) => errors[field]) ?? null;
-}
-
-function InlineFieldError({ id, feedback }: { id: string; feedback: GuidanceMessage }) {
-  return (
-    <div
-      id={id}
-      role="alert"
-      className="rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.66rem] text-rose-800 shadow-sm"
-    >
-      <div className="flex items-start gap-2">
-        <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-600" />
-        <div className="leading-snug">
-          <p className="font-bold">{feedback.what}</p>
-          <p className="mt-0.5 text-rose-700">{feedback.action}</p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function FloatingNoticeCard({
@@ -226,17 +220,23 @@ export default function GastosOperativos() {
   const [aplicaA, setAplicaA] = useState<AplicaAValue>('GENERAL');
 
   const [compras, setCompras] = useState<CompraListadoItem[]>([]);
-  const [sublotesSeleccionados, setSublotesSeleccionados] = useState<string[]>([]);
+  const [sublotesSeleccionados, setSublotesSeleccionados] = useState<string[]>(
+    [],
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [botonGuardarPresionado, setBotonGuardarPresionado] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
-  const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(null);
+  const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(
+    null,
+  );
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showErrorModal, setShowErrorModal] = useState<GuidanceMessage | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState<GuidanceMessage | null>(
+    null,
+  );
   const [showSublotesSelector, setShowSublotesSelector] = useState(false);
 
   const conceptoSectionRef = useRef<HTMLDivElement | null>(null);
@@ -270,7 +270,10 @@ export default function GastosOperativos() {
           fechaCompra: compra.fecha,
         })),
       )
-      .sort((a, b) => new Date(b.fechaCompra).getTime() - new Date(a.fechaCompra).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.fechaCompra).getTime() - new Date(a.fechaCompra).getTime(),
+      );
   }, [compras]);
 
   useEffect(() => {
@@ -358,6 +361,7 @@ export default function GastosOperativos() {
 
   const validarFormulario = (): FormErrors => {
     const errors: FormErrors = {};
+    const fechaValidacion = validateBusinessDateRange(fecha);
 
     if (!concepto.trim()) {
       errors.concepto = getFieldGuidance('concepto');
@@ -367,8 +371,10 @@ export default function GastosOperativos() {
       errors.monto = getFieldGuidance('monto');
     }
 
-    if (!fecha) {
-      errors.fecha = getFieldGuidance('fecha');
+    if (!fechaValidacion.isValid) {
+      errors.fecha = getFieldGuidance('fecha', {
+        whatOverride: fechaValidacion.message ?? undefined,
+      });
     }
 
     if (aplicaA === 'SUBLOTES' && sublotesSeleccionados.length === 0) {
@@ -410,7 +416,9 @@ export default function GastosOperativos() {
     const estabaSeleccionado = sublotesSeleccionados.includes(id);
 
     setSublotesSeleccionados((prev) =>
-      prev.includes(id) ? prev.filter((currentId) => currentId !== id) : [...prev, id],
+      prev.includes(id)
+        ? prev.filter((currentId) => currentId !== id)
+        : [...prev, id],
     );
 
     if (!estabaSeleccionado) {
@@ -504,7 +512,9 @@ export default function GastosOperativos() {
         }
       }
 
-      const feedback = getSaveErrorGuidance(error instanceof Error ? error.message : '');
+      const feedback = getSaveErrorGuidance(
+        error instanceof Error ? error.message : '',
+      );
       setShowErrorModal(feedback);
       setFloatingNotice({
         ...feedback,
@@ -532,9 +542,6 @@ export default function GastosOperativos() {
     }
   };
 
-  const mostrarErrorInline = (field: FieldKey) =>
-    Boolean(fieldErrors[field]) && floatingNotice?.field !== field;
-
   const tipoOpciones = [
     { value: 'TRANSPORTE', label: 'TRANSPORTE', icon: Truck },
     { value: 'COMIDA', label: 'COMIDA', icon: Utensils },
@@ -556,17 +563,24 @@ export default function GastosOperativos() {
           >
             <ArrowLeft size={14} className="text-[#102d92]" />
           </button>
-          <h1 className="text-center text-[0.78rem] font-black text-black">Registro de gastos</h1>
+          <h1 className="text-center text-[0.78rem] font-black text-black">
+            Registro de gastos
+          </h1>
         </div>
 
         <div className="space-y-2.5">
           <div ref={conceptoSectionRef} className="space-y-1.5">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Concepto del gasto</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Concepto del gasto
+            </label>
             <input
               ref={conceptoInputRef}
               type="text"
               placeholder="Ej. Pago de jornaleros - Cosecha Oct"
-              className={getInputClassName(Boolean(fieldErrors.concepto), 'px-3 py-2 text-[0.66rem] font-semibold')}
+              className={getInputClassName(
+                Boolean(fieldErrors.concepto),
+                'px-3 py-2 text-[0.66rem] font-semibold',
+              )}
               value={concepto}
               aria-invalid={Boolean(fieldErrors.concepto)}
               aria-describedby={undefined}
@@ -578,11 +592,16 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Descripción breve</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Descripción breve
+            </label>
             <textarea
               placeholder="Ej: Pago transporte lote octubre"
               rows={2}
-              className={getInputClassName(false, 'resize-none px-3 py-2 text-[0.66rem] font-semibold')}
+              className={getInputClassName(
+                false,
+                'resize-none px-3 py-2 text-[0.66rem] font-semibold',
+              )}
               value={descripcion}
               onChange={(event) => setDescripcion(event.target.value)}
             />
@@ -590,7 +609,9 @@ export default function GastosOperativos() {
 
           <div className="grid grid-cols-2 gap-2">
             <div ref={montoSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-[0.62rem] font-black text-slate-700">Monto ($)</label>
+              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                Monto ($)
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[0.7rem] font-bold text-slate-400">
                   $
@@ -612,11 +633,15 @@ export default function GastosOperativos() {
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-[0.62rem] font-black text-slate-700">Fecha</label>
+              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                Fecha
+              </label>
               <div className="relative">
                 <input
                   ref={fechaInputRef}
                   type="date"
+                  min={BUSINESS_MIN_DATE_VALUE}
+                  max={getTodayLocalDateValue()}
                   className={getInputClassName(
                     Boolean(fieldErrors.fecha),
                     'appearance-none pl-3 pr-7 py-2 text-[0.66rem] font-semibold',
@@ -638,7 +663,9 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Tipo de gasto</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Tipo de gasto
+            </label>
             <div className="grid grid-cols-3 gap-1.5">
               {tipoOpciones.map((opcion) => {
                 const Icon = opcion.icon;
@@ -669,7 +696,9 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">Estado de pago</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              Estado de pago
+            </label>
             <div className="flex rounded-full bg-slate-100 p-0.5">
               <button
                 type="button"
@@ -697,7 +726,9 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">A qué aplica este gasto?</label>
+            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              A qué aplica este gasto?
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -713,7 +744,9 @@ export default function GastosOperativos() {
               >
                 <Wallet
                   size={12}
-                  className={aplicaA === 'GENERAL' ? 'text-white' : 'text-slate-400'}
+                  className={
+                    aplicaA === 'GENERAL' ? 'text-white' : 'text-slate-400'
+                  }
                 />
                 <span className="text-[0.44rem] font-black uppercase tracking-normal">
                   Gasto general
@@ -731,7 +764,9 @@ export default function GastosOperativos() {
               >
                 <Layers
                   size={12}
-                  className={aplicaA === 'SUBLOTES' ? 'text-white' : 'text-slate-400'}
+                  className={
+                    aplicaA === 'SUBLOTES' ? 'text-white' : 'text-slate-400'
+                  }
                 />
                 <span className="text-[0.44rem] font-black uppercase tracking-normal">
                   Asociar a sublotes
@@ -746,7 +781,9 @@ export default function GastosOperativos() {
               className="mt-2 animate-in space-y-2 fade-in slide-in-from-top-2"
             >
               <div className="flex items-center justify-between">
-                <label className="ml-1 text-[0.62rem] font-black text-slate-700">Seleccionar sublotes</label>
+                <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+                  Seleccionar sublotes
+                </label>
                 {sublotesSeleccionados.length > 0 ? (
                   <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-xs font-bold text-[#102d92] animate-in zoom-in">
                     {sublotesSeleccionados.length} seleccionados
@@ -793,7 +830,6 @@ export default function GastosOperativos() {
                 Selecciona los sublotes a los que aplica este gasto.
               </p>
 
-
               {showSublotesSelector ? (
                 <div className="max-h-[180px] w-full overflow-y-auto rounded-[8px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
                   {todosSublotes.length === 0 && !loading ? (
@@ -803,7 +839,9 @@ export default function GastosOperativos() {
                   ) : null}
 
                   {todosSublotes.map((sublote) => {
-                    const seleccionado = sublotesSeleccionados.includes(sublote.id);
+                    const seleccionado = sublotesSeleccionados.includes(
+                      sublote.id,
+                    );
 
                     return (
                       <label
@@ -823,14 +861,17 @@ export default function GastosOperativos() {
                               : 'border-slate-300 bg-white'
                           }`}
                         >
-                          {seleccionado ? <CheckCircle2 size={14} className="text-white" /> : null}
+                          {seleccionado ? (
+                            <CheckCircle2 size={14} className="text-white" />
+                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-bold leading-tight text-slate-800">
                             {sublote.tipoCafe} {sublote.calidad}
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-500">
-                            Comprado: {sublote.fechaCompra.slice(0, 10)} - {sublote.pesoActual} kg
+                            Comprado: {sublote.fechaCompra.slice(0, 10)} -{' '}
+                            {sublote.pesoActual} kg
                           </p>
                         </div>
                       </label>
@@ -889,7 +930,9 @@ export default function GastosOperativos() {
                 onClick={() => void handleGuardar()}
                 className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving || botonGuardarPresionado ? 'Guardando gasto...' : 'Registrar gasto'}
+                {saving || botonGuardarPresionado
+                  ? 'Guardando gasto...'
+                  : 'Registrar gasto'}
               </button>
               <button
                 type="button"

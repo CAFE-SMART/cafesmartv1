@@ -12,7 +12,7 @@
     "android:launch": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1 -LaunchOnly",
     "android:full": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-android.ps1 -ForceWebBuild -ForceGradleBuild",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@capacitor/android": "^8.2.0",

@@ -42,7 +42,8 @@ export class AuthRateLimitGuard implements CanActivate {
     const now = Date.now();
     this.cleanupExpiredEntries(now);
 
-    const routeKey = request.route?.path ?? request.originalUrl ?? 'unknown-route';
+    const routeKey =
+      request.route?.path ?? request.originalUrl ?? 'unknown-route';
     const clientKey = `${this.getClientIp(request)}:${request.method ?? 'POST'}:${routeKey}`;
     const current = this.entries.get(clientKey);
 

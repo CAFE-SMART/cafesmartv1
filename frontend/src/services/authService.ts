@@ -1,8 +1,12 @@
-﻿import { buildOfflineAuthError, mapFriendlyAuthMessage } from '../utils/authMessages';
+﻿import {
+  buildOfflineAuthError,
+  mapFriendlyAuthMessage,
+} from '../utils/authMessages';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
 const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+  'http://localhost:3000';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 export type AuthError = {
@@ -110,7 +114,8 @@ async function postAuth<TResponse>(
           body: JSON.stringify(body),
         });
 
-        const data = (await response.json().catch(() => ({}))) as TResponse & RawApiError;
+        const data = (await response.json().catch(() => ({}))) as TResponse &
+          RawApiError;
 
         if (!response.ok) {
           const authError: AuthError = {
@@ -150,7 +155,8 @@ async function postAuth<TResponse>(
         status: 'error',
         source: cloudTracking.source ?? 'sync',
         message:
-          knownError.message || 'Surgió un problema interno. Intenta de nuevo.',
+          knownError.message ||
+          'No pudimos completar la acción. Vuelve a intentarlo.',
       });
     }
 
@@ -162,7 +168,7 @@ async function postAuth<TResponse>(
     throw {
       message:
         knownError.message ||
-        'Surgió un problema interno. Intenta de nuevo. Si el problema continúa, comunícate con el encargado.',
+        'No pudimos completar la acción. Vuelve a intentarlo.',
       field: knownError.field ?? null,
       details: knownError.details,
       action: knownError.action ?? null,
@@ -201,12 +207,17 @@ export const authService = {
   },
 
   login(email: string, password: string): Promise<AuthResponse> {
-    return postAuth<AuthResponse>('/login', { email, password }, 'Error de autenticacion', {
-      enabled: true,
-      source: 'login',
-      syncingMessage: 'Validando sesion...',
-      successMessage: 'Sesion validada.',
-    });
+    return postAuth<AuthResponse>(
+      '/login',
+      { email, password },
+      'Error de autenticacion',
+      {
+        enabled: true,
+        source: 'login',
+        syncingMessage: 'Validando sesion...',
+        successMessage: 'Sesion validada.',
+      },
+    );
   },
 
   loginWithGoogle(idToken: string): Promise<AuthResponse> {

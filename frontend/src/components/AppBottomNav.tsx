@@ -1,11 +1,22 @@
 import React from 'react';
-import { Settings, ShoppingCart, House, Warehouse, Banknote } from 'lucide-react';
+import {
+  Settings,
+  ShoppingCart,
+  House,
+  Warehouse,
+  Banknote,
+} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const items = [
   { id: 'inicio', label: 'Inicio', path: '/inicio', icon: House },
   { id: 'compras', label: 'Compras', path: '/compras', icon: ShoppingCart },
-  { id: 'inventario', label: 'Inventario', path: '/inventario', icon: Warehouse },
+  {
+    id: 'inventario',
+    label: 'Inventario',
+    path: '/inventario',
+    icon: Warehouse,
+  },
   { id: 'ventas', label: 'Ventas', path: '/ventas', icon: Banknote },
   { id: 'ajustes', label: 'Ajustes', path: '/ajustes', icon: Settings },
 ];

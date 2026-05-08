@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GuardarProductorDto } from './dto/guardar-productor.dto';
+import {
+  normalizarDocumentoPersona,
+  normalizarNombrePersona,
+  normalizarTelefonoPersona,
+} from '../common/validations/person-fields';
 
 type ProductorListadoItem = {
   id: string;
@@ -45,14 +50,17 @@ export class ProductoresService {
     }));
   }
 
-  async crear(userId: string, dto: GuardarProductorDto): Promise<ProductorListadoItem> {
+  async crear(
+    userId: string,
+    dto: GuardarProductorDto,
+  ): Promise<ProductorListadoItem> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
     const productor = await this.prisma.productor.create({
       data: {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre),
         documento: this.normalizarDocumento(dto.documento),
-        telefono: this.normalizarTextoOpcional(dto.telefono),
+        telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
       },
       select: {
         id: true,
@@ -96,7 +104,7 @@ export class ProductoresService {
       data: {
         nombre: this.normalizarNombre(dto.nombre),
         documento: this.normalizarDocumento(dto.documento),
-        telefono: this.normalizarTextoOpcional(dto.telefono),
+        telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
       },
       select: {
         id: true,
@@ -127,34 +135,21 @@ export class ProductoresService {
     }
 
     if (!usuario.organizacionId) {
-      throw new BadRequestException('El usuario no tiene organizacion asignada');
+      throw new BadRequestException(
+        'El usuario no tiene organizacion asignada',
+      );
     }
 
     return usuario.organizacionId;
   }
 
-  private normalizarTextoOpcional(valor?: string): string | null {
-    const texto = valor?.trim();
-    return texto ? texto : null;
-  }
-
   private normalizarNombre(valor: string): string {
-    const nombre = valor.trim();
-
-    if (!nombre) {
-      throw new BadRequestException('El nombre del productor es obligatorio');
-    }
-
-    return nombre;
+    return normalizarNombrePersona(valor, 'productor');
   }
 
   private normalizarDocumento(valor: string): string {
-    const documento = valor.trim();
-
-    if (!documento) {
-      throw new BadRequestException('El documento del productor es obligatorio');
-    }
-
-    return documento;
+    return normalizarDocumentoPersona(valor, 'productor', {
+      required: true,
+    }) as string;
   }
 }

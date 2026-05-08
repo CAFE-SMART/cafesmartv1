@@ -26,7 +26,13 @@ export type CrearGastoPayload = {
   descripcion?: string;
   montoGasto: number;
   fechaGasto: string; // ISO 8601
-  tipoGasto: 'TRANSPORTE' | 'COMIDA' | 'SECADO' | 'CARGUE' | 'DESCARGUE' | 'OTROS';
+  tipoGasto:
+    | 'TRANSPORTE'
+    | 'COMIDA'
+    | 'SECADO'
+    | 'CARGUE'
+    | 'DESCARGUE'
+    | 'OTROS';
   estadoPago: 'PAGADO' | 'PENDIENTE';
   deviceId?: string;
   localId?: string;
@@ -72,7 +78,7 @@ export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {
     estadoPago: payload.estadoPago,
     localId: payload.id,
     asociarASublotes: payload.aplicaA === 'SUBLOTES',
-    subloteIds: payload.aplicaA === 'SUBLOTES' ? payload.lotesIds ?? [] : [],
+    subloteIds: payload.aplicaA === 'SUBLOTES' ? (payload.lotesIds ?? []) : [],
   });
 }
 

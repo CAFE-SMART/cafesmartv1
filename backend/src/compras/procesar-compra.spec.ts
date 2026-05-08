@@ -1,4 +1,8 @@
-import { evaluarCapacidadCompra, procesarCompra } from './procesar-compra';
+import {
+  CompraValidacionCriticaError,
+  evaluarCapacidadCompra,
+  procesarCompra,
+} from './procesar-compra';
 import type { ContextoCapacidadCompra } from './procesar-compra';
 
 describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
@@ -8,9 +12,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 500,
       };
-      
+
       const resultado = evaluarCapacidadCompra(200, contexto);
-      
+
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.nivel).toBe('normal');
@@ -21,9 +25,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 0,
       };
-      
+
       const resultado = evaluarCapacidadCompra(100, contexto);
-      
+
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.nivel).toBe('normal');
@@ -34,9 +38,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 799,
       };
-      
+
       const resultado = evaluarCapacidadCompra(0.5, contexto);
-      
+
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.nivel).toBe('normal');
@@ -47,9 +51,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000.5,
         inventarioActualKg: 400.25,
       };
-      
+
       const resultado = evaluarCapacidadCompra(199.75, contexto);
-      
+
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.nivel).toBe('normal');
@@ -62,9 +66,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 700,
       };
-      
+
       const resultado = evaluarCapacidadCompra(100, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('nivel de alerta');
       expect(resultado.warning).toContain('800 kg');
@@ -77,9 +81,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 750,
       };
-      
+
       const resultado = evaluarCapacidadCompra(100, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('nivel de alerta');
       expect(resultado.warning).toContain('850 kg');
@@ -92,9 +96,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 800,
       };
-      
+
       const resultado = evaluarCapacidadCompra(0, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('nivel de alerta');
       expect(resultado.exceso).toBeUndefined();
@@ -105,9 +109,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 799.99,
       };
-      
+
       const resultado = evaluarCapacidadCompra(0.01, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('nivel de alerta');
       expect(resultado.exceso).toBeUndefined();
@@ -120,9 +124,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 900,
       };
-      
+
       const resultado = evaluarCapacidadCompra(200, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('supera la capacidad');
       expect(resultado.warning).toContain('1100 kg');
@@ -136,9 +140,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 950,
       };
-      
+
       const resultado = evaluarCapacidadCompra(100, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.exceso).toBe(50);
     });
@@ -148,9 +152,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 0,
       };
-      
+
       const resultado = evaluarCapacidadCompra(1500, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('supera la capacidad');
       expect(resultado.exceso).toBe(500);
@@ -161,9 +165,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 999.5,
       };
-      
+
       const resultado = evaluarCapacidadCompra(1.5, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.exceso).toBeCloseTo(1, 1);
     });
@@ -173,9 +177,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 850,
       };
-      
+
       const resultado = evaluarCapacidadCompra(200, contexto);
-      
+
       expect(resultado.warning).toBeDefined();
       expect(resultado.warning).toContain('supera la capacidad');
       expect(resultado.exceso).toBeDefined();
@@ -189,9 +193,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 0,
         inventarioActualKg: 100,
       };
-      
+
       const resultado = evaluarCapacidadCompra(50, contexto);
-      
+
       expect(resultado.capacidad.validada).toBe(false);
       expect(resultado.capacidad.nivel).toBe('sin_validacion');
     });
@@ -201,9 +205,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: -100,
         inventarioActualKg: 50,
       };
-      
+
       const resultado = evaluarCapacidadCompra(25, contexto);
-      
+
       expect(resultado.capacidad.validada).toBe(false);
       expect(resultado.capacidad.nivel).toBe('sin_validacion');
     });
@@ -213,9 +217,9 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: 500,
       };
-      
+
       const resultado = evaluarCapacidadCompra(0, contexto);
-      
+
       expect(resultado.capacidad.nivel).toBe('normal');
     });
 
@@ -224,14 +228,54 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
         capacidadBodegaKg: 1000,
         inventarioActualKg: -50,
       };
-      
+
       const resultado = evaluarCapacidadCompra(100, contexto);
-      
+
       expect(resultado.capacidad.nivel).toBe('normal');
     });
   });
 
   describe('Integración con procesarCompra', () => {
+    it('bloquea una compra con cantidad menor o igual a cero', () => {
+      expect(() =>
+        procesarCompra({
+          deviceId: 'device-1',
+          localId: 'local-1',
+          fecha: '2024-01-01',
+          sublotes: [
+            {
+              deviceId: 'device-1',
+              localId: 'sub-1',
+              tipoCafeId: 'tipo-1',
+              calidadId: 'calidad-1',
+              pesoInicial: 0,
+              precioKg: 1000,
+            },
+          ],
+        }),
+      ).toThrow(CompraValidacionCriticaError);
+    });
+
+    it('bloquea una compra con precio menor a 1000', () => {
+      expect(() =>
+        procesarCompra({
+          deviceId: 'device-1',
+          localId: 'local-1',
+          fecha: '2024-01-01',
+          sublotes: [
+            {
+              deviceId: 'device-1',
+              localId: 'sub-1',
+              tipoCafeId: 'tipo-1',
+              calidadId: 'calidad-1',
+              pesoInicial: 10,
+              precioKg: 999,
+            },
+          ],
+        }),
+      ).toThrow(CompraValidacionCriticaError);
+    });
+
     it('debería incluir evaluación de capacidad en el resultado procesado', () => {
       const input = {
         deviceId: 'device-1',
