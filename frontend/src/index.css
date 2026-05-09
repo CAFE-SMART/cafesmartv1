@@ -86,15 +86,6 @@ select {
   min-height: 44px;
 }
 
-:focus {
-  outline: none;
-}
-
-:focus-visible {
-  outline: 3px solid #f59e0b;
-  outline-offset: 3px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -124,6 +115,8 @@ select {
 .skip-link:focus,
 .skip-link:focus-visible {
   transform: translateY(0);
+  outline: 2px solid #bfdbfe;
+  outline-offset: 3px;
 }
 
 .sr-only {

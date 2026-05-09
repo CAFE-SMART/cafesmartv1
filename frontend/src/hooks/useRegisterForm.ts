@@ -12,6 +12,7 @@ import {
   type TipoOrg,
   type TipoOrgSelection,
 } from '../utils/registerValidators';
+import { getPhoneDigits } from '../utils/formatPhone';
 import { normalizePossiblyMojibake } from '../utils/jwt';
 
 type UseRegisterFormParams = {
@@ -107,16 +108,18 @@ export function useRegisterForm({
     const nextErrors: StepOneErrors = {};
 
     if (!nombreOrganizacion.trim()) {
-      nextErrors.nombreOrganizacion = 'Escribe el nombre del negocio.';
+      nextErrors.nombreOrganizacion =
+        'Escribe el nombre de tu negocio para continuar.';
     }
 
     if (!tipoOrganizacion) {
-      nextErrors.tipoOrganizacion = 'Elige un tipo de negocio.';
+      nextErrors.tipoOrganizacion =
+        'Selecciona el tipo de negocio que mejor describe tu operación.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepOneErrors(nextErrors);
-      setError('Revisa los campos marcados.');
+      setError('Revisa los campos resaltados.');
       return;
     }
 
@@ -137,7 +140,7 @@ export function useRegisterForm({
     if (!nombreOrganizacion.trim()) {
       setError('Falta el nombre del negocio.');
       setStepOneErrors({
-        nombreOrganizacion: 'Escribe el nombre del negocio.',
+        nombreOrganizacion: 'Escribe el nombre de tu negocio para continuar.',
       });
       setStep(1);
       return;
@@ -145,31 +148,40 @@ export function useRegisterForm({
 
     if (!tipoOrganizacion) {
       setError('Falta el tipo de negocio.');
-      setStepOneErrors({ tipoOrganizacion: 'Elige un tipo de negocio.' });
+      setStepOneErrors({
+        tipoOrganizacion:
+          'Selecciona el tipo de negocio que mejor describe tu operación.',
+      });
       setStep(1);
       return;
     }
 
     if (!nombre.trim()) {
-      nextErrors.nombre = 'Escribe el nombre.';
+      nextErrors.nombre = 'Escribe tu nombre para continuar.';
     }
 
     if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Escribe los apellidos.';
+      nextErrors.apellidos = 'Escribe tus apellidos para completar tu cuenta.';
     } else if (!hasAtLeastOneSurname(apellidos)) {
-      nextErrors.apellidos = 'Ingresa un apellido valido.';
+      nextErrors.apellidos = 'Ingresa al menos un apellido para continuar.';
     }
 
+    const telefonoDigits = getPhoneDigits(telefono);
     if (!telefono.trim()) {
-      nextErrors.telefono = 'Escribe el telefono.';
-    } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Telefono invalido.';
+      nextErrors.telefono = 'Ingresa un número de celular.';
+    } else if (/[^\d\s+]/.test(telefono)) {
+      nextErrors.telefono = 'Solo se permiten números.';
+    } else if (telefonoDigits.length < 10) {
+      nextErrors.telefono = 'El número debe tener 10 dígitos.';
+    } else if (!isValidPhone(telefonoDigits)) {
+      nextErrors.telefono = 'Ingresa un número de celular válido.';
     }
 
     if (!correo.trim()) {
-      nextErrors.correo = 'Escribe el correo.';
+      nextErrors.correo = 'Ingresa tu correo para crear tu cuenta.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Correo invalido.';
+      nextErrors.correo =
+        'Ingresa un correo válido, por ejemplo nombre@correo.com.';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -178,19 +190,27 @@ export function useRegisterForm({
     }
 
     const checks = getPasswordChecks(password);
-    if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
-      nextErrors.password = 'Minimo 6 caracteres, minuscula y mayuscula.';
+    if (!password.trim()) {
+      nextErrors.password = 'Crea una contraseña para proteger tu cuenta.';
+    } else if (
+      !checks.minLength ||
+      !checks.hasLower ||
+      !checks.hasUpper ||
+      !checks.hasNumber
+    ) {
+      nextErrors.password =
+        'La contraseña debe tener mínimo 6 caracteres, una mayúscula, una minúscula y un número.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma tu contrasena.';
+      nextErrors.confirmPassword = 'Confirma nuevamente tu contraseña.';
     } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'No coinciden.';
+      nextErrors.confirmPassword = 'Las contraseñas no coinciden.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
-      setError('Revisa los campos marcados.');
+      setError('Revisa los campos resaltados.');
       return;
     }
 
@@ -212,7 +232,7 @@ export function useRegisterForm({
             ? otroTipoDetalle.trim()
             : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono,
+        telefono: telefonoDigits,
         correo,
         password,
       },

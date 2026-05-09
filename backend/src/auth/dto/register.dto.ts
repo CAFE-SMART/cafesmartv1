@@ -54,10 +54,14 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'El nombre del usuario es obligatorio.' })
   nombre: string;
 
+  @Transform(({ value }) => {
+    const digits = String(value ?? '').replace(/\D/g, '');
+    return digits.startsWith('57') ? digits.slice(2, 12) : digits.slice(0, 10);
+  })
   @IsString({ message: 'El telefono debe ser texto.' })
   @IsNotEmpty({ message: 'El telefono es obligatorio.' })
-  @Matches(/^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/, {
-    message: 'El telefono debe ser colombiano. Ejemplo: +57 300 123 4567',
+  @Matches(/^3\d{9}$/, {
+    message: 'El teléfono debe tener 10 dígitos y empezar por 3.',
   })
   telefono: string;
 

@@ -1,16 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
+  AlertTriangle,
   Check,
   CircleHelp,
+  Clock,
   Eye,
   EyeOff,
   Headset,
   Info,
   Loader,
+  Mail,
+  Menu,
+  Phone,
   Settings,
+  ShieldCheck,
   Store,
   Users,
   X,
@@ -24,6 +30,7 @@ import {
   type TipoOrg,
 } from '../utils/registerValidators';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
+import { formatNationalPhone, getPhoneDigits } from '../utils/formatPhone';
 
 type BusinessType = {
   value: TipoOrg;
@@ -35,19 +42,19 @@ type BusinessType = {
 const businessTypes: BusinessType[] = [
   {
     value: 'COMPRAVENTA',
-    label: 'COMPRAVENTA',
+    label: 'Compraventa',
     desc: 'Compras cafe para revenderlo y obtener ganancias.',
     icon: <Store size={19} />,
   },
   {
     value: 'COOPERATIVA',
-    label: 'COOPERATIVA',
+    label: 'Cooperativa',
     desc: 'Recibes cafe de productores y lo vendes por ellos.',
     icon: <Users size={19} />,
   },
   {
     value: 'PERSONALIZADO',
-    label: 'PERSONALIZADO',
+    label: 'Personalizado',
     desc: 'Otro tipo de negocio cafetero.',
     icon: <Settings size={19} />,
   },
@@ -123,8 +130,25 @@ export default function Register() {
 
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
+  const passwordChecks = useMemo(
+    () => ({
+      minLength: password.length >= 6,
+      hasUpper: /[A-Z]/.test(password),
+      hasLower: /[a-z]/.test(password),
+      hasNumber: /\d/.test(password),
+    }),
+    [password],
+  );
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
+  const passwordStrengthTone =
+    passwordStrength.score <= 1
+      ? 'text-rose-600'
+      : passwordStrength.score === 2
+        ? 'text-amber-600'
+        : passwordStrength.score === 3
+          ? 'text-sky-600'
+          : 'text-emerald-600';
 
   const handleGoogleRegisterSuccess = (
     credentialResponse: CredentialResponse,
@@ -176,23 +200,32 @@ export default function Register() {
               labelledBy="register-business-title"
             />
 
-            <div className="flex-1 px-4 pt-5">
+            <div className="flex-1 px-4 pb-4 pt-5">
               <RegisterProgress
                 step={step}
                 totalSteps={2}
                 progressPercent={progressPercent}
               />
 
-              <h2 className="mt-2 text-[1.28rem] font-black leading-tight tracking-normal text-[#111827]">
+              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827]">
                 Comencemos configurando tu negocio
               </h2>
+              <p className="mt-2 text-sm font-medium leading-5 text-[#667085]">
+                Cuéntanos cómo opera tu negocio para preparar el sistema a tu
+                medida.
+              </p>
 
-              {error ? <AlertBanner message={error} className="mt-4" /> : null}
+              {error ? (
+                <AlertBanner
+                  message="Revisa los campos resaltados."
+                  className="mt-4"
+                />
+              ) : null}
 
-              <div className="mt-6">
+              <div className="mt-5">
                 <TextInput
                   id="register-business-name"
-                  label="NOMBRE DEL NEGOCIO"
+                  label="Nombre del negocio"
                   value={nombreOrganizacion}
                   onChange={(value) => {
                     setNombreOrganizacion(value);
@@ -208,10 +241,14 @@ export default function Register() {
               </div>
 
               <div className="mt-6">
-                <p className="mb-3 text-[10px] font-black uppercase tracking-[0.08em] text-[#1f2937]">
-                  TIPO DE NEGOCIO
+                <p className="mb-3 text-sm font-semibold text-[#344054]">
+                  Tipo de negocio
                 </p>
-                <div className="grid grid-cols-1 gap-3">
+                <div
+                  className="grid grid-cols-1 gap-3"
+                  role="radiogroup"
+                  aria-label="Tipo de negocio"
+                >
                   {businessTypes.map((type) => (
                     <BusinessTypeCard
                       key={type.value}
@@ -236,7 +273,7 @@ export default function Register() {
                 <div className="mt-4">
                   <TextInput
                     id="register-business-custom"
-                    label="DESCRIPCION"
+                    label="Descripción"
                     value={otroTipoDetalle}
                     onChange={(value) => {
                       setOtroTipoDetalle(value);
@@ -271,258 +308,298 @@ export default function Register() {
               labelledBy="register-admin-title"
             />
 
-            <div className="flex-1 px-4 pb-5 pt-5">
+            <div className="flex-1 px-4 pb-6 pt-5">
               <RegisterProgress
                 step={step}
                 totalSteps={2}
                 progressPercent={progressPercent}
               />
 
-              {error ? <AlertBanner message={error} className="mb-4" /> : null}
+              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827]">
+                Paso 2: Datos del administrador
+              </h2>
+              <p className="mt-2 text-sm font-medium leading-5 text-[#667085]">
+                Crea la cuenta principal para operar Café Smart con seguridad.
+              </p>
 
-              <div className="mb-5 flex items-start gap-3 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3">
-                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#274ab8] text-white">
-                  <Info size={14} />
-                </span>
-                <p className="text-sm font-semibold leading-5 text-[#355070]">
-                  Este usuario sera el administrador del sistema.
-                </p>
-              </div>
-
-              {hasGoogleFlow ? (
-                <p className="mb-5 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3 text-sm font-semibold text-[#355070]">
-                  Google completo tus datos. Revisalos y termina el registro.
-                </p>
+              {error ? (
+                <AlertBanner message="Revisa los campos resaltados." className="mt-4" />
               ) : null}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <TextInput
-                    id="register-admin-name"
-                    label="Nombre"
-                    value={nombre}
-                    onChange={(value) => {
-                      setNombre(value);
-                      setStepTwoErrors((prev) => ({
-                        ...prev,
-                        nombre: undefined,
-                      }));
-                    }}
-                    placeholder="Ej: Juan"
-                    autoComplete="given-name"
-                    error={stepTwoErrors.nombre}
-                    compactLabel
-                  />
-
-                  <TextInput
-                    id="register-admin-lastname"
-                    label="Apellidos"
-                    value={apellidos}
-                    onChange={(value) => {
-                      setApellidos(value);
-                      setStepTwoErrors((prev) => ({
-                        ...prev,
-                        apellidos: undefined,
-                      }));
-                    }}
-                    placeholder="Ej: Perez Gomez"
-                    autoComplete="family-name"
-                    error={stepTwoErrors.apellidos}
-                    compactLabel
-                  />
+              <div className="mt-5 rounded-[22px] border border-[#e6ebf3] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.07)]">
+                <div className="mb-5 flex items-start gap-4 rounded-[18px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-4">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#274ab8] text-white shadow-[0_10px_22px_rgba(39,74,184,0.22)]">
+                    <ShieldCheck size={23} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-black text-[#10224d]">
+                      Cuenta administradora
+                    </span>
+                    <span className="mt-1 block text-sm font-medium leading-5 text-[#45607f]">
+                      Gestionará usuarios, compras e inventario del sistema.
+                    </span>
+                  </span>
                 </div>
 
-                <TextInput
-                  id="register-admin-phone"
-                  label="Telefono"
-                  value={telefono}
-                  onChange={(value) => {
-                    setTelefono(value);
-                    setStepTwoErrors((prev) => ({
-                      ...prev,
-                      telefono: undefined,
-                    }));
-                  }}
-                  placeholder="+57 300 123 4567"
-                  autoComplete="tel"
-                  error={stepTwoErrors.telefono}
-                  compactLabel
-                />
-
-                <div>
-                  <TextInput
-                    id="register-admin-email"
-                    label="Correo electronico"
-                    value={correo}
-                    onChange={(value) => {
-                      setCorreo(value);
-                      setStepTwoErrors((prev) => ({
-                        ...prev,
-                        correo: undefined,
-                      }));
-                    }}
-                    onBlur={async () => {
-                      const emailExistsError =
-                        await validateEmailAvailability(correo);
-                      if (emailExistsError) {
-                        setStepTwoErrors((prev) => ({
-                          ...prev,
-                          correo: emailExistsError,
-                        }));
-                      }
-                    }}
-                    placeholder="admin@empresa.com"
-                    autoComplete="email"
-                    error={stepTwoErrors.correo}
-                    compactLabel
-                  />
-                  {isCheckingEmail && !stepTwoErrors.correo ? (
-                    <p className="mt-2 text-xs font-semibold text-[#64748b]">
-                      Validando correo...
-                    </p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="register-admin-password"
-                    className="mb-2 block text-xs font-black text-[#344054]"
-                  >
-                    Contrase&ntilde;a
-                  </label>
-                  <div
-                    className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
-                      stepTwoErrors.password
-                        ? 'border-rose-300 bg-rose-50/50'
-                        : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-                    }`}
-                  >
-                    <input
-                      id="register-admin-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setStepTwoErrors((prev) => ({
-                          ...prev,
-                          password: undefined,
-                        }));
-                      }}
-                      placeholder="********"
-                      autoComplete="new-password"
-                      className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
-                      required
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={
-                        showPassword
-                          ? 'Ocultar contrasena'
-                          : 'Mostrar contrasena'
-                      }
-                    >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                  {stepTwoErrors.password ? (
-                    <FieldError message={stepTwoErrors.password} />
-                  ) : null}
-                  <div className="mt-2">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e6ebf3]">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          passwordStrength.score <= 1
-                            ? 'bg-rose-500'
-                            : passwordStrength.score === 2
-                              ? 'bg-amber-500'
-                              : passwordStrength.score === 3
-                                ? 'bg-sky-500'
-                                : 'bg-emerald-500'
-                        }`}
-                        style={{
-                          width: `${(passwordStrength.score / 4) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] font-medium text-[#73829a]">
-                      Minimo 6 caracteres, una minuscula, una mayuscula y un
-                      numero.
-                    </p>
-                  </div>
-                </div>
-
-                <TextInput
-                  id="register-admin-password-confirm"
-                  label="Confirma tu contrasena"
-                  value={confirmPassword}
-                  onChange={(value) => {
-                    setConfirmPassword(value);
-                    setStepTwoErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: undefined,
-                    }));
-                  }}
-                  placeholder="Vuelve a escribir tu contrasena"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  error={stepTwoErrors.confirmPassword}
-                  compactLabel
-                />
-
-                {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
-                  <p
-                    className={`text-xs font-semibold ${
-                      passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
-                    }`}
-                  >
-                    {passwordsMatch
-                      ? 'Las contrasenas coinciden.'
-                      : 'Las contrasenas no coinciden.'}
+                {hasGoogleFlow ? (
+                  <p className="mb-5 rounded-[14px] border border-[#d9e5fb] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#355070]">
+                    Google completó tus datos. Revísalos y termina el registro.
                   </p>
                 ) : null}
 
-                <button
-                  type="submit"
-                  className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
-                >
-                  Crear cuenta
-                </button>
+                <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                  <section className="space-y-3">
+                    <SectionHeader label="Datos personales" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <TextInput
+                        id="register-admin-name"
+                        label="Nombre"
+                        value={nombre}
+                        onChange={(value) => {
+                          setNombre(value);
+                          setStepTwoErrors((prev) => ({
+                            ...prev,
+                            nombre: undefined,
+                          }));
+                        }}
+                        placeholder="Ej: Juan"
+                        autoComplete="given-name"
+                        error={stepTwoErrors.nombre}
+                        compactLabel
+                      />
 
-                {!hasGoogleFlow && isGoogleAuthEnabled ? (
-                  <div className="space-y-3 pt-1">
-                    <Divider label="O continua con" />
-                    {googleLoading ? (
-                      <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
-                        <Loader
-                          size={18}
-                          className="mx-auto animate-spin text-[#274ab8]"
-                        />
-                        <p className="mt-2 text-sm font-semibold text-slate-700">
-                          Validando Google...
+                      <TextInput
+                        id="register-admin-lastname"
+                        label="Apellidos"
+                        value={apellidos}
+                        onChange={(value) => {
+                          setApellidos(value);
+                          setStepTwoErrors((prev) => ({
+                            ...prev,
+                            apellidos: undefined,
+                          }));
+                        }}
+                        placeholder="Ej: Perez Gomez"
+                        autoComplete="family-name"
+                        error={stepTwoErrors.apellidos}
+                        compactLabel
+                      />
+                    </div>
+                  </section>
+
+                  <section className="space-y-3">
+                    <SectionHeader label="Contacto" />
+                    <PhoneInput
+                      id="register-admin-phone"
+                      label="Teléfono"
+                      value={telefono}
+                      onChange={(value) => {
+                        setTelefono(formatNationalPhone(value));
+                        setStepTwoErrors((prev) => ({
+                          ...prev,
+                          telefono: undefined,
+                        }));
+                      }}
+                      error={stepTwoErrors.telefono}
+                    />
+
+                    <div>
+                      <TextInput
+                        id="register-admin-email"
+                        label="Correo electrónico"
+                        value={correo}
+                        onChange={(value) => {
+                          setCorreo(value);
+                          setStepTwoErrors((prev) => ({
+                            ...prev,
+                            correo: undefined,
+                          }));
+                        }}
+                        onBlur={async () => {
+                          const emailExistsError =
+                            await validateEmailAvailability(correo);
+                          if (emailExistsError) {
+                            setStepTwoErrors((prev) => ({
+                              ...prev,
+                              correo: emailExistsError,
+                            }));
+                          }
+                        }}
+                        placeholder="admin@empresa.com"
+                        autoComplete="email"
+                        error={stepTwoErrors.correo}
+                        compactLabel
+                      />
+                      {isCheckingEmail && !stepTwoErrors.correo ? (
+                        <p className="mt-2 text-xs font-semibold text-[#64748b]">
+                          Validando correo...
                         </p>
-                      </div>
-                    ) : (
-                      <div className="flex justify-center">
-                        <GoogleLogin
-                          onSuccess={(response) => {
-                            setGoogleLoading(true);
-                            handleGoogleRegisterSuccess(response);
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section className="space-y-3">
+                    <SectionHeader label="Seguridad" />
+                    <div>
+                      <label
+                        htmlFor="register-admin-password"
+                        className="mb-2 block text-xs font-black text-[#344054]"
+                      >
+                        Contraseña
+                      </label>
+                      <div
+                        className={`flex h-[54px] items-center rounded-[14px] border bg-white px-4 shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition ${
+                          stepTwoErrors.password
+                            ? 'border-rose-300 bg-rose-50/50'
+                            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                        }`}
+                      >
+                        <input
+                          id="register-admin-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(event) => {
+                            setPassword(event.target.value);
+                            setStepTwoErrors((prev) => ({
+                              ...prev,
+                              password: undefined,
+                            }));
                           }}
-                          onError={handleGoogleRegisterError}
-                          text="continue_with"
-                          theme="outline"
-                          size="large"
-                          width="100%"
+                          placeholder="Crea una contraseña"
+                          autoComplete="new-password"
+                          aria-invalid={Boolean(stepTwoErrors.password)}
+                          aria-describedby={
+                            stepTwoErrors.password
+                              ? 'register-admin-password-error'
+                              : undefined
+                          }
+                          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                         />
+                        <button
+                          type="button"
+                          className="ml-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#9aa8bc] transition-colors hover:bg-[#f4f6fb] hover:text-[#536178]"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={
+                            showPassword
+                              ? 'Ocultar contraseña'
+                              : 'Mostrar contraseña'
+                          }
+                        >
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ) : null}
-              </form>
+                      {stepTwoErrors.password ? (
+                        <FieldError
+                          id="register-admin-password-error"
+                          message={stepTwoErrors.password}
+                        />
+                      ) : null}
+
+                      <div className="mt-3 rounded-[16px] border border-[#edf1f7] bg-[#fbfcff] p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-xs font-black text-[#344054]">
+                            Seguridad:
+                            <span className={`ml-1 ${passwordStrengthTone}`}>
+                              {passwordStrength.label}
+                            </span>
+                          </p>
+                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e6ebf3]">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                passwordStrength.score <= 1
+                                  ? 'bg-rose-500'
+                                  : passwordStrength.score === 2
+                                    ? 'bg-amber-500'
+                                    : passwordStrength.score === 3
+                                      ? 'bg-sky-500'
+                                      : 'bg-emerald-500'
+                              }`}
+                              style={{
+                                width: `${(passwordStrength.score / 4) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <PasswordChip active={passwordChecks.minLength} label="6 caracteres" />
+                          <PasswordChip active={passwordChecks.hasUpper} label="Mayúscula" />
+                          <PasswordChip active={passwordChecks.hasLower} label="Minúscula" />
+                          <PasswordChip active={passwordChecks.hasNumber} label="Número" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <TextInput
+                      id="register-admin-password-confirm"
+                      label="Confirma tu contraseña"
+                      value={confirmPassword}
+                      onChange={(value) => {
+                        setConfirmPassword(value);
+                        setStepTwoErrors((prev) => ({
+                          ...prev,
+                          confirmPassword: undefined,
+                        }));
+                      }}
+                      placeholder="Vuelve a escribir tu contraseña"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      error={stepTwoErrors.confirmPassword}
+                      compactLabel
+                    />
+
+                    {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
+                      <p
+                        className={`text-xs font-semibold ${
+                          passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {passwordsMatch
+                          ? 'Las contraseñas coinciden.'
+                          : 'Las contraseñas no coinciden.'}
+                      </p>
+                    ) : null}
+                  </section>
+
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985]"
+                  >
+                    Crear cuenta
+                  </button>
+
+                  {!hasGoogleFlow && isGoogleAuthEnabled ? (
+                    <div className="space-y-3 pt-1">
+                      <Divider label="O continua con" />
+                      {googleLoading ? (
+                        <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
+                          <Loader
+                            size={18}
+                            className="mx-auto animate-spin text-[#274ab8]"
+                          />
+                          <p className="mt-2 text-sm font-semibold text-slate-700">
+                            Validando Google...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <GoogleLogin
+                            onSuccess={(response) => {
+                              setGoogleLoading(true);
+                              handleGoogleRegisterSuccess(response);
+                            }}
+                            onError={handleGoogleRegisterError}
+                            text="continue_with"
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </form>
+              </div>
 
               <RegisterLinks
                 onHelp={() => setSupportModal('help')}
@@ -589,22 +666,24 @@ function BusinessTypeCard({
       role="radio"
       aria-checked={selected}
       onClick={onSelect}
-      className={`w-full rounded-[13px] border px-4 py-4 text-left transition ${
+      className={`w-full rounded-[14px] border px-4 py-4 text-left shadow-sm transition-all duration-200 active:scale-[0.985] ${
         selected
-          ? 'border-[#274ab8] bg-[#f6f8ff] shadow-[0_0_0_1px_rgba(39,74,184,0.10)]'
-          : 'border-[#dfe5f1] bg-white hover:border-[#cbd6e8]'
+          ? 'border-[#274ab8] bg-[#f3f7ff] shadow-[0_12px_28px_rgba(39,74,184,0.13),0_0_0_1px_rgba(39,74,184,0.16)]'
+          : 'border-[#dfe5f1] bg-white hover:-translate-y-0.5 hover:border-[#cbd6e8] hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)]'
       }`}
     >
       <div className="flex items-center gap-3">
         <span
-          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] ${
-            colorByType[type.value]
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[11px] transition-all duration-200 ${
+            selected
+              ? 'bg-[#274ab8] text-white shadow-[0_10px_22px_rgba(39,74,184,0.22)]'
+              : colorByType[type.value]
           }`}
         >
           {type.icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-black text-[#111827]">
+          <span className="block text-[13px] font-black text-[#111827]">
             {type.label}
           </span>
           <span className="mt-1 block text-[11px] font-medium leading-4 text-[#73829a]">
@@ -612,10 +691,10 @@ function BusinessTypeCard({
           </span>
         </span>
         <span
-          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
             selected
-              ? 'border-[#274ab8] bg-[#274ab8] text-white'
-              : 'border-[#c8d2e2] text-transparent'
+              ? 'scale-100 border-[#274ab8] bg-[#274ab8] text-white'
+              : 'scale-95 border-[#c8d2e2] bg-white text-transparent'
           }`}
           aria-hidden="true"
         >
@@ -649,12 +728,14 @@ function TextInput({
   error?: string;
   compactLabel?: boolean;
 }) {
+  const errorId = `${id}-error`;
+
   return (
     <div>
       <label
         htmlFor={id}
-        className={`mb-2 block font-black text-[#344054] ${
-          compactLabel ? 'text-xs' : 'text-[10px] uppercase tracking-[0.08em]'
+        className={`mb-2 block text-[#344054] ${
+          compactLabel ? 'text-xs font-black' : 'text-sm font-semibold'
         }`}
       >
         {label}
@@ -669,15 +750,146 @@ function TextInput({
         placeholder={placeholder}
         autoComplete={autoComplete}
         aria-invalid={Boolean(error)}
-        className={`block min-h-[50px] w-full rounded-[10px] border px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-[#a8b4c5] ${
+        aria-describedby={error ? errorId : undefined}
+        className={`block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#a8b4c5] ${
           error
             ? 'border-rose-300 bg-rose-50/50'
             : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/10'
         }`}
       />
-      {error ? <FieldError message={error} /> : null}
+      {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
+}
+
+function PhoneInput({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+}) {
+  const errorId = `${id}-error`;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const caretDigitIndex = useRef<number | null>(null);
+  const formattedValue = formatNationalPhone(value);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || caretDigitIndex.current === null) {
+      return;
+    }
+
+    const nextPosition = getCaretPositionForDigits(
+      formattedValue,
+      caretDigitIndex.current,
+    );
+    input.setSelectionRange(nextPosition, nextPosition);
+    caretDigitIndex.current = null;
+  }, [formattedValue]);
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-xs font-black text-[#344054]"
+      >
+        {label}
+      </label>
+      <div
+        className={`flex h-[54px] items-center overflow-hidden rounded-[14px] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition ${
+          error
+            ? 'border-rose-300 bg-rose-50/50'
+            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+        }`}
+      >
+        <span className="flex h-full shrink-0 items-center border-r border-[#e5eaf3] bg-[#f8fafc] px-3 text-sm font-black text-[#274ab8]">
+          +57
+        </span>
+        <input
+          ref={inputRef}
+          id={id}
+          name={id}
+          type="tel"
+          inputMode="numeric"
+          value={formattedValue}
+          onChange={(event) => {
+            const selectionStart =
+              event.currentTarget.selectionStart ?? event.currentTarget.value.length;
+            caretDigitIndex.current = getPhoneDigits(
+              event.currentTarget.value.slice(0, selectionStart),
+            ).length;
+            onChange(event.currentTarget.value);
+          }}
+          placeholder="300 123 4567"
+          autoComplete="tel-national"
+          maxLength={12}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
+          className="h-full min-w-0 flex-1 border-0 bg-transparent px-4 py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+        />
+      </div>
+      {error ? <FieldError id={errorId} message={error} /> : null}
+    </div>
+  );
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="h-px flex-1 bg-[#edf1f7]" />
+      <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em] text-[#475569]">
+        {label}
+      </p>
+      <span className="h-px flex-1 bg-[#edf1f7]" />
+    </div>
+  );
+}
+
+function PasswordChip({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black transition ${
+        active
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'border-[#e6ebf3] bg-white text-[#7b8798]'
+      }`}
+    >
+      <span
+        className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${
+          active ? 'bg-emerald-600 text-white' : 'bg-[#eef2f8] text-[#94a3b8]'
+        }`}
+        aria-hidden="true"
+      >
+        <Check size={10} strokeWidth={3} />
+      </span>
+      {label}
+    </span>
+  );
+}
+
+function getCaretPositionForDigits(value: string, digitCount: number) {
+  if (digitCount <= 0) {
+    return 0;
+  }
+
+  let seenDigits = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d/.test(value[index])) {
+      seenDigits += 1;
+      if (seenDigits === digitCount) {
+        return index + 1;
+      }
+    }
+  }
+
+  return value.length;
 }
 
 function RegisterFooter({
@@ -694,11 +906,11 @@ function RegisterFooter({
   onContact: () => void;
 }) {
   return (
-    <footer className="mt-8 border-t border-[#e6ebf3] bg-[#f7f8fb] px-4 py-4">
+    <footer className="mt-6 border-t border-[#e6ebf3] bg-[#f7f8fb]/95 px-4 py-4">
       <button
         type="button"
         onClick={onPrimary}
-        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985] active:shadow-[0_10px_20px_rgba(40,75,193,0.18)]"
       >
         {primaryLabel}
         {icon}
@@ -717,25 +929,22 @@ function RegisterLinks({
   onContact: () => void;
 }) {
   return (
-    <div className="pt-5 text-center">
-      <p className="text-[11px] font-medium text-[#73829a]">
-        &iquest;Necesitas ayuda con el registro?
-      </p>
-      <div className="mt-2 flex items-center justify-center gap-6">
+    <div className="pt-4 text-center">
+      <div className="flex items-center justify-center gap-3">
         <button
           type="button"
           onClick={onHelp}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-[#d9e5fb] bg-white px-4 text-xs font-black text-[#274ab8] shadow-sm transition-all hover:bg-[#f3f7ff] active:scale-[0.97]"
         >
-          <CircleHelp size={13} />
-          Ayuda
+          <CircleHelp size={14} />
+          Obtener ayuda
         </button>
         <button
           type="button"
           onClick={onContact}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#274ab8] active:scale-[0.97]"
         >
-          <Headset size={13} />
+          <Headset size={14} />
           Contacto
         </button>
       </div>
@@ -755,8 +964,17 @@ function Divider({ label }: { label: string }) {
   );
 }
 
-function FieldError({ message }: { message: string }) {
-  return <p className="mt-2 text-xs font-semibold text-rose-600">{message}</p>;
+function FieldError({ id, message }: { id?: string; message: string }) {
+  return (
+    <p
+      id={id}
+      role="alert"
+      className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-5 text-rose-600"
+    >
+      <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <span>{message}</span>
+    </p>
+  );
 }
 
 function AlertBanner({
@@ -768,9 +986,11 @@ function AlertBanner({
 }) {
   return (
     <div
-      className={`rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ${className}`.trim()}
+      role="alert"
+      className={`flex items-center gap-2 rounded-[10px] border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs font-bold leading-5 text-rose-700 ${className}`.trim()}
     >
-      {message}
+      <AlertTriangle size={14} className="shrink-0" aria-hidden="true" />
+      <span>{message}</span>
     </div>
   );
 }
@@ -782,57 +1002,184 @@ function SupportModal({
   type: 'help' | 'contact';
   onClose: () => void;
 }) {
+  const isHelp = type === 'help';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-5"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+        className={`max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-[20px] border border-[#e2e8f0] bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.20)] animate-[cafesmartFadeScale_220ms_ease-out_both] ${
+          isHelp ? 'max-w-[480px]' : 'max-w-[480px] sm:max-w-[760px]'
+        }`}
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#274ab8]">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#2563eb]">
               Soporte
             </p>
             <h2
               id="register-support-title"
-              className="mt-1 text-lg font-black text-[#111827]"
+              className="mt-3 text-3xl font-black leading-tight text-[#0f172a]"
             >
-              {type === 'help' ? 'Ayuda basica' : 'Contacto'}
+              {isHelp ? 'Ayuda básica' : 'Contacto'}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#334155] transition hover:bg-[#eef2f8] hover:text-[#0f172a] active:scale-95"
             aria-label="Cerrar modal"
           >
-            <X size={16} />
+            <X size={24} strokeWidth={2.4} />
           </button>
         </div>
 
-        {type === 'help' ? (
-          <div className="space-y-2 text-sm leading-6 text-[#536178]">
-            <p>1. Escribe el nombre real del negocio.</p>
-            <p>2. Elige el tipo de operacion cafetera.</p>
-            <p>3. Completa los datos del administrador.</p>
-          </div>
+        {isHelp ? (
+          <HelpModalContent />
         ) : (
-          <div className="space-y-2 text-sm leading-6 text-[#536178]">
-            <p>Correo: soporte@cafesmart.com</p>
-            <p>Telefono: +57 300 000 0000</p>
-          </div>
+          <ContactModalContent />
         )}
 
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-[44px] w-full rounded-full bg-[#284bc1] px-4 text-sm font-black text-white transition hover:bg-[#203fa8]"
+          className="mt-7 min-h-[54px] w-full rounded-[12px] bg-[#2563eb] px-4 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition-all hover:bg-[#1d4ed8] active:scale-[0.985]"
         >
           Entendido
         </button>
       </div>
+    </div>
+  );
+}
+
+function HelpModalContent() {
+  const steps = [
+    {
+      number: '1',
+      icon: <Store size={25} />,
+      title: 'Escribe el nombre del negocio',
+      text: 'Usa el nombre exacto con el que lo usas diariamente.',
+    },
+    {
+      number: '2',
+      icon: <Menu size={27} />,
+      title: 'Selecciona el tipo de negocio',
+      text: 'Elige la opción que mejor describa tu operación cafetera.',
+    },
+    {
+      number: '3',
+      icon: <ArrowRight size={27} />,
+      title: 'Pulsa Siguiente paso',
+      text: 'Continuarás con los datos del administrador.',
+    },
+  ];
+
+  return (
+    <div>
+      <div className="mb-6 flex items-start gap-4">
+        <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
+          <CircleHelp size={28} fill="currentColor" className="text-[#1d4ed8]" />
+        </span>
+        <p className="pt-1 text-base font-medium leading-7 text-[#475569]">
+          Sigue estos pasos para completar el registro de tu negocio.
+        </p>
+      </div>
+
+      <div className="space-y-0">
+        {steps.map((step, index) => (
+          <div key={step.number}>
+            <div className="grid grid-cols-[3.25rem_3.75rem_1fr] items-center gap-2 py-5">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-base font-black text-[#1d4ed8]">
+                {step.number}
+              </span>
+              <span className="inline-flex h-11 w-11 items-center justify-center text-[#1d4ed8]">
+                {step.icon}
+              </span>
+              <span>
+                <span className="block text-sm font-black text-[#0f172a]">
+                  {step.title}
+                </span>
+                <span className="mt-1 block text-sm font-medium leading-6 text-[#475569]">
+                  {step.text}
+                </span>
+              </span>
+            </div>
+            {index < steps.length - 1 ? (
+              <div className="ml-[4.3rem] h-px bg-[#e2e8f0]" />
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <InfoNotice text="Si tienes dudas durante el proceso, puedes comunicarte con soporte." />
+    </div>
+  );
+}
+
+function ContactModalContent() {
+  const contactItems = [
+    {
+      icon: <Mail size={25} />,
+      title: 'Correo electrónico',
+      text: 'soporte@cafesmart.com',
+    },
+    {
+      icon: <Phone size={25} />,
+      title: 'Teléfono',
+      text: '+57 300 000 0000',
+    },
+    {
+      icon: <Clock size={25} />,
+      title: 'Horario de atención',
+      text: 'Lunes a Viernes\n8:00 a.m. - 6:00 p.m.',
+    },
+  ];
+
+  return (
+    <div>
+      <div className="mb-7 flex items-start gap-4">
+        <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
+          <Headset size={34} />
+        </span>
+        <p className="pt-1 text-base font-medium leading-7 text-[#475569]">
+          Si tienes problemas con el registro, puedes comunicarte con nuestro
+          equipo de soporte.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {contactItems.map((item) => (
+          <div
+            key={item.title}
+            className="flex min-h-[158px] min-w-0 flex-col items-center justify-start rounded-[12px] border border-[#e2e8f0] bg-white p-4 text-center shadow-sm"
+          >
+            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
+              {item.icon}
+            </span>
+            <p className="text-sm font-black text-[#0f172a]">{item.title}</p>
+            <p className="mt-2 max-w-full whitespace-pre-line break-words text-sm font-semibold leading-6 text-[#2563eb] [overflow-wrap:anywhere]">
+              {item.text}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <InfoNotice text="Te responderemos a la brevedad posible. Gracias por tu paciencia." />
+    </div>
+  );
+}
+
+function InfoNotice({ text }: { text: string }) {
+  return (
+    <div className="mt-6 flex items-center gap-3 rounded-[12px] bg-[#f1f5ff] px-4 py-4 text-sm font-medium leading-6 text-[#475569]">
+      <Info size={24} className="shrink-0 text-[#1d4ed8]" />
+      <span>{text}</span>
     </div>
   );
 }

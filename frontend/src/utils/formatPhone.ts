@@ -7,6 +7,15 @@ export const getPhoneDigits = (value: string): string => {
   return clean.slice(0, 10);
 };
 
+export const formatNationalPhone = (value: string): string => {
+  const limited = getPhoneDigits(value);
+  const part1 = limited.slice(0, 3);
+  const part2 = limited.slice(3, 6);
+  const part3 = limited.slice(6, 10);
+
+  return [part1, part2, part3].filter(Boolean).join(' ');
+};
+
 export const formatPhone = (value: string): string => {
   const limited = getPhoneDigits(value);
 

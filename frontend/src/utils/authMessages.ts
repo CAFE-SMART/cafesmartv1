@@ -7,13 +7,13 @@ type RawApiError = {
 };
 
 export const AUTH_MESSAGES = {
-  invalidEmail: 'Correo incorrecto.',
-  invalidPassword: 'Contrasena incorrecta.',
+  invalidEmail: 'No encontramos una cuenta con este correo.',
+  invalidPassword: 'La contraseña no coincide.',
   googleGeneric:
     'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
   googleNeedsRegister:
-    'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
-  offline: 'Revisa tu conexión e intenta de nuevo.',
+    'No encontramos una cuenta con este correo.',
+  offline: 'No pudimos conectarnos. Revisa tu internet e intenta nuevamente.',
 } as const;
 
 export function normalizeMessage(
@@ -36,6 +36,17 @@ export function mapFriendlyAuthMessage(
 
   if (endpoint === '/login') {
     if (field === 'email' || field === 'correo') {
+      const rawMessage = normalizeMessage(data.message, AUTH_MESSAGES.invalidEmail);
+      const lowerMessage = rawMessage.toLowerCase();
+
+      if (
+        lowerMessage.includes('formato') ||
+        lowerMessage.includes('valid') ||
+        lowerMessage.includes('obligatorio')
+      ) {
+        return 'El correo no parece válido.';
+      }
+
       return AUTH_MESSAGES.invalidEmail;
     }
 

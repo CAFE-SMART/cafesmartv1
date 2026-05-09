@@ -22,10 +22,75 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function FieldError({ id, message }: { id: string; message: string }) {
+type EmailValidationMode = 'typing' | 'blur' | 'submit';
+type FieldMessageTone = 'assist' | 'error';
+
+function getProgressiveEmailError(value: string, mode: EmailValidationMode) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return mode === 'submit' ? 'Ingresa tu correo electrónico.' : null;
+  }
+
+  const shouldGuide = mode !== 'typing' || trimmed.length >= 5;
+  if (!shouldGuide) {
+    return null;
+  }
+
+  if (!trimmed.includes('@')) {
+    return 'Agrega un correo válido.';
+  }
+
+  const [localPart, domainPart = '', extraPart] = trimmed.split('@');
+  if (!localPart || extraPart !== undefined || /\s/.test(trimmed)) {
+    return 'El correo no parece válido.';
+  }
+
+  if (!domainPart) {
+    return 'Completa el dominio del correo.';
+  }
+
+  if (!domainPart.includes('.')) {
+    return 'Completa el dominio del correo.';
+  }
+
+  const domainSections = domainPart.split('.');
+  const lastSection = domainSections[domainSections.length - 1] ?? '';
+  if (domainPart.endsWith('.') || lastSection.length < 2) {
+    return 'Parece que falta completar el correo.';
+  }
+
+  if (!isValidEmail(trimmed)) {
+    return 'El correo no parece válido.';
+  }
+
+  return null;
+}
+
+function FieldMessage({
+  id,
+  message,
+  tone,
+}: {
+  id: string;
+  message: string;
+  tone: FieldMessageTone;
+}) {
+  const isError = tone === 'error';
+
   return (
-    <p id={id} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-red-600">
-      <AlertCircle size={14} aria-hidden="true" />
+    <p
+      id={id}
+      role={isError ? 'alert' : 'status'}
+      className={`mt-2 flex items-start gap-1.5 rounded-lg px-1 text-sm font-semibold leading-5 ${
+        isError ? 'text-red-600' : 'text-slate-500'
+      }`}
+    >
+      <AlertCircle
+        size={14}
+        className={`mt-0.5 shrink-0 ${isError ? 'text-red-500' : 'text-slate-400'}`}
+        aria-hidden="true"
+      />
       {message}
     </p>
   );
@@ -56,6 +121,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
+  const [emailFieldTone, setEmailFieldTone] = useState<FieldMessageTone>('assist');
   const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
   const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,8 +129,6 @@ export default function Login() {
   const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedAccountName, setRememberedAccountName] = useState('');
-  const emailInputRef = useRef<HTMLInputElement | null>(null);
-  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
@@ -126,6 +190,22 @@ export default function Login() {
   }, [googleLoading, isAndroidApp, isGoogleAuthEnabled]);
 
   useEffect(() => {
+    if (!email.trim() || !emailTouched) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      const nextEmailError = getProgressiveEmailError(email, 'typing');
+      setEmailFieldTone('assist');
+      setEmailFieldError(nextEmailError);
+    }, 850);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [email, emailTouched]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -171,6 +251,7 @@ export default function Login() {
     setPassword('');
     setError(null);
     setEmailFieldError(null);
+    setEmailFieldTone('assist');
     setPasswordFieldError(null);
     setEmailTouched(false);
   };
@@ -199,33 +280,25 @@ export default function Login() {
     createGuidedError(
       message,
       'Revisa tu correo.',
-      'El formato no es correcto o está vacío (ej: juan@correo.com).',
-      'Corrige tu correo e intenta de nuevo.',
+      'Puede estar incompleto o no estar registrado.',
+      'Ajusta el correo e intenta de nuevo.',
     );
 
   const getPasswordGuidance = (message: string): GuidedErrorMessage =>
     createGuidedError(
       message,
       'Revisa tu contraseña.',
-      'Puede estar incorrecta o vacía.',
-      'Escribe tu contraseña correcta.',
+      'Puede estar vacía o no coincidir con tu cuenta.',
+      'Escríbela de nuevo con calma.',
     );
 
   const getGlobalGuidance = (message: string): GuidedErrorMessage =>
     createGuidedError(
       message,
       'Problema al iniciar.',
-      'Verifica tus credenciales o conexión.',
-      'Revisa los datos e intenta entrar.',
+      'Puede ser un problema de conexión o del servidor.',
+      'Espera un momento e intenta nuevamente.',
     );
-
-  const focusEmail = () => {
-    emailInputRef.current?.focus();
-  };
-
-  const focusPassword = () => {
-    passwordInputRef.current?.focus();
-  };
 
   const syncRememberedAccount = async (account: { email: string; name?: string | null }) => {
     if (rememberMe) {
@@ -243,35 +316,29 @@ export default function Login() {
     setEmailTouched(true);
     setError(null);
     setEmailFieldError(null);
+    setEmailFieldTone('assist');
     setPasswordFieldError(null);
 
     let hasValidationError = false;
     let nextEmailError: string | null = null;
     let nextPasswordError: string | null = null;
 
-    if (!email.trim()) {
-      nextEmailError = 'Ingresa tu correo electrónico';
-      hasValidationError = true;
-    } else if (!isValidEmail(email)) {
-      nextEmailError = 'Ingresa un correo electrónico válido';
+    nextEmailError = getProgressiveEmailError(email, 'submit');
+    if (nextEmailError) {
       hasValidationError = true;
     }
 
     if (!password.trim()) {
-      nextPasswordError = 'Ingresa tu contraseña';
+      nextPasswordError = 'Ingresa tu contraseña.';
       hasValidationError = true;
     }
 
+    setEmailFieldTone('error');
     setEmailFieldError(nextEmailError);
     setPasswordFieldError(nextPasswordError);
 
     if (hasValidationError) {
-      setError('Completa los campos para continuar');
-      if (nextEmailError) {
-        window.setTimeout(focusEmail, 80);
-      } else if (nextPasswordError) {
-        window.setTimeout(focusPassword, 80);
-      }
+      setError('Completa los datos para continuar.');
       return;
     }
 
@@ -305,7 +372,7 @@ export default function Login() {
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No se pudo iniciar sesión. Intenta nuevamente.';
+      const message = authError.message || 'No pudimos iniciar sesión en este momento.';
       const details = authError.details ?? {};
       const isCredentialError =
         authError.status === 401 ||
@@ -319,24 +386,22 @@ export default function Login() {
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
 
       if (isCredentialError && (emailDetail || passwordDetail)) {
-        setPasswordFieldError(passwordDetail || 'Contraseña incorrecta');
+        setPasswordFieldError(passwordDetail || 'La contraseña no coincide.');
         setPassword('');
         setError(null);
-        window.setTimeout(focusPassword, 80);
       } else if (isCredentialError && (field === 'email' || field === 'correo')) {
+        setEmailFieldTone('error');
         setEmailFieldError(message);
         setError(null);
-        window.setTimeout(focusEmail, 80);
       } else if (isCredentialError && (field === 'password' || field === 'contrasena')) {
         setPasswordFieldError(message);
         setPassword('');
         setError(null);
-        window.setTimeout(focusPassword, 80);
       } else if (authError.code === 'OFFLINE' || authError.status === 0) {
-        setError('No pudimos conectarnos con el servidor. Revisa tu conexión o que el backend esté encendido.');
+        setError('No pudimos conectarnos. Revisa tu internet e intenta nuevamente.');
         setPasswordFieldError(null);
       } else if ((authError.status ?? 0) >= 500) {
-        setError('El servidor tuvo un problema al validar tu ingreso. Intenta nuevamente en unos segundos.');
+        setError('No pudimos iniciar sesión en este momento.');
         setPasswordFieldError(null);
       } else {
         setError(message);
@@ -350,6 +415,7 @@ export default function Login() {
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError(null);
     setEmailFieldError(null);
+    setEmailFieldTone('assist');
     setPasswordFieldError(null);
     setGoogleLoading(true);
 
@@ -411,6 +477,7 @@ export default function Login() {
     const message = 'No se pudo iniciar sesión con Google.';
     setError(message);
     setEmailFieldError(null);
+    setEmailFieldTone('assist');
     setPasswordFieldError(null);
     setGoogleLoading(false);
   };
@@ -461,43 +528,45 @@ export default function Login() {
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  ref={emailInputRef}
                   type="email"
                   aria-invalid={Boolean(emailFieldError)}
                   aria-describedby={emailFieldError ? 'login-email-error' : undefined}
-                  className={`block w-full pl-10 pr-9 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 ${
-                    emailFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                  className={`block w-full pl-10 pr-9 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10 ${
+                    emailFieldError && emailFieldTone === 'error'
+                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-red-100'
+                      : emailFieldError
+                        ? 'border-slate-300 bg-slate-50/70'
+                        : 'border-gray-200'
                   }`}
                   placeholder="ejemplo@correo.com"
                   value={email}
                   onBlur={() => {
                     setEmailTouched(true);
-                    if (email.trim() && !isValidEmail(email)) {
-                      setEmailFieldError('Ingresa un correo electrónico válido');
-                    }
+                    const nextEmailError = getProgressiveEmailError(email, 'blur');
+                    setEmailFieldTone(nextEmailError ? 'error' : 'assist');
+                    setEmailFieldError(nextEmailError);
                   }}
                   onChange={(e) => {
                     const nextEmail = e.target.value;
                     setEmail(nextEmail);
-                    if (!nextEmail.trim()) {
-                      setEmailFieldError(null);
-                      return;
-                    }
-                    if (emailTouched && !isValidEmail(nextEmail)) {
-                      setEmailFieldError('Ingresa un correo electrónico válido');
-                      return;
-                    }
+                    setEmailTouched(true);
+                    setError(null);
+                    setEmailFieldTone('assist');
                     setEmailFieldError(null);
                   }}
                 />
-                {emailFieldError ? (
+                {emailFieldError && emailFieldTone === 'error' ? (
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <AlertCircle className="h-4 w-4 text-red-500" />
                   </div>
                 ) : null}
               </div>
               {emailFieldError && (
-                <FieldError id="login-email-error" message={emailFieldError} />
+                <FieldMessage
+                  id="login-email-error"
+                  message={emailFieldError}
+                  tone={emailFieldTone}
+                />
               )}
             </div>
 
@@ -520,12 +589,13 @@ export default function Login() {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  ref={passwordInputRef}
                   type={showPassword ? 'text' : 'password'}
                   aria-invalid={Boolean(passwordFieldError)}
                   aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
-                    passwordFieldError ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
+                    passwordFieldError
+                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-4 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10'
                   }`}
                   placeholder="********"
                   value={password}
@@ -547,7 +617,11 @@ export default function Login() {
                 </button>
               </div>
               {passwordFieldError && (
-                <FieldError id="login-password-error" message={passwordFieldError} />
+                <FieldMessage
+                  id="login-password-error"
+                  message={passwordFieldError}
+                  tone="error"
+                />
               )}
             </div>
 

@@ -8,8 +8,8 @@ export const UI_MESSAGES = {
   auth: {
     invalidCredentials: {
       titulo: 'No pudimos iniciar sesión',
-      mensaje: 'Correo o contraseña incorrectos.',
-      accion: 'Revisa los datos e intenta nuevamente',
+      mensaje: 'Revisa el correo o la contraseña.',
+      accion: 'Ajusta los datos e intenta nuevamente',
     },
     forbidden: {
       titulo: 'Acceso no disponible',

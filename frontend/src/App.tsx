@@ -146,7 +146,7 @@ function App() {
               Saltar al contenido principal
             </a>
             <GlobalOfflineNotice />
-            <div id="app-content" tabIndex={-1}>
+            <div id="app-content">
               <AppRoutes />
             </div>
           </div>

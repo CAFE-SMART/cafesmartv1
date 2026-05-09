@@ -156,7 +156,7 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException({
-        message: 'Correo incorrecto',
+        message: 'No encontramos una cuenta con este correo.',
         field: 'email',
       });
     }
@@ -171,7 +171,7 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       throw new UnauthorizedException({
-        message: 'Contrasena incorrecta',
+        message: 'La contraseña no coincide.',
         field: 'password',
       });
     }
@@ -242,7 +242,7 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       throw new UnauthorizedException({
-        message: 'Contrasena incorrecta',
+        message: 'La contraseña no coincide.',
         field: 'password',
       });
     }

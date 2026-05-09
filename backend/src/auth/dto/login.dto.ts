@@ -3,10 +3,10 @@ import { IsEmail, IsNotEmpty } from 'class-validator';
 
 export class LoginDto {
   @Transform(({ value }) => String(value).trim().toLowerCase())
-  @IsEmail({}, { message: 'Ingresa un correo valido.' })
-  @IsNotEmpty({ message: 'El correo es obligatorio.' })
+  @IsEmail({}, { message: 'El correo no parece válido.' })
+  @IsNotEmpty({ message: 'Ingresa tu correo electrónico.' })
   email: string;
 
-  @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
+  @IsNotEmpty({ message: 'Ingresa tu contraseña.' })
   password: string;
 }
