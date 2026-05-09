@@ -59,7 +59,10 @@ export class ClientesService {
       data: {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre),
-        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente', {
+          tipoDocumento:
+            dto.tipoDocumento ?? (dto.documento?.includes('-') ? 'NIT' : 'CEDULA'),
+        }),
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
@@ -103,7 +106,10 @@ export class ClientesService {
       where: { id: clienteId },
       data: {
         nombre: this.normalizarNombre(dto.nombre),
-        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente', {
+          tipoDocumento:
+            dto.tipoDocumento ?? (dto.documento?.includes('-') ? 'NIT' : 'CEDULA'),
+        }),
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {

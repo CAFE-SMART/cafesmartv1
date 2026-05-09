@@ -59,7 +59,7 @@ export class ProductoresService {
       data: {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarDocumento(dto.documento),
+        documento: this.normalizarDocumento(dto.documento, dto.tipoDocumento),
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
       },
       select: {
@@ -103,7 +103,7 @@ export class ProductoresService {
       where: { id: productorId },
       data: {
         nombre: this.normalizarNombre(dto.nombre),
-        documento: this.normalizarDocumento(dto.documento),
+        documento: this.normalizarDocumento(dto.documento, dto.tipoDocumento),
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
       },
       select: {
@@ -147,9 +147,13 @@ export class ProductoresService {
     return normalizarNombrePersona(valor, 'productor');
   }
 
-  private normalizarDocumento(valor: string): string {
+  private normalizarDocumento(
+    valor: string,
+    tipoDocumento: GuardarProductorDto['tipoDocumento'],
+  ): string {
     return normalizarDocumentoPersona(valor, 'productor', {
       required: true,
+      tipoDocumento: tipoDocumento ?? (valor.includes('-') ? 'NIT' : 'CEDULA'),
     }) as string;
   }
 }

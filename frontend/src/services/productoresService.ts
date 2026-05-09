@@ -11,6 +11,7 @@ export type ProductorItem = {
 export type GuardarProductorPayload = {
   nombre: string;
   documento?: string;
+  tipoDocumento?: 'CEDULA' | 'NIT';
   telefono?: string;
 };
 

@@ -3,6 +3,8 @@ export type PersonFieldValidation = {
   message?: string;
 };
 
+export type DocumentType = 'CEDULA' | 'NIT';
+
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
 
 export function sanitizeNameInput(value: string) {
@@ -11,6 +13,39 @@ export function sanitizeNameInput(value: string) {
 
 export function sanitizeDigits(value: string, maxLength = 10) {
   return value.replace(/\D/g, '').slice(0, maxLength);
+}
+
+export function formatPhoneNumber(value: string) {
+  const digits = sanitizeDigits(value, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+}
+
+export function sanitizeDocumentInput(value: string, type: DocumentType) {
+  if (type === 'NIT') {
+    const limpio = value.replace(/[^\d-]/g, '');
+    const [base = '', verificacion = ''] = limpio.split('-');
+    const baseDigits = base.replace(/\D/g, '').slice(0, 9);
+    const checkDigit = verificacion.replace(/\D/g, '').slice(0, 1);
+    return limpio.includes('-') || checkDigit
+      ? `${baseDigits}${checkDigit ? `-${checkDigit}` : '-'}`
+      : baseDigits;
+  }
+
+  return sanitizeDigits(value, 10);
+}
+
+export function normalizeDocumentForStorage(value: string, type: DocumentType) {
+  const documento = value.trim();
+  if (type === 'NIT') {
+    const [base = '', verificacion = ''] = documento.split('-');
+    const baseDigits = base.replace(/\D/g, '').slice(0, 9);
+    const checkDigit = verificacion.replace(/\D/g, '').slice(0, 1);
+    return checkDigit ? `${baseDigits}-${checkDigit}` : baseDigits;
+  }
+
+  return sanitizeDigits(documento, 10);
 }
 
 function isRepeatedDigits(value: string) {
@@ -52,9 +87,10 @@ export function validatePhoneNumber(
   label = 'El teléfono',
   options: { optional?: boolean } = {},
 ): PersonFieldValidation {
-  const telefono = value.trim();
+  const telefonoTexto = value.trim();
+  const telefono = sanitizeDigits(telefonoTexto, 10);
 
-  if (!telefono) {
+  if (!telefonoTexto) {
     return options.optional
       ? { isValid: true }
       : {
@@ -63,7 +99,7 @@ export function validatePhoneNumber(
         };
   }
 
-  if (/\D/.test(telefono)) {
+  if (/[^\d\s]/.test(telefonoTexto)) {
     return {
       isValid: false,
       message: `${label} debe tener solo números.`,
@@ -73,7 +109,7 @@ export function validatePhoneNumber(
   if (telefono.length !== 10) {
     return {
       isValid: false,
-      message: `${label} debe tener 10 dígitos.`,
+      message: 'Ingresa un número de celular de 10 dígitos.',
     };
   }
 
@@ -96,8 +132,8 @@ export function validatePhoneNumber(
 
 export function validateDocumentNumber(
   value: string,
-  label = 'La cédula o NIT',
-  options: { optional?: boolean } = {},
+  label = 'El documento',
+  options: { optional?: boolean; type?: DocumentType | null } = {},
 ): PersonFieldValidation {
   const documento = value.trim();
 
@@ -106,18 +142,31 @@ export function validateDocumentNumber(
       ? { isValid: true }
       : {
           isValid: false,
-          message: `${label} es obligatorio.`,
+          message: 'Ingresa un número de documento válido.',
         };
   }
 
-  if (/\D/.test(documento)) {
+  if (options.type === null) {
     return {
       isValid: false,
-      message: `${label} debe tener solo números.`,
+      message: 'Selecciona el tipo de documento.',
     };
   }
 
-  if (documento.length < 6 || documento.length > 10) {
+  const tipoDocumento = options.type ?? 'CEDULA';
+
+  if (tipoDocumento === 'NIT') {
+    if (!/^\d{8,9}-\d$/.test(documento)) {
+      return {
+        isValid: false,
+        message: 'Para NIT usa el formato 900123456-7.',
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {
     return {
       isValid: false,
       message: `${label} debe tener entre 6 y 10 dígitos.`,

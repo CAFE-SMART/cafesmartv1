@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -14,6 +14,28 @@ import {
 } from 'class-validator';
 import { PRECIO_MINIMO_KG } from '../../common/business-rules';
 
+function parseNumeroColombiano(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const limpio = value.trim().replace(/\s/g, '');
+
+  if (!limpio) {
+    return value;
+  }
+
+  if (limpio.includes(',')) {
+    return Number(limpio.replace(/\./g, '').replace(',', '.'));
+  }
+
+  if (/^\d{1,3}(\.\d{3})+$/.test(limpio)) {
+    return Number(limpio.replace(/\./g, ''));
+  }
+
+  return Number(limpio);
+}
+
 export class CreateSubloteDto {
   @IsUUID('4', { message: 'tipoCafeId debe ser un UUID válido' })
   @IsNotEmpty({ message: 'tipoCafeId es obligatorio' })
@@ -23,13 +45,15 @@ export class CreateSubloteDto {
   @IsNotEmpty({ message: 'calidadId es obligatorio' })
   calidadId: string;
 
-  @Type(() => Number)
+  @Transform(({ value }) => parseNumeroColombiano(value))
   @IsNumber({}, { message: 'pesoInicial debe ser un número' })
   @Min(0.01, { message: 'El peso inicial debe ser mayor a 0' })
-  @Max(100000, { message: 'El peso inicial no puede exceder los 100,000 kg' })
+  @Max(2000000000, {
+    message: 'Revisa la cantidad ingresada. Parece demasiado alta.',
+  })
   pesoInicial: number;
 
-  @Type(() => Number)
+  @Transform(({ value }) => parseNumeroColombiano(value))
   @IsNumber({}, { message: 'precioKg debe ser un número' })
   @Min(PRECIO_MINIMO_KG, { message: 'El precio por kg debe ser mínimo $1,000' })
   @Max(100000, { message: 'El precio por kg no puede exceder los 100,000' })

@@ -10,10 +10,12 @@ import {
   RefreshCcw,
   ShoppingCart,
   SunMedium,
+  WifiOff,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { obtenerConfiguracionBodega } from '../services/bodegaApi';
+import { ApiRequestError } from '../services/apiService';
 import {
   applySecadoToLots,
   getActiveSecadoSession,
@@ -139,6 +141,50 @@ function secadoProgress(estado: string) {
 
 function secadoStatusLabel(estado: string) {
   return estado === 'READY' ? 'Listo para finalizar' : 'Secado en proceso';
+}
+
+type InventarioError = {
+  titulo: string;
+  mensaje: string;
+  detalle: string;
+};
+
+function traducirErrorInventario(error: unknown): InventarioError {
+  const isBrowserOffline =
+    typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  if (isBrowserOffline) {
+    return {
+      titulo: 'Sin conexión',
+      mensaje: 'Verifica tu internet e intenta nuevamente.',
+      detalle: 'Intenta nuevamente en unos segundos.',
+    };
+  }
+
+  if (error instanceof ApiRequestError && error.status === 0) {
+    return {
+      titulo: 'No pudimos conectarnos',
+      mensaje: 'El sistema está tardando más de lo esperado.',
+      detalle: 'Intenta nuevamente en unos segundos.',
+    };
+  }
+
+  if (
+    error instanceof ApiRequestError &&
+    (error.status >= 500 || error.code === 'DATABASE_BUSY')
+  ) {
+    return {
+      titulo: 'Tuvimos un problema',
+      mensaje: 'No pudimos completar la acción.',
+      detalle: 'Intenta nuevamente en unos segundos.',
+    };
+  }
+
+  return {
+    titulo: 'Tuvimos un problema',
+    mensaje: 'No pudimos cargar la información del inventario en este momento.',
+    detalle: 'Intenta nuevamente en unos segundos.',
+  };
 }
 
 function CapacityRing({
@@ -436,7 +482,7 @@ export default function Inventario() {
 
   const [lots, setLots] = useState<LoteResumen[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<InventarioError | null>(null);
   const [typeKey, setTypeKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
@@ -464,9 +510,7 @@ export default function Inventario() {
         capacidadKg: config.capacidadKg,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'No se pudo cargar el inventario.',
-      );
+      setError(traducirErrorInventario(err));
       setLots([]);
     } finally {
       setLoading(false);
@@ -825,13 +869,27 @@ export default function Inventario() {
         ) : null}
 
         {error ? (
-          <section className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-            <p className="font-bold">No se pudo cargar el inventario</p>
-            <p className="mt-1">Verifica tu conexion e intenta de nuevo.</p>
+          <section className="rounded-[22px] border border-[#dfe5f2] bg-white px-5 py-5 text-sm text-slate-700 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#eef3ff] text-[#102d92]">
+                <WifiOff size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[1rem] font-black text-slate-900">
+                  {error.titulo}
+                </p>
+                <p className="mt-1 text-[0.9rem] font-semibold leading-5 text-slate-600">
+                  {error.mensaje}
+                </p>
+                <p className="mt-1 text-[0.82rem] leading-5 text-slate-500">
+                  {error.detalle}
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => void loadLots()}
-              className="mt-3 inline-flex items-center gap-2 font-black text-rose-700"
+              className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-[0.92rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)]"
             >
               <RefreshCcw size={16} />
               Reintentar

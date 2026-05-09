@@ -353,7 +353,7 @@ export default function Inicio() {
   }, [cargarDashboard]);
 
   useEffect(() => {
-    const timerId = window.setInterval(() => setNow(Date.now()), 1000);
+    const timerId = window.setInterval(() => setNow(Date.now()), 60000);
 
     return () => {
       window.clearInterval(timerId);

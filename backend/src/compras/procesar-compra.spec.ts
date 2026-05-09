@@ -306,6 +306,52 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       expect(resultado.compra.totalKg).toBe(200);
     });
 
+    it('calcula correctamente una compra de 25 kg a 14.000 por kg', () => {
+      const resultado = procesarCompra({
+        deviceId: 'device-1',
+        localId: 'local-1',
+        fecha: '2026-05-08',
+        sublotes: [
+          {
+            deviceId: 'device-1',
+            localId: 'sub-1',
+            tipoCafeId: 'tipo-verde',
+            calidadId: 'calidad-bueno',
+            pesoInicial: 25,
+            precioKg: 14000,
+          },
+        ],
+      });
+
+      expect(resultado.compra.totalKg).toBe(25);
+      expect(resultado.compra.totalCompra).toBe(350000);
+      expect(resultado.sublotes[0].pesoActual).toBe(25);
+      expect(resultado.sublotes[0].precioKg).toBe(14000);
+      expect(resultado.sublotes[0].subtotal).toBe(350000);
+      expect(resultado.sublotes[0].costoTotal).toBe(350000);
+    });
+
+    it('interpreta valores con separador de miles colombiano sin convertir 14.000 en 14', () => {
+      const resultado = procesarCompra({
+        deviceId: 'device-1',
+        localId: 'local-1',
+        fecha: '2026-05-08',
+        sublotes: [
+          {
+            deviceId: 'device-1',
+            localId: 'sub-1',
+            tipoCafeId: 'tipo-verde',
+            calidadId: 'calidad-bueno',
+            pesoInicial: '25' as unknown as number,
+            precioKg: '14.000' as unknown as number,
+          },
+        ],
+      });
+
+      expect(resultado.compra.totalCompra).toBe(350000);
+      expect(resultado.sublotes[0].precioKg).toBe(14000);
+    });
+
     it('debería funcionar sin contexto de capacidad', () => {
       const input = {
         deviceId: 'device-1',

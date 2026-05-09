@@ -72,10 +72,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<HttpResponseLike>();
     const request = ctx.getRequest<HttpRequestLike>();
     const isHttpException = exception instanceof HttpException;
+    const debugError = getDebugError(exception);
+    const isPrismaPoolTimeout = debugError.code === 'P2024';
     const status = isHttpException
       ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
-    const debugError = getDebugError(exception);
+      : isPrismaPoolTimeout
+        ? HttpStatus.SERVICE_UNAVAILABLE
+        : HttpStatus.INTERNAL_SERVER_ERROR;
     const shouldExposeDebug = process.env.NODE_ENV !== 'production';
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
@@ -99,6 +102,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const baseBody = isHttpException
       ? getResponseBody(exception)
+      : isPrismaPoolTimeout
+        ? {
+            code: 'DATABASE_BUSY',
+            message:
+              'El sistema esta ocupado procesando solicitudes. Intenta de nuevo en unos segundos.',
+            error: 'Service Unavailable',
+          }
       : {
           message: 'No pudimos completar la acción. Vuelve a intentarlo.',
           error: 'Internal Server Error',

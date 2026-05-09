@@ -219,6 +219,27 @@ export class ComprasService {
 
           const compraProcesada = procesarCompra(input, contextoCapacidad);
 
+          if (compraProcesada.capacidad.nivel === 'exceso') {
+            throw new BadRequestException(
+              apiError(
+                'COMPRA_CAPACIDAD_INSUFICIENTE',
+                'La cantidad ingresada supera la capacidad disponible de la bodega.',
+                {
+                  field: 'sublotes.pesoInicial',
+                  details: {
+                    disponibleKg:
+                      compraProcesada.capacidad.disponibleKg ?? 0,
+                    cantidadIntentadaKg: compraProcesada.compra.totalKg,
+                    capacidadBodegaKg:
+                      compraProcesada.capacidad.capacidadBodegaKg,
+                    inventarioActualKg:
+                      compraProcesada.capacidad.inventarioActualKg,
+                  },
+                },
+              ),
+            );
+          }
+
           const lotesCompra = await this.asegurarLotesCompra(
             tx,
             organizacionIdFinal,
@@ -829,27 +850,55 @@ export class ComprasService {
   ): Promise<void> {
     const movimientosAgrupados = this.agruparMovimientosInventario(movimientos);
 
+    if (movimientosAgrupados.length === 0) {
+      return;
+    }
+
+    await tx.inventario.createMany({
+      data: movimientosAgrupados.map((movimiento) => ({
+        organizacionId,
+        tipoCafeId: movimiento.tipoCafeId,
+        calidadId: movimiento.calidadId,
+        pesoTotal: 0,
+      })),
+      skipDuplicates: true,
+    });
+
     for (const movimiento of movimientosAgrupados) {
-      await tx.inventario.upsert({
-        where: {
-          organizacionId_tipoCafeId_calidadId: {
-            organizacionId,
-            tipoCafeId: movimiento.tipoCafeId,
-            calidadId: movimiento.calidadId,
-          },
-        },
-        create: {
-          organizacionId,
-          tipoCafeId: movimiento.tipoCafeId,
-          calidadId: movimiento.calidadId,
-          pesoTotal: movimiento.cantidad,
-        },
-        update: {
+      const where: Prisma.InventarioWhereInput = {
+        organizacionId,
+        tipoCafeId: movimiento.tipoCafeId,
+        calidadId: movimiento.calidadId,
+      };
+
+      if (movimiento.cantidad < 0) {
+        where.pesoTotal = { gte: Math.abs(movimiento.cantidad) };
+      }
+
+      const resultado = await tx.inventario.updateMany({
+        where,
+        data: {
           pesoTotal: {
             increment: movimiento.cantidad,
           },
         },
       });
+
+      if (resultado.count === 0) {
+        throw new ConflictException(
+          apiError(
+            'INVENTARIO_INCONSISTENTE',
+            'El inventario cambio mientras se procesaba la compra. Actualiza e intenta de nuevo.',
+            {
+              details: {
+                organizacionId,
+                tipoCafeId: movimiento.tipoCafeId,
+                calidadId: movimiento.calidadId,
+              },
+            },
+          ),
+        );
+      }
     }
   }
 

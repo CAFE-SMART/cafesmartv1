@@ -29,6 +29,10 @@ function normalizeDatabaseUrl(value: string) {
   return url.toString();
 }
 
+const globalForPrisma = globalThis as typeof globalThis & {
+  cafeSmartPrismaService?: PrismaService;
+};
+
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -37,8 +41,13 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
   private readonly maxConnectAttempts: number;
   private readonly retryDelayMs: number;
+  private connected = false;
 
   constructor(configService: ConfigService) {
+    if (globalForPrisma.cafeSmartPrismaService) {
+      return globalForPrisma.cafeSmartPrismaService;
+    }
+
     const databaseUrl = normalizeDatabaseUrl(
       configService.getOrThrow<string>('DATABASE_URL'),
     );
@@ -56,12 +65,37 @@ export class PrismaService
           url: databaseUrl,
         },
       },
+      log:
+        process.env.PRISMA_QUERY_LOGS === 'true'
+          ? [{ emit: 'event', level: 'query' }]
+          : undefined,
     });
 
     this.maxConnectAttempts =
       Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
     this.retryDelayMs =
       Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 3000;
+
+    this.$use(async (params, next) => {
+      const startedAt = Date.now();
+      try {
+        return await next(params);
+      } finally {
+        const durationMs = Date.now() - startedAt;
+        if (durationMs >= 750) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'prisma_slow_query',
+              model: params.model,
+              action: params.action,
+              durationMs,
+            }),
+          );
+        }
+      }
+    });
+
+    globalForPrisma.cafeSmartPrismaService = this;
   }
 
   /**
@@ -72,7 +106,12 @@ export class PrismaService
 
     for (let attempt = 1; attempt <= this.maxConnectAttempts; attempt += 1) {
       try {
+        if (this.connected) {
+          return;
+        }
+
         await this.$connect();
+        this.connected = true;
         if (attempt > 1) {
           this.logger.log(
             `Conexion Prisma recuperada en el intento ${attempt}.`,
@@ -110,6 +149,7 @@ export class PrismaService
   }
 
   async onModuleDestroy() {
+    this.connected = false;
     await this.$disconnect();
   }
 }

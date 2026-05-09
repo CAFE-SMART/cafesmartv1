@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Droplets,
   FlaskConical,
+  LifeBuoy,
   Lock,
   LogOut,
   ScanSearch,
@@ -467,6 +468,15 @@ export default function Ajustes() {
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: true,
       onClick: undefined,
+    },
+    {
+      id: 'contacto-soporte',
+      title: 'Contacto y soporte',
+      description: 'Ayuda, dudas y reportes',
+      icon: LifeBuoy,
+      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      staticOnly: false,
+      onClick: () => navigate('/soporte'),
     },
   ] as const;
 

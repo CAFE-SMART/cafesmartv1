@@ -1,5 +1,12 @@
 import { ComprasService } from './compras.service';
 
+declare const describe: (name: string, fn: () => void) => void;
+declare const it: (name: string, fn: () => Promise<void> | void) => void;
+declare const expect: any;
+declare const jest: {
+  fn: (implementation?: (...args: any[]) => any) => any;
+};
+
 describe('ComprasService - validacion de capacidad fail-safe', () => {
   function crearServiceConPrisma(prisma: unknown) {
     return new ComprasService(prisma as never) as unknown as {

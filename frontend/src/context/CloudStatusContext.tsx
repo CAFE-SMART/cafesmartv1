@@ -105,7 +105,7 @@ export function CloudStatusProvider({
 
     const intervalId = window.setInterval(() => {
       void refreshHealth();
-    }, 30000);
+    }, 60000);
 
     return () => {
       window.clearInterval(intervalId);

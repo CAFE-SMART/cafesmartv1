@@ -60,6 +60,7 @@ export type EstadoCapacidadCompra = {
   capacidadRestanteKg?: number;
   porcentajeOcupacion?: number;
   excesoKg?: number;
+  disponibleKg?: number;
 };
 
 export type CreateCompraResponse = {

@@ -11,6 +11,7 @@ export type ClienteItem = {
 export type GuardarClientePayload = {
   nombre: string;
   documento?: string;
+  tipoDocumento?: 'CEDULA' | 'NIT';
   telefono?: string;
 };
 

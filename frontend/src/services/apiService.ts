@@ -27,6 +27,8 @@ export class ApiRequestError extends Error {
   }
 }
 
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
 function normalizarMensaje(message: unknown) {
   if (Array.isArray(message)) {
     return message.filter(Boolean).join(', ').trim();
@@ -35,8 +37,17 @@ function normalizarMensaje(message: unknown) {
   return typeof message === 'string' ? message.trim() : '';
 }
 
-function traducirMensajeError(message: unknown, status: number) {
+export function traducirMensajeError(message: unknown, status = 0) {
   const texto = normalizarMensaje(message);
+
+  if (
+    /^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto) ||
+    /terminal|backend|internal server error|server error|stack|exception|prisma|database|endpoint|localhost|error\s*500/i.test(
+      texto,
+    )
+  ) {
+    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+  }
 
   if (status >= 500) {
     return 'No pudimos completar la acción. Vuelve a intentarlo.';
@@ -56,18 +67,6 @@ function traducirMensajeError(message: unknown, status: number) {
     }
 
     return 'No pudimos procesarlo. Intenta de nuevo.';
-  }
-
-  if (
-    /terminal|backend|internal server error|server error|stack|exception|prisma|database|endpoint|localhost/i.test(
-      texto,
-    )
-  ) {
-    return 'No pudimos completar la acción. Vuelve a intentarlo.';
-  }
-
-  if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto)) {
-    return 'Esta opcion aun no esta disponible.';
   }
 
   const mapa: Record<string, string> = {
@@ -129,6 +128,15 @@ function traducirErrorConexion(error: unknown) {
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
   const basesApi = construirBasesApi();
+  const method = (options.method ?? 'GET').toUpperCase();
+  const canDedupe = method === 'GET';
+  const dedupeKey = canDedupe
+    ? `${token ?? 'anonymous'}::${endpoint}`
+    : null;
+
+  if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
+    return inFlightGetRequests.get(dedupeKey);
+  }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -138,37 +146,49 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
   let ultimoError: unknown = null;
 
-  for (const apiBaseUrl of basesApi) {
-    try {
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-        ...options,
-        headers,
-      });
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const mensaje = traducirMensajeError(data?.message, response.status);
-        throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
-          status: response.status,
-          code: typeof data?.code === 'string' ? data.code : null,
-          field: typeof data?.field === 'string' ? data.field : null,
-          details:
-            data?.details && typeof data.details === 'object'
-              ? (data.details as ApiErrorDetails)
-              : null,
+  const requestPromise = (async () => {
+    for (const apiBaseUrl of basesApi) {
+      try {
+        const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+          ...options,
+          headers,
         });
-      }
 
-      return data;
-    } catch (error) {
-      ultimoError = error;
+        const data = await response.json().catch(() => null);
 
-      if (!(error instanceof TypeError)) {
-        throw error;
+        if (!response.ok) {
+          const mensaje = traducirMensajeError(data?.message, response.status);
+          throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
+            status: response.status,
+            code: typeof data?.code === 'string' ? data.code : null,
+            field: typeof data?.field === 'string' ? data.field : null,
+            details:
+              data?.details && typeof data.details === 'object'
+                ? (data.details as ApiErrorDetails)
+                : null,
+          });
+        }
+
+        return data;
+      } catch (error) {
+        ultimoError = error;
+
+        if (!(error instanceof TypeError)) {
+          throw error;
+        }
       }
     }
+
+    throw new ApiRequestError(traducirErrorConexion(ultimoError), { status: 0 });
+  })();
+
+  if (dedupeKey) {
+    inFlightGetRequests.set(dedupeKey, requestPromise);
+    requestPromise.then(
+      () => inFlightGetRequests.delete(dedupeKey),
+      () => inFlightGetRequests.delete(dedupeKey),
+    );
   }
 
-  throw new ApiRequestError(traducirErrorConexion(ultimoError), { status: 0 });
+  return requestPromise;
 };

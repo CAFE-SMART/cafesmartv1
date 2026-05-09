@@ -12,6 +12,7 @@ import SecadosActivos from '../pages/SecadosActivos';
 import SecadoProceso from '../pages/SecadoProceso';
 import SecadoResumen from '../pages/SecadoResumen';
 import Ajustes from '../pages/Ajustes';
+import ContactoSoporte from '../pages/ContactoSoporte';
 import SystemStatus from '../pages/SystemStatus';
 import GastosOperativos from '../pages/GastosOperativos';
 import GastosListado from '../pages/GastosListado';
@@ -33,6 +34,7 @@ export default function AppRoutes() {
         <Route path="/ventas" element={<Ventas />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/ajustes" element={<Ajustes />} />
+        <Route path="/soporte" element={<ContactoSoporte />} />
         {ENABLE_SECADO_PROTOTYPE ? (
           <>
             <Route path="/inventario/secados" element={<SecadosActivos />} />

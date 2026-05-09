@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { apiError } from '../errors/api-error';
 
 type PersonaEntidad = 'cliente' | 'productor';
+type TipoDocumento = 'CEDULA' | 'NIT';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
 
@@ -67,7 +68,7 @@ export function normalizarNombrePersona(
 export function normalizarDocumentoPersona(
   valor: string | undefined,
   entidad: PersonaEntidad,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; tipoDocumento?: TipoDocumento } = {},
 ) {
   const documento = valor?.trim() ?? '';
 
@@ -77,25 +78,38 @@ export function normalizarDocumentoPersona(
     throwPersonValidation(
       entidad,
       'DOCUMENTO_INVALIDO',
-      'La cédula o NIT es obligatoria.',
+        'Ingresa un número de documento válido.',
+        'documento',
+      );
+  }
+
+  if (!options.tipoDocumento) {
+    throwPersonValidation(
+      entidad,
+      'DOCUMENTO_INVALIDO',
+      'Selecciona el tipo de documento.',
       'documento',
     );
   }
 
-  if (/\D/.test(documento)) {
-    throwPersonValidation(
-      entidad,
-      'DOCUMENTO_INVALIDO',
-      'La cédula o NIT debe tener solo números.',
-      'documento',
-    );
+  if (options.tipoDocumento === 'NIT') {
+    if (!/^\d{8,9}-\d$/.test(documento)) {
+      throwPersonValidation(
+        entidad,
+        'DOCUMENTO_INVALIDO',
+        'Para NIT usa el formato 900123456-7.',
+        'documento',
+      );
+    }
+
+    return documento;
   }
 
-  if (documento.length < 6 || documento.length > 10) {
+  if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {
     throwPersonValidation(
       entidad,
       'DOCUMENTO_INVALIDO',
-      'La cédula o NIT debe tener entre 6 y 10 dígitos.',
+      'Ingresa un número de documento válido.',
       'documento',
     );
   }
@@ -104,7 +118,7 @@ export function normalizarDocumentoPersona(
     throwPersonValidation(
       entidad,
       'DOCUMENTO_INVALIDO',
-      'La cédula o NIT no puede tener todos los dígitos iguales.',
+      'Ingresa un número de documento válido.',
       'documento',
     );
   }
@@ -133,7 +147,7 @@ export function normalizarTelefonoPersona(
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
-      'El teléfono debe tener 10 dígitos.',
+      'Ingresa un número de celular de 10 dígitos.',
       'telefono',
     );
   }

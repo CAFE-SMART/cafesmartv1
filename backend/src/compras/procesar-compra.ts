@@ -23,6 +23,7 @@ export type EstadoCapacidadCompra = {
   capacidadRestanteKg?: number;
   porcentajeOcupacion?: number;
   excesoKg?: number;
+  disponibleKg?: number;
 };
 
 export type CompraProcesada = {
@@ -72,8 +73,35 @@ function desdeCentiUnidades(valor: number): number {
   return valor / 100;
 }
 
+const COMPRA_CANTIDAD_IRREAL_KG = 99_999_999;
+
 function normalizarADosDecimales(valor: number): number {
   return desdeCentiUnidades(aCentiUnidades(valor));
+}
+
+function normalizarNumeroEntrada(valor: unknown): number {
+  if (typeof valor === 'number') {
+    return valor;
+  }
+
+  if (typeof valor !== 'string') {
+    return Number.NaN;
+  }
+
+  const limpio = valor.trim().replace(/\s/g, '');
+  if (!limpio) {
+    return Number.NaN;
+  }
+
+  if (limpio.includes(',')) {
+    return Number(limpio.replace(/\./g, '').replace(',', '.'));
+  }
+
+  if (/^\d{1,3}(\.\d{3})+$/.test(limpio)) {
+    return Number(limpio.replace(/\./g, ''));
+  }
+
+  return Number(limpio);
 }
 
 function resolverFechaCompra(fecha?: string): string {
@@ -139,17 +167,28 @@ export function validarCompraCritica(input: CreateCompraDto): void {
       );
     }
 
-    if (!Number.isFinite(sublote.pesoInicial) || sublote.pesoInicial <= 0) {
+    const pesoInicial = normalizarNumeroEntrada(sublote.pesoInicial);
+    const precioKg = normalizarNumeroEntrada(sublote.precioKg);
+
+    if (!Number.isFinite(pesoInicial)) {
+      throw new CompraValidacionCriticaError(
+        'COMPRA_CANTIDAD_NO_NUMERICA',
+        'Ingresa solo números.',
+        { index },
+      );
+    }
+
+    if (pesoInicial <= 0) {
       throw new CompraValidacionCriticaError(
         'COMPRA_CANTIDAD_INVALIDA',
-        'La cantidad de la compra debe ser mayor a 0.',
+        'La cantidad debe ser mayor a cero.',
         { index },
       );
     }
 
     if (
-      !Number.isFinite(sublote.precioKg) ||
-      sublote.precioKg < PRECIO_MINIMO_KG
+      !Number.isFinite(precioKg) ||
+      precioKg < PRECIO_MINIMO_KG
     ) {
       throw new CompraValidacionCriticaError(
         'COMPRA_PRECIO_INVALIDO',
@@ -164,8 +203,12 @@ export function validarCompraCritica(input: CreateCompraDto): void {
  * Calcula los valores normalizados de un sublote antes de persistirlo.
  */
 function procesarSublote(sublote: SubloteInput): SubloteProcesado {
-  const pesoInicialCenti = aCentiUnidades(sublote.pesoInicial);
-  const precioKgCenti = aCentiUnidades(sublote.precioKg);
+  const pesoInicialCenti = aCentiUnidades(
+    normalizarNumeroEntrada(sublote.pesoInicial),
+  );
+  const precioKgCenti = aCentiUnidades(
+    normalizarNumeroEntrada(sublote.precioKg),
+  );
   const subtotalCenti = Math.round((pesoInicialCenti * precioKgCenti) / 100);
 
   return {
@@ -236,7 +279,10 @@ export function evaluarCapacidadCompra(
 
   if (nuevoTotalCenti > capacidadCenti) {
     const excesoKg = desdeCentiUnidades(nuevoTotalCenti - capacidadCenti);
-    const mensaje = `La compra supera la capacidad de bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
+    const disponibleKg = desdeCentiUnidades(
+      Math.max(0, capacidadCenti - inventarioActualCenti),
+    );
+    const mensaje = `La cantidad ingresada supera la capacidad disponible de la bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
 
     return {
       warning: mensaje,
@@ -251,6 +297,7 @@ export function evaluarCapacidadCompra(
         capacidadRestanteKg,
         porcentajeOcupacion,
         excesoKg,
+        disponibleKg,
       },
     };
   }
@@ -314,13 +361,24 @@ export function procesarCompra(
   validarCompraCritica(input);
   const sublotes = input.sublotes.map(procesarSublote);
   const compra = construirCompra(input, sublotes);
+  const resultadoCapacidad = contextoCapacidad
+    ? evaluarCapacidadCompra(compra.totalKg, contextoCapacidad)
+    : { capacidad: crearCapacidadSinValidacion() };
+
+  if (
+    resultadoCapacidad.capacidad.nivel !== 'exceso' &&
+    sublotes.some((sublote) => sublote.pesoInicial > COMPRA_CANTIDAD_IRREAL_KG)
+  ) {
+    throw new CompraValidacionCriticaError(
+      'COMPRA_CANTIDAD_DEMASIADO_ALTA',
+      'Revisa la cantidad ingresada. Parece demasiado alta.',
+    );
+  }
 
   return {
     compra,
     sublotes,
-    ...(contextoCapacidad
-      ? evaluarCapacidadCompra(compra.totalKg, contextoCapacidad)
-      : { capacidad: crearCapacidadSinValidacion() }),
+    ...resultadoCapacidad,
   };
 }
 

@@ -49,8 +49,12 @@ import {
   validateBusinessDateRange,
 } from '../utils/date';
 import {
+  formatPhoneNumber,
+  normalizeDocumentForStorage,
+  sanitizeDocumentInput,
   sanitizeDigits as sanitizePersonDigits,
   sanitizeNameInput,
+  type DocumentType,
   validateDocumentNumber,
   validatePersonName,
   validatePhoneNumber,
@@ -68,7 +72,12 @@ type ClienteOption = {
   rapido?: boolean;
 };
 
-type ClienteForm = { nombre: string; telefono: string; documento: string };
+type ClienteForm = {
+  nombre: string;
+  telefono: string;
+  documento: string;
+  tipoDocumento: DocumentType | '';
+};
 type ClienteFormErrors = Partial<Record<keyof ClienteForm, string>>;
 type LoteVenta = {
   id: string;
@@ -297,9 +306,9 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('cédula') || message.includes('documento')) {
     return createGuidedError(
       message,
-      'Revisa la identificación.',
-      'Usa solo números, máximo 10 dígitos, y evita números repetidos.',
-      'Corrige la cédula o NIT para continuar.',
+      'Revisa el documento.',
+      'Para cédula usa entre 6 y 10 dígitos. Para NIT usa 900123456-7.',
+      'Corrige el documento para continuar.',
     );
   }
 
@@ -514,6 +523,7 @@ export default function Ventas() {
     nombre: '',
     telefono: '',
     documento: '',
+    tipoDocumento: '',
   });
   const [clienteFormErrors, setClienteFormErrors] =
     React.useState<ClienteFormErrors>({});
@@ -1004,23 +1014,37 @@ export default function Ventas() {
     });
     const documento = validateDocumentNumber(
       clienteForm.documento,
-      'La cédula o NIT',
+      'El documento',
       {
         optional: true,
+        type: clienteForm.documento.trim()
+          ? clienteForm.tipoDocumento || null
+          : undefined,
       },
     );
 
     if (!nombre.isValid) errores.nombre = nombre.message;
     if (!telefono.isValid) errores.telefono = telefono.message;
+    if (clienteForm.documento.trim() && !clienteForm.tipoDocumento) {
+      errores.tipoDocumento = 'Selecciona el tipo de documento.';
+    }
     if (!documento.isValid) errores.documento = documento.message;
 
     return errores;
-  }, [clienteForm.documento, clienteForm.nombre, clienteForm.telefono]);
+  }, [
+    clienteForm.documento,
+    clienteForm.nombre,
+    clienteForm.telefono,
+    clienteForm.tipoDocumento,
+  ]);
 
   const guardarCliente = async () => {
     const nombre = clienteForm.nombre.trim();
     const telefono = sanitizePersonDigits(clienteForm.telefono);
-    const documento = sanitizePersonDigits(clienteForm.documento);
+    const tipoDocumento = clienteForm.tipoDocumento || undefined;
+    const documento = tipoDocumento
+      ? normalizeDocumentForStorage(clienteForm.documento, tipoDocumento)
+      : '';
     const errores = validarClienteForm();
 
     setClienteFormErrors(errores);
@@ -1037,7 +1061,7 @@ export default function Ventas() {
       setBusquedaCliente('');
       setBusquedaAplicada('');
       setMostrarModal(false);
-      setClienteForm({ nombre: '', telefono: '', documento: '' });
+      setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setClienteFormErrors({});
       setIntentoPaso1(false);
       setSubmitError(null);
@@ -1048,6 +1072,7 @@ export default function Ventas() {
       const clienteGuardado = await crearCliente({
         nombre,
         documento: documento || undefined,
+        tipoDocumento,
         telefono: telefono || undefined,
       });
       const nuevo = mapClienteToOption(clienteGuardado);
@@ -1063,7 +1088,7 @@ export default function Ventas() {
       setBusquedaAplicada('');
       setMostrarModal(false);
       setClienteMetodo('BUSCAR');
-      setClienteForm({ nombre: '', telefono: '', documento: '' });
+      setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setClienteFormErrors({});
       setClienteFormError(null);
       setSubmitError(null);
@@ -1926,7 +1951,7 @@ export default function Ventas() {
                   type="button"
                   onClick={() => {
                     setClienteMetodo('REGISTRAR');
-                    setClienteForm({ nombre: '', telefono: '', documento: '' });
+                    setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
                     setClienteFormErrors({});
                     setClienteFormError(null);
                     setMostrarModal(true);
@@ -2273,12 +2298,12 @@ export default function Ventas() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      maxLength={10}
+                      maxLength={12}
                       value={clienteForm.telefono}
                       onChange={(event) => {
                         setClienteForm((actual) => ({
                           ...actual,
-                          telefono: sanitizePersonDigits(event.target.value),
+                          telefono: formatPhoneNumber(event.target.value),
                         }));
                         setClienteFormErrors((actual) => ({
                           ...actual,
@@ -2286,7 +2311,7 @@ export default function Ventas() {
                         }));
                         setClienteFormError(null);
                       }}
-                      placeholder="3001234567"
+                      placeholder="300 123 4567"
                       className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
                     />
                   </label>
@@ -2300,19 +2325,72 @@ export default function Ventas() {
 
                 <div>
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Documento o NIT
+                    Tipo de documento
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'CEDULA', label: 'Cédula' },
+                      { value: 'NIT', label: 'NIT' },
+                    ].map((item) => {
+                      const active = clienteForm.tipoDocumento === item.value;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => {
+                            setClienteForm((actual) => ({
+                              ...actual,
+                              tipoDocumento: item.value as DocumentType,
+                              documento: '',
+                            }));
+                            setClienteFormErrors((actual) => ({
+                              ...actual,
+                              tipoDocumento: undefined,
+                              documento: undefined,
+                            }));
+                            setClienteFormError(null);
+                          }}
+                          className={`rounded-[14px] border px-3 py-3 text-sm font-black ${
+                            active
+                              ? 'border-[#102d92] bg-[#eef3ff] text-[#102d92]'
+                              : 'border-[#dde4f1] bg-white text-slate-600'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {clienteFormErrors.tipoDocumento ? (
+                    <InlineGuidedError
+                      message={getVentasGuidance(
+                        clienteFormErrors.tipoDocumento,
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                    Número de documento
                   </label>
                   <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
                     <IdCard size={17} className="text-slate-400" />
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={10}
+                      inputMode={
+                        clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
+                      }
+                      maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
                       value={clienteForm.documento}
                       onChange={(event) => {
                         setClienteForm((actual) => ({
                           ...actual,
-                          documento: sanitizePersonDigits(event.target.value),
+                          documento: sanitizeDocumentInput(
+                            event.target.value,
+                            actual.tipoDocumento || 'CEDULA',
+                          ),
                         }));
                         setClienteFormErrors((actual) => ({
                           ...actual,
@@ -2320,7 +2398,11 @@ export default function Ventas() {
                         }));
                         setClienteFormError(null);
                       }}
-                      placeholder="1029384756"
+                      placeholder={
+                        clienteForm.tipoDocumento === 'NIT'
+                          ? '900123456-7'
+                          : '1234567890'
+                      }
                       className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
                     />
                   </label>

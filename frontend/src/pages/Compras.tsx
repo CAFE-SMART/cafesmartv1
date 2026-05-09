@@ -57,8 +57,12 @@ import {
 } from '../services/productoresService';
 import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 import {
+  formatPhoneNumber,
+  normalizeDocumentForStorage,
+  sanitizeDocumentInput,
   sanitizeDigits as sanitizePersonDigits,
   sanitizeNameInput,
+  type DocumentType,
   validateDocumentNumber,
   validatePersonName,
   validatePhoneNumber,
@@ -98,6 +102,7 @@ type ProductorForm = {
   nombre: string;
   telefono: string;
   documento: string;
+  tipoDocumento: DocumentType | '';
 };
 type ProductorFormErrors = Partial<Record<keyof ProductorForm, string>>;
 type ProductorSelectionMode = 'buscar' | 'generico' | null;
@@ -160,6 +165,35 @@ function formatoMoneda(valor: number) {
   }).format(valor);
 }
 
+function formatoKg(valor: number) {
+  return valor.toLocaleString('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function leerCantidadCompra(valor: string) {
+  const texto = valor.trim();
+  if (!texto) {
+    return { valor: 0, error: 'Ingresa la cantidad en kilogramos.' };
+  }
+
+  if (!/^\d+([.,]\d{1,2})?$/.test(texto)) {
+    return { valor: 0, error: 'Ingresa solo números.' };
+  }
+
+  const numero = Number(texto.replace(',', '.'));
+  if (!Number.isFinite(numero)) {
+    return { valor: 0, error: 'Ingresa solo números.' };
+  }
+
+  if (numero <= 0) {
+    return { valor: numero, error: 'La cantidad debe ser mayor a cero.' };
+  }
+
+  return { valor: numero, error: null };
+}
+
 function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
   if (!capacidad || capacidad.nivel === 'normal') {
     return {
@@ -199,7 +233,19 @@ function getCompraErrorMessage(error: unknown) {
     }
 
     if (error.code === 'COMPRA_CANTIDAD_INVALIDA') {
-      return 'La cantidad de la compra debe ser mayor a 0.';
+      return 'La cantidad debe ser mayor a cero.';
+    }
+
+    if (error.code === 'COMPRA_CANTIDAD_NO_NUMERICA') {
+      return 'Ingresa solo números.';
+    }
+
+    if (error.code === 'COMPRA_CANTIDAD_DEMASIADO_ALTA') {
+      return 'Revisa la cantidad ingresada. Parece demasiado alta.';
+    }
+
+    if (error.code === 'COMPRA_CAPACIDAD_INSUFICIENTE') {
+      return 'No hay espacio suficiente en la bodega.';
     }
 
     if (error.code === 'COMPRA_PRECIO_INVALIDO') {
@@ -406,9 +452,9 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   ) {
     return createGuidedError(
       message,
-      'Revisa la identificación.',
-      'Usa solo números, máximo 10 dígitos, y evita números repetidos.',
-      'Corrige la cédula o NIT para continuar.',
+      'Revisa el documento.',
+      'Para cédula usa entre 6 y 10 dígitos. Para NIT usa 900123456-7.',
+      'Corrige el documento para continuar.',
     );
   }
 
@@ -538,6 +584,7 @@ export default function Compras() {
     nombre: '',
     telefono: '',
     documento: '',
+    tipoDocumento: '',
   });
   const [productorFormErrors, setProductorFormErrors] =
     useState<ProductorFormErrors>({});
@@ -573,6 +620,8 @@ export default function Compras() {
     inventarioActual: number;
     nuevoTotal: number;
   } | null>(null);
+  const [errorCapacidadCantidad, setErrorCapacidadCantidad] =
+    useState<GuidedErrorMessage | null>(null);
   const [datosAlerta80, setDatosAlerta80] = useState<{
     capacidadKg: number;
     inventarioActual: number;
@@ -642,13 +691,14 @@ export default function Compras() {
   );
   const resumen = useMemo(() => {
     const totalKg = sublotes.reduce(
-      (acc, sublote) => acc + (Number(sublote.pesoInicial) || 0),
+      (acc, sublote) => acc + leerCantidadCompra(sublote.pesoInicial).valor,
       0,
     );
     const totalCompra = sublotes.reduce(
       (acc, sublote) =>
         acc +
-        (Number(sublote.pesoInicial) || 0) * (Number(sublote.precioKg) || 0),
+        leerCantidadCompra(sublote.pesoInicial).valor *
+          (Number(sublote.precioKg) || 0),
       0,
     );
     return { totalKg, totalCompra };
@@ -663,13 +713,12 @@ export default function Compras() {
     }
 
     return sublotes.every((sublote) => {
-      const peso = Number(sublote.pesoInicial);
+      const peso = leerCantidadCompra(sublote.pesoInicial);
       const precio = Number(sublote.precioKg);
       return (
         Boolean(sublote.tipoCafeId) &&
         Boolean(sublote.calidadId) &&
-        Number.isFinite(peso) &&
-        peso > 0 &&
+        !peso.error &&
         Number.isFinite(precio) &&
         precio >= PRECIO_MINIMO_KG
       );
@@ -681,6 +730,7 @@ export default function Compras() {
     sublotes.length > 0 &&
     catalogos.tiposCafe.length > 0 &&
     catalogos.calidades.length > 0 &&
+    !errorCapacidadCantidad &&
     !saving &&
     !checkingConfirmacion &&
     !loading;
@@ -725,6 +775,7 @@ export default function Compras() {
     setAlerta80Mostrada(false);
     setDatosAlerta80(null);
     setDatosCapacidad(null);
+    setErrorCapacidadCantidad(null);
     setCapacidadNuevaError(null);
   };
 
@@ -750,8 +801,7 @@ export default function Compras() {
     if (
       !actual.tipoCafeId ||
       !actual.calidadId ||
-      !Number.isFinite(Number(actual.pesoInicial)) ||
-      Number(actual.pesoInicial) <= 0 ||
+      Boolean(leerCantidadCompra(actual.pesoInicial).error) ||
       !Number.isFinite(Number(actual.precioKg)) ||
       Number(actual.precioKg) < PRECIO_MINIMO_KG
     ) {
@@ -772,13 +822,13 @@ export default function Compras() {
     setError(null);
     setProductorFormError(null);
     setProductorFormErrors({});
-    setProductorForm({ nombre: '', telefono: '', documento: '' });
+    setProductorForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
     setMostrarModalProductor(true);
   };
 
   const cerrarModalProductor = () => {
     setMostrarModalProductor(false);
-    setProductorForm({ nombre: '', telefono: '', documento: '' });
+    setProductorForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
     setProductorFormError(null);
     setProductorFormErrors({});
   };
@@ -827,7 +877,8 @@ export default function Compras() {
     );
     const documento = validateDocumentNumber(
       productorForm.documento,
-      'La cédula o NIT',
+      'El documento',
+      { type: productorForm.tipoDocumento || null },
     );
     const telefono = validatePhoneNumber(
       productorForm.telefono,
@@ -838,6 +889,9 @@ export default function Compras() {
     );
 
     if (!nombre.isValid) errores.nombre = nombre.message;
+    if (!productorForm.tipoDocumento) {
+      errores.tipoDocumento = 'Selecciona el tipo de documento.';
+    }
     if (!documento.isValid) errores.documento = documento.message;
     if (!telefono.isValid) errores.telefono = telefono.message;
 
@@ -846,7 +900,11 @@ export default function Compras() {
 
   const guardarProductorLocal = async () => {
     const nombre = productorForm.nombre.trim();
-    const documento = sanitizePersonDigits(productorForm.documento);
+    const tipoDocumento = productorForm.tipoDocumento || 'CEDULA';
+    const documento = normalizeDocumentForStorage(
+      productorForm.documento,
+      tipoDocumento,
+    );
     const telefono = sanitizePersonDigits(productorForm.telefono);
     const errores = validarProductorForm();
 
@@ -867,7 +925,7 @@ export default function Compras() {
       setProductorSelectionMode('buscar');
       setBusquedaProductor('');
       setMostrarModalProductor(false);
-      setProductorForm({ nombre: '', telefono: '', documento: '' });
+      setProductorForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setProductorFormErrors({});
       setError(null);
       setMostrarErrorFormulario(false);
@@ -880,6 +938,7 @@ export default function Compras() {
       const productorGuardado = await crearProductor({
         nombre,
         documento,
+        tipoDocumento,
         telefono: telefono || undefined,
       });
 
@@ -895,7 +954,7 @@ export default function Compras() {
       setProductorSelectionMode('buscar');
       setBusquedaProductor('');
       setMostrarModalProductor(false);
-      setProductorForm({ nombre: '', telefono: '', documento: '' });
+      setProductorForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setProductorFormErrors({});
       setProductorFormError(null);
       setProductorCreadoToast(productorBase);
@@ -983,11 +1042,9 @@ export default function Compras() {
         return `Selecciona el tipo de café del sublote ${index + 1}.`;
       if (!sublote.calidadId)
         return `Selecciona la calidad del sublote ${index + 1}.`;
-      if (
-        !Number.isFinite(Number(sublote.pesoInicial)) ||
-        Number(sublote.pesoInicial) <= 0
-      ) {
-        return `Ingresa un peso valido para el sublote ${index + 1}.`;
+      const cantidad = leerCantidadCompra(sublote.pesoInicial);
+      if (cantidad.error) {
+        return cantidad.error;
       }
       if (
         !Number.isFinite(Number(sublote.precioKg)) ||
@@ -1043,7 +1100,7 @@ export default function Compras() {
       sublotes: sublotes.map((sublote) => ({
         tipoCafeId: sublote.tipoCafeId,
         calidadId: sublote.calidadId,
-        pesoInicial: Number(sublote.pesoInicial),
+        pesoInicial: leerCantidadCompra(sublote.pesoInicial).valor,
         precioKg: Number(sublote.precioKg),
         deviceId,
         localId: sublote.id,
@@ -1078,12 +1135,19 @@ export default function Compras() {
         capacidad.capacidadUsadaKg ?? inventarioActual + resumen.totalKg;
 
       if (capacidad.nivel === 'exceso') {
+        const disponible = Math.max(0, capacidadKg - inventarioActual);
+        setErrorCapacidadCantidad(
+          createGuidedError(
+            'No hay espacio suficiente.',
+            `Disponible: ${formatoKg(disponible)} kg. Intentas registrar: ${formatoKg(resumen.totalKg)} kg.`,
+            'Ajusta la cantidad para continuar.',
+          ),
+        );
         setDatosCapacidad({
           capacidadKg,
           inventarioActual,
           nuevoTotal,
         });
-        setMostrarModalCapacidad(true);
         return false;
       }
 
@@ -1246,6 +1310,21 @@ export default function Compras() {
       setMostrarModalConfirmar(false);
     } catch (err) {
       const mensaje = getCompraErrorMessage(err);
+      if (
+        err instanceof ApiRequestError &&
+        err.code === 'COMPRA_CAPACIDAD_INSUFICIENTE'
+      ) {
+        const details = err.details as
+          | { disponibleKg?: number; cantidadIntentadaKg?: number }
+          | null;
+        setErrorCapacidadCantidad(
+          createGuidedError(
+            'No hay espacio suficiente.',
+            `Disponible: ${formatoKg(details?.disponibleKg ?? 0)} kg. Intentas registrar: ${formatoKg(details?.cantidadIntentadaKg ?? resumen.totalKg)} kg.`,
+            'Ajusta la cantidad para continuar.',
+          ),
+        );
+      }
       setRegistroErrorMensaje(mensaje);
       setError(null);
     } finally {
@@ -1854,6 +1933,12 @@ export default function Compras() {
                         {pesoError ? (
                           <InlineGuidedError
                             message={getComprasGuidance(pesoError)}
+                            className="mt-2"
+                          />
+                        ) : null}
+                        {errorCapacidadCantidad ? (
+                          <InlineGuidedError
+                            message={errorCapacidadCantidad}
                             className="mt-2"
                           />
                         ) : null}
@@ -2510,17 +2595,69 @@ export default function Compras() {
                 </div>
                 <div>
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Cédula o NIT
+                    Tipo de documento
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'CEDULA', label: 'Cédula' },
+                      { value: 'NIT', label: 'NIT' },
+                    ].map((item) => {
+                      const active = productorForm.tipoDocumento === item.value;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => {
+                            setProductorForm((actual) => ({
+                              ...actual,
+                              tipoDocumento: item.value as DocumentType,
+                              documento: '',
+                            }));
+                            setProductorFormErrors((actual) => ({
+                              ...actual,
+                              tipoDocumento: undefined,
+                              documento: undefined,
+                            }));
+                            setProductorFormError(null);
+                          }}
+                          className={`rounded-[14px] border px-3 py-3 text-sm font-black ${
+                            active
+                              ? 'border-[#102d92] bg-[#eef3ff] text-[#102d92]'
+                              : 'border-[#dde4f1] bg-white text-slate-600'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {productorFormErrors.tipoDocumento ? (
+                    <InlineGuidedError
+                      message={getComprasGuidance(
+                        productorFormErrors.tipoDocumento,
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
+                </div>
+                <div>
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                    Número de documento
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    maxLength={10}
+                    inputMode={
+                      productorForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
+                    }
+                    maxLength={productorForm.tipoDocumento === 'NIT' ? 11 : 10}
                     value={productorForm.documento}
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        documento: sanitizePersonDigits(event.target.value),
+                        documento: sanitizeDocumentInput(
+                          event.target.value,
+                          actual.tipoDocumento || 'CEDULA',
+                        ),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -2528,7 +2665,11 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. 123456789 o 900123456"
+                    placeholder={
+                      productorForm.tipoDocumento === 'NIT'
+                        ? 'Ej. 900123456-7'
+                        : 'Ej. 1234567890'
+                    }
                     className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]"
                   />
                   {productorFormErrors.documento ? (
@@ -2547,12 +2688,12 @@ export default function Compras() {
                   <input
                     type="text"
                     inputMode="numeric"
-                    maxLength={10}
+                    maxLength={12}
                     value={productorForm.telefono}
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        telefono: sanitizePersonDigits(event.target.value),
+                        telefono: formatPhoneNumber(event.target.value),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -2560,7 +2701,7 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. 3001234567"
+                    placeholder="Ej. 300 123 4567"
                     className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]"
                   />
                   {productorFormErrors.telefono ? (

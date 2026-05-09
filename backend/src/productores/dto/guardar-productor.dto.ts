@@ -16,6 +16,10 @@ export class GuardarProductorDto {
   documento: string;
 
   @IsOptional()
+  @IsString({ message: 'Selecciona el tipo de documento.' })
+  tipoDocumento?: 'CEDULA' | 'NIT';
+
+  @IsOptional()
   @IsString({ message: 'El telefono del productor debe ser texto' })
   @MaxLength(40, {
     message: 'El telefono del productor no puede exceder 40 caracteres',
