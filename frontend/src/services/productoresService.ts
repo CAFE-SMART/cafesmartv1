@@ -4,6 +4,7 @@ export type ProductorItem = {
   id: string;
   nombre: string;
   documento: string | null;
+  tipoDocumento: 'CEDULA' | 'NIT' | null;
   telefono: string | null;
   createdAt: string;
 };

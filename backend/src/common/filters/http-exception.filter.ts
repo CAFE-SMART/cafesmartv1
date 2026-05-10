@@ -63,6 +63,33 @@ function getResponseBody(exception: HttpException) {
   return { message: exception.message };
 }
 
+function getPrismaInfrastructureError(debugError: DebugError) {
+  if (debugError.code === 'P1001') {
+    return {
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+      body: {
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'No pudimos conectarnos con la base de datos.',
+        error: 'Service Unavailable',
+      },
+    };
+  }
+
+  if (debugError.code === 'P2024' || debugError.code === 'P2028') {
+    return {
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+      body: {
+        code: 'DATABASE_BUSY',
+        message:
+          'El sistema esta ocupado procesando solicitudes. Intenta de nuevo en unos segundos.',
+        error: 'Service Unavailable',
+      },
+    };
+  }
+
+  return null;
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -73,11 +100,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<HttpRequestLike>();
     const isHttpException = exception instanceof HttpException;
     const debugError = getDebugError(exception);
-    const isPrismaPoolTimeout = debugError.code === 'P2024';
+    const prismaInfrastructureError = getPrismaInfrastructureError(debugError);
     const status = isHttpException
       ? exception.getStatus()
-      : isPrismaPoolTimeout
-        ? HttpStatus.SERVICE_UNAVAILABLE
+      : prismaInfrastructureError
+        ? prismaInfrastructureError.status
         : HttpStatus.INTERNAL_SERVER_ERROR;
     const shouldExposeDebug = process.env.NODE_ENV !== 'production';
 
@@ -102,13 +129,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const baseBody = isHttpException
       ? getResponseBody(exception)
-      : isPrismaPoolTimeout
-        ? {
-            code: 'DATABASE_BUSY',
-            message:
-              'El sistema esta ocupado procesando solicitudes. Intenta de nuevo en unos segundos.',
-            error: 'Service Unavailable',
-          }
+      : prismaInfrastructureError
+        ? prismaInfrastructureError.body
       : {
           message: 'No pudimos completar la acción. Vuelve a intentarlo.',
           error: 'Internal Server Error',

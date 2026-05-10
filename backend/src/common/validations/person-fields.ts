@@ -93,11 +93,11 @@ export function normalizarDocumentoPersona(
   }
 
   if (options.tipoDocumento === 'NIT') {
-    if (!/^\d{8,9}-\d$/.test(documento)) {
+    if (!/^\d{8,10}$/.test(documento)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',
-        'Para NIT usa el formato 900123456-7.',
+        'Ingresa el NIT sin puntos ni guiones.',
         'documento',
       );
     }

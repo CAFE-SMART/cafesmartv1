@@ -126,6 +126,7 @@ model Productor {
   id         String    @id @default(uuid()) @map("id_productor")
   nombre     String    @map("nombre")
   documento  String?   @map("documento")
+  tipoDocumento String? @map("tipo_documento")
   telefono   String?   @map("telefono")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
