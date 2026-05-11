@@ -25,6 +25,7 @@ import {
   classifyHumidity,
   formatHumidityWithClassification,
 } from '../utils/humidity';
+import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 
 const TYPE_ORDER = [
   'VERDE',
@@ -35,9 +36,9 @@ const TYPE_ORDER = [
 ] as const;
 const BULTO_KG = 40.7;
 const QUALITY_SECTIONS = [
-  { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
-  { key: 'REGULAR', title: 'REGULAR', dot: 'bg-[#f6b81a]' },
-  { key: 'MALO', title: 'MALO', dot: 'bg-[#d82433]' },
+  { key: 'BUENO', title: 'Bueno', dot: 'bg-[#74e3dd]' },
+  { key: 'REGULAR', title: 'Regular', dot: 'bg-[#f6b81a]' },
+  { key: 'MALO', title: 'Malo', dot: 'bg-[#d82433]' },
 ] as const;
 
 function keyOf(value: string) {
@@ -67,9 +68,7 @@ function pluralLabel(value: number, singular: string, plural: string) {
 }
 
 function displayCoffeeName(value: string) {
-  const key = keyOf(value);
-  if (key === 'EN SECADO') return 'En secado';
-  return value.toLowerCase();
+  return formatCoffeeLabel(value);
 }
 
 function getLotDays(lot: LoteResumen) {
@@ -395,11 +394,12 @@ function SecadoProcessCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-amber-700">
+          <p className="text-[0.7rem] font-black text-amber-700">
             {secadoStatusLabel(session.estado)}
           </p>
           <p className="mt-1 truncate text-[1.05rem] font-black text-slate-900">
-            {session.tipoCafe} - {session.calidad}
+            {formatCoffeeLabel(session.tipoCafe)} -{' '}
+            {formatDisplayLabel(session.calidad)}
           </p>
           <p className="mt-1 text-sm font-semibold text-slate-600">
             {formatNumber(totalKg)} kg - desde {fecha}
@@ -692,7 +692,7 @@ export default function Inventario() {
                         : 'border-[#d8deea] bg-white text-slate-600'
                     }`}
                   >
-                    {item.key === 'EN SECADO' ? 'En secado' : item.label}
+                    {displayCoffeeName(item.label)}
                   </button>
                 );
               })}
@@ -793,7 +793,7 @@ export default function Inventario() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[#f6b81a]" />
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
+                <p className="text-sm font-black text-[#1d2436]">
                   Procesos de secado
                 </p>
               </div>
@@ -853,7 +853,7 @@ export default function Inventario() {
               <Package2 size={22} />
             </div>
             <p className="mt-4 text-lg text-slate-600">
-              Todavia no hay sublotes registrados en este tipo de cafe.
+              Todavía no hay sublotes registrados en este tipo de café.
             </p>
           </section>
         ) : null}
@@ -873,7 +873,7 @@ export default function Inventario() {
                       <span
                         className={`h-2.5 w-2.5 rounded-full ${section.dot}`}
                       />
-                      <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
+                      <p className="text-sm font-black text-[#1d2436]">
                         {section.title}
                       </p>
                     </div>

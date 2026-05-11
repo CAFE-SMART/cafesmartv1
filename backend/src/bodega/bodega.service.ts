@@ -6,6 +6,9 @@ import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
 export type ConfiguracionBodega = {
   nombreBodega: string;
   capacidadKg: number | null;
+  maxPesoKg: number;
+  maxPrecioKg: number;
+  maxPrecioVentaKg: number;
   updatedAt: string;
 };
 
@@ -14,7 +17,7 @@ export class BodegaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly parametrosService: ParametrosService,
-  ) {}
+  ) { }
 
   /**
    * Obtiene la configuración de bodega de una organización.
@@ -22,7 +25,7 @@ export class BodegaService {
   async obtenerConfiguracion(
     organizacionId: string,
   ): Promise<ConfiguracionBodega> {
-    const [nombreBodega, capacidadKgStr] = await Promise.all([
+    const [nombreBodega, capacidadKgStr, maxPesoKgStr, maxPrecioKgStr, maxPrecioVentaKgStr] = await Promise.all([
       this.parametrosService.getParametroString(
         'nombre_bodega',
         organizacionId,
@@ -32,15 +35,49 @@ export class BodegaService {
         'capacidad_bodega',
         organizacionId,
       ),
+      this.parametrosService.getParametroString(
+        'max_peso_kg',
+        organizacionId,
+      ),
+      this.parametrosService.getParametroString(
+        'max_precio_kg',
+        organizacionId,
+      ),
+      this.parametrosService.getParametroString(
+        'max_precio_venta_kg',
+        organizacionId,
+      ),
     ]);
 
     const parsed = Number(capacidadKgStr);
     const capacidadKg =
       capacidadKgStr && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 
+    const defaultMaxPeso = capacidadKg ? capacidadKg * 2 : 99999;
+    const parsedMaxPeso = Number(maxPesoKgStr);
+    const maxPesoKg =
+      maxPesoKgStr && Number.isFinite(parsedMaxPeso) && parsedMaxPeso > 0
+        ? parsedMaxPeso
+        : defaultMaxPeso;
+
+    const parsedMaxPrecio = Number(maxPrecioKgStr);
+    const maxPrecioKg =
+      maxPrecioKgStr && Number.isFinite(parsedMaxPrecio) && parsedMaxPrecio > 0
+        ? parsedMaxPrecio
+        : 100000;
+
+    const parsedMaxPrecioVenta = Number(maxPrecioVentaKgStr);
+    const maxPrecioVentaKg =
+      maxPrecioVentaKgStr && Number.isFinite(parsedMaxPrecioVenta) && parsedMaxPrecioVenta > 0
+        ? parsedMaxPrecioVenta
+        : 100000;
+
     return {
       nombreBodega: nombreBodega || 'Bodega principal',
       capacidadKg,
+      maxPesoKg,
+      maxPrecioKg,
+      maxPrecioVentaKg,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -78,7 +115,52 @@ export class BodegaService {
     return {
       nombreBodega: dto.nombreBodega.trim(),
       capacidadKg: dto.capacidadKg,
+      maxPesoKg: dto.capacidadKg * 2,
+      maxPrecioKg: 100000,
+      maxPrecioVentaKg: 100000,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Actualiza los límites de entrada de una organización.
+   */
+  async actualizarLimites(
+    organizacionId: string,
+    maxPesoKg: number,
+    maxPrecioKg: number,
+    maxPrecioVentaKg: number,
+  ): Promise<{ maxPesoKg: number; maxPrecioKg: number; maxPrecioVentaKg: number }> {
+    if (!Number.isFinite(maxPesoKg) || maxPesoKg <= 0) {
+      throw new BadRequestException('El peso máximo debe ser un número positivo');
+    }
+
+    if (!Number.isFinite(maxPrecioKg) || maxPrecioKg <= 0) {
+      throw new BadRequestException('El precio máximo debe ser un número positivo');
+    }
+
+    if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg <= 0) {
+      throw new BadRequestException('El precio máximo de venta debe ser un número positivo');
+    }
+
+    await Promise.all([
+      this.parametrosService.setParametro(
+        'max_peso_kg',
+        maxPesoKg.toString(),
+        organizacionId,
+      ),
+      this.parametrosService.setParametro(
+        'max_precio_kg',
+        maxPrecioKg.toString(),
+        organizacionId,
+      ),
+      this.parametrosService.setParametro(
+        'max_precio_venta_kg',
+        maxPrecioVentaKg.toString(),
+        organizacionId,
+      ),
+    ]);
+
+    return { maxPesoKg, maxPrecioKg, maxPrecioVentaKg };
   }
 }

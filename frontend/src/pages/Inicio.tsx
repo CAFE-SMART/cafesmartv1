@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   LoaderCircle,
+  LogOut,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { useUser } from '../context/UserContext';
 import {
   obtenerDashboardSummary,
   type DashboardSummary,
@@ -147,13 +149,15 @@ type BodegaCoffeeItem = {
   key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
   tipo: 'Verde' | 'Seco';
   calidad: 'Bueno' | 'Regular';
+  tipoCafeId: string;
+  calidadId: string;
   totalKg: number;
   lots: number;
   averageDays: number;
   dayWeight: number;
 };
 
-function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
+function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: () => void }) {
   const isGood = item.calidad === 'Bueno';
   const isDry = item.tipo === 'Seco';
   const Icon = isDry ? SunMedium : isGood ? ShieldCheck : Sparkles;
@@ -167,7 +171,11 @@ function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
     : 'bg-[#fff3c4] text-[#a15c00]';
 
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition active:bg-[#f0f4fa]"
+    >
       <div className="flex min-w-0 items-center gap-3">
         <span
           className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClass}`}
@@ -194,7 +202,7 @@ function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
           {item.calidad}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -232,6 +240,9 @@ function EmptyDashboardState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
+  const { logout } = useUser();
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,6 +327,8 @@ export default function Inicio() {
         key: 'VERDE_BUENO',
         tipo: 'Verde',
         calidad: 'Bueno',
+        tipoCafeId: '',
+        calidadId: '',
         totalKg: 0,
         lots: 0,
         averageDays: 0,
@@ -325,6 +338,8 @@ export default function Inicio() {
         key: 'VERDE_REGULAR',
         tipo: 'Verde',
         calidad: 'Regular',
+        tipoCafeId: '',
+        calidadId: '',
         totalKg: 0,
         lots: 0,
         averageDays: 0,
@@ -334,6 +349,8 @@ export default function Inicio() {
         key: 'SECO_BUENO',
         tipo: 'Seco',
         calidad: 'Bueno',
+        tipoCafeId: '',
+        calidadId: '',
         totalKg: 0,
         lots: 0,
         averageDays: 0,
@@ -348,6 +365,11 @@ export default function Inicio() {
         (item) => item.key === `${typeKey}_${qualityKey}`,
       );
       if (!section) return;
+
+      if (!section.tipoCafeId) {
+        section.tipoCafeId = lot.tipoCafeId;
+        section.calidadId = lot.calidadId;
+      }
 
       const weight = Math.max(1, lot.sublotes);
       section.totalKg += lot.pesoActual;
@@ -396,22 +418,33 @@ export default function Inicio() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void handleReload()}
-              disabled={refreshing}
-              className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
-            >
-              {refreshing ? (
-                <LoaderCircle
-                  size={13}
-                  className="animate-spin text-[#4b5c77]"
-                />
-              ) : (
-                <RefreshCcw size={13} className="text-[#4b5c77]" />
-              )}
-              Recargar
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleReload()}
+                disabled={refreshing}
+                className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
+              >
+                {refreshing ? (
+                  <LoaderCircle
+                    size={13}
+                    className="animate-spin text-[#4b5c77]"
+                  />
+                ) : (
+                  <RefreshCcw size={13} className="text-[#4b5c77]" />
+                )}
+                Recargar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(true)}
+                disabled={cerrandoSesion}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-[#f0d4d4] bg-white text-[#b44a4a] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#fff5f5] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Cerrar sesión"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -533,7 +566,17 @@ export default function Inicio() {
                         key={item.key}
                         className={index > 0 ? 'border-t border-[#edf1f7]' : ''}
                       >
-                        <BodegaCoffeeRow item={item} />
+                        <BodegaCoffeeRow
+                          item={item}
+                          onClick={() => {
+                            if (item.tipoCafeId && item.calidadId) {
+                              navigate(
+                                `/inventario/${item.tipoCafeId}/${item.calidadId}/sublotes`,
+                                { state: { from: 'inicio' } },
+                              );
+                            }
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
@@ -545,6 +588,45 @@ export default function Inicio() {
       </div>
 
       <AppBottomNav />
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0f172a]/40 px-5 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-[320px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.15)] animate-in zoom-in-95 duration-200">
+            <h3 className="text-[1.25rem] font-black text-slate-900 text-center">
+              ¿Cerrar sesión?
+            </h3>
+            <p className="mt-2 text-center text-[0.9rem] font-medium text-slate-500">
+              ¿Estás seguro de que deseas salir del sistema?
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setCerrandoSesion(true);
+                  try {
+                    await logout();
+                    navigate('/login', { replace: true });
+                  } finally {
+                    setCerrandoSesion(false);
+                  }
+                }}
+                disabled={cerrandoSesion}
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#b44a4a] text-[0.95rem] font-bold text-white transition hover:bg-[#9b3f3f] disabled:opacity-70"
+              >
+                {cerrandoSesion ? 'Saliendo...' : 'Sí, salir'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                disabled={cerrandoSesion}
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#f4f7fb] text-[0.95rem] font-bold text-slate-600 transition hover:bg-[#e2e8f0]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

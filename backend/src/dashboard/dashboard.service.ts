@@ -323,7 +323,7 @@ export class DashboardService {
     }
 
     const subloteIds = sublotes.map((sublote) => sublote.id);
-    const [detallesVenta, gastosSublote, gastosGenerales] =
+    const [detallesVenta = [], gastosSublote = [], gastosGenerales = []] =
       await this.prisma.$transaction([
         this.prisma.ventaDetalle.findMany({
           where: {

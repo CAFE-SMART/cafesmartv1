@@ -41,6 +41,10 @@ export default function AppRoutes() {
               element={<SecadoSeleccion />}
             />
             <Route
+              path="/inventario/secado/nuevo/configurar"
+              element={<SecadoProceso />}
+            />
+            <Route
               path="/inventario/secado/:sessionId/finalizar"
               element={<SecadoProceso />}
             />

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -351,6 +351,8 @@ function getSublotesGuidance(message: string): GuidedErrorMessage {
 
 export default function Sublotes() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state ?? null) as { from?: string } | null;
   const { tipoCafeId, calidadId } = useParams<{
     tipoCafeId: string;
     calidadId: string;
@@ -898,7 +900,7 @@ export default function Sublotes() {
                 return;
               }
 
-              navigate('/inventario');
+              navigate(locationState?.from === 'inicio' ? '/inicio' : '/inventario');
             }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#2b2b2b]"
             aria-label="Volver"
@@ -1036,15 +1038,14 @@ export default function Sublotes() {
                         key={sublote.id}
                         type="button"
                         onClick={() => setSelectedSubloteId(sublote.id)}
-                        className={`flex items-center justify-between rounded-[8px] border px-3 py-2 text-left transition ${
-                          active
-                            ? 'border-[#2f4aa4] bg-[#eef3ff]'
-                            : 'border-[#ececec] bg-white'
-                        }`}
+                        className={`flex items-center justify-between rounded-[8px] border px-3 py-2 text-left transition ${active
+                          ? 'border-[#2f4aa4] bg-[#eef3ff]'
+                          : 'border-[#ececec] bg-white'
+                          }`}
                       >
                         <div className="min-w-0">
                           <p className="truncate text-[0.7rem] font-black text-[#202020]">
-                            {sublote.codigo}
+                            {sublote.etiqueta}
                           </p>
                           <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
                             {formatKg(sublote.pesoActual)} ·{' '}
@@ -1118,7 +1119,7 @@ export default function Sublotes() {
               </div>
             </section>
 
-            {showAnalysis ? (
+            {showAnalysis && financieroActivo ? (
               <section className="rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
                 <div className="flex items-center gap-2 text-[#1c1c1c]">
                   <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">

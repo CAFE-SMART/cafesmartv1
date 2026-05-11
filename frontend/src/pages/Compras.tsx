@@ -40,7 +40,10 @@ import {
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
-import { guardarConfiguracionBodega } from '../services/bodegaApi';
+import {
+  guardarConfiguracionBodega,
+  obtenerConfiguracionBodega,
+} from '../services/bodegaApi';
 import {
   crearCompra,
   obtenerCatalogosCompra,
@@ -565,9 +568,6 @@ export default function Compras() {
   );
   const [guardandoCapacidad, setGuardandoCapacidad] = useState(false);
   const [alerta80Mostrada, setAlerta80Mostrada] = useState(false);
-  const [registroErrorMensaje, setRegistroErrorMensaje] = useState<
-    string | null
-  >(null);
   const [datosCapacidad, setDatosCapacidad] = useState<{
     capacidadKg: number;
     inventarioActual: number;
@@ -579,6 +579,8 @@ export default function Compras() {
     nuevoTotal: number;
     porcentaje: number;
   } | null>(null);
+  const [maxPesoKg, setMaxPesoKg] = useState(99999);
+  const [maxPrecioKg, setMaxPrecioKg] = useState(100000);
 
   const [step, setStep] = useState<Step>(1);
   const [compraGuardada, setCompraGuardada] =
@@ -593,14 +595,19 @@ export default function Compras() {
     setError(null);
     setMostrarErrorFormulario(false);
     try {
-      const [catalogosData, productoresData] = await Promise.all([
+      const [catalogosData, productoresData, bodegaConfig] = await Promise.all([
         obtenerCatalogosCompra(),
         listarProductores(),
+        obtenerConfiguracionBodega().catch(() => null),
       ]);
       setCatalogos(catalogosData);
       setProductores(
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
       );
+      if (bodegaConfig) {
+        setMaxPesoKg(bodegaConfig.maxPesoKg || 99999);
+        setMaxPrecioKg(bodegaConfig.maxPrecioKg || 100000);
+      }
     } catch (err) {
       console.warn('No se pudo cargar toda la informacion de compras:', err);
     } finally {
@@ -707,7 +714,7 @@ export default function Compras() {
     sublotes.find((sublote) => sublote.id === subloteActivoId) ??
     sublotes[sublotes.length - 1] ??
     null;
-  const sublotesVisibles = subloteActual ? [subloteActual] : [];
+  const sublotesVisibles = sublotes;
   const sublotesGuardados = Math.max(0, sublotes.length - 1);
   const pasoActual = datosPaso(step);
 
@@ -922,7 +929,6 @@ export default function Compras() {
     setProductorFormError(null);
     setProductorFormErrors({});
     setProductorCreadoToast(null);
-    setRegistroErrorMensaje(null);
     setMostrarModalCancelar(false);
     setMostrarModalConfirmar(false);
     setCheckingConfirmacion(false);
@@ -975,9 +981,6 @@ export default function Compras() {
       return fechaCompraValidacion.message ?? 'Selecciona la fecha de compra.';
     }
 
-    if (catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0) {
-      return 'Aun no hay catalogos disponibles para registrar la compra.';
-    }
     for (const [index, sublote] of sublotes.entries()) {
       if (!sublote.tipoCafeId)
         return `Selecciona el tipo de café del sublote ${index + 1}.`;
@@ -1107,7 +1110,8 @@ export default function Compras() {
         error instanceof ApiRequestError &&
         (error.status === 401 || error.status === 403)
       ) {
-        setRegistroErrorMensaje(error.message);
+        setError(error.message);
+        setMostrarErrorFormulario(true);
         return false;
       }
 
@@ -1164,7 +1168,6 @@ export default function Compras() {
   };
 
   const abrirConfirmacionCompra = async () => {
-    setRegistroErrorMensaje(null);
     setError(null);
     setMostrarErrorFormulario(false);
 
@@ -1199,7 +1202,6 @@ export default function Compras() {
     }
 
     savingRef.current = true;
-    setRegistroErrorMensaje(null);
     setSaving(true);
     setError(null);
     setMostrarErrorFormulario(false);
@@ -1246,8 +1248,8 @@ export default function Compras() {
       setMostrarModalConfirmar(false);
     } catch (err) {
       const mensaje = getCompraErrorMessage(err);
-      setRegistroErrorMensaje(mensaje);
-      setError(null);
+      setError(mensaje);
+      setMostrarErrorFormulario(true);
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -1261,11 +1263,6 @@ export default function Compras() {
   const confirmarCancelarCompra = () => {
     resetFormulario();
     navigate('/inicio');
-  };
-
-  const volverDesdeError = () => {
-    setRegistroErrorMensaje(null);
-    setStep(3);
   };
 
   if (compraGuardada) {
@@ -1288,7 +1285,7 @@ export default function Compras() {
             </div>
 
             {compraGuardada.capacidad &&
-            compraGuardada.capacidad.nivel !== 'normal' ? (
+              compraGuardada.capacidad.nivel !== 'normal' ? (
               <section
                 className={`mt-6 rounded-[16px] border p-4 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
               >
@@ -1366,46 +1363,6 @@ export default function Compras() {
     );
   }
 
-  if (registroErrorMensaje) {
-    return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[420px] items-center">
-          <div className="w-full rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
-            <div className="text-center">
-              <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]">
-                <AlertTriangle size={24} strokeWidth={2.8} />
-              </div>
-              <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">
-                No se pudo guardar la compra
-              </h1>
-              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">
-                {registroErrorMensaje}
-              </p>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              <button
-                type="button"
-                onClick={() => void guardarCompra()}
-                disabled={saving}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? 'Reintentando...' : 'Reintentar'}
-              </button>
-              <button
-                type="button"
-                onClick={volverDesdeError}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]"
-              >
-                Volver a editar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
@@ -1453,19 +1410,17 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarBusqueda}
-              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
-                productorSelectionMode === 'buscar'
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${productorSelectionMode === 'buscar'
                   ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                    productorSelectionMode === 'buscar'
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${productorSelectionMode === 'buscar'
                       ? 'bg-[#1f3fa7] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
-                  }`}
+                    }`}
                 >
                   <Search size={20} />
                 </span>
@@ -1478,11 +1433,10 @@ export default function Compras() {
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
-                    productorSelectionMode === 'buscar'
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${productorSelectionMode === 'buscar'
                       ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
-                  }`}
+                    }`}
                 >
                   <Check size={14} />
                 </span>
@@ -1517,11 +1471,10 @@ export default function Compras() {
                           key={productor.id}
                           type="button"
                           onClick={() => seleccionarProductor(productor)}
-                          className={`flex w-full items-start justify-between gap-3 rounded-[14px] border px-3 py-3 text-left transition ${
-                            activo
+                          className={`flex w-full items-start justify-between gap-3 rounded-[14px] border px-3 py-3 text-left transition ${activo
                               ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
-                          }`}
+                            }`}
                         >
                           <div className="min-w-0">
                             <p className="truncate text-[0.98rem] font-medium text-slate-900">
@@ -1532,11 +1485,10 @@ export default function Compras() {
                             </p>
                           </div>
                           <span
-                            className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                              activo
+                            className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border ${activo
                                 ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                                 : 'border-[#cad2e2] bg-white text-transparent'
-                            }`}
+                              }`}
                           >
                             <Check size={12} />
                           </span>
@@ -1545,7 +1497,7 @@ export default function Compras() {
                     })}
 
                     {productoresFiltrados.length === 0 &&
-                    sinProductoresRegistrados ? (
+                      sinProductoresRegistrados ? (
                       <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
                         <p className="font-semibold text-slate-700">
                           Aun no hay productores registrados
@@ -1555,8 +1507,8 @@ export default function Compras() {
                     ) : null}
 
                     {productoresFiltrados.length === 0 &&
-                    !sinProductoresRegistrados &&
-                    busquedaProductorActiva ? (
+                      !sinProductoresRegistrados &&
+                      busquedaProductorActiva ? (
                       <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
                         <p className="font-semibold text-slate-700">
                           No se encontraron resultados
@@ -1574,19 +1526,17 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarGenerico}
-              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
-                productorSelectionMode === 'generico'
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${productorSelectionMode === 'generico'
                   ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                    productorSelectionMode === 'generico'
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${productorSelectionMode === 'generico'
                       ? 'bg-[#1f3fa7] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
-                  }`}
+                    }`}
                 >
                   <User size={20} />
                 </span>
@@ -1599,11 +1549,10 @@ export default function Compras() {
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
-                    productorSelectionMode === 'generico'
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${productorSelectionMode === 'generico'
                       ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
-                  }`}
+                    }`}
                 >
                   <Check size={14} />
                 </span>
@@ -1670,72 +1619,140 @@ export default function Compras() {
 
         {step === 2 ? (
           <section className="space-y-4">
-            {sublotesGuardados > 0 ? (
-              <div className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] px-4 py-3 text-sm font-semibold text-[#102d92]">
-                {sublotesGuardados} cafe{sublotesGuardados === 1 ? '' : 's'}{' '}
-                agregado{sublotesGuardados === 1 ? '' : 's'} a esta compra.
+            <div className="rounded-[24px] border border-[#dce4f5] bg-white p-5 shadow-[0_4px_12px_rgba(20,35,85,0.03)]">
+              <p className="text-[0.95rem] font-bold text-slate-600">
+                Fecha de compra
+              </p>
+              <div className="mt-3 flex items-center gap-3 rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-3.5">
+                <CalendarDays size={18} className="text-[#102d92]" />
+                <input
+                  type="date"
+                  value={fecha}
+                  min={BUSINESS_MIN_DATE_VALUE}
+                  max={hoyLocal()}
+                  onChange={(event) => {
+                    setFecha(event.target.value);
+                    invalidarValidacionCapacidad();
+                  }}
+                  className="w-full bg-transparent text-[1.1rem] font-semibold text-[#102d92] outline-none"
+                />
               </div>
-            ) : null}
+              {mostrarErrorFormulario && step === 2 && !fechaCompraValidacion.isValid ? (
+                <p className="mt-2 text-[0.85rem] font-semibold text-rose-500">
+                  {fechaCompraValidacion.message ?? 'Selecciona la fecha de compra.'}
+                </p>
+              ) : null}
+            </div>
 
-            {sublotesVisibles.map((sublote) => {
+            {sublotesVisibles.map((sublote, index) => {
+              const isActivo = subloteActual?.id === sublote.id;
+              
+              if (!isActivo) {
+                 const tipoCafe = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café por definir';
+                 const calidad = nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad por definir';
+                 const peso = Number(sublote.pesoInicial || 0);
+                 const totalItem = peso * Number(sublote.precioKg || 0);
+                 const visual = iconoTipoCafe(tipoCafe);
+                 return (
+                    <article
+                      key={sublote.id}
+                      onClick={() => {
+                        setSubloteActivoId(sublote.id);
+                        setError(null);
+                        setMostrarErrorFormulario(false);
+                      }}
+                      className="cursor-pointer rounded-[26px] border border-[#e6e8f3] bg-white px-5 py-4 shadow-sm hover:border-[#173ea6] transition"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`rounded-2xl p-3 ${visual.fondo}`}>
+                            {visual.icono}
+                          </div>
+                          <div>
+                            <p className="text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                              Café {index + 1}
+                            </p>
+                            <p className="mt-1 text-[1.1rem] font-semibold leading-tight text-slate-900">
+                              {tipoCafe} • {calidad}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-slate-700">
+                              Peso:{' '}
+                              {peso.toLocaleString('es-CO', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 2,
+                              })}{' '}
+                              kg
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end justify-between self-stretch">
+                           {sublotes.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                eliminarSubloteDesdeRevision(sublote.id);
+                              }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] shadow-sm hover:bg-[#ffe0e4] transition"
+                              title="Eliminar café"
+                              aria-label={`Eliminar café ${index + 1}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                           )}
+                           <div className="mt-auto text-right">
+                              <p className="text-[0.95rem] font-bold text-[#173ea6]">{formatoMoneda(totalItem)}</p>
+                           </div>
+                        </div>
+                      </div>
+                    </article>
+                 );
+              }
+
               const mostrarErroresSublote =
                 mostrarErrorFormulario && step === 2;
               const peso = Number(sublote.pesoInicial);
               const precio = Number(sublote.precioKg);
-              const fechaError =
-                mostrarErroresSublote && !fechaCompraValidacion.isValid
-                  ? fechaCompraValidacion.message
-                  : null;
               const tipoCafeError =
                 mostrarErroresSublote && !sublote.tipoCafeId
-                  ? 'Selecciona el tipo de café de este sublote.'
+                  ? 'Falta el tipo'
                   : null;
               const calidadError =
                 mostrarErroresSublote && !sublote.calidadId
-                  ? 'Selecciona la calidad de este sublote.'
+                  ? 'Falta la calidad'
                   : null;
               const pesoError =
                 mostrarErroresSublote && (!Number.isFinite(peso) || peso <= 0)
-                  ? 'Ingresa un peso valido para este sublote.'
+                  ? 'Requerido'
                   : null;
               const precioError =
                 mostrarErroresSublote &&
-                (!Number.isFinite(precio) || precio < PRECIO_MINIMO_KG)
-                  ? 'El precio por kilo debe ser mínimo $1,000 para este sublote.'
+                  (!Number.isFinite(precio) || precio < PRECIO_MINIMO_KG)
+                  ? 'Mínimo $1,000'
                   : null;
 
               return (
                 <article
                   key={sublote.id}
-                  className="rounded-[26px] border border-[#eceffa] bg-[#f6f7ff] p-5 shadow-sm"
+                  className="rounded-[26px] border border-[#e6e8f3] bg-white p-5 shadow-sm"
                 >
-                  <div className="rounded-[20px] border border-[#dfe5f2] bg-white px-4 py-4">
-                    <p className="text-[0.9rem] font-semibold tracking-[0.04em] text-slate-500">
-                      Fecha de compra
-                    </p>
-                    <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-[#dfe5f2] bg-[#f8f9ff] px-3 py-3">
-                      <CalendarDays size={18} className="text-[#102d92]" />
-                      <input
-                        type="date"
-                        value={fecha}
-                        min={BUSINESS_MIN_DATE_VALUE}
-                        max={hoyLocal()}
-                        onChange={(event) => {
-                          setFecha(event.target.value);
-                          invalidarValidacionCapacidad();
-                        }}
-                        className="w-full bg-transparent text-[1.05rem] font-semibold text-[#102d92] outline-none"
-                      />
+                  {sublotes.length > 1 && (
+                    <div className="mb-4 flex items-center justify-between px-1">
+                      <span className="text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#6a7c98]">
+                        Café {index + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] shadow-sm"
+                        title="Eliminar café"
+                        aria-label={`Eliminar café ${index + 1}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    {fechaError ? (
-                      <InlineGuidedError
-                        message={getComprasGuidance(fechaError)}
-                        className="mt-2"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="mt-5">
+                  )}
+                  <div>
                     <p className="mb-2.5 text-[0.95rem] font-semibold text-slate-600">
                       Tipo de café
                     </p>
@@ -1749,11 +1766,10 @@ export default function Compras() {
                             event.target.value,
                           )
                         }
-                        className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${
-                          sublote.tipoCafeId
+                        className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${sublote.tipoCafeId
                             ? 'border-[#dfe5f2] font-semibold text-slate-900'
                             : 'border-[#dfe5f2] font-medium text-slate-400'
-                        }`}
+                          }`}
                       >
                         <option value="">
                           Seleccione tipo (ej. Verde, Seco)
@@ -1770,10 +1786,9 @@ export default function Compras() {
                       />
                     </div>
                     {tipoCafeError ? (
-                      <InlineGuidedError
-                        message={getComprasGuidance(tipoCafeError)}
-                        className="mt-2"
-                      />
+                      <p className="mt-1.5 text-[0.8rem] font-semibold text-rose-500">
+                        {tipoCafeError}
+                      </p>
                     ) : null}
                   </div>
 
@@ -1796,24 +1811,19 @@ export default function Compras() {
                                 calidad.id,
                               )
                             }
-                            className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
-                              activo
-                                ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white shadow-[0_8px_20px_rgba(16,45,146,0.18)]'
+                            className={`rounded-[18px] border-2 px-2 py-3 text-sm font-semibold transition ${activo
+                                ? 'border-[#1f3fa7] bg-[#f4f7ff] text-[#1f3fa7] shadow-sm'
                                 : `${visual.borde} bg-white/85 text-slate-700 hover:bg-white`
-                            }`}
+                              }`}
                           >
                             <span className="flex flex-col items-center gap-1.5">
                               <span
-                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
-                                  activo
-                                    ? 'bg-white/20 text-white'
-                                    : visual.fondo
-                                }`}
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${visual.fondo}`}
                               >
                                 {visual.icono}
                               </span>
                               <span
-                                className={`text-[11px] font-semibold ${activo ? 'text-white' : ''}`}
+                                className={`text-[11px] font-semibold ${activo ? 'text-[#1f3fa7]' : ''}`}
                               >
                                 {calidad.nombre}
                               </span>
@@ -1823,39 +1833,44 @@ export default function Compras() {
                       })}
                     </div>
                     {calidadError ? (
-                      <InlineGuidedError
-                        message={getComprasGuidance(calidadError)}
-                        className="mt-2"
-                      />
+                      <p className="mt-1.5 text-[0.8rem] font-semibold text-rose-500">
+                        {calidadError}
+                      </p>
                     ) : null}
                   </div>
 
-                  <div className="mt-5 rounded-[22px] bg-white p-5">
+                  <div className="mt-5 rounded-[22px] bg-[#f8f9ff] p-5">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-[0.95rem] font-semibold text-slate-600">
                           Peso (kg)
                         </label>
                         <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={sublote.pesoInicial}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/[^0-9.,]/g, '');
+                            const numeric = Number(raw.replace(',', '.'));
+                            if (raw !== '' && Number.isFinite(numeric) && numeric > maxPesoKg) {
+                              return;
+                            }
                             actualizarSublote(
                               sublote.id,
                               'pesoInicial',
-                              event.target.value,
-                            )
-                          }
+                              raw,
+                            );
+                          }}
                           className="mt-2.5 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none focus:border-[#102d92] placeholder:text-slate-300"
                           placeholder="ej. 25"
                         />
+                        <p className="mt-1 text-[0.62rem] font-semibold text-slate-400">
+                          Máx. {new Intl.NumberFormat('es-CO').format(maxPesoKg)} kg
+                        </p>
                         {pesoError ? (
-                          <InlineGuidedError
-                            message={getComprasGuidance(pesoError)}
-                            className="mt-2"
-                          />
+                          <p className="mt-1 text-[0.8rem] font-semibold text-rose-500">
+                            {pesoError}
+                          </p>
                         ) : null}
                       </div>
 
@@ -1872,22 +1887,29 @@ export default function Compras() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             value={sublote.precioKg}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const digits = soloDigitos(event.target.value);
+                              const numeric = Number(digits);
+                              if (digits !== '' && Number.isFinite(numeric) && numeric > maxPrecioKg) {
+                                return;
+                              }
                               actualizarSublote(
                                 sublote.id,
                                 'precioKg',
-                                soloDigitos(event.target.value),
-                              )
-                            }
+                                digits,
+                              );
+                            }}
                             className="w-full bg-transparent text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300"
                             placeholder="ej. 14000"
                           />
                         </div>
+                        <p className="mt-1 text-[0.62rem] font-semibold text-slate-400">
+                          Máx. ${new Intl.NumberFormat('es-CO').format(maxPrecioKg)}/kg
+                        </p>
                         {precioError ? (
-                          <InlineGuidedError
-                            message={getComprasGuidance(precioError)}
-                            className="mt-2"
-                          />
+                          <p className="mt-1 text-[0.8rem] font-semibold text-rose-500">
+                            {precioError}
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -1931,9 +1953,6 @@ export default function Compras() {
               </div>
             </article>
 
-            {error && mostrarErrorFormulario ? (
-              <InlineGuidedError message={getComprasGuidance(error)} />
-            ) : null}
 
             <div className="grid gap-3">
               <button
@@ -2043,17 +2062,19 @@ export default function Compras() {
                           >
                             <Pencil size={16} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              eliminarSubloteDesdeRevision(sublote.id)
-                            }
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
-                            title="Eliminar producto"
-                            aria-label={`Eliminar ${tipoCafe}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {sublotes.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                eliminarSubloteDesdeRevision(sublote.id)
+                              }
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                              title="Eliminar producto"
+                              aria-label={`Eliminar ${tipoCafe}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </article>

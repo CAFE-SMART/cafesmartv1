@@ -11,13 +11,17 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { EmptyState } from '../components/EmptyState';
+import {
+  createGuidedError,
+  InlineGuidedError,
+} from '../components/forms/GuidedError';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import {
   applySecadoToLots,
   loadSecadoSessions,
   type SecadoSession,
 } from '../utils/secadoFlow';
-import { UI_MESSAGES } from '../utils/uiMessages';
+import { formatDisplayLabel, UI_MESSAGES } from '../utils/uiMessages';
 import {
   classifyHumidity,
   formatHumidityWithClassification,
@@ -73,6 +77,15 @@ function formatDate(value: string) {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(value));
+}
+
+function getSecadoInicioGuidance(message: string) {
+  return createGuidedError(
+    message,
+    'No se pudo cargar el secado.',
+    'La información no está disponible en este momento.',
+    'Reintenta la carga o vuelve a inventario.',
+  );
 }
 
 export default function SecadoInicio() {
@@ -238,7 +251,7 @@ export default function SecadoInicio() {
                             {session.sublotes.length} sublote
                             {session.sublotes.length === 1 ? '' : 's'}
                           </span>
-                          <span>{session.calidad}</span>
+                          <span>{formatDisplayLabel(session.calidad)}</span>
                         </div>
                       </div>
                     </div>
@@ -288,7 +301,8 @@ export default function SecadoInicio() {
                         Secado activo
                       </p>
                       <h2 className="mt-2 text-[1.35rem] font-black text-[#111827]">
-                        {activeSession.tipoCafe} {activeSession.calidad}
+                        {formatDisplayLabel(activeSession.tipoCafe)}{' '}
+                        {formatDisplayLabel(activeSession.calidad)}
                       </h2>
                       <p className="mt-1 text-sm font-semibold text-slate-600">
                         Lote {activeSession.loteCodigo}
@@ -364,9 +378,9 @@ export default function SecadoInicio() {
             ) : (
               <>
                 {error ? (
-                  <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {error}
-                  </section>
+                  <InlineGuidedError
+                    message={getSecadoInicioGuidance(error)}
+                  />
                 ) : null}
 
                 <section className="rounded-[22px] bg-white p-4 shadow-sm">
@@ -427,7 +441,7 @@ export default function SecadoInicio() {
                                 </p>
                               </div>
                               <p className="mt-2 text-sm text-slate-600">
-                                Calidad {lote.calidad}
+                                Calidad {formatDisplayLabel(lote.calidad)}
                               </p>
                               <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                                 <span>{formatKg(lote.pesoActual)} kg</span>

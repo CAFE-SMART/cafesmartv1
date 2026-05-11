@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
+import type { LoteDetalle } from '../services/lotesService';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -17,6 +23,7 @@ import {
 import {
   getSecadoSession,
   saveSecadoResults,
+  startSecadoWithWeights,
   SecadoValidationError,
 } from '../utils/secadoFlow';
 import {
@@ -35,7 +42,7 @@ function kg(value: number) {
 function dateInput(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
-    return new Date().toISOString().slice(0, 10);
+    return getTodayLocalDateValue();
   return date.toISOString().slice(0, 10);
 }
 
@@ -93,11 +100,26 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
   );
 }
 
+type PendingSecadoData = {
+  detalle: LoteDetalle;
+  selectedWeights: Record<string, number>;
+};
+
 export default function SecadoProceso() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
-  const session = sessionId ? getSecadoSession(sessionId) : null;
+
+  const pendingData = (location.state as PendingSecadoData | null) ?? null;
+  const isNewFlow = !sessionId && pendingData !== null;
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(
+    sessionId ?? null,
+  );
+  const session = activeSessionId
+    ? getSecadoSession(activeSessionId)
+    : null;
   const [step, setStep] = useState<'config' | 'active' | 'finish'>(
     searchParams.get('step') === 'finish' || session?.estado === 'READY'
       ? 'finish'
@@ -106,7 +128,7 @@ export default function SecadoProceso() {
   const [startDate, setStartDate] = useState(
     session ? dateInput(session.startedAt) : dateInput(''),
   );
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(getTodayLocalDateValue());
   const [buenoKg, setBuenoKg] = useState(
     session?.outputBuenoKg ? String(session.outputBuenoKg) : '',
   );
@@ -121,14 +143,24 @@ export default function SecadoProceso() {
   const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
     useState(false);
 
+  const pendingTotalEntrada = useMemo(() => {
+    if (!pendingData) return 0;
+    return Object.values(pendingData.selectedWeights).reduce(
+      (sum, kg) => sum + (Number.isFinite(kg) && kg > 0 ? kg : 0),
+      0,
+    );
+  }, [pendingData]);
+
+  const pendingCalidad = pendingData?.detalle.lote.calidad ?? '';
+
   const totalEntrada = useMemo(
     () =>
       session
         ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
-        : 0,
-    [session],
+        : pendingTotalEntrada,
+    [pendingTotalEntrada, session],
   );
-  const sourceQuality = keyOf(session?.calidad ?? '');
+  const sourceQuality = keyOf(session?.calidad ?? pendingCalidad);
   const visibleQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
     (quality) => !sourceQuality || sourceQuality === quality,
   );
@@ -166,11 +198,36 @@ export default function SecadoProceso() {
     },
   ].filter((field) => outputQualities.includes(field.quality));
 
-  const guardarResultadoSecado = () => {
-    if (!sessionId || !session) return;
+  const confirmarInicioSecado = () => {
+    if (!pendingData) return;
 
     try {
-      saveSecadoResults(sessionId, {
+      const created = startSecadoWithWeights(
+        pendingData.detalle,
+        pendingData.selectedWeights,
+      );
+      setActiveSessionId(created.id);
+      setError(null);
+      setStep('active');
+
+      navigate(`/inventario/secado/${created.id}/finalizar`, { replace: true });
+    } catch (err) {
+      if (err instanceof SecadoValidationError) {
+        setError(err.message);
+        return;
+      }
+
+      setError(
+        err instanceof Error ? err.message : 'No se pudo iniciar el secado.',
+      );
+    }
+  };
+
+  const guardarResultadoSecado = () => {
+    if (!activeSessionId || !session) return;
+
+    try {
+      saveSecadoResults(activeSessionId, {
         outputBuenoKg: bueno,
         outputBuenoHumedad: null,
         outputRegularKg: regular,
@@ -179,7 +236,7 @@ export default function SecadoProceso() {
         outputMaloHumedad: null,
       });
       setMostrarConfirmacionMermaCero(false);
-      navigate(`/inventario/secado/${sessionId}/resumen`);
+      navigate(`/inventario/secado/${activeSessionId}/resumen`);
     } catch (err) {
       if (err instanceof SecadoValidationError) {
         setError(err.message);
@@ -193,7 +250,7 @@ export default function SecadoProceso() {
   };
 
   const finalizar = () => {
-    if (!sessionId || !session) return;
+    if (!activeSessionId || !session) return;
     const fechaInicioValidacion = validateBusinessDateRange(startDate);
     const fechaFinValidacion = validateBusinessDateRange(endDate);
 
@@ -231,12 +288,17 @@ export default function SecadoProceso() {
       return;
     }
 
+    if (isNewFlow && step === 'config') {
+      navigate(-1);
+      return;
+    }
+
     navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
   };
   const fechaSecadoError = error?.includes('fecha') ? error : null;
   const resultadoSecadoError = fechaSecadoError ? null : error;
 
-  if (!session) {
+  if (!session && !isNewFlow) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
         <div className="mx-auto w-full max-w-[430px] rounded-[20px] bg-white p-6 text-center shadow-sm">
@@ -338,9 +400,18 @@ export default function SecadoProceso() {
               </div>
             </section>
 
+            {error ? (
+              <InlineGuidedError
+                message={getSecadoGuidance(error)}
+                className="mt-2"
+              />
+            ) : null}
+
             <button
               type="button"
-              onClick={() => setStep('active')}
+              onClick={
+                isNewFlow ? confirmarInicioSecado : () => setStep('active')
+              }
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)]"
             >
               Iniciar proceso <Play size={15} fill="currentColor" />
@@ -423,7 +494,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida para café verde {titleCase(session.calidad)}.
+                Registra la salida para café verde {titleCase(session?.calidad ?? '')}.
               </p>
               {outputFields.map((field) => (
                 <label key={field.quality} className="mt-4 block">

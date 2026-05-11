@@ -54,9 +54,32 @@ describe('DashboardService', () => {
     return { service, prisma };
   }
 
-  it('actualiza indicadores al volver a consultar despues de compra, venta y gasto', async () => {
+  it('actualiza indicadores al volver a consultar después de compra, venta y gasto', async () => {
     const { service, prisma } = crearServicioConMocks();
-    const fecha = new Date('2026-04-30T14:00:00.000Z');
+    const fecha = new Date('2026-05-07T14:00:00.000Z');
+    const compraReciente = {
+      id: 'compra-1',
+      fecha,
+      creadoEn: fecha,
+      totalCompra: 600000,
+      productor: { nombre: 'Finca Norte' },
+      sublotes: [{ pesoInicial: 120 }],
+    };
+    const ventaReciente = {
+      id: 'venta-1',
+      fecha,
+      createdAt: new Date(fecha.getTime() + 1000),
+      totalVenta: 700000,
+      cliente: { nombre: 'Cliente Centro' },
+      detalles: [{ pesoVendido: 35 }],
+    };
+    const gastoReciente = {
+      id: 'gasto-1',
+      conceptoGasto: 'Transporte',
+      fechaGasto: fecha,
+      createdAt: new Date(fecha.getTime() + 2000),
+      montoGasto: 45000,
+    };
 
     prisma.compra.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
     prisma.venta.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
@@ -92,38 +115,16 @@ describe('DashboardService', () => {
     prisma.ventaDetalle.findMany.mockResolvedValue([]);
     prisma.gastoSublote.findMany.mockResolvedValue([]);
 
-    prisma.compra.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 'compra-1',
-        fecha,
-        creadoEn: fecha,
-        totalCompra: 600000,
-        productor: { nombre: 'Finca Norte' },
-        sublotes: [{ pesoInicial: 120 }],
-      },
-    ]);
-    prisma.venta.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 'venta-1',
-        fecha,
-        createdAt: new Date(fecha.getTime() + 1000),
-        totalVenta: 700000,
-        cliente: { nombre: 'Cliente Centro' },
-        detalles: [{ pesoVendido: 35 }],
-      },
-    ]);
-    prisma.gastoOperativo.findMany
-      .mockResolvedValue([])
+    prisma.compra.findMany
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'gasto-1',
-          conceptoGasto: 'Transporte',
-          fechaGasto: fecha,
-          createdAt: new Date(fecha.getTime() + 2000),
-          montoGasto: 45000,
-        },
-      ]);
+      .mockResolvedValueOnce([compraReciente]);
+    prisma.venta.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([ventaReciente]);
+    prisma.gastoOperativo.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([gastoReciente])
+      .mockResolvedValueOnce([]);
 
     const inicial = await service.obtenerResumen('user-1');
     const actualizado = await service.obtenerResumen('user-1');
@@ -145,6 +146,7 @@ describe('DashboardService', () => {
       gastosHoy: 1,
       kgCompradosHoy: 120,
       totalComprasHoy: 600000,
+      totalVentasHoy: 700000,
       totalGastosHoy: 45000,
       kgActual: 85,
     });
@@ -184,8 +186,8 @@ describe('DashboardService', () => {
     });
     prisma.productor.count.mockResolvedValue(1);
     prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 100 } });
-    prisma.compra.findMany.mockResolvedValue([]);
-    prisma.venta.findMany.mockResolvedValue([]);
+    prisma.compra.findMany.mockResolvedValueOnce([]);
+    prisma.venta.findMany.mockResolvedValueOnce([]);
     prisma.gastoOperativo.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ montoGasto: 100000 }]);
@@ -224,8 +226,8 @@ describe('DashboardService', () => {
     });
     prisma.productor.count.mockResolvedValue(1);
     prisma.inventario.aggregate.mockResolvedValue({ _sum: { pesoTotal: 40 } });
-    prisma.compra.findMany.mockResolvedValue([]);
-    prisma.venta.findMany.mockResolvedValue([]);
+    prisma.compra.findMany.mockResolvedValueOnce([]);
+    prisma.venta.findMany.mockResolvedValueOnce([]);
     prisma.gastoOperativo.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ montoGasto: 100000 }]);

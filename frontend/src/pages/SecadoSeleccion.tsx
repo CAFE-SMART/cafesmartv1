@@ -14,12 +14,16 @@ import {
   type SubloteDetalle,
 } from '../services/lotesService';
 import {
+  createGuidedError,
+  InlineGuidedError,
+  type GuidedErrorMessage,
+} from '../components/forms/GuidedError';
+import {
   applySecadoToDetalle,
   getActiveSecadoSessions,
-  startSecadoWithWeights,
-  SecadoValidationError,
   type SecadoSession,
 } from '../utils/secadoFlow';
+import { formatDisplayLabel } from '../utils/uiMessages';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -63,6 +67,33 @@ function formatDaysLabel(fechaIngreso: string) {
   return `Hace ${days}d`;
 }
 
+function getSecadoSeleccionGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('superar el peso disponible')) {
+    return createGuidedError(
+      message,
+      'La cantidad supera lo disponible.',
+      'El secado solo puede iniciar con el peso disponible del sublote.',
+      'Ajusta los kilos a secar.',
+    );
+  }
+
+  if (message.includes('entrada del secado')) {
+    return createGuidedError(
+      message,
+      'La cantidad no es válida.',
+      'Necesitamos un peso mayor a 0 para iniciar el secado.',
+      'Ingresa una cantidad mayor a 0.',
+    );
+  }
+
+  return createGuidedError(
+    message,
+    'No se pudo continuar con el secado.',
+    'Hay un dato que debe revisarse antes de seguir.',
+    'Revisa la selección e intenta de nuevo.',
+  );
+}
+
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
   const { tipoCafeId, calidadId } = useParams<{
@@ -75,6 +106,7 @@ export default function SecadoSeleccion() {
   >({});
   const [editing, setEditing] = useState<SubloteDetalle | null>(null);
   const [draftWeight, setDraftWeight] = useState('');
+  const [adjustError, setAdjustError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSessions, setActiveSessions] = useState<SecadoSession[]>([]);
@@ -207,23 +239,25 @@ export default function SecadoSeleccion() {
   const openAdjust = (sublote: SubloteDetalle) => {
     setEditing(sublote);
     setDraftWeight(String(selectedWeights[sublote.id] || sublote.pesoActual));
+    setAdjustError(null);
   };
 
   const confirmAdjust = () => {
     if (!editing) return;
     const value = Number(draftWeight);
     if (!Number.isFinite(value) || value <= 0) {
-      setError('La cantidad de entrada del secado debe ser mayor a 0.');
+      setAdjustError('La cantidad de entrada del secado debe ser mayor a 0.');
       return;
     }
 
     if (value > editing.pesoActual) {
-      setError('La cantidad a secar no puede superar el peso disponible.');
+      setAdjustError('La cantidad a secar no puede superar el peso disponible.');
       return;
     }
 
     setSelectedWeights((current) => ({ ...current, [editing.id]: value }));
     setEditing(null);
+    setAdjustError(null);
     setError(null);
   };
 
@@ -233,19 +267,13 @@ export default function SecadoSeleccion() {
       ...detalle,
       sublotes: availableSublotes,
     };
-    try {
-      const session = startSecadoWithWeights(availableDetail, selectedWeights);
-      navigate(`/inventario/secado/${session.id}/finalizar`);
-    } catch (err) {
-      if (err instanceof SecadoValidationError) {
-        setError(err.message);
-        return;
-      }
 
-      setError(
-        err instanceof Error ? err.message : 'No se pudo iniciar el secado.',
-      );
-    }
+    navigate('/inventario/secado/nuevo/configurar', {
+      state: {
+        detalle: availableDetail,
+        selectedWeights,
+      },
+    });
   };
 
   return (
@@ -291,9 +319,7 @@ export default function SecadoSeleccion() {
           ) : null}
 
           {error ? (
-            <section className="rounded-[16px] border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700">
-              {error}
-            </section>
+            <InlineGuidedError message={getSecadoSeleccionGuidance(error)} />
           ) : null}
 
           {loading ? (
@@ -318,7 +344,7 @@ export default function SecadoSeleccion() {
                       <span
                         className={`h-2 w-2 rounded-full ${qualityTone(quality)}`}
                       />
-                      Calidad: {quality.toLowerCase()}
+                      Calidad: {formatDisplayLabel(quality)}
                     </p>
                     {items.map((sublote) => {
                       const selected = (selectedWeights[sublote.id] ?? 0) > 0;
@@ -410,7 +436,10 @@ export default function SecadoSeleccion() {
               <h2 className="text-base font-black">Ajustar cantidad</h2>
               <button
                 type="button"
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setEditing(null);
+                  setAdjustError(null);
+                }}
                 className="text-slate-400"
               >
                 <X size={18} />
@@ -441,17 +470,29 @@ export default function SecadoSeleccion() {
               max={editing.pesoActual}
               step="0.1"
               value={draftWeight}
-              onChange={(event) => setDraftWeight(event.target.value)}
+              onChange={(event) => {
+                setDraftWeight(event.target.value);
+                setAdjustError(null);
+              }}
               className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 px-4 text-sm font-bold outline-none focus:border-[#0647d6]"
               placeholder="Ej: 50"
             />
             <p className="mt-2 text-[0.68rem] text-slate-400">
               Debe ser menor o igual a {kg(editing.pesoActual)}.
             </p>
+            {adjustError ? (
+              <InlineGuidedError
+                message={getSecadoSeleccionGuidance(adjustError)}
+                className="mt-3"
+              />
+            ) : null}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setEditing(null);
+                  setAdjustError(null);
+                }}
                 className="h-11 rounded-full text-xs font-bold text-slate-500"
               >
                 Cancelar

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CircleDashed, Package2 } from 'lucide-react';
 import { getActiveSecadoSessions } from '../utils/secadoFlow';
+import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 
 type ActiveSecadoSession = ReturnType<typeof getActiveSecadoSessions>[number];
 
@@ -36,8 +37,8 @@ function daysSince(value: string) {
 function startedLabel(value: string) {
   const days = daysSince(value);
   if (days === 0) return 'Iniciado hoy';
-  if (days === 1) return 'Iniciado hace 1 dia';
-  return `Iniciado hace ${days} dias`;
+  if (days === 1) return 'Iniciado hace 1 día';
+  return `Iniciado hace ${days} días`;
 }
 
 function qualityKey(value: string) {
@@ -85,11 +86,11 @@ export default function SecadosActivos() {
         <main className="px-4 py-4">
           <section>
             <h2 className="text-[1.05rem] font-black leading-tight">
-              Cafe en proceso de secado
+              Café en proceso de secado
             </h2>
             <p className="mt-2 text-[0.72rem] leading-5 text-slate-500">
               Revisa los procesos que ya empezaron y entra directo a registrar
-              el resultado cuando esten listos.
+              el resultado cuando estén listos.
             </p>
           </section>
 
@@ -102,7 +103,7 @@ export default function SecadosActivos() {
                 No hay secados activos
               </p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Cuando inicies un secado, aparecera aqui para continuar el
+                Cuando inicies un secado, aparecerá aquí para continuar el
                 proceso.
               </p>
             </section>
@@ -121,9 +122,10 @@ export default function SecadosActivos() {
                       <div className="mt-1 flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-[1.05rem] font-black leading-tight text-[#102d92]">
-                            {session.tipoCafe} - {session.calidad}
+                            {formatCoffeeLabel(session.tipoCafe)} -{' '}
+                            {formatDisplayLabel(session.calidad)}
                           </p>
-                          <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black uppercase text-slate-700">
+                          <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black text-slate-700">
                             <span
                               className={`h-2 w-2 rounded-full ${qualityTone(session.calidad)}`}
                             />
@@ -163,7 +165,7 @@ export default function SecadosActivos() {
                   onClick={() => setShowAll(true)}
                   className="inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-white text-[0.78rem] font-black text-[#102d92] shadow-sm"
                 >
-                  Ver mas ({hiddenCount})
+                  Ver más ({hiddenCount})
                 </button>
               ) : null}
             </section>

@@ -37,9 +37,14 @@ import {
   guardarPesosSublotes,
 } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
+import { obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
-import { applySecadoToDetalle, applySecadoToLots } from '../utils/secadoFlow';
+import {
+  applySecadoToDetalle,
+  applySecadoToLots,
+  getActiveSecadoSessions,
+} from '../utils/secadoFlow';
 import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -48,6 +53,7 @@ import {
   toIsoDateAtUtcNoon,
   validateBusinessDateRange,
 } from '../utils/date';
+import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 import {
   sanitizeDigits as sanitizePersonDigits,
   sanitizeNameInput,
@@ -123,6 +129,15 @@ const norm = (v: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+const keyOf = (v: string) => v.trim().toUpperCase();
+
+function isSecadoProcessLot(lote: LoteResumen | LoteVenta) {
+  return keyOf(lote.tipoCafe) === 'EN SECADO';
+}
+
+function coffeeWithQuality(tipoCafe: string, calidad: string) {
+  return `${formatCoffeeLabel(tipoCafe)} - ${formatDisplayLabel(calidad)}`;
+}
 
 function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
   return lotes
@@ -265,7 +280,7 @@ function datosPasoVenta(step: Step) {
   }
   if (step === 2) {
     return {
-      titulo: 'Seleccionar cafe',
+      titulo: 'Seleccionar café',
       progreso: 66,
     };
   }
@@ -316,7 +331,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Inventario insuficiente',
-      'La venta queda bloqueada porque no hay cafe suficiente.',
+      'La venta queda bloqueada porque no hay café suficiente.',
       'Actualiza el inventario o reduce la cantidad.',
     );
   }
@@ -363,9 +378,9 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('precio por kg')) {
     return createGuidedError(
       message,
-      'Falta el precio por kilo.',
-      'El precio minimo permitido es $1,000 por kg.',
-      'Ingresa un valor desde $1,000.',
+      'Precio fuera de rango.',
+      'El precio debe estar entre $1,000 y el límite configurado.',
+      'Ajusta el valor para continuar.',
     );
   }
 
@@ -417,7 +432,7 @@ function getVentaSubmitMessage(error: unknown) {
     }
 
     if (error.code === 'VENTA_PRECIO_INVALIDO') {
-      return 'El precio por kg debe ser mínimo $1,000.';
+      return 'El precio por kg está fuera del rango permitido.';
     }
 
     if (error.code === 'VENTA_SUBLOTE_INVALIDO') {
@@ -498,6 +513,10 @@ export default function Ventas() {
     Record<string, string>
   >({});
   const [lotesVenta, setLotesVenta] = React.useState<LoteVenta[]>([]);
+  const [secadoExcluidoVenta, setSecadoExcluidoVenta] = React.useState({
+    sublotes: 0,
+    kg: 0,
+  });
   const [loteAjustandoId, setLoteAjustandoId] = React.useState<string | null>(
     null,
   );
@@ -520,22 +539,52 @@ export default function Ventas() {
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(
     null,
   );
+  const [maxPrecioVentaKg, setMaxPrecioVentaKg] = React.useState(100000);
   const ventaLocalIdRef = React.useRef(uid());
 
   const cargarLotes = React.useCallback(async () => {
     try {
       setCargando(true);
       setLoadError(null);
-      const [lotes, clientesData] = await Promise.all([
+      const [lotes, clientesData, bodegaConfig] = await Promise.all([
         obtenerLotes(),
         listarClientes(),
+        obtenerConfiguracionBodega().catch(() => null),
       ]);
+      if (bodegaConfig) {
+        setMaxPrecioVentaKg(bodegaConfig.maxPrecioVentaKg || 100000);
+      }
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
         : lotes;
-      setLotesVenta(mkLotes(lotesDisponibles));
+      const secadosActivos = ENABLE_SECADO_PROTOTYPE
+        ? getActiveSecadoSessions()
+        : [];
+      setSecadoExcluidoVenta({
+        sublotes: secadosActivos.reduce(
+          (total, session) => total + session.sublotes.length,
+          0,
+        ),
+        kg: round2(
+          secadosActivos.reduce(
+            (total, session) =>
+              total +
+              session.sublotes.reduce(
+                (sessionTotal, sublote) => sessionTotal + sublote.pesoActual,
+                0,
+              ),
+            0,
+          ),
+        ),
+      });
+      setLotesVenta(
+        mkLotes(
+          lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote)),
+        ),
+      );
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
     } catch (e) {
+      setSecadoExcluidoVenta({ sublotes: 0, kg: 0 });
       setLoadError(
         e instanceof Error
           ? e.message
@@ -621,7 +670,11 @@ export default function Ventas() {
     const invalidos = new Set<string>();
 
     for (const item of resumenDisponiblePorTipo) {
-      if (toNum(preciosVentaTotal[item.tipoCafeId] ?? '') < PRECIO_MINIMO_KG) {
+      const precioVentaItem = toNum(preciosVentaTotal[item.tipoCafeId] ?? '');
+      if (
+        precioVentaItem < PRECIO_MINIMO_KG ||
+        precioVentaItem > maxPrecioVentaKg
+      ) {
         invalidos.add(item.tipoCafeId);
       }
     }
@@ -645,7 +698,7 @@ export default function Ventas() {
       );
 
       if (tipoSinPrecio) {
-        return `Ingresa un precio por kg valido para cafe ${tipoSinPrecio.tipoCafe}.`;
+        return `Ingresa un precio por kg válido para café ${formatCoffeeLabel(tipoSinPrecio.tipoCafe)}.`;
       }
 
       return null;
@@ -657,8 +710,11 @@ export default function Ventas() {
         return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
       if (l.cantidad > getDisponibleVenta(l))
         return `La cantidad supera el disponible en ${l.codigo}.`;
-      if (l.precio < PRECIO_MINIMO_KG)
-        return `Ingresa un precio por kg valido en ${l.codigo}.`;
+      if (
+        l.precio < PRECIO_MINIMO_KG ||
+        l.precio > maxPrecioVentaKg
+      )
+        return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
   }, [
@@ -685,6 +741,7 @@ export default function Ventas() {
         cantidad <= 0 ||
         cantidad > getDisponibleVenta(lote) ||
         toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
+        toNum(lote.precioKg) > maxPrecioVentaKg ||
         pesoVerificadoInvalido(lote)
       );
     });
@@ -945,7 +1002,13 @@ export default function Ventas() {
     id: string,
     campo: 'cantidadKg' | 'precioKg' | 'pesoVerificadoKg',
     valor: string,
-  ) =>
+  ) => {
+    if (campo === 'precioKg') {
+      const numericValor = toNum(valor);
+      if (valor !== '' && Number.isFinite(numericValor) && numericValor > maxPrecioVentaKg) {
+        return;
+      }
+    }
     setLotesVenta((prev) =>
       prev.map((l) =>
         l.id === id
@@ -953,6 +1016,7 @@ export default function Ventas() {
           : l,
       ),
     );
+  };
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
     setClienteSeleccionado(cliente);
@@ -975,6 +1039,8 @@ export default function Ventas() {
     modoVenta === 'TOTAL' &&
     intentoPaso2 &&
     preciosVentaTotalInvalidos.size > 0;
+  const haySecadoExcluido =
+    ENABLE_SECADO_PROTOTYPE && secadoExcluidoVenta.sublotes > 0;
   const sinInventario = paso === 2 && lotesVenta.length === 0;
   const parcialSinCantidad =
     paso === 2 && modoVenta === 'PARCIAL' && !hayCantidadParcial;
@@ -990,7 +1056,7 @@ export default function Ventas() {
 
   const confirmarCancelarVenta = () => {
     setMostrarModalCancelar(false);
-    reiniciar();
+    navigate('/inicio');
   };
 
   const validarClienteForm = React.useCallback(() => {
@@ -1268,7 +1334,7 @@ export default function Ventas() {
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-medium text-slate-500">
-                  Seleccionar cafe
+                  Seleccionar café
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Como deseas realizar la venta?
@@ -1398,6 +1464,18 @@ export default function Ventas() {
                       <p className="mt-2 text-sm font-semibold text-slate-500">
                         Incluye todos los tipos y calidades disponibles.
                       </p>
+                      {haySecadoExcluido ? (
+                        <p className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-3 text-left text-xs font-semibold leading-5 text-amber-800">
+                          No se tendrán en cuenta los sublotes que se
+                          encuentran en proceso de secado (
+                          {secadoExcluidoVenta.sublotes} sublote
+                          {secadoExcluidoVenta.sublotes === 1 ? '' : 's'}
+                          {secadoExcluidoVenta.kg > 0
+                            ? `, ${kg(secadoExcluidoVenta.kg)}`
+                            : ''}
+                          ).
+                        </p>
+                      ) : null}
                     </div>
 
                     <article className="rounded-[18px] bg-white p-4 shadow-sm">
@@ -1411,7 +1489,7 @@ export default function Ventas() {
                             className="flex items-center justify-between py-3"
                           >
                             <span className="font-semibold text-slate-600">
-                              Café {item.tipoCafe.toLowerCase()}
+                              Café {formatCoffeeLabel(item.tipoCafe)}
                             </span>
                             <span className="font-black text-slate-950">
                               {kg(item.pesoKg)}
@@ -1443,13 +1521,13 @@ export default function Ventas() {
                           const precioTipoInvalido =
                             modoVenta === 'TOTAL' &&
                             (intentoPaso2 || precioTipo.trim() !== '') &&
-                            toNum(precioTipo) < PRECIO_MINIMO_KG;
+                            (toNum(precioTipo) < PRECIO_MINIMO_KG || toNum(precioTipo) > maxPrecioVentaKg);
 
                           return (
                             <div key={item.tipoCafeId}>
                               <div className="mb-1 flex items-center justify-between gap-3">
                                 <span className="text-sm font-black text-slate-800">
-                                  Café {item.tipoCafe.toLowerCase()}
+                                  Café {formatCoffeeLabel(item.tipoCafe)}
                                 </span>
                                 <span className="text-xs font-semibold text-slate-500">
                                   {kg(item.pesoKg)}
@@ -1470,14 +1548,17 @@ export default function Ventas() {
                                   inputMode="numeric"
                                   pattern="[0-9]*"
                                   value={precioTipo}
-                                  onChange={(event) =>
+                                  onChange={(event) => {
+                                    const raw = soloDigitos(event.target.value);
+                                    const numeric = toNum(raw);
+                                    if (raw !== '' && Number.isFinite(numeric) && numeric > maxPrecioVentaKg) {
+                                      return;
+                                    }
                                     setPreciosVentaTotal((actual) => ({
                                       ...actual,
-                                      [item.tipoCafeId]: soloDigitos(
-                                        event.target.value,
-                                      ),
-                                    }))
-                                  }
+                                      [item.tipoCafeId]: raw,
+                                    }));
+                                  }}
                                   placeholder="Ej. 14500"
                                   className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
                                 />
@@ -1485,7 +1566,7 @@ export default function Ventas() {
                               {precioTipoInvalido ? (
                                 <InlineGuidedError
                                   message={getVentasGuidance(
-                                    `Ingresa un precio por kg valido para cafe ${item.tipoCafe}.`,
+                                    `Ingresa un precio por kg válido para café ${formatCoffeeLabel(item.tipoCafe)}.`,
                                   )}
                                   className="mt-2"
                                 />
@@ -1522,7 +1603,7 @@ export default function Ventas() {
                       const precioInvalido =
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
-                        toNum(lote.precioKg) < PRECIO_MINIMO_KG;
+                        (toNum(lote.precioKg) < PRECIO_MINIMO_KG || toNum(lote.precioKg) > maxPrecioVentaKg);
 
                       return (
                         <article
@@ -1533,7 +1614,7 @@ export default function Ventas() {
                             {lote.codigo}
                           </p>
                           <p className="text-sm text-slate-600">
-                            {lote.tipoCafe} - {lote.calidad}
+                            {coffeeWithQuality(lote.tipoCafe, lote.calidad)}
                           </p>
                           <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
                             <div className="flex items-center justify-between gap-3">
@@ -1698,10 +1779,12 @@ export default function Ventas() {
                                 />
                               ) : null}
                               {precioInvalido ? (
-                                <p className="mt-1 text-xs font-semibold text-[#b42318]">
-                                  Ingresa un precio mínimo de $1,000 para este
-                                  lote.
-                                </p>
+                                <InlineGuidedError
+                                  message={getVentasGuidance(
+                                    `El precio por kg debe estar entre $1,000 y $${maxPrecioVentaKg.toLocaleString('es-CO')}.`,
+                                  )}
+                                  className="mt-2"
+                                />
                               ) : null}
                             </>
                           ) : (
@@ -2009,7 +2092,7 @@ export default function Ventas() {
             {paso === 3 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-medium text-slate-500">
-                  Revision final
+                  Revisión final
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
                   Confirma los datos de la venta
@@ -2049,7 +2132,7 @@ export default function Ventas() {
                             {lote.codigo}
                           </p>
                           <p className="text-xs text-slate-600">
-                            {lote.tipoCafe} - {lote.calidad}
+                            {coffeeWithQuality(lote.tipoCafe, lote.calidad)}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-[#102d92]">
                             {kg(lote.cantidad)} -{' '}

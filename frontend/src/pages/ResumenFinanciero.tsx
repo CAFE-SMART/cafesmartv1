@@ -21,6 +21,7 @@ import {
   type DashboardSummary,
 } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
+import { ApiRequestError } from '../services/apiService';
 
 function formatCurrency(value: number) {
   return `$ ${new Intl.NumberFormat('es-CO', {
@@ -54,11 +55,37 @@ function formatDayShort(value: Date) {
 
 function formatCurrencyShort(value: number) {
   const abs = Math.abs(value);
-  if (abs >= 1000000)
-    return `$${(value / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
-  if (abs >= 1000)
-    return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
+  if (abs >= 1000000) {
+    return `$${(value / 1000000).toLocaleString('es-CO', {
+      maximumFractionDigits: 1,
+    })}M`;
+  }
+  if (abs >= 1000) {
+    return `$${(value / 1000).toLocaleString('es-CO', {
+      maximumFractionDigits: 0,
+    })}K`;
+  }
   return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+}
+
+function getFinancialSummaryErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 0 || error.status >= 500) {
+      return 'No pudimos cargar el resumen. Revisa tu internet e intenta de nuevo.';
+    }
+
+    if (error.status === 401) {
+      return 'Tu sesión venció. Inicia sesión nuevamente.';
+    }
+
+    if (error.status === 403) {
+      return 'Tu usuario no tiene permiso para ver este resumen.';
+    }
+
+    return error.message || 'No pudimos cargar el resumen. Intenta de nuevo.';
+  }
+
+  return 'No pudimos cargar el resumen. Intenta de nuevo.';
 }
 
 function getMovimientoCopy(item: DashboardMovimiento) {
@@ -94,6 +121,44 @@ function getMovimientoCopy(item: DashboardMovimiento) {
   };
 }
 
+function getFinancialAccessErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    const message = error.message.toLowerCase();
+
+    if (error.status === 0) {
+      return 'No pudimos validar el acceso. Revisa tu internet e intenta de nuevo.';
+    }
+
+    if (error.status === 401) {
+      if (message.includes('google') || message.includes('local')) {
+        return 'Esta cuenta entró con Google y no tiene una contraseña creada en la app. Entra con un administrador que use contraseña.';
+      }
+
+      if (error.field === 'password' || message.includes('contrase')) {
+        return 'La contraseña no coincide con el usuario que inició sesión. Revísala e intenta de nuevo.';
+      }
+
+      return 'Tu sesión venció. Inicia sesión nuevamente para ver el resumen financiero.';
+    }
+
+    if (error.status === 403) {
+      return 'Tu usuario no tiene permiso para ver el resumen financiero.';
+    }
+
+    if (error.status >= 500) {
+      return 'No pudimos validar el acceso en este momento. Revisa tu internet e intenta de nuevo.';
+    }
+
+    return error.message || 'No pudimos validar la contraseña. Intenta de nuevo.';
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return 'No pudimos validar la contraseña. Intenta de nuevo.';
+}
+
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -102,6 +167,7 @@ export default function ResumenFinanciero() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -114,12 +180,10 @@ export default function ResumenFinanciero() {
     try {
       setSummary(await obtenerDashboardSummary());
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo cargar el resumen financiero.',
-      );
-      setSummary(null);
+      setError(getFinancialSummaryErrorMessage(err));
+      if (!isRefresh) {
+        setSummary(null);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -128,12 +192,12 @@ export default function ResumenFinanciero() {
 
   const handleUnlock = async () => {
     if (!password.trim()) {
-      setError('Escribe la contrasena del administrador.');
+      setAccessError('Escribe la contraseña del administrador.');
       return;
     }
 
     setLoading(true);
-    setError(null);
+    setAccessError(null);
 
     try {
       await verificarPasswordFinanciero(password);
@@ -141,17 +205,12 @@ export default function ResumenFinanciero() {
       setPassword('');
       await cargar();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo validar la contrasena.',
-      );
+      setAccessError(getFinancialAccessErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const utilidad = summary?.utilidadTotalAcumulada ?? 0;
   const movimientos = useMemo(() => {
     const seen = new Set<string>();
 
@@ -175,27 +234,35 @@ export default function ResumenFinanciero() {
   const ventasTotal = summary?.totalVentasHoy ?? 0;
   const gastosTotal = summary?.totalGastosHoy ?? 0;
   const comprasTotal = summary?.totalComprasHoy ?? 0;
+  const balanceDia = ventasTotal - comprasTotal - gastosTotal;
   const mermaTotalKg = summary?.mermaTotalKg ?? 0;
   const hasData =
-    utilidad !== 0 ||
     ventasTotal > 0 ||
     comprasTotal > 0 ||
     gastosTotal > 0 ||
     mermaTotalKg > 0 ||
     movimientos.length > 0;
   const periodoActual = new Date().toLocaleDateString('es-CO', {
-    month: 'long',
+    day: '2-digit',
+    month: 'short',
     year: 'numeric',
   });
-
+  const balanceTone =
+    balanceDia > 0
+      ? 'text-emerald-700'
+      : balanceDia < 0
+        ? 'text-rose-700'
+        : 'text-slate-700';
   const trend = useMemo(() => {
     const byDay = new Map<
       string,
       { key: string; label: string; time: number; value: number }
     >();
+
     for (const item of movimientos) {
       const date = new Date(item.fecha);
       if (Number.isNaN(date.getTime())) continue;
+
       const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const key = day.toISOString().slice(0, 10);
       const bucket = byDay.get(key) ?? {
@@ -204,6 +271,7 @@ export default function ResumenFinanciero() {
         time: day.getTime(),
         value: 0,
       };
+
       bucket.value += item.tipo === 'VENTA' ? item.valor : -item.valor;
       byDay.set(key, bucket);
     }
@@ -217,7 +285,7 @@ export default function ResumenFinanciero() {
           key: now.toISOString().slice(0, 10),
           label: formatDayShort(now),
           time: now.getTime(),
-          value: utilidad,
+          value: balanceDia,
         },
       ];
     }
@@ -239,6 +307,7 @@ export default function ResumenFinanciero() {
         chart.top +
         chart.height -
         ((bucket.value - min) / range) * chart.height;
+
       return { ...bucket, x, y };
     });
 
@@ -258,10 +327,10 @@ export default function ResumenFinanciero() {
           label: formatCurrencyShort(value),
           y: chart.top + chart.height - ((value - min) / range) * chart.height,
         })),
+      xAxisTitle: 'Días con movimiento',
       yAxisTitle: 'Dinero (COP)',
-      xAxisTitle: 'Dias con movimiento',
     };
-  }, [movimientos, utilidad]);
+  }, [balanceDia, movimientos]);
 
   return (
     <div className="min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
@@ -295,7 +364,7 @@ export default function ResumenFinanciero() {
           )}
         </header>
 
-        {error ? (
+        {authorized && summary && error ? (
           <section className="mt-3 rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-3 text-[0.68rem] font-semibold text-rose-700">
             {error}
           </section>
@@ -310,29 +379,71 @@ export default function ResumenFinanciero() {
               Acceso financiero
             </h2>
             <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500">
-              Ingresa la contrasena del administrador para ver utilidad, merma y
-              analisis.
+              Ingresa la contraseña del administrador para ver balance, merma y
+              movimientos.
             </p>
             <input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (accessError) setAccessError(null);
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   void handleUnlock();
                 }
               }}
-              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#102d92]"
-              placeholder="Contrasena"
+              aria-invalid={Boolean(accessError)}
+              aria-describedby="financial-access-error"
+              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#102d92] aria-[invalid=true]:border-rose-300"
+              placeholder="Contraseña"
             />
+            <div
+              id="financial-access-error"
+              aria-live="polite"
+              className="mt-2 flex min-h-[44px] items-start text-left"
+            >
+              {accessError ? (
+                <p className="w-full rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.66rem] font-semibold leading-4 text-rose-700">
+                  {accessError}
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={() => void handleUnlock()}
               disabled={loading}
-              className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white disabled:opacity-70"
+              className="mt-1 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white disabled:opacity-70"
             >
               {loading ? 'Validando...' : 'Ver resumen financiero'}
             </button>
+          </section>
+        ) : !summary ? (
+          <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+              <RefreshCcw
+                size={18}
+                className={loading || refreshing ? 'animate-spin' : ''}
+              />
+            </span>
+            <h2 className="mt-3 text-[1rem] font-black text-[#111827]">
+              {loading ? 'Cargando resumen' : 'No pudimos cargar el resumen'}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[300px] text-[0.68rem] font-semibold leading-5 text-slate-500">
+              {loading
+                ? 'Estamos preparando los datos financieros.'
+                : error ?? 'Revisa tu conexión e intenta de nuevo.'}
+            </p>
+            {!loading ? (
+              <button
+                type="button"
+                onClick={() => void cargar()}
+                className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white"
+              >
+                Intentar de nuevo
+              </button>
+            ) : null}
           </section>
         ) : (
           <>
@@ -345,7 +456,7 @@ export default function ResumenFinanciero() {
                   Finanzas
                 </h2>
               </div>
-              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-[#111827] shadow-sm">
+              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold text-[#111827] shadow-sm">
                 <CalendarDays size={15} className="text-[#102d92]" />
                 {periodoActual}
               </div>
@@ -355,10 +466,10 @@ export default function ResumenFinanciero() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">
-                    Utilidad neta
+                    Balance del día
                   </p>
                   <p className="mt-3 text-[2.15rem] font-black leading-none tracking-normal">
-                    {loading ? '...' : formatCurrency(utilidad)}
+                    {loading ? '...' : formatCurrency(balanceDia)}
                   </p>
                 </div>
                 <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/18">
@@ -367,15 +478,15 @@ export default function ResumenFinanciero() {
               </div>
               {hasData ? (
                 <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
-                  Resultado despues de compras, gastos y ventas
+                  Ventas de hoy menos compras y gastos de hoy.
                 </p>
               ) : (
                 <div className="mt-3 space-y-1 text-white/75">
                   <p className="text-[0.64rem] font-black leading-4">
-                    Aun no tienes movimientos registrados
+                    Aún no tienes movimientos registrados
                   </p>
                   <p className="text-[0.62rem] font-semibold leading-4">
-                    Registra compras, ventas o gastos para ver tu utilidad
+                    Registra compras, ventas o gastos para ver tu balance
                   </p>
                 </div>
               )}
@@ -391,7 +502,7 @@ export default function ResumenFinanciero() {
                   <ShoppingCart size={18} />
                 </span>
                 <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-emerald-700">
-                  Ventas
+                  Ventas hoy
                 </p>
                 <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(ventasTotal)}
@@ -402,7 +513,7 @@ export default function ResumenFinanciero() {
                   <PackageCheck size={18} />
                 </span>
                 <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#0f58bd]">
-                  Compras
+                  Compras hoy
                 </p>
                 <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(comprasTotal)}
@@ -413,7 +524,7 @@ export default function ResumenFinanciero() {
                   <Wallet size={18} />
                 </span>
                 <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-rose-600">
-                  Gastos
+                  Gastos hoy
                 </p>
                 <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(gastosTotal)}
@@ -421,37 +532,13 @@ export default function ResumenFinanciero() {
               </article>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                    <Scale size={22} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
-                      Merma total
-                    </p>
-                    <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
-                      {loading ? '...' : formatKg(mermaTotalKg)}
-                    </p>
-                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
-                      Diferencia entre peso comprado y peso final.
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-white/80 px-2 py-1 text-[0.56rem] font-black text-amber-700">
-                  {mermaTotalKg > 0 ? 'Revisar' : 'OK'}
-                </span>
-              </div>
-            </section>
-
             <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <LineChart size={15} className="text-[#102d92]" />
                   <div>
                     <p className="text-[0.82rem] font-black text-[#111827]">
-                      Tendencia de utilidad
+                      Tendencia del balance
                     </p>
                     <p className="text-[0.62rem] font-semibold text-slate-500">
                       Dinero por fecha
@@ -468,7 +555,7 @@ export default function ResumenFinanciero() {
                   viewBox="0 0 390 230"
                   className="h-[220px] w-full overflow-visible"
                   role="img"
-                  aria-label="Tendencia de utilidad"
+                  aria-label="Tendencia del balance"
                 >
                   <text
                     x="0"
@@ -562,6 +649,71 @@ export default function ResumenFinanciero() {
               </div>
             </section>
 
+            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <Scale size={22} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
+                      Merma total
+                    </p>
+                    <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
+                      {loading ? '...' : formatKg(mermaTotalKg)}
+                    </p>
+                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
+                      Diferencia entre peso comprado y peso final.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/80 px-2 py-1 text-[0.56rem] font-black text-amber-700">
+                  {mermaTotalKg > 0 ? 'Revisar' : 'OK'}
+                </span>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.82rem] font-black text-[#111827]">
+                    Balance del día
+                  </p>
+                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500">
+                    Ventas menos compras y gastos de hoy.
+                  </p>
+                </div>
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#0f58bd]">
+                  <TrendingUp size={18} />
+                </span>
+              </div>
+
+              <div className="mt-4 rounded-[12px] bg-[#f8fafc] px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-[0.68rem] font-bold text-slate-500">
+                  <span>Ventas de hoy</span>
+                  <span className="text-emerald-700">
+                    {formatCurrency(ventasTotal)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-slate-500">
+                  <span>Compras y gastos de hoy</span>
+                  <span className="text-rose-700">
+                    {formatCurrency(comprasTotal + gastosTotal)}
+                  </span>
+                </div>
+                <div className="mt-3 border-t border-[#e5eaf3] pt-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[0.72rem] font-black text-[#111827]">
+                      Balance
+                    </span>
+                    <span className={`text-[1rem] font-black ${balanceTone}`}>
+                      {formatCurrency(balanceDia)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[0.82rem] font-black text-[#111827]">
@@ -574,7 +726,7 @@ export default function ResumenFinanciero() {
 
               {movimientosRecientes.length === 0 ? (
                 <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
-                  Aun no tienes movimientos
+                  Aún no tienes movimientos
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">

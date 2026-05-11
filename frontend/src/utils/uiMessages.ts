@@ -154,3 +154,20 @@ export function createUiMessage(
 ): MensajeUI {
   return { titulo, mensaje, accion };
 }
+
+export function formatDisplayLabel(value: string) {
+  const clean = value.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (!clean) return '';
+
+  return clean
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+export function formatCoffeeLabel(value: string) {
+  const key = value.trim().toUpperCase();
+  if (key === 'EN SECADO') return 'En secado';
+
+  return formatDisplayLabel(value);
+}

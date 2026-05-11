@@ -9,6 +9,10 @@ import {
 import { transformarSecado } from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
+import {
+  createGuidedError,
+  InlineGuidedError,
+} from '../components/forms/GuidedError';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -39,6 +43,15 @@ function getSecadoPersistErrorMessage(error: unknown) {
   }
 
   return error.message || fallback;
+}
+
+function getSecadoPersistGuidance(message: string) {
+  return createGuidedError(
+    message,
+    'No se pudo actualizar el inventario.',
+    'El secado quedó guardado localmente, pero falta sincronizar el cambio real.',
+    'Reintenta la actualización.',
+  );
 }
 
 export default function SecadoResumen() {
@@ -156,8 +169,10 @@ export default function SecadoResumen() {
         </p>
 
         {persistError ? (
-          <section className="mt-4 w-full rounded-[14px] border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-semibold text-rose-700">
-            {persistError}
+          <section className="mt-4 w-full text-left">
+            <InlineGuidedError
+              message={getSecadoPersistGuidance(persistError)}
+            />
             <button
               type="button"
               onClick={() => {
@@ -165,9 +180,9 @@ export default function SecadoResumen() {
                 setPersistError(null);
                 setPersistRetry((current) => current + 1);
               }}
-              className="mt-3 w-full rounded-[12px] bg-white px-4 py-3 text-xs font-black text-rose-700"
+              className="mt-3 w-full rounded-[12px] border border-rose-200 bg-white px-4 py-3 text-xs font-black text-rose-700"
             >
-              Reintentar actualizacion
+              Reintentar actualización
             </button>
           </section>
         ) : null}
