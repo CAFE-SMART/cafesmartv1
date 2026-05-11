@@ -117,6 +117,204 @@ type VentaGuardadaResumen = {
 
 const LIMITE = 6;
 
+function ariaPressed(active: boolean) {
+  return { 'aria-pressed': active ? 'true' : 'false' } as const;
+}
+
+function SelectionCheck({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+        active
+          ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+          : 'border-[#cad2e2] bg-white text-transparent'
+      }`}
+      aria-hidden="true"
+    >
+      <span className="inline-flex h-6 w-6 items-center justify-center">
+        {/* Usa CheckCircle2 para mantener look/feeling visual del sistema */}
+      </span>
+    </span>
+  );
+}
+
+function SelectionCheckIcon({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+        active
+          ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+          : 'border-transparent bg-white text-transparent'
+      }`}
+      aria-hidden="true"
+    >
+      <span className="inline-flex h-6 w-6 items-center justify-center">
+        {/* placeholder */}
+      </span>
+    </span>
+  );
+}
+
+function getSelectableCardClass(active: boolean, compact = false) {
+  return `w-full cursor-pointer rounded-[20px] border text-left transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
+    compact ? 'px-3.5 py-3.5' : 'px-4 py-3.5'
+  } ${
+    active
+      ? 'border-[#1f3fa7] bg-[#f4f7ff] shadow-[0_14px_30px_rgba(31,63,167,0.14)]'
+      : 'border-[#e3e7f3] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)] hover:border-[#ccd6ea] hover:bg-[#fbfdff] hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]'
+  }`;
+}
+
+function SelectableOptionCard({
+  active,
+  icon,
+  title,
+  subtitle,
+  onClick,
+  compact = false,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...ariaPressed(active)}
+      className={getSelectableCardClass(active, compact)}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`inline-flex shrink-0 items-center justify-center rounded-full transition ${
+            compact ? 'h-10 w-10' : 'h-12 w-12'
+          } ${active ? 'bg-[#1f3fa7] text-white' : 'bg-[#eef2f7] text-slate-500'}`}
+        >
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[1.05rem] font-bold leading-tight text-slate-900">
+            {title}
+          </span>
+          <span className="mt-1 block truncate text-[0.9rem] font-medium text-slate-500">
+            {subtitle}
+          </span>
+        </span>
+        <span
+          className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
+            active
+              ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+              : 'border-[#cad2e2] bg-white text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+          >
+            <path
+              d="M20 6L9 17L4 12"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function getClienteInitials(nombre: string) {
+  const words = nombre
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return words.map((w) => w[0]?.toUpperCase()).join('') || 'C';
+}
+
+function ClienteCard({
+  cliente,
+  active,
+  onSelect,
+}: {
+  cliente: ClienteOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      {...ariaPressed(active)}
+      className={getSelectableCardClass(active, true)}
+    >
+      <span className="flex w-full items-center gap-3">
+        <span
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
+            active
+              ? 'bg-[#1f3fa7] text-white'
+              : 'bg-[#edf3ff] text-[#1f3fa7]'
+          }`}
+        >
+          {getClienteInitials(cliente.nombre)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span
+            className="block truncate text-[0.98rem] font-black leading-5 text-slate-900"
+            title={cliente.nombre}
+          >
+            {cliente.nombre}
+          </span>
+          <span className="mt-1 block truncate text-xs font-medium leading-4 text-slate-500">
+            {cliente.documento}
+          </span>
+          {cliente.telefono ? (
+            <span className="mt-0.5 block truncate text-xs font-medium text-slate-400">
+              {formatPhoneNumber(cliente.telefono)}
+            </span>
+          ) : null}
+        </span>
+
+        <span
+          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+            active
+              ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+              : 'border-transparent text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M20 6L9 17L4 12"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </span>
+    </button>
+  );
+}
+
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
   nombre: 'Cliente General',
@@ -698,9 +896,20 @@ export default function Ventas() {
   const [busquedaCliente, setBusquedaCliente] = React.useState('');
   const [busquedaAplicada, setBusquedaAplicada] = React.useState('');
   const [mostrarModal, setMostrarModal] = React.useState(false);
+  const [mostrarModalClientes, setMostrarModalClientes] =
+    React.useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] =
     React.useState(false);
-  const [mostrarModalCancelar, setMostrarModalCancelar] = React.useState(false);
+  const [mostrarModalCancelar, setMostrarModalCancelar] =
+    React.useState(false);
+
+  const clientesSearchRef = React.useRef<HTMLInputElement | null>(null);
+  const [busquedaClientesModal, setBusquedaClientesModal] =
+    React.useState('');
+
+  const [clientesSortMode, setClientesSortMode] = React.useState<
+    'recent' | 'az' | 'za' | 'doc-asc' | 'doc-desc'
+  >('recent');
   const [clienteForm, setClienteForm] = React.useState<ClienteForm>({
     nombre: '',
     telefono: '',
@@ -1925,168 +2134,113 @@ export default function Ventas() {
             ) : null}
 
             {paso === 1 ? (
-              <section className="space-y-4">
-                <p className="text-[0.8rem] font-medium text-slate-500">
-                  Selecciona cómo deseas elegir el cliente
-                </p>
-
-                <button
-                  type="button"
+              <section className="flex flex-col gap-4">
+                <SelectableOptionCard
+                  active={clienteMetodo === 'BUSCAR'}
+                  icon={<Search size={20} />}
+                  title="Buscar cliente"
+                  subtitle="Selecciona un cliente registrado"
                   onClick={() => {
                     setClienteMetodo('BUSCAR');
                     if (clienteSeleccionado?.id === CLIENTE_GENERAL.id) {
                       setClienteSeleccionado(null);
                     }
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'BUSCAR'
-                      ? 'border-[#1f3fa7] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
-                      <Search size={19} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
-                        Buscar cliente
-                      </p>
-                      <p className="mt-1 text-[0.78rem] text-slate-500">
-                        Selecciona un cliente registrado
-                      </p>
-                    </div>
-                    <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'BUSCAR'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
-                    />
-                  </div>
-                </button>
+                />
 
                 {clienteMetodo === 'BUSCAR' ? (
-                  <div className="space-y-3">
-                    <label className="flex min-h-[52px] items-center gap-3 rounded-[14px] bg-[#eef2f7] px-3">
-                      <Search size={17} className="text-slate-400" />
-                      <input
-                        type="text"
-                        value={busquedaCliente}
-                        onChange={(event) => {
-                          setBusquedaCliente(event.target.value);
-                          setBusquedaAplicada(event.target.value.trim());
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            buscarCliente();
-                          }
-                        }}
-                        placeholder="Nombre o identificación..."
-                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={buscarCliente}
-                        aria-label="Buscar cliente"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#1f3fa7]"
+                  <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-[1.05rem] font-black leading-6 text-slate-950">
+                          Clientes recientes
+                        </p>
+                        <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                          Últimos clientes registrados
+                        </p>
+                      </div>
+                      <span
+                        className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] px-2 text-sm font-black text-[#1f3fa7] shadow-[0_8px_18px_rgba(31,63,167,0.14)]"
+                        aria-label={`${clientesRecientes.length} clientes recientes`}
                       >
-                        <Search size={16} />
-                      </button>
-                    </label>
+                        {clientesRecientes.length}
+                      </span>
+                    </div>
 
-                    {mostrarResultadosClientes ? (
-                      clientesRecientes.length === 0 ? (
-                        <div className="rounded-[14px] border border-dashed border-[#d5dced] bg-white px-4 py-5 text-center text-sm text-slate-500">
-                          <p className="font-semibold text-slate-700">
-                            {sinClientesRegistrados
-                              ? 'Aún no hay clientes registrados'
-                              : 'No se encontraron resultados'}
-                          </p>
-                          <p className="mt-1">
-                            {sinClientesRegistrados
-                              ? 'Registra uno para comenzar.'
-                              : 'Intenta con otro nombre o documento.'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {clientesRecientes.map((cliente) => {
-                            const selected =
-                              clienteSeleccionadoId === cliente.id;
-                            return (
-                              <button
-                                key={cliente.id}
-                                type="button"
-                                onClick={() => seleccionarCliente(cliente)}
-                                className={`w-full rounded-[14px] border px-3 py-3 text-left ${
-                                  selected
-                                    ? 'border-[#102d92] bg-[#eef2ff]'
-                                    : 'border-[#e3e7f3] bg-white'
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <span className="rounded-xl bg-[#e8eefc] p-2 text-[#102d92]">
-                                    <User size={15} />
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-black text-slate-900">
-                                      {cliente.nombre}
-                                    </p>
-                                    <p className="mt-0.5 truncate text-xs text-slate-500">
-                                      {cliente.documento}
-                                    </p>
-                                  </div>
-                                  {selected ? (
-                                    <CheckCircle2
-                                      size={20}
-                                      className="text-[#1f3fa7]"
-                                    />
-                                  ) : null}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )
+                    {sinClientesRegistrados ? (
+                      <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-sm text-slate-500">
+                        <p className="font-bold text-slate-800">
+                          Aún no tienes clientes registrados.
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Registra un cliente para asociarlo a esta venta.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClienteMetodo('REGISTRAR');
+                            setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
+                            setClienteFormErrors({});
+                            setClienteFormError(null);
+                            setMostrarModal(true);
+                          }}
+                          className="mt-3 inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
+                        >
+                          Registrar cliente
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2">
+                        {clientesRecientes.slice(0, 4).map((cliente) => (
+                          <ClienteCard
+                            key={cliente.id}
+                            cliente={cliente}
+                            active={clienteSeleccionado?.id === cliente.id}
+                            onSelect={() => seleccionarCliente(cliente)}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {!sinClientesRegistrados ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMostrarModalClientes(true);
+                              window.setTimeout(() => {
+                                clientesSearchRef.current?.focus();
+                              }, 80);
+                            }}
+                            className="group flex min-h-[52px] w-full items-center justify-between rounded-[16px] border border-[#dbe2f0] bg-white px-4 py-3 text-left text-sm font-black text-[#1f3fa7] shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition duration-200 hover:border-[#1f3fa7]/40 hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] transition group-hover:bg-white">
+                                <Search size={16} />
+                              </span>
+                              Ver lista completa de clientes
+                            </span>
+                            <ArrowRight size={17} className="transition group-hover:translate-x-0.5" />
+                          </button>
                     ) : null}
                   </div>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => seleccionarCliente(CLIENTE_GENERAL)}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'GENERAL'
-                      ? 'border-[#1f3fa7] bg-[#eef4ff] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
-                      <User size={18} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
-                        Cliente genérico
-                      </p>
-                      <p className="mt-1 text-[0.78rem] text-slate-500">
-                        Venta rápida sin cliente registrado
-                      </p>
-                    </div>
-                    <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'GENERAL'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
-                    />
-                  </div>
-                </button>
+                <SelectableOptionCard
+                  active={clienteMetodo === 'GENERAL'}
+                  icon={<User size={20} />}
+                  title="Cliente genérico"
+                  subtitle="Venta rápida sin cliente registrado"
+                  onClick={() => {
+                    setClienteMetodo('GENERAL');
+                    seleccionarCliente(CLIENTE_GENERAL);
+                  }}
+                />
 
-                <button
-                  type="button"
+                <SelectableOptionCard
+                  active={clienteMetodo === 'REGISTRAR'}
+                  icon={<Plus size={20} />}
+                  title="Registrar cliente"
+                  subtitle="Crear un nuevo cliente"
                   onClick={() => {
                     setClienteMetodo('REGISTRAR');
                     setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
@@ -2094,77 +2248,55 @@ export default function Ventas() {
                     setClienteFormError(null);
                     setMostrarModal(true);
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'REGISTRAR'
-                      ? 'border-[#1f3fa7] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
-                      <Plus size={18} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
-                        Registrar cliente
-                      </p>
-                      <p className="mt-1 text-[0.78rem] text-slate-500">
-                        Crear un nuevo cliente
-                      </p>
-                    </div>
-                    <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'REGISTRAR'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
-                    />
-                  </div>
-                </button>
+                />
 
-                <section>
-                  <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-400">
-                    Cliente seleccionado
-                  </p>
-                  <div className="mt-3 rounded-[16px] bg-white p-4 shadow-sm">
-                    {clienteSeleccionado ? (
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
-                          <User size={18} />
-                        </span>
-                        <div>
-                          <p className="font-black text-slate-950">
-                            {clienteSeleccionado.nombre}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {clienteSeleccionado.rapido
-                              ? 'Venta rápida'
-                              : clienteSeleccionado.documento}
-                          </p>
+                {clienteSeleccionado ? (
+                  <article className="mt-2 rounded-[18px] border border-[#d9e4ff] bg-[#f7faff] px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[0.78rem] font-black uppercase tracking-[0.08em] text-[#1f3fa7]">
+                          Cliente seleccionado
+                        </p>
+                        <div className="mt-2 flex items-center gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1f3fa7] text-xs font-black text-white">
+                            <User size={16} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[1rem] font-bold text-slate-900">
+                              {clienteSeleccionado.nombre}
+                            </p>
+                            <p className="truncate text-[0.86rem] font-medium text-slate-500">
+                              {clienteSeleccionado.rapido ? 'Venta rápida' : clienteSeleccionado.documento}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="py-6 text-center text-sm font-semibold text-slate-400">
-                        Selecciona a quién le harás la venta
-                      </div>
-                    )}
-                  </div>
-                </section>
+                      {!clienteSeleccionado.rapido ? (
+                        <button
+                          type="button"
+                          onClick={() => setMostrarModal(true)}
+                          className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#1f3fa7] shadow-sm"
+                        >
+                          Cambiar cliente
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                ) : null}
 
                 {clienteInvalido ? (
                   <InlineGuidedError
-                    message={getVentasGuidance(
-                      'Selecciona un cliente para continuar.',
-                    )}
+                    message={getVentasGuidance('Selecciona un cliente para continuar.')}
                   />
                 ) : null}
 
                 <button
                   type="button"
                   onClick={siguiente}
-                  className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-4 text-base font-black text-white shadow-[0_14px_30px_rgba(31,63,167,0.22)]"
+                  className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.1rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition hover:bg-[#18358f] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Siguiente paso
+                  <ArrowRight size={20} />
                 </button>
               </section>
             ) : null}
@@ -2301,6 +2433,192 @@ export default function Ventas() {
         )}
       </div>
 
+      {mostrarModalClientes ? (
+        <div
+          className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setMostrarModalClientes(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clientes-registrados-title"
+            aria-describedby="clientes-registrados-description"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
+          >
+            <header className="shrink-0 border-b border-slate-100 px-5 pb-4 pt-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h2
+                    id="clientes-registrados-title"
+                    className="text-[1.25rem] font-black leading-tight text-slate-900"
+                  >
+                    Clientes registrados
+                  </h2>
+                  <p
+                    id="clientes-registrados-description"
+                    className="mt-1 text-sm font-medium leading-5 text-slate-500"
+                  >
+                    Busca y selecciona un cliente para esta venta.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalClientes(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar clientes registrados"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="relative">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    aria-hidden="true"
+                  />
+                  <input
+                    ref={clientesSearchRef}
+                    type="text"
+                    value={busquedaClientesModal}
+                    onChange={(event) => {
+                      setBusquedaClientesModal(event.target.value);
+                    }}
+                    placeholder="Buscar por nombre, documento o teléfono"
+                    className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-10 py-3 text-[0.95rem] font-medium text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:bg-white focus:ring-4 focus:ring-[#1f3fa7]/10"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'recent', label: 'Más recientes' },
+                    { value: 'az', label: 'A-Z' },
+                    { value: 'doc-asc', label: 'Documento ↑' },
+                    { value: 'doc-desc', label: 'Documento ↓' },
+                  ].map((opt) => {
+                    const active = clientesSortMode === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setClientesSortMode(
+                            opt.value as typeof clientesSortMode,
+                          )
+                        }
+                        {...ariaPressed(active)}
+                        className={`min-h-[40px] rounded-[12px] border px-2.5 py-2 text-xs font-black leading-4 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
+                          active
+                            ? 'border-[#1f3fa7] bg-[#eef4ff] text-[#1f3fa7]'
+                            : 'border-[#e0e6f2] bg-white text-slate-500 hover:border-[#cbd6ea] hover:bg-[#f8faff]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+              {sinClientesRegistrados ? (
+                <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
+                  <p className="font-bold text-slate-800">
+                    Aún no tienes clientes registrados.
+                  </p>
+                  <p className="mt-1 leading-5">
+                    Registra un cliente para poder asociarlo a esta venta.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarModalClientes(false);
+                      setClienteMetodo('REGISTRAR');
+                      setClienteForm({
+                        nombre: '',
+                        telefono: '',
+                        documento: '',
+                        tipoDocumento: '',
+                      });
+                      setClienteFormErrors({});
+                      setClienteFormError(null);
+                      setMostrarModal(true);
+                    }}
+                    className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
+                  >
+                    Registrar cliente
+                  </button>
+                </div>
+              ) : (
+                (() => {
+                  const termino = norm(busquedaClientesModal.trim());
+                  const base = dedupeClientesOptions([...clientes]);
+
+                  const filtrados = termino
+                    ? base.filter((c) =>
+                        [c.nombre, c.documento, c.detalle, c.telefono ?? ''].some(
+                          (v) => norm(v).includes(termino),
+                        ),
+                      )
+                    : base;
+
+                  const ordenados = (() => {
+                    const arr = [...filtrados];
+                    if (clientesSortMode === 'az') {
+                      arr.sort((a, b) =>
+                        a.nombre.localeCompare(b.nombre, 'es', {
+                          sensitivity: 'base',
+                        }),
+                      );
+                    } else if (clientesSortMode === 'doc-asc' || clientesSortMode === 'doc-desc') {
+                      const docDigits = (value: string) => value.replace(/\D/g, '');
+                      arr.sort((a, b) => {
+                        const ad = Number(docDigits(a.documento)) || 0;
+                        const bd = Number(docDigits(b.documento)) || 0;
+                        return clientesSortMode === 'doc-asc' ? ad - bd : bd - ad;
+                      });
+                    }
+                    // recent: mantener orden original
+                    return arr;
+                  })();
+
+                  if (ordenados.length === 0) {
+                    return (
+                      <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
+                        <p className="font-bold text-slate-800">
+                          No encontramos clientes con ese dato.
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Prueba buscando por nombre o documento.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return <div className="space-y-2 pb-4">{ordenados.map((c) => (
+                    <ClienteCard
+                      key={c.id}
+                      cliente={c}
+                      active={clienteSeleccionado?.id === c.id}
+                      onSelect={() => {
+                        seleccionarCliente(c);
+                        setMostrarModalClientes(false);
+                      }}
+                    />
+                  ))}</div>;
+                })()
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {mostrarModalConfirmar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
@@ -2377,28 +2695,41 @@ export default function Ventas() {
       ) : null}
 
       {mostrarModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
-            <div className="px-5 pb-5 pt-3">
+        <div className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setMostrarModal(false);
+            }
+          }}
+        >
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]">
+            <header className="shrink-0 border-b border-slate-100 px-5 pb-4 pt-3">
               <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
               <div className="mt-4 flex items-start justify-between gap-4">
-                <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
-                  Registrar cliente
-                </h2>
+                <div>
+                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
+                    Registrar cliente
+                  </h2>
+                  <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                    Completa los datos básicos para usarlo en esta venta.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setMostrarModal(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                   aria-label="Cerrar registro de cliente"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
                   <X size={20} />
                 </button>
               </div>
+            </header>
 
-              <div className="mt-5 space-y-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+              <div className="space-y-5 pb-6">
                 <div>
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Nombre del cliente
+                    Nombre completo
                   </label>
                   <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
                     <User size={17} className="text-slate-400" />
@@ -2416,7 +2747,7 @@ export default function Ventas() {
                         }));
                         setClienteFormError(null);
                       }}
-                      placeholder="Ej. Juan Perez Rodriguez"
+                      placeholder="Ej. Juan Pérez Rodríguez"
                       className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
                     />
                   </label>
@@ -2430,43 +2761,12 @@ export default function Ventas() {
 
                 <div>
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Telefono (opcional)
-                  </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
-                    <Phone size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={12}
-                      value={clienteForm.telefono}
-                      onChange={(event) => {
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          telefono: formatPhoneNumber(event.target.value),
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          telefono: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder="300 123 4567"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
-                    />
-                  </label>
-                  {clienteFormErrors.telefono ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.telefono)}
-                      className="mt-2"
-                    />
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Tipo de documento
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">
+                    Selecciona si el cliente usa cédula o NIT.
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
                     {[
                       { value: 'CEDULA', label: 'Cédula' },
                       { value: 'NIT', label: 'NIT' },
@@ -2502,9 +2802,7 @@ export default function Ventas() {
                   </div>
                   {clienteFormErrors.tipoDocumento ? (
                     <InlineGuidedError
-                      message={getVentasGuidance(
-                        clienteFormErrors.tipoDocumento,
-                      )}
+                      message={getVentasGuidance(clienteFormErrors.tipoDocumento)}
                       className="mt-2"
                     />
                   ) : null}
@@ -2553,6 +2851,40 @@ export default function Ventas() {
                   ) : null}
                 </div>
 
+                <div>
+                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                    Teléfono (opcional)
+                  </label>
+                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
+                    <Phone size={17} className="text-slate-400" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={12}
+                      value={clienteForm.telefono}
+                      onChange={(event) => {
+                        setClienteForm((actual) => ({
+                          ...actual,
+                          telefono: formatPhoneNumber(event.target.value),
+                        }));
+                        setClienteFormErrors((actual) => ({
+                          ...actual,
+                          telefono: undefined,
+                        }));
+                        setClienteFormError(null);
+                      }}
+                      placeholder="300 123 4567"
+                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
+                    />
+                  </label>
+                  {clienteFormErrors.telefono ? (
+                    <InlineGuidedError
+                      message={getVentasGuidance(clienteFormErrors.telefono)}
+                      className="mt-2"
+                    />
+                  ) : null}
+                </div>
+
                 {clienteFormError ? (
                   <InlineGuidedError
                     message={getVentasGuidance(clienteFormError)}
@@ -2561,7 +2893,7 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
+            <footer className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
               <button
                 type="button"
                 onClick={guardarCliente}
@@ -2576,7 +2908,7 @@ export default function Ventas() {
               >
                 Cancelar
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       ) : null}
