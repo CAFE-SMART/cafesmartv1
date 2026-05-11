@@ -37,6 +37,10 @@ import {
 } from '../services/bodegaApi';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import {
+  BUSINESS_NAME_MAX_LENGTH,
+  validateBusinessName,
+} from '../utils/registerValidators';
 
 type ProfileSettings = {
   nombre: string;
@@ -77,7 +81,12 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
 
   if (
     message === 'Escribe el nombre de la empresa.' ||
-    message === 'Selecciona el tipo de empresa.'
+    message === 'Selecciona el tipo de empresa.' ||
+    message === 'Usa al menos 3 caracteres.' ||
+    message ===
+      'El nombre del negocio es demasiado largo. Usa máximo 40 caracteres.' ||
+    message === 'Usa letras, números, espacios y signos básicos.' ||
+    message === 'Usa un nombre claro y fácil de reconocer.'
   ) {
     return 'company';
   }
@@ -119,6 +128,21 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
       'Falta nombre de empresa.',
       'Tu negocio debe tener un nombre.',
       'Escribe el nombre de tu empresa.',
+    );
+  }
+
+  if (
+    message === 'Usa al menos 3 caracteres.' ||
+    message ===
+      'El nombre del negocio es demasiado largo. Usa máximo 40 caracteres.' ||
+    message === 'Usa letras, números, espacios y signos básicos.' ||
+    message === 'Usa un nombre claro y fácil de reconocer.'
+  ) {
+    return createGuidedError(
+      message,
+      'Revisa el nombre.',
+      'El nombre del negocio debe ser claro y corto.',
+      message,
     );
   }
 
@@ -328,8 +352,9 @@ export default function Ajustes() {
 
   const guardarEmpresa = () => {
     clearFeedback();
-    if (!company.nombreEmpresa.trim()) {
-      const message = 'Escribe el nombre de la empresa.';
+    const businessNameError = validateBusinessName(company.nombreEmpresa);
+    if (businessNameError) {
+      const message = businessNameError;
       setError(message);
       setFloatingError(getAjustesGuidance(message));
       return;
@@ -379,8 +404,7 @@ export default function Ajustes() {
       setSuccess('Capacidad de bodega actualizada.');
       setIsEditingBodega(false);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Error al guardar la bodega.';
+      const message = 'No pudimos guardar la bodega. Intenta nuevamente.';
       setError(message);
     }
   };
@@ -484,7 +508,7 @@ export default function Ajustes() {
     {
       id: 'clientes-registrados',
       title: 'Clientes registrados',
-      description: 'Base de datos de compradores',
+      description: 'Lista de compradores',
       icon: Users2,
       iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
       staticOnly: true,
@@ -506,6 +530,7 @@ export default function Ajustes() {
           <button
             type="button"
             onClick={() => navigate('/inicio')}
+            aria-label="Volver al inicio"
             className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#dce2f1] bg-white text-slate-600"
           >
             <ArrowLeft size={18} />
@@ -741,14 +766,30 @@ export default function Ajustes() {
                 onChange={(event) => {
                   setCompany((prev) => ({
                     ...prev,
-                    nombreEmpresa: event.target.value,
+                    nombreEmpresa: event.target.value.slice(
+                      0,
+                      BUSINESS_NAME_MAX_LENGTH,
+                    ),
                   }));
                   clearFeedback();
                 }}
+                maxLength={BUSINESS_NAME_MAX_LENGTH}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 placeholder="Nombre de la empresa"
               />
+              <div className="-mt-1 flex justify-end">
+                <span
+                  className={`text-xs font-bold ${
+                    company.nombreEmpresa.length >= BUSINESS_NAME_MAX_LENGTH
+                      ? 'text-amber-600'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {company.nombreEmpresa.length}/{BUSINESS_NAME_MAX_LENGTH}
+                </span>
+              </div>
               <select
+                aria-label="Tipo de empresa"
                 value={company.tipoEmpresa}
                 onChange={(event) => {
                   setCompany((prev) => ({

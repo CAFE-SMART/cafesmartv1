@@ -158,6 +158,18 @@ const PRODUCTOR_FORM_EMPTY: ProductorForm = {
 };
 const COMPRA_DRAFT_STORAGE_KEY = 'cafe-smart:compra-draft:v1';
 
+function ariaPressed(active: boolean) {
+  return { 'aria-pressed': active ? 'true' : 'false' } as const;
+}
+
+function ariaExpanded(open: boolean) {
+  return { 'aria-expanded': open ? 'true' : 'false' } as const;
+}
+
+function ariaSelected(active: boolean) {
+  return { 'aria-selected': active ? 'true' : 'false' } as const;
+}
+
 function generarId() {
   if (
     typeof crypto !== 'undefined' &&
@@ -428,7 +440,7 @@ function getProductorSaveError(error: unknown): ProductorModalError {
       return {
         title: 'No pudimos registrar el productor.',
         description:
-          'El sistema está ocupado procesando solicitudes. Intenta nuevamente en unos minutos.',
+          'Estamos procesando mucha información. Intenta nuevamente en unos minutos.',
       };
     }
 
@@ -456,7 +468,7 @@ function getProductorSaveError(error: unknown): ProductorModalError {
       return {
         title: 'No pudimos registrar el productor.',
         description:
-          'El sistema presentó un problema interno. Intenta nuevamente en unos minutos.',
+          'Ocurrió un problema temporal. Intenta nuevamente en unos minutos.',
       };
     }
   }
@@ -464,7 +476,7 @@ function getProductorSaveError(error: unknown): ProductorModalError {
   return {
     title: 'No pudimos registrar el productor.',
     description:
-      'El sistema presentó un problema interno. Intenta nuevamente en unos minutos.',
+      'Ocurrió un problema temporal. Intenta nuevamente en unos minutos.',
   };
 }
 
@@ -578,7 +590,7 @@ function SelectableOptionCard({
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
+      {...ariaPressed(active)}
       className={getSelectableCardClass(active, compact)}
     >
       <div className="flex items-center gap-3">
@@ -616,7 +628,7 @@ function ProductorCard({
     <button
       type="button"
       onClick={onSelect}
-      aria-pressed={active}
+      {...ariaPressed(active)}
       className={getSelectableCardClass(active, true)}
     >
       <span className="flex w-full items-center gap-3">
@@ -693,7 +705,7 @@ function CoffeeTypeDropdown({
         id={buttonId}
         type="button"
         aria-haspopup="listbox"
-        aria-expanded={open}
+        {...ariaExpanded(open)}
         aria-controls={listboxId}
         onClick={onToggle}
         className={`flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
@@ -748,7 +760,7 @@ function CoffeeTypeDropdown({
                 key={option.id}
                 type="button"
                 role="option"
-                aria-selected={active}
+                {...ariaSelected(active)}
                 onClick={() => {
                   onChange(option.id);
                   onClose();
@@ -896,7 +908,7 @@ function PurchaseDatePicker({
       <button
         type="button"
         aria-haspopup="dialog"
-        aria-expanded={open}
+        {...ariaExpanded(open)}
         onClick={onToggle}
         className={`mt-2.5 flex min-h-[58px] w-full cursor-pointer items-center justify-between gap-3 rounded-[16px] border bg-[#f8f9ff] px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
           open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
@@ -931,7 +943,7 @@ function PurchaseDatePicker({
             <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
               <button
                 type="button"
-                aria-pressed={calendarView === 'months'}
+                {...ariaPressed(calendarView === 'months')}
                 onClick={() =>
                   setCalendarView((current) =>
                     current === 'months' ? 'days' : 'months',
@@ -947,7 +959,7 @@ function PurchaseDatePicker({
               </button>
               <button
                 type="button"
-                aria-pressed={calendarView === 'years'}
+                {...ariaPressed(calendarView === 'years')}
                 onClick={() =>
                   setCalendarView((current) =>
                     current === 'years' ? 'days' : 'years',
@@ -988,7 +1000,7 @@ function PurchaseDatePicker({
                     key={month}
                     type="button"
                     disabled={disabled}
-                    aria-pressed={active}
+                    {...ariaPressed(active)}
                     onClick={() => {
                       setVisibleMonth(new Date(visibleYear, monthIndex, 1));
                       setCalendarView('days');
@@ -1012,7 +1024,7 @@ function PurchaseDatePicker({
                   <button
                     key={year}
                     type="button"
-                    aria-pressed={active}
+                    {...ariaPressed(active)}
                     onClick={() => {
                       const nextVisibleMonth = Math.min(
                         visibleMonth.getMonth(),
@@ -1050,7 +1062,7 @@ function PurchaseDatePicker({
                   key={day.value}
                   type="button"
                   disabled={!isDateValueInRange(day.value, min, max)}
-                  aria-pressed={day.value === value}
+                  {...ariaPressed(day.value === value)}
                   onClick={() => {
                     onChange(day.value);
                     onClose();
@@ -1577,9 +1589,7 @@ function getCompraErrorMessage(error: unknown) {
     }
   }
 
-  return error instanceof Error
-    ? error.message
-    : 'No se pudo guardar la compra.';
+  return 'No pudimos guardar la compra. Revisa los datos e intenta nuevamente.';
 }
 
 function esperarPintadoInterfaz() {
@@ -1966,6 +1976,9 @@ export default function Compras() {
   const [subloteInputWarningsExiting, setSubloteInputWarningsExiting] =
     useState(false);
   const [subloteActivoId, setSubloteActivoId] = useState<string | null>(null);
+  const [pesoFocusedSubloteId, setPesoFocusedSubloteId] = useState<string | null>(
+    null,
+  );
   const [productorSeleccionado, setProductorSeleccionado] =
     useState<ProductorOption | null>(null);
   const [productorSelectionMode, setProductorSelectionMode] =
@@ -2912,6 +2925,7 @@ export default function Compras() {
                 'La bodega no tiene espacio suficiente para esa cantidad.',
                 `Solo tienes espacio para ${formatoKg(disponible)} kg.`,
                 'Reduce la cantidad para continuar.',
+                'Ajusta la cantidad.',
               ),
             );
           } else {
@@ -2950,7 +2964,7 @@ export default function Compras() {
       setCapacidadPrevia(capacidad);
 
       if (capacidad.nivel === 'requiere_configuracion') {
-        setMostrarModalConfigurarCapacidad(true);
+        // No abrir modal automáticamente, usar capacidad por defecto
         return false;
       }
 
@@ -2970,6 +2984,7 @@ export default function Compras() {
             'No hay espacio suficiente.',
             `Disponible: ${formatoKg(disponible)} kg. Intentas registrar: ${formatoKg(resumen.totalKg)} kg.`,
             'Ajusta la cantidad para continuar.',
+            'Reduce la cantidad.',
           ),
         );
         setDatosCapacidad({
@@ -3153,6 +3168,7 @@ export default function Compras() {
             'No hay espacio suficiente.',
             `Disponible: ${formatoKg(details?.disponibleKg ?? 0)} kg. Intentas registrar: ${formatoKg(details?.cantidadIntentadaKg ?? resumen.totalKg)} kg.`,
             'Ajusta la cantidad para continuar.',
+            'Reduce la cantidad.',
           ),
         );
       }
@@ -3180,92 +3196,105 @@ export default function Compras() {
 
   if (compraGuardada) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[430px] items-center">
-          <div className="w-full rounded-[28px] border border-[#dfe5f3] bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
-            <div className="text-center">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#edf3ff]">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#19b881] text-white">
-                  <Check size={30} strokeWidth={3} />
+      <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f3f5fb_100%)] px-4 py-5 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-[430px] items-center">
+          <div className="cafesmart-success-modal relative w-full overflow-hidden rounded-[28px] border border-white/80 bg-white px-5 pb-5 pt-4 shadow-[0_22px_60px_rgba(15,23,42,0.14)] ring-1 ring-slate-900/[0.03]">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="absolute right-3.5 top-3.5 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.08)] transition duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-300/60"
+              aria-label="Cerrar y volver al inicio"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="pt-9 text-center">
+              <div className="relative mx-auto flex h-[94px] w-[94px] items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-emerald-100/80 blur-[1px]" />
+                <div className="cafesmart-success-halo absolute h-[86px] w-[86px] rounded-full border border-emerald-200 bg-emerald-50/80" />
+                <div className="cafesmart-success-check relative flex h-[62px] w-[62px] items-center justify-center rounded-full bg-[#18a66b] text-white shadow-[0_16px_34px_rgba(24,166,107,0.28),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                  <Check size={30} strokeWidth={3.2} />
                 </div>
               </div>
-              <h1 className="mt-6 text-[2rem] font-semibold text-[#1f3f97]">
+
+              <h1 className="mt-5 text-[1.95rem] font-black leading-tight tracking-normal text-slate-950">
                 Compra registrada
               </h1>
-              <p className="mt-2 text-[1.04rem] font-medium text-slate-600">
+              <p className="mt-2 text-[1rem] font-semibold leading-6 text-slate-600">
                 La compra se guardó correctamente.
               </p>
             </div>
 
-            {compraGuardada.capacidad &&
-            compraGuardada.capacidad.nivel !== 'normal' ? (
-              <section
-                className={`mt-6 rounded-[16px] border p-4 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${estiloCapacidad(compraGuardada.capacidad).icono}`}
-                  >
-                    <AlertTriangle size={18} />
-                  </span>
-                  <div>
-                    <p className="text-[0.95rem] font-semibold">
-                      {compraGuardada.capacidad.validada
-                        ? 'Capacidad de bodega validada'
-                        : 'Sin validación de capacidad'}
-                    </p>
-                    <p className="mt-1 text-sm leading-5">
-                      {compraGuardada.capacidad.mensaje}
-                    </p>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            <section className="mt-7 rounded-[18px] border border-[#dfe5f3] bg-[#fbfcff] p-4">
-              <p className="text-[0.92rem] font-bold text-slate-700">
+            <section className="mt-6 rounded-[22px] border border-slate-200/80 bg-[#fbfcff] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
+              <p className="text-center text-[0.72rem] font-black uppercase tracking-[0.14em] text-slate-600">
                 Resumen de compra
               </p>
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
-                  <span className="text-[0.98rem] font-medium text-slate-600">
+              <div className="mt-4 divide-y divide-slate-200/70 rounded-[16px] border border-slate-200/70 bg-white px-4">
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <span className="text-[0.9rem] font-bold text-slate-600">
                     Productor
                   </span>
-                  <span className="text-[1.02rem] font-semibold text-slate-900">
+                  <span className="min-w-0 truncate text-right text-[0.98rem] font-bold text-slate-900">
                     {compraGuardada.productorNombre}
                   </span>
                 </div>
-                <div className="flex items-center justify-between rounded-[12px] bg-white px-3 py-2.5">
-                  <span className="text-[0.98rem] font-medium text-slate-600">
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <span className="text-[0.9rem] font-bold text-slate-600">
                     Total kg
                   </span>
-                  <span className="text-[1.02rem] font-semibold text-slate-900">
+                  <span className="text-right text-[0.98rem] font-bold text-slate-900">
                     {Math.round(compraGuardada.totalKg)} kg
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-[12px] bg-[#eef3ff] px-3 py-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
-                  <span className="text-[0.9rem] font-bold uppercase tracking-[0.04em] text-slate-700">
-                    Total pagado
-                  </span>
-                  <span className="break-words text-[clamp(1.25rem,5vw,1.55rem)] font-black leading-tight text-[#1f3f97] min-[420px]:text-right">
-                    {formatoMoneda(compraGuardada.totalCompra)}
-                  </span>
-                </div>
               </div>
+
+              <div className="mt-3 rounded-[18px] border border-[#d8e3f7] bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                <span className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-[#38557f]">
+                  Total pagado
+                </span>
+                <p className="mt-1 break-words text-[clamp(1.65rem,7vw,2.05rem)] font-black leading-tight text-[#173a8a]">
+                  {formatoMoneda(compraGuardada.totalCompra)}
+                </p>
+              </div>
+
+              {compraGuardada.capacidad &&
+              compraGuardada.capacidad.nivel !== 'normal' ? (
+                <div
+                  className={`mt-3 rounded-[16px] border px-3.5 py-3 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${estiloCapacidad(compraGuardada.capacidad).icono}`}
+                    >
+                      <AlertTriangle size={16} />
+                    </span>
+                    <div>
+                      <p className="text-[0.86rem] font-bold">
+                        {compraGuardada.capacidad.validada
+                          ? 'Capacidad de bodega validada'
+                          : 'Sin validación de capacidad'}
+                      </p>
+                      <p className="mt-1 text-[0.8rem] font-medium leading-5">
+                        {compraGuardada.capacidad.mensaje}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </section>
 
-            <div className="mt-7 grid gap-3">
+            <div className="mt-5 grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={iniciarNuevaCompra}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.08rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)]"
+                className="inline-flex min-h-[48px] min-w-0 items-center justify-center rounded-[14px] bg-[#143f96] px-3 py-3 text-center text-[0.9rem] font-black leading-tight text-white shadow-[0_12px_26px_rgba(20,63,150,0.22)] transition duration-200 hover:bg-[#10357f] hover:shadow-[0_16px_30px_rgba(20,63,150,0.26)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#143f96]/20"
               >
                 Registrar nueva compra
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/inventario')}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[16px] bg-[#edf1f8] px-5 py-4 text-[1.08rem] font-semibold text-[#1f3f97]"
+                className="inline-flex min-h-[48px] min-w-0 items-center justify-center rounded-[14px] border border-slate-300 bg-white px-3 py-3 text-center text-[0.9rem] font-black leading-tight text-slate-800 shadow-[0_8px_20px_rgba(15,23,42,0.05)] transition duration-200 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-950 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-300/60"
               >
                 Ir a inventario
               </button>
@@ -3287,26 +3316,29 @@ export default function Compras() {
                 <AlertTriangle size={24} strokeWidth={2.8} />
               </div>
               <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">
-                No se pudo guardar la compra
+                Problema temporal
               </h1>
               <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">
-                {registroErrorMensaje}
+                Ocurrió un problema al guardar la compra. Revisa tu conexión a internet e intenta nuevamente.
+              </p>
+              <p className="mt-2 text-[0.88rem] font-medium text-slate-400">
+                Tus datos siguen seguros.
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => void guardarCompra()}
                 disabled={saving}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-1 min-w-[120px] min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)] transition hover:bg-[#18358f] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Reintentando...' : 'Reintentar'}
               </button>
               <button
                 type="button"
                 onClick={volverDesdeError}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]"
+                className="inline-flex flex-1 min-w-[120px] min-h-[54px] items-center justify-center gap-3 rounded-[14px] border border-[#d5deee] bg-white px-5 py-3 text-[1.05rem] font-semibold text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
               >
                 Volver a editar
               </button>
@@ -3345,8 +3377,13 @@ export default function Compras() {
           </div>
           <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
             <div
-              className="h-full rounded-full bg-[#04337b] transition-all duration-300"
-              style={{ width: `${pasoActual.progreso}%` }}
+              className={`h-full rounded-full bg-[#04337b] transition-all duration-300 ${
+                pasoActual.progreso === 33
+                  ? 'w-1/3'
+                  : pasoActual.progreso === 66
+                    ? 'w-2/3'
+                    : 'w-full'
+              }`}
             />
           </div>
           {step === 1 ? (
@@ -3564,6 +3601,10 @@ export default function Compras() {
                 capacidadPrevia.nivel !== 'exceso' &&
                 porcentajeDisponibleDespues !== null &&
                 porcentajeDisponibleDespues < 10;
+              const capacidadEnExceso = capacidadPrevia?.nivel === 'exceso';
+              const mostrarPanelBodega =
+                pesoFocusedSubloteId === sublote.id &&
+                (checkingCapacidadPreview || Boolean(capacidadPrevia?.validada));
               const pesoWarning =
                 subloteInputWarnings[sublote.id]?.pesoInicial ?? null;
               const precioWarning =
@@ -3702,9 +3743,12 @@ export default function Compras() {
                         </p>
                         <div className="relative mt-2.5">
                           <input
+                            aria-label="Peso inicial del sublote"
                             type="text"
                             inputMode="decimal"
                             value={sublote.pesoInicial}
+                            onFocus={() => setPesoFocusedSubloteId(sublote.id)}
+                            onBlur={() => setPesoFocusedSubloteId(null)}
                             onChange={(event) => {
                               const next = buildLimitedNumberInput(
                                 event.target.value,
@@ -3740,6 +3784,100 @@ export default function Compras() {
                               </span>
                             </span>
                           ) : null}
+                          {mostrarPanelBodega ? (
+                            <div className="pointer-events-none absolute left-0 top-[calc(100%+0.55rem)] z-40 w-[min(21.5rem,calc(100vw-2.5rem))] animate-[cafesmartFadeScale_220ms_ease-out_both]">
+                              {checkingCapacidadPreview ? (
+                                <div className="flex items-center gap-3 rounded-[20px] border border-[#dbe5fb] bg-white px-3.5 py-3 text-[0.84rem] font-bold leading-5 text-[#40516d] shadow-[0_18px_42px_rgba(15,23,42,0.16)] ring-1 ring-slate-900/[0.03] backdrop-blur">
+                                  <span
+                                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[#f1f5ff] text-[#1f3fa7]"
+                                    aria-hidden="true"
+                                  >
+                                    <LoaderCircle
+                                      size={17}
+                                      className="animate-spin"
+                                    />
+                                  </span>
+                                  Revisando espacio disponible...
+                                </div>
+                              ) : capacidadPrevia?.validada ? (
+                                <div
+                                  className={`rounded-[22px] border px-3.5 py-3.5 shadow-[0_20px_48px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/[0.03] backdrop-blur ${
+                                    capacidadEnExceso
+                                      ? 'border-rose-200 bg-white text-rose-950'
+                                      : capacidadCasiLlena
+                                        ? 'border-amber-200 bg-white text-amber-950'
+                                        : 'border-[#dbe5fb] bg-white/95 text-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                      <span
+                                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] shadow-sm ${
+                                          capacidadEnExceso
+                                            ? 'bg-rose-50 text-rose-700'
+                                            : capacidadCasiLlena
+                                              ? 'bg-amber-50 text-amber-700'
+                                              : 'bg-[#eef4ff] text-[#1f3fa7]'
+                                        }`}
+                                        aria-hidden="true"
+                                      >
+                                        <Warehouse size={18} />
+                                      </span>
+                                      <p className="truncate text-[0.8rem] font-black text-slate-700">
+                                        Espacio disponible
+                                      </p>
+                                    </div>
+                                    {capacidadEnExceso || capacidadCasiLlena ? (
+                                        <span
+                                          className={`shrink-0 rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.08em] ${
+                                            capacidadEnExceso
+                                              ? 'bg-rose-100 text-rose-700'
+                                              : 'bg-amber-100 text-amber-700'
+                                          }`}
+                                        >
+                                          {capacidadEnExceso
+                                            ? 'Sin espacio'
+                                            : 'Casi llena'}
+                                        </span>
+                                      ) : null}
+                                  </div>
+
+                                  {capacidadDisponibleAntes !== null ? (
+                                    <p
+                                      className={`mt-2 whitespace-nowrap text-[clamp(1.45rem,6vw,1.78rem)] font-black leading-tight ${
+                                        capacidadEnExceso
+                                          ? 'text-rose-800'
+                                          : capacidadCasiLlena
+                                            ? 'text-amber-800'
+                                            : 'text-[#173a8a]'
+                                      }`}
+                                    >
+                                      {formatoKg(capacidadDisponibleAntes)} kg libres
+                                    </p>
+                                  ) : null}
+
+                                  {capacidadRestanteDespues !== null ? (
+                                    <div className="mt-2 flex items-center justify-between gap-3 rounded-[14px] bg-slate-50 px-3 py-2">
+                                      <span className="text-[0.74rem] font-black text-slate-500">
+                                        Después de esta compra
+                                      </span>
+                                      <span
+                                        className={`whitespace-nowrap text-[0.95rem] font-black leading-tight ${
+                                          capacidadEnExceso
+                                            ? 'text-rose-800'
+                                            : capacidadCasiLlena
+                                              ? 'text-amber-800'
+                                              : 'text-emerald-700'
+                                        }`}
+                                      >
+                                        {formatoKg(capacidadRestanteDespues)} kg
+                                      </span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         {pesoWarning ? (
                           <FieldLimitAlert
@@ -3757,68 +3895,6 @@ export default function Compras() {
                             message={errorCapacidadCantidad}
                             className="mt-2"
                           />
-                        ) : null}
-                        {checkingCapacidadPreview ? (
-                          <p className="mt-2 rounded-[14px] border border-[#dbe5fb] bg-[#f8faff] px-3 py-2 text-[0.76rem] font-semibold leading-4 text-[#52657d]">
-                            Revisando espacio disponible...
-                          </p>
-                        ) : capacidadPrevia?.validada ? (
-                          <div className="mt-2 rounded-[16px] border border-[#dbe5fb] bg-[#f8faff] px-3 py-3 text-[0.76rem] font-semibold leading-4 text-[#52657d]">
-                            <div className="grid gap-1.5">
-                              {typeof capacidadPrevia.capacidadBodegaKg ===
-                              'number' ? (
-                                <div className="flex items-center justify-between gap-2">
-                                  <span>Capacidad total</span>
-                                  <span className="font-black text-slate-800">
-                                    {formatoKg(capacidadPrevia.capacidadBodegaKg)} kg
-                                  </span>
-                                </div>
-                              ) : null}
-                              {typeof capacidadPrevia.inventarioActualKg ===
-                              'number' ? (
-                                <div className="flex items-center justify-between gap-2">
-                                  <span>Ocupado actualmente</span>
-                                  <span className="font-black text-slate-800">
-                                    {formatoKg(capacidadPrevia.inventarioActualKg)} kg
-                                  </span>
-                                </div>
-                              ) : null}
-                              {capacidadDisponibleAntes !== null ? (
-                                <div className="flex items-center justify-between gap-2">
-                                  <span>Espacio disponible</span>
-                                  <span className="font-black text-[#102d92]">
-                                    {formatoKg(capacidadDisponibleAntes)} kg
-                                  </span>
-                                </div>
-                              ) : null}
-                              {capacidadRestanteDespues !== null ? (
-                                <div className="flex items-center justify-between gap-2 border-t border-[#dbe5fb] pt-1.5">
-                                  <span>Después de esta compra</span>
-                                  <span
-                                    className={`font-black ${
-                                      capacidadPrevia.nivel === 'exceso'
-                                        ? 'text-rose-700'
-                                        : capacidadCasiLlena
-                                          ? 'text-amber-700'
-                                          : 'text-emerald-700'
-                                    }`}
-                                  >
-                                    {formatoKg(capacidadRestanteDespues)} kg libres
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                            {capacidadCasiLlena ? (
-                              <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.74rem] font-bold leading-4 text-amber-800">
-                                La bodega está cerca de su capacidad máxima.
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : capacidadPrevia?.nivel ===
-                          'requiere_configuracion' ? (
-                          <p className="mt-2 rounded-[14px] border border-[#dbe5fb] bg-[#f8faff] px-3 py-2 text-[0.76rem] font-semibold leading-4 text-[#52657d]">
-                            Aún no has configurado la capacidad de tu bodega.
-                          </p>
                         ) : null}
                       </div>
 
@@ -3847,6 +3923,7 @@ export default function Compras() {
                             </span>
                           ) : null}
                           <input
+                            aria-label="Precio por kilo del sublote"
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
@@ -3957,40 +4034,60 @@ export default function Compras() {
         ) : null}
 
         {step === 3 ? (
-          <section className="space-y-4">
-            <article className="rounded-[24px] border border-[#e2e8f4] bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-2 text-[0.86rem] font-black uppercase tracking-[0.12em] text-[#40516d]">
-                <CalendarDays size={14} />
-                <span>Datos de la compra</span>
-              </div>
-              <div className="space-y-4 rounded-[16px] border border-[#e6eaf3] bg-[#fbfcff] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#4b5f7c]">
-                    Productor
-                  </span>
-                  <span className="text-[1.25rem] font-semibold text-slate-900">
-                    {productorSeleccionado?.nombre ?? 'Sin productor'}
-                  </span>
+          <section className="space-y-5">
+            <article className="rounded-[26px] border border-[#e3e9f5] bg-white px-5 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#eef4ff] text-[#173ea6]"
+                  aria-hidden="true"
+                >
+                  <CalendarDays size={17} />
+                </span>
+                <div>
+                  <p className="text-[0.75rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+                    Datos de la compra
+                  </p>
+                  <p className="mt-0.5 text-[0.82rem] font-semibold text-slate-500">
+                    Información principal del registro.
+                  </p>
                 </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.82rem] font-black uppercase tracking-[0.08em] text-[#4b5f7c]">
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <div>
+                  <p className="text-[0.74rem] font-black uppercase tracking-[0.1em] text-slate-500">
+                    Productor
+                  </p>
+                  <p className="mt-1 break-words text-[1.05rem] font-black leading-tight text-slate-950">
+                    {productorSeleccionado?.nombre ?? 'Sin productor'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[0.74rem] font-black uppercase tracking-[0.1em] text-slate-500">
                     Fecha
-                  </span>
-                  <span className="text-[1.25rem] font-semibold text-slate-900">
+                  </p>
+                  <p className="mt-1 text-[1.02rem] font-bold leading-tight text-slate-800">
                     {formatoFecha(fecha)}
-                  </span>
+                  </p>
                 </div>
               </div>
             </article>
 
             <section>
-              <div className="mb-2 flex items-center gap-2 px-1 text-[0.82rem] font-extrabold uppercase tracking-[0.1em] text-[#40516d]">
-                <ShoppingBag size={14} />
-                <span>Historial de la compra</span>
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <ShoppingBag size={15} className="shrink-0 text-[#173ea6]" />
+                  <h2 className="truncate text-[0.86rem] font-black uppercase tracking-[0.11em] text-[#40516d]">
+                    Historial de la compra
+                  </h2>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#edf3ff] px-2.5 py-1 text-[0.68rem] font-black text-[#173ea6]">
+                  {sublotes.length}
+                </span>
               </div>
-              <p className="px-1 text-[0.9rem] font-semibold leading-5 text-slate-700">
-                Si necesitas editar la información de un sublote, regresa al
-                paso anterior
+              <p className="mt-1 px-1 text-[0.86rem] font-semibold leading-5 text-slate-500">
+                Revisa cada café antes de confirmar. Puedes editar o eliminar
+                un producto si lo necesitas.
               </p>
               <div className="mt-3 space-y-3">
                 {sublotes.map((sublote) => {
@@ -4005,55 +4102,56 @@ export default function Compras() {
                   return (
                     <article
                       key={sublote.id}
-                      className="rounded-[22px] border border-[#e1e6f2] bg-white px-4 py-4 shadow-sm"
+                      className="rounded-[22px] border border-[#e2e8f4] bg-white px-4 py-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:border-[#cfdaf0] hover:shadow-[0_14px_34px_rgba(15,23,42,0.07)]"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-start gap-4">
-                          <div className={`shrink-0 rounded-2xl p-3 ${visual.fondo}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={`shrink-0 rounded-[15px] p-2.5 ${visual.fondo}`}>
                             {visual.icono}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#173ea6]">
+                            <p className="text-[0.68rem] font-black uppercase tracking-[0.11em] text-[#52657d]">
                               {tipoCafe}
                             </p>
-                            <p className="mt-1 text-[1.06rem] font-bold leading-tight text-slate-900">
+                            <p className="mt-0.5 text-[1.05rem] font-black leading-tight text-slate-950">
                               Calidad: {calidad}
                             </p>
-                            <p className="mt-1 text-[0.94rem] font-semibold text-slate-700">
-                              Peso:{' '}
-                              {peso.toLocaleString('es-CO', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 2,
-                              })}{' '}
-                              kg
-                            </p>
-                            <p className="mt-1 break-words text-[0.94rem] font-semibold text-slate-700">
-                              Total: {formatoMoneda(totalItem)}
-                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[0.78rem] font-bold text-slate-700">
+                                {peso.toLocaleString('es-CO', {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 2,
+                                })}{' '}
+                                kg
+                              </span>
+                              <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[0.78rem] font-black text-[#173ea6]">
+                                {formatoMoneda(totalItem)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() =>
                               editarSubloteDesdeRevision(sublote.id)
                             }
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6] transition hover:bg-[#dfe8ff] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
                             title="Editar producto"
                             aria-label={`Editar ${tipoCafe}`}
                           >
-                            <Pencil size={16} />
+                            <Pencil size={14} />
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               eliminarSubloteDesdeRevision(sublote.id)
                             }
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a] transition hover:bg-[#ffe4e8] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200"
                             title="Eliminar producto"
                             aria-label={`Eliminar ${tipoCafe}`}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -4063,46 +4161,36 @@ export default function Compras() {
               </div>
             </section>
 
-            <article className="rounded-[28px] border border-[#d9e2f5] bg-white p-5 shadow-[0_18px_42px_rgba(15,23,42,0.06)]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[0.8rem] font-extrabold uppercase tracking-[0.1em] text-[#40516d]">
-                    Resumen financiero
-                  </p>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-700">
-                    Totales calculados para esta compra.
-                  </p>
-                </div>
-                <span
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#173ea6]"
-                  aria-hidden="true"
-                >
-                  <BadgeAlert size={18} />
-                </span>
+            <article className="rounded-[26px] border border-[#dbe5fb] bg-white p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)]">
+              <div className="mb-3 flex items-center gap-2 px-1">
+                <BadgeAlert size={15} className="text-[#173ea6]" />
+                <p className="text-[0.82rem] font-black uppercase tracking-[0.11em] text-[#40516d]">
+                  Resumen financiero
+                </p>
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-[22px] border border-[#dbe5fb] bg-[#f7f9ff]">
-                <div className="min-w-0 px-5 py-4">
-                  <span className="block text-[0.74rem] font-extrabold uppercase tracking-[0.09em] text-[#42536f]">
-                    Total kg
-                  </span>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="min-w-0 rounded-[18px] bg-[#f7f9ff] px-3 py-3">
                   <span
-                    className="mt-2 block min-w-0 break-words text-[clamp(1.35rem,6.8vw,1.8rem)] font-black leading-tight text-[#102d92]"
+                    className="block min-w-0 break-words text-[clamp(1.15rem,5vw,1.55rem)] font-black leading-tight text-[#173a8a]"
                     title={formatTotalKg(resumen.totalKg)}
                   >
                     {formatTotalKg(resumen.totalKg)}
                   </span>
+                  <span className="mt-1 block text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                    Total almacenado
+                  </span>
                 </div>
 
-                <div className="min-w-0 border-t border-[#d5e0f7] bg-[#eef4ff] px-5 py-4">
-                  <span className="block text-[0.74rem] font-extrabold uppercase tracking-[0.09em] text-[#334b6f]">
-                    Total a pagar
-                  </span>
+                <div className="min-w-0 rounded-[18px] bg-[#eef4ff] px-3 py-3">
                   <span
-                    className="mt-2 block min-w-0 break-words text-[clamp(1.45rem,6.6vw,1.95rem)] font-black leading-tight text-[#08256d]"
+                    className="block min-w-0 break-words text-[clamp(1.15rem,5vw,1.55rem)] font-black leading-tight text-[#08256d]"
                     title={formatoMoneda(resumen.totalCompra)}
                   >
                     {formatoMoneda(resumen.totalCompra)}
+                  </span>
+                  <span className="mt-1 block text-[0.72rem] font-black uppercase tracking-[0.08em] text-[#52657d]">
+                    Total a pagar
                   </span>
                 </div>
               </div>
@@ -4115,26 +4203,28 @@ export default function Compras() {
               />
             ) : null}
 
-            <div className="grid gap-3">
+            <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)] gap-2.5">
               <button
                 type="button"
                 onClick={() => void abrirConfirmacionCompra()}
                 disabled={saving || checkingConfirmacion || loading}
-                className="inline-flex items-center justify-center gap-3 rounded-[20px] bg-[#102d92] px-5 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(16,45,146,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-3 py-3 text-center text-[0.92rem] font-black leading-tight text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {checkingConfirmacion ? (
-                  <LoaderCircle size={20} className="animate-spin" />
+                  <LoaderCircle size={18} className="shrink-0 animate-spin" />
                 ) : (
-                  <Save size={20} />
+                  <Save size={18} className="shrink-0" />
                 )}
-                {checkingConfirmacion
-                  ? 'Revisando bodega...'
-                  : 'Registrar compra'}
+                <span className="min-w-0">
+                  {checkingConfirmacion
+                    ? 'Revisando...'
+                    : 'Registrar compra'}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(true)}
-                className="inline-flex items-center justify-center gap-3 rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-700"
+                className="inline-flex min-h-[52px] min-w-0 items-center justify-center rounded-[16px] border border-slate-300 bg-white px-3 py-3 text-center text-[0.92rem] font-black leading-tight text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-950 active:scale-[0.99]"
               >
                 Cancelar
               </button>
@@ -4191,18 +4281,18 @@ export default function Compras() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={continuarBorradorCompra}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
+                className="inline-flex flex-1 min-w-[150px] min-h-[54px] items-center justify-center rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
               >
                 Continuar registro
               </button>
               <button
                 type="button"
                 onClick={empezarCompraSinBorrador}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.96rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                className="inline-flex flex-1 min-w-[150px] min-h-[52px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.96rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
               >
                 Empezar de nuevo
               </button>
@@ -4506,17 +4596,17 @@ export default function Compras() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)] gap-2.5">
               <button
                 type="button"
                 onClick={() => void guardarCompra()}
                 disabled={!puedeRegistrarCompra || saving}
-                className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-80"
+                className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[14px] bg-[#1f3fa7] px-3 py-3 text-center text-[0.95rem] font-black leading-tight text-white shadow-[0_14px_30px_rgba(16,45,146,0.2)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80"
               >
                 {saving ? (
                   <>
-                    <LoaderCircle size={20} className="animate-spin" />
-                    Guardando compra...
+                    <LoaderCircle size={18} className="shrink-0 animate-spin" />
+                    <span>Guardando...</span>
                   </>
                 ) : (
                   'Confirmar compra'
@@ -4526,7 +4616,7 @@ export default function Compras() {
                 type="button"
                 onClick={cerrarModalConfirmar}
                 disabled={saving}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
+                className="inline-flex min-h-[52px] min-w-0 items-center justify-center rounded-[14px] border border-slate-300 bg-white px-3 py-3 text-center text-[0.95rem] font-black leading-tight text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancelar
               </button>
@@ -4620,7 +4710,7 @@ export default function Compras() {
                         key={option.value}
                         type="button"
                         onClick={() => setProductorSortMode(option.value)}
-                        aria-pressed={active}
+                        {...ariaPressed(active)}
                         className={`min-h-[40px] rounded-[12px] border px-2.5 py-2 text-xs font-black leading-4 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
                           active
                             ? 'border-[#1f3fa7] bg-[#eef4ff] text-[#1f3fa7]'
@@ -4698,6 +4788,7 @@ export default function Compras() {
                 <button
                   type="button"
                   onClick={cerrarModalProductor}
+                  aria-label="Cerrar registro de productor"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
                   <X size={20} />

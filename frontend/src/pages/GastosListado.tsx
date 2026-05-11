@@ -71,11 +71,7 @@ export default function GastosListado() {
           subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral),
         );
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'No se pudieron cargar los gastos.',
-        );
+        setError('No pudimos cargar los gastos. Intenta nuevamente.');
         setGastos([]);
       } finally {
         setLoading(false);

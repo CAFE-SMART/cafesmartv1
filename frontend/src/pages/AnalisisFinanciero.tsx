@@ -74,11 +74,7 @@ export default function AnalisisFinanciero() {
       const data = await obtenerDashboardSummary();
       setSummary(data);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo cargar el análisis financiero.',
-      );
+      setError('No pudimos cargar el análisis financiero. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -122,6 +118,7 @@ export default function AnalisisFinanciero() {
             type="button"
             onClick={() => navigate('/ajustes')}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
+            aria-label="Volver a ajustes"
           >
             <ArrowLeft size={18} />
           </button>
@@ -156,6 +153,7 @@ export default function AnalisisFinanciero() {
               type="button"
               onClick={() => void cargar()}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+              aria-label="Actualizar análisis financiero"
             >
               <RefreshCcw size={16} />
             </button>
@@ -164,6 +162,20 @@ export default function AnalisisFinanciero() {
           <div className="mt-6 flex h-[220px] items-end justify-between gap-4">
             {chartData.map((item) => {
               const height = Math.max(20, (item.value / maxValue) * 180);
+              const heightClass =
+                height >= 170
+                  ? 'h-[180px]'
+                  : height >= 145
+                    ? 'h-[155px]'
+                    : height >= 120
+                      ? 'h-[130px]'
+                      : height >= 95
+                        ? 'h-[105px]'
+                        : height >= 70
+                          ? 'h-[80px]'
+                          : height >= 45
+                            ? 'h-[55px]'
+                            : 'h-[28px]';
               return (
                 <div
                   key={item.key}
@@ -174,8 +186,7 @@ export default function AnalisisFinanciero() {
                   </span>
                   <div className="flex h-[180px] w-full items-end justify-center rounded-[18px] bg-[#f6f8fd] px-3 py-3">
                     <div
-                      className={`w-full rounded-[14px] ${item.color} transition-all duration-300`}
-                      style={{ height: `${height}px` }}
+                      className={`w-full rounded-[14px] ${item.color} ${heightClass} transition-all duration-300`}
                     />
                   </div>
                   <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">

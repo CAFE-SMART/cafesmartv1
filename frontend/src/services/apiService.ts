@@ -37,29 +37,35 @@ function normalizarMensaje(message: unknown) {
   return typeof message === 'string' ? message.trim() : '';
 }
 
-export function traducirMensajeError(message: unknown, status = 0) {
+const TECHNICAL_ERROR_PATTERN =
+  /^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i;
+const TECHNICAL_ERROR_WORDS =
+  /api|autenticaci[oó]n fallida|backend|base de datos|conexi[oó]n rechazada|database|endpoint|error interno|error\s*500|exception|fallo del sistema|fetch failed|internal server|localhost|prisma|request|server|servidor|stack|terminal|timeout|token/i;
+
+export function limpiarMensajeTecnico(message: unknown) {
   const texto = normalizarMensaje(message);
 
-  if (
-    /^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto) ||
-    /terminal|backend|internal server error|server error|stack|exception|prisma|database|endpoint|localhost|error\s*500/i.test(
-      texto,
-    )
-  ) {
-    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+  if (!texto || TECHNICAL_ERROR_PATTERN.test(texto) || TECHNICAL_ERROR_WORDS.test(texto)) {
+    return '';
   }
 
+  return texto;
+}
+
+export function traducirMensajeError(message: unknown, status = 0) {
+  const texto = limpiarMensajeTecnico(message);
+
   if (status >= 500) {
-    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+    return 'Ocurrió un problema temporal. Intenta nuevamente.';
   }
 
   if (!texto) {
     if (status === 401) {
-      return 'Tu sesion expiro. Ingresa de nuevo.';
+      return 'Tu sesión expiró. Ingresa nuevamente.';
     }
 
     if (status === 403) {
-      return 'No tienes permiso para esta accion.';
+      return 'No tienes acceso a esta opción.';
     }
 
     if (status === 404) {
@@ -71,11 +77,11 @@ export function traducirMensajeError(message: unknown, status = 0) {
 
   const mapa: Record<string, string> = {
     'Internal server error':
-      'No pudimos completar la acción. Vuelve a intentarlo.',
-    Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
-    Forbidden: 'No tienes permiso para esta accion.',
-    'Forbidden resource': 'No tienes permiso para esta opcion.',
-    'Not Found': 'No encontramos esa informacion.',
+      'Ocurrió un problema temporal. Intenta nuevamente.',
+    Unauthorized: 'Tu sesión expiró. Ingresa nuevamente.',
+    Forbidden: 'No tienes acceso a esta opción.',
+    'Forbidden resource': 'No tienes acceso a esta opción.',
+    'Not Found': 'No encontramos esa información.',
     'Bad Request': 'Revisa los datos e intenta de nuevo.',
     'Failed to fetch': 'Revisa la conexión a internet y vuelve a intentarlo.',
   };

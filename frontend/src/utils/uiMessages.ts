@@ -67,14 +67,14 @@ export const UI_MESSAGES = {
       mensaje: 'No pudimos guardar la información.',
       accion: 'Intenta nuevamente',
     },
-    timeout: {
-      titulo: 'La conexión tardó demasiado',
-      mensaje: 'La conexión tardó demasiado.',
+    takingLong: {
+      titulo: 'Está tardando más de lo esperado',
+      mensaje: 'Espera unos segundos e intenta nuevamente.',
       accion: 'Intenta nuevamente',
     },
     internalError: {
       titulo: 'Tuvimos un problema',
-      mensaje: 'Tuvimos un problema.',
+      mensaje: 'Ocurrió un problema temporal.',
       accion: 'Intenta más tarde',
     },
   },

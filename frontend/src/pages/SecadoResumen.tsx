@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, Home, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import {
   finalizeSecado,
   getSecadoSession,
@@ -18,7 +19,7 @@ function kg(value: number) {
 }
 
 function getSecadoPersistErrorMessage(error: unknown) {
-  const fallback = 'No se pudo actualizar el inventario real del secado.';
+  const fallback = 'No pudimos actualizar el inventario del secado.';
 
   if (!(error instanceof Error)) {
     return fallback;
@@ -35,10 +36,10 @@ function getSecadoPersistErrorMessage(error: unknown) {
   }
 
   if (error.message.includes('Esta opcion aun no esta disponible')) {
-    return 'No se pudo actualizar el inventario del secado. Vuelve a intentarlo.';
+    return 'No pudimos actualizar el inventario del secado. Vuelve a intentarlo.';
   }
 
-  return error.message || fallback;
+  return fallback;
 }
 
 export default function SecadoResumen() {
@@ -138,41 +139,49 @@ export default function SecadoResumen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <main className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col items-center bg-[#fbfbfb] px-4 py-6 text-center">
-        <div className="mt-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#dff7ee]">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#12bf84] text-white">
-            <Check size={16} strokeWidth={3} />
-          </span>
-        </div>
-
-        <h1 className="mt-4 text-[1rem] font-black">Secado registrado</h1>
-        <p className="mt-1 text-[0.68rem] text-slate-500">
-          {persisting
-            ? 'Registrando secado en inventario...'
-            : persisted
-              ? 'Inventario real actualizado.'
-              : 'Proceso guardado.'}
-        </p>
-
-        {persistError ? (
-          <section className="mt-4 w-full rounded-[14px] border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-semibold text-rose-700">
-            {persistError}
-            <button
-              type="button"
-              onClick={() => {
+    <div className="min-h-screen bg-[#f8fbff] text-slate-950">
+      <CafeSmartErrorState
+        fullScreen
+        variant={persistError ? 'error' : 'success'}
+        title={persistError ? 'No pudimos actualizar el inventario' : 'Secado registrado'}
+        message={
+          persistError
+            ? persistError
+            : persisting
+              ? 'Registrando secado en inventario...'
+              : persisted
+                ? 'Inventario real actualizado.'
+                : 'Proceso guardado.'
+        }
+        primaryLabel={persistError ? 'Reintentar actualización' : 'Registrar nuevo secado'}
+        secondaryLabel="Ir a inventario"
+        onPrimary={
+          persistError
+            ? () => {
                 persistStartedRef.current = false;
                 setPersistError(null);
                 setPersistRetry((current) => current + 1);
-              }}
-              className="mt-3 w-full rounded-[12px] bg-white px-4 py-3 text-xs font-black text-rose-700"
-            >
-              Reintentar actualizacion
-            </button>
-          </section>
-        ) : null}
-
-        <section className="mt-5 w-full rounded-[12px] bg-white p-4 text-left shadow-sm">
+              }
+            : () =>
+                navigate('/inventario', {
+                  state: { preferredTypeKey: 'VERDE' },
+                })
+        }
+        onSecondary={() =>
+          navigate('/inventario', {
+            state: {
+              preferredTypeKey: 'SECO',
+              completedSecadoId: session.id,
+            },
+          })
+        }
+        info={
+          persistError
+            ? 'El proceso sigue disponible para reintentar la actualización.'
+            : 'El resultado del secado quedó listo para continuar en inventario.'
+        }
+      >
+        <section className="rounded-[12px] bg-white p-4 text-left shadow-sm">
           <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
             Resumen del secado
           </p>
@@ -199,45 +208,7 @@ export default function SecadoResumen() {
             </div>
           </div>
         </section>
-
-        <div className="mt-auto w-full pb-4">
-          <button
-            type="button"
-            disabled={persisting || Boolean(persistError)}
-            onClick={() =>
-              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
-            }
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0647d6] text-[0.68rem] font-black text-white disabled:opacity-50"
-          >
-            {persisting ? (
-              <>
-                <LoaderCircle size={16} className="animate-spin" />
-                Registrando secado...
-              </>
-            ) : (
-              <>
-                <Home size={16} />
-                Registrar nuevo secado
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            disabled={persisting}
-            onClick={() =>
-              navigate('/inventario', {
-                state: {
-                  preferredTypeKey: 'SECO',
-                  completedSecadoId: session.id,
-                },
-              })
-            }
-            className="mt-2 h-10 w-full rounded-[8px] bg-slate-100 text-[0.68rem] font-black text-[#0647d6] disabled:opacity-50"
-          >
-            Ir a inventario
-          </button>
-        </div>
-      </main>
+      </CafeSmartErrorState>
 
       {persisting ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">

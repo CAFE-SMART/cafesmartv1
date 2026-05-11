@@ -232,10 +232,64 @@ select {
   }
 }
 
+@keyframes cafesmartSuccessModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cafesmartSuccessCheckIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  70% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cafesmartSuccessHalo {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scale(1.05);
+  }
+}
+
 .cafesmart-float {
   animation: cafesmart-float 6s ease-in-out infinite;
 }
 
 .cafesmart-pulse-ring {
   animation: cafesmart-pulse-ring 5s ease-in-out infinite;
+}
+
+.cafesmart-success-modal {
+  animation: cafesmartSuccessModalIn 260ms ease-out both;
+}
+
+.cafesmart-success-check {
+  animation: cafesmartSuccessCheckIn 300ms ease-out 80ms both;
+}
+
+.cafesmart-success-halo {
+  animation: cafesmartSuccessHalo 2.8s ease-in-out infinite;
 }

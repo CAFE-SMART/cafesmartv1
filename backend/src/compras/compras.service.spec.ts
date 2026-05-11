@@ -78,4 +78,29 @@ describe('ComprasService - validacion de capacidad fail-safe', () => {
       },
     });
   });
+
+  it('usa 3000 kg por defecto cuando la capacidad de bodega no está configurada', async () => {
+    const prisma = {
+      parametroOrganizacion: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      inventario: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { pesoTotal: 0 },
+        }),
+      },
+      sublote: {
+        aggregate: jest.fn(),
+      },
+    };
+    const service = crearServiceConPrisma(prisma);
+
+    await expect(
+      service.obtenerContextoCapacidad(prisma, 'org-1'),
+    ).resolves.toEqual({
+      capacidadBodegaKg: 3000,
+      inventarioActualKg: 0,
+    });
+    expect(prisma.sublote.aggregate).not.toHaveBeenCalled();
+  });
 });

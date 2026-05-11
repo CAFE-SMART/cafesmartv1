@@ -6,21 +6,14 @@ import React, {
   useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Coffee,
-  HelpCircle,
-  LoaderCircle,
-  MessageCircle,
-} from 'lucide-react';
+import { HelpCircle, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import {
   authService,
   type AuthError,
   type AuthResponse,
 } from '../services/authService';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
@@ -39,85 +32,61 @@ type RegisterProcessState = {
 };
 
 const CONFIRMATION_DURATION_MS = 1700;
+const REGISTER_DRAFT_STORAGE_KEY = 'cafesmart:register-draft:v1';
 
 function ConfirmSuccessView() {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
-        <section className="w-full max-w-[320px] rounded-[14px] border border-slate-200 bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            <Check size={18} strokeWidth={3.2} />
-          </div>
-          <h1 className="mt-3 text-[0.95rem] font-black tracking-tight text-[#121826]">
-            Cuenta creada
-          </h1>
-          <p className="mt-1 text-[0.68rem] text-slate-600">
-            Preparando inicio...
-          </p>
-        </section>
-      </div>
-    </div>
+    <CafeSmartErrorState
+      fullScreen
+      variant="success"
+      title="Cuenta creada"
+      message="Preparando tu inicio en CaféSmart..."
+      info="Tu espacio quedó configurado correctamente."
+    />
   );
 }
 
 function WelcomeView({ onStart }: { onStart: () => void }) {
   return (
-    <div className="min-h-screen bg-[#f7f8fb] px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
-        <section className="w-full rounded-[16px] border border-[#dfe5f1] bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#274ab8]">
-            <Coffee size={21} strokeWidth={2.4} />
-          </div>
-
-          <h1 className="mt-4 text-[1.18rem] font-black leading-tight tracking-normal text-[#111827]">
-            Bienvenido a Cafe Smart
-          </h1>
-
-          <p className="mt-2 text-[0.76rem] leading-5 text-[#64748b]">
-            Tu empresa quedo lista para empezar a registrar compras, secado y
-            ventas.
-          </p>
-
+    <CafeSmartErrorState
+      fullScreen
+      variant="success"
+      title="Bienvenido a CaféSmart"
+      message="Tu empresa quedó lista para empezar a registrar compras, secado y ventas."
+      primaryLabel="Comenzar ahora"
+      onPrimary={onStart}
+      info="Puedes comenzar a trabajar con tu información ya protegida en el sistema."
+      extraAction={
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={onStart}
-            className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-[0.78rem] font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+            onClick={() =>
+              window.open(
+                'mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart',
+                '_self',
+              )
+            }
+            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/85 px-3 text-xs font-black text-[#536178] transition hover:bg-white hover:text-[#1e3a8a]"
           >
-            Comenzar ahora
-            <ArrowRight size={16} />
+            <HelpCircle size={15} aria-hidden="true" />
+            Ayuda
           </button>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                window.open(
-                  'mailto:soporte@cafesmart.com?subject=Ayuda%20Cafe%20Smart',
-                  '_self',
-                )
-              }
-              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
-            >
-              <HelpCircle size={15} />
-              Ayuda
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                window.open(
-                  'mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart',
-                  '_self',
-                )
-              }
-              className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#dfe5f1] bg-[#f8fafc] px-3 text-[0.68rem] font-bold text-[#536178] transition hover:bg-[#eef2f8]"
-            >
-              <MessageCircle size={15} />
-              Contacto
-            </button>
-          </div>
-        </section>
-      </div>
-    </div>
+          <button
+            type="button"
+            onClick={() =>
+              window.open(
+                'mailto:soporte@cafesmart.com?subject=Contacto%20Cafe%20Smart',
+                '_self',
+              )
+            }
+            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/85 px-3 text-xs font-black text-[#536178] transition hover:bg-white hover:text-[#1e3a8a]"
+          >
+            <MessageCircle size={15} aria-hidden="true" />
+            Contacto
+          </button>
+        </div>
+      }
+    />
   );
 }
 
@@ -134,9 +103,9 @@ export default function SystemStatus() {
   const [status, setStatus] = useState<ProcessStatus>('creating');
   const [successStage, setSuccessStage] = useState<SuccessStage>('confirm');
   const [errorMessage, setErrorMessage] = useState(
-    'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+    'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',
   );
-  const [errorTitle, setErrorTitle] = useState('Error de conexion');
+  const [errorTitle, setErrorTitle] = useState('Sin conexión');
   const registrationStartedRef = useRef(false);
 
   useEffect(() => {
@@ -162,9 +131,9 @@ export default function SystemStatus() {
 
       setStatus('creating');
       setSuccessStage('confirm');
-      setErrorTitle('Error de conexion');
+      setErrorTitle('Sin conexión');
       setErrorMessage(
-        'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+        'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',
       );
 
       try {
@@ -212,6 +181,10 @@ export default function SystemStatus() {
           hasCompany: response.hasCompany,
         });
 
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(REGISTER_DRAFT_STORAGE_KEY);
+        }
+
         setStatus('success');
         setSuccessStage('confirm');
       } catch (err) {
@@ -225,12 +198,12 @@ export default function SystemStatus() {
         if (field === 'email' || field === 'correo') {
           setErrorTitle('No se pudo crear la cuenta');
         } else {
-          setErrorTitle('Error de conexion');
+          setErrorTitle('No pudimos crear la cuenta');
         }
 
         setErrorMessage(
           authError.message ||
-            'No pudimos procesar tu solicitud. Revisa tu conexion e intentalo nuevamente.',
+            'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',
         );
       }
     },
@@ -261,42 +234,188 @@ export default function SystemStatus() {
     );
   }
 
+  if (status === 'error') {
+    return (
+      <CafeSmartErrorState
+        fullScreen
+        title={errorTitle}
+        message={errorMessage}
+        info="La información que escribiste se mantiene segura. Puedes intentarlo nuevamente o volver al inicio."
+        onPrimary={() => void executeRegistration(true)}
+        onSecondary={() => navigate('/inicio', { replace: true })}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f4ff_0%,#f1f0fc_100%)] px-4 py-8 text-slate-900">
-      <div className="mx-auto w-full max-w-[320px] rounded-[14px] border border-white/80 bg-white/90 p-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
-        {status === 'creating' ? (
-          <>
-            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
-              <LoaderCircle className="h-5 w-5 animate-spin" />
+    <main
+      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 text-[#07153b]"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <style>
+        {`
+          @keyframes cafesmartFadeScale {
+            0% { opacity: 0; transform: translateY(8px) scale(0.94); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+          }
+
+          @keyframes cafesmartFadeUp {
+            0% { opacity: 0; transform: translateY(16px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes cafesmartSteam {
+            0%, 100% { opacity: .58; transform: translateY(0) scaleX(1); }
+            50% { opacity: 1; transform: translateY(-5px) scaleX(.96); }
+          }
+
+          @keyframes cafesmartProgress {
+            0% { transform: translateX(-64%) scaleX(.42); opacity: .65; }
+            50% { transform: translateX(12%) scaleX(.72); opacity: 1; }
+            100% { transform: translateX(124%) scaleX(.42); opacity: .65; }
+          }
+
+          @keyframes cafesmartFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-7px); }
+          }
+
+          @keyframes cafesmartGlowBreath {
+            0%, 100% { opacity: .54; transform: scale(.96); }
+            50% { opacity: .95; transform: scale(1.07); }
+          }
+
+          @keyframes cafesmartSway {
+            0%, 100% { transform: rotate(-2deg) translateX(0); }
+            50% { transform: rotate(2deg) translateX(4px); }
+          }
+
+          @keyframes cafesmartPulseSoft {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.045); }
+          }
+
+          .bg-cafesmart-status {
+            background: radial-gradient(circle at 50% 16%, rgba(47,128,237,0.09), transparent 30%), linear-gradient(180deg,#ffffff 0%,#f8fbff 60%,#eef5ff 100%);
+          }
+        `}
+      </style>
+      <div className="pointer-events-none absolute inset-0 bg-cafesmart-status" />
+
+      <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
+        <div className="animate-[cafesmartFadeScale_300ms_ease-out_both]">
+          <CafeSmartLogo size="sm" compact />
+        </div>
+
+        <div className="relative mt-8 animate-[cafesmartFadeUp_420ms_ease-out_100ms_both]">
+          <div className="absolute inset-x-0 top-2 mx-auto h-36 w-36 rounded-full bg-[#e9f3ff] animate-[cafesmartPulseSoft_2.8s_ease-in-out_infinite]" />
+          <div className="absolute inset-x-0 top-5 mx-auto h-36 w-36 rounded-full bg-[#bfdbfe]/55 blur-sm animate-[cafesmartGlowBreath_3.2s_ease-in-out_infinite]" />
+          <span className="absolute left-1 top-8 h-2 w-2 rounded-full bg-[#7db5ff] opacity-70 animate-[cafesmartFloat_3.6s_ease-in-out_infinite]" />
+          <span className="absolute right-2 top-14 h-1.5 w-1.5 rounded-full bg-[#93c5fd] opacity-80 animate-[cafesmartFloat_4s_ease-in-out_infinite]" />
+          <span className="absolute right-8 bottom-7 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_16px_rgba(22,131,247,0.32)] animate-[cafesmartGlowBreath_3.4s_ease-in-out_infinite]" />
+          <div className="absolute -left-8 bottom-0 h-24 w-20 origin-bottom opacity-60 animate-[cafesmartSway_4.3s_ease-in-out_infinite]">
+            <svg viewBox="0 0 96 140" fill="none" aria-hidden="true">
+              <path d="M48 134C45 92 52 56 75 17" stroke="#86bfff" strokeWidth="5" strokeLinecap="round" />
+              <path d="M49 96C28 90 16 76 14 58C35 60 49 75 49 96Z" fill="#9ccaff" />
+              <path d="M57 78C77 73 89 61 91 43C71 43 58 58 57 78Z" fill="#7db5ff" />
+              <path d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z" fill="#9ccaff" />
+              <circle cx="55" cy="119" r="5" fill="#7db5ff" />
+              <circle cx="69" cy="126" r="5" fill="#7db5ff" />
+            </svg>
+          </div>
+          <div className="absolute -right-9 bottom-0 h-28 w-20 origin-bottom opacity-60 animate-[cafesmartSway_4.9s_ease-in-out_infinite] [animation-delay:250ms]">
+            <svg viewBox="0 0 96 140" fill="none" aria-hidden="true">
+              <path d="M48 134C45 92 52 56 75 17" stroke="#86bfff" strokeWidth="5" strokeLinecap="round" />
+              <path d="M49 96C28 90 16 76 14 58C35 60 49 75 49 96Z" fill="#9ccaff" />
+              <path d="M57 78C77 73 89 61 91 43C71 43 58 58 57 78Z" fill="#7db5ff" />
+              <path d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z" fill="#9ccaff" />
+              <circle cx="55" cy="119" r="5" fill="#7db5ff" />
+              <circle cx="69" cy="126" r="5" fill="#7db5ff" />
+            </svg>
+          </div>
+          <div className="relative flex h-40 w-40 items-center justify-center rounded-full bg-[#eef6ff] shadow-[0_22px_54px_rgba(37,99,235,0.14)] animate-[cafesmartFloat_3.8s_ease-in-out_infinite]">
+            <div className="absolute -right-1 top-7 flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_12px_26px_rgba(37,99,235,0.14)]">
+              <Sparkles size={18} strokeWidth={2.4} aria-hidden="true" />
             </div>
-            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">
-              Creando cuenta...
-            </h1>
-            <p className="mt-1 text-[0.68rem] text-slate-600">
-              Configurando tu espacio.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-rose-700">
-              <AlertTriangle size={18} />
+            <div className="rounded-[30px] bg-white/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <CafeSmartLogo size="md" showText={false} showSubtitle={false} />
             </div>
-            <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">
-              {errorTitle}
-            </h1>
-            <p className="mt-1 text-[0.68rem] leading-5 text-slate-600">
-              {errorMessage}
+          </div>
+        </div>
+
+        <div className="mt-8 animate-[cafesmartFadeUp_420ms_ease-out_180ms_both]">
+          <h1 className="text-[1.55rem] font-black leading-tight text-[#07153b]">
+            Creando cuenta...
+          </h1>
+          <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-slate-500">
+            Estamos preparando CaféSmart para tu negocio. Esto tomará solo unos segundos.
+          </p>
+        </div>
+
+        <div className="mt-7 animate-[cafesmartFadeUp_420ms_ease-out_260ms_both]">
+          <div className="mx-auto h-2.5 w-44 overflow-hidden rounded-full bg-[#dbeafe] shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]">
+            <div className="h-full w-24 origin-left rounded-full bg-[#1683f7] shadow-[0_0_18px_rgba(22,131,247,0.34)] animate-[cafesmartProgress_1.45s_ease-in-out_infinite]" />
+          </div>
+          <p className="mt-4 text-xs font-black text-[#7da9e8]">
+            Preparando tu espacio cafetero...
+          </p>
+        </div>
+
+        <div className="mt-7 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)]">
+            <ShieldCheck size={25} strokeWidth={2.3} />
+          </div>
+          <div>
+            <p className="text-sm font-black text-[#07153b]">
+              Tu información está protegida
             </p>
-            <button
-              type="button"
-              onClick={() => void executeRegistration(true)}
-              className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#eef0fb] px-4 py-2 text-[0.68rem] font-black text-[#102d92]"
-            >
-              Reintentar
-            </button>
-          </>
-        )}
+            <p className="mt-1 text-[0.78rem] font-semibold leading-5 text-slate-500">
+              Estamos creando tu cuenta de forma segura.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[190px] overflow-hidden">
+        <svg
+          className="absolute bottom-0 h-full w-full"
+          viewBox="0 0 430 190"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M0 86C54 55 105 72 153 101C211 136 259 95 313 84C358 75 393 93 430 116V190H0V86Z"
+            fill="#dbeafe"
+            opacity="0.82"
+          />
+          <path
+            d="M0 126C59 94 113 106 170 133C223 158 270 126 319 116C364 108 397 126 430 143V190H0V126Z"
+            fill="#bfdbfe"
+            opacity="0.58"
+          />
+        </svg>
+        <div className="absolute bottom-3 left-8 h-24 w-20 origin-bottom opacity-85 animate-[cafesmartSway_4s_ease-in-out_infinite]">
+          <svg viewBox="0 0 96 140" fill="none" aria-hidden="true">
+            <path d="M48 134C45 92 52 56 75 17" stroke="#86bfff" strokeWidth="5" strokeLinecap="round" />
+            <path d="M49 96C28 90 16 76 14 58C35 60 49 75 49 96Z" fill="#9ccaff" />
+            <path d="M57 78C77 73 89 61 91 43C71 43 58 58 57 78Z" fill="#7db5ff" />
+            <path d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z" fill="#9ccaff" />
+            <circle cx="55" cy="119" r="5" fill="#7db5ff" />
+            <circle cx="69" cy="126" r="5" fill="#7db5ff" />
+          </svg>
+        </div>
+        <div className="absolute bottom-3 right-5 h-36 w-24 origin-bottom opacity-90 animate-[cafesmartSway_4.8s_ease-in-out_infinite] [animation-delay:350ms]">
+          <svg viewBox="0 0 96 140" fill="none" aria-hidden="true">
+            <path d="M48 134C45 92 52 56 75 17" stroke="#86bfff" strokeWidth="5" strokeLinecap="round" />
+            <path d="M49 96C28 90 16 76 14 58C35 60 49 75 49 96Z" fill="#9ccaff" />
+            <path d="M57 78C77 73 89 61 91 43C71 43 58 58 57 78Z" fill="#7db5ff" />
+            <path d="M60 116C77 112 88 101 91 84C73 84 61 98 60 116Z" fill="#9ccaff" />
+            <circle cx="55" cy="119" r="5" fill="#7db5ff" />
+            <circle cx="69" cy="126" r="5" fill="#7db5ff" />
+          </svg>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

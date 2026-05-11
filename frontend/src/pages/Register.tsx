@@ -25,7 +25,12 @@ import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
+  getPasswordChecks,
   getPasswordStrength,
+  BUSINESS_NAME_MAX_LENGTH,
+  PERSON_LASTNAME_MAX_LENGTH,
+  PERSON_NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
   type RegisterLocationState,
   type TipoOrg,
 } from '../utils/registerValidators';
@@ -66,6 +71,76 @@ const colorByType: Record<TipoOrg, string> = {
   PERSONALIZADO: 'bg-[#fff0f2] text-[#d24861]',
 };
 
+const LOGIN_DRAFT_STORAGE_KEY = 'cafesmart:login-draft:v1';
+const REGISTER_DRAFT_STORAGE_KEY = 'cafesmart:register-draft:v1';
+const REGISTER_DRAFT_TTL_MS = 1000 * 60 * 60 * 24;
+
+type RegisterDraft = NonNullable<RegisterLocationState['registerDraft']>;
+
+function readRegisterDraft(): RegisterDraft | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(REGISTER_DRAFT_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const draft = JSON.parse(raw) as RegisterDraft & { savedAt?: number };
+    if (
+      draft.authMode !== 'register' ||
+      typeof draft.savedAt !== 'number' ||
+      Date.now() - draft.savedAt > REGISTER_DRAFT_TTL_MS
+    ) {
+      window.localStorage.removeItem(REGISTER_DRAFT_STORAGE_KEY);
+      return null;
+    }
+
+    return draft;
+  } catch {
+    window.localStorage.removeItem(REGISTER_DRAFT_STORAGE_KEY);
+    return null;
+  }
+}
+
+function saveRegisterDraft(draft: RegisterDraft) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const hasProgress = Boolean(
+    draft.nombreOrganizacion?.trim() ||
+      draft.tipoOrganizacion ||
+      draft.otroTipoDetalle?.trim() ||
+      draft.nombre?.trim() ||
+      draft.apellidos?.trim() ||
+      draft.telefono?.trim() ||
+      draft.correo?.trim(),
+  );
+
+  if (!hasProgress) {
+    window.localStorage.removeItem(REGISTER_DRAFT_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(
+    REGISTER_DRAFT_STORAGE_KEY,
+    JSON.stringify({
+      ...draft,
+      authMode: 'register',
+      savedAt: Date.now(),
+    }),
+  );
+}
+
+function clearRegisterDraft() {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(REGISTER_DRAFT_STORAGE_KEY);
+  }
+}
+
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,9 +151,22 @@ export default function Register() {
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
     null,
   );
+  const [recoveredDraft] = useState(() => readRegisterDraft());
   const initialRouteState = useMemo(
-    () => (location.state ?? null) as RegisterLocationState | null,
-    [location.state],
+    () => {
+      const routeState = (location.state ?? null) as RegisterLocationState | null;
+      if (routeState?.googleToken || routeState?.registerDraft) {
+        return routeState;
+      }
+
+      return recoveredDraft
+        ? ({
+            ...routeState,
+            registerDraft: recoveredDraft,
+          } as RegisterLocationState)
+        : routeState;
+    },
+    [location.state, recoveredDraft],
   );
   const [googleRouteState, setGoogleRouteState] =
     useState<RegisterLocationState>(() => initialRouteState ?? {});
@@ -128,27 +216,119 @@ export default function Register() {
     navigate,
   });
 
+  useEffect(() => {
+    window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      saveRegisterDraft({
+        authMode: 'register',
+        currentStep: step === 1 ? 1 : 2,
+        nombreOrganizacion,
+        tipoOrganizacion: tipoOrganizacion || undefined,
+        otroTipoDetalle,
+        nombre,
+        apellidos,
+        telefono,
+        correo,
+      });
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    apellidos,
+    correo,
+    nombre,
+    nombreOrganizacion,
+    otroTipoDetalle,
+    step,
+    telefono,
+    tipoOrganizacion,
+  ]);
+
+  useEffect(() => {
+    const saveCurrentDraft = () => {
+      saveRegisterDraft({
+        authMode: 'register',
+        currentStep: step === 1 ? 1 : 2,
+        nombreOrganizacion,
+        tipoOrganizacion: tipoOrganizacion || undefined,
+        otroTipoDetalle,
+        nombre,
+        apellidos,
+        telefono,
+        correo,
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveCurrentDraft();
+      }
+    };
+
+    window.addEventListener('beforeunload', saveCurrentDraft);
+    window.addEventListener('blur', saveCurrentDraft);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      saveCurrentDraft();
+      window.removeEventListener('beforeunload', saveCurrentDraft);
+      window.removeEventListener('blur', saveCurrentDraft);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [
+    apellidos,
+    correo,
+    nombre,
+    nombreOrganizacion,
+    otroTipoDetalle,
+    step,
+    telefono,
+    tipoOrganizacion,
+  ]);
+
   const progressPercent = step === 1 ? 50 : 100;
   const passwordStrength = getPasswordStrength(password);
-  const passwordChecks = useMemo(
-    () => ({
-      minLength: password.length >= 6,
-      hasUpper: /[A-Z]/.test(password),
-      hasLower: /[a-z]/.test(password),
-      hasNumber: /\d/.test(password),
-    }),
-    [password],
-  );
+  const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
   const passwordStrengthTone =
-    passwordStrength.score <= 1
-      ? 'text-rose-600'
-      : passwordStrength.score === 2
+    passwordStrength.score <= 3
         ? 'text-amber-600'
-        : passwordStrength.score === 3
+        : passwordStrength.score === 4
           ? 'text-sky-600'
           : 'text-emerald-600';
+  const [passwordLimitWarningVisible, setPasswordLimitWarningVisible] =
+    useState(false);
+  const [passwordLimitWarningExiting, setPasswordLimitWarningExiting] =
+    useState(false);
+
+  const showPasswordLimitWarning = () => {
+    setPasswordLimitWarningVisible(true);
+    setPasswordLimitWarningExiting(false);
+  };
+
+  useEffect(() => {
+    if (!passwordLimitWarningVisible) {
+      return;
+    }
+
+    const fadeTimer = window.setTimeout(() => {
+      setPasswordLimitWarningExiting(true);
+    }, 3400);
+    const clearTimer = window.setTimeout(() => {
+      setPasswordLimitWarningVisible(false);
+      setPasswordLimitWarningExiting(false);
+    }, 3800);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [passwordLimitWarningVisible]);
 
   const handleGoogleRegisterSuccess = (
     credentialResponse: CredentialResponse,
@@ -174,6 +354,7 @@ export default function Register() {
   const goToLogin = () => {
     setGoogleLoading(false);
     setGoogleRouteState({});
+    clearRegisterDraft();
     navigate('/login', { replace: true });
   };
 
@@ -228,7 +409,7 @@ export default function Register() {
                   label="Nombre del negocio"
                   value={nombreOrganizacion}
                   onChange={(value) => {
-                    setNombreOrganizacion(value);
+                    setNombreOrganizacion(value.slice(0, BUSINESS_NAME_MAX_LENGTH));
                     setStepOneErrors((prev) => ({
                       ...prev,
                       nombreOrganizacion: undefined,
@@ -237,6 +418,8 @@ export default function Register() {
                   placeholder="Ej: Cafe Los Alpes"
                   autoComplete="organization"
                   error={stepOneErrors.nombreOrganizacion}
+                  maxLength={BUSINESS_NAME_MAX_LENGTH}
+                  showCounter
                 />
               </div>
 
@@ -356,7 +539,7 @@ export default function Register() {
                         label="Nombre"
                         value={nombre}
                         onChange={(value) => {
-                          setNombre(value);
+                          setNombre(value.slice(0, PERSON_NAME_MAX_LENGTH));
                           setStepTwoErrors((prev) => ({
                             ...prev,
                             nombre: undefined,
@@ -365,6 +548,8 @@ export default function Register() {
                         placeholder="Ej: Juan"
                         autoComplete="given-name"
                         error={stepTwoErrors.nombre}
+                        maxLength={PERSON_NAME_MAX_LENGTH}
+                        showCounter
                         compactLabel
                       />
 
@@ -373,7 +558,7 @@ export default function Register() {
                         label="Apellidos"
                         value={apellidos}
                         onChange={(value) => {
-                          setApellidos(value);
+                          setApellidos(value.slice(0, PERSON_LASTNAME_MAX_LENGTH));
                           setStepTwoErrors((prev) => ({
                             ...prev,
                             apellidos: undefined,
@@ -382,6 +567,8 @@ export default function Register() {
                         placeholder="Ej: Perez Gomez"
                         autoComplete="family-name"
                         error={stepTwoErrors.apellidos}
+                        maxLength={PERSON_LASTNAME_MAX_LENGTH}
+                        showCounter
                         compactLabel
                       />
                     </div>
@@ -460,20 +647,37 @@ export default function Register() {
                           type={showPassword ? 'text' : 'password'}
                           value={password}
                           onChange={(event) => {
-                            setPassword(event.target.value);
+                            if (event.target.value.length >= PASSWORD_MAX_LENGTH) {
+                              showPasswordLimitWarning();
+                            }
+                            setPassword(event.target.value.slice(0, PASSWORD_MAX_LENGTH));
                             setStepTwoErrors((prev) => ({
                               ...prev,
                               password: undefined,
                             }));
                           }}
+                          maxLength={PASSWORD_MAX_LENGTH}
                           placeholder="Crea una contraseña"
                           autoComplete="new-password"
                           aria-invalid={Boolean(stepTwoErrors.password)}
                           aria-describedby={
                             stepTwoErrors.password
-                              ? 'register-admin-password-error'
+                              ? 'register-admin-password-error register-admin-password-limit-warning'
+                              : passwordLimitWarningVisible
+                                ? 'register-admin-password-limit-warning'
                               : undefined
                           }
+                          onKeyDown={(event) => {
+                            if (
+                              password.length >= PASSWORD_MAX_LENGTH &&
+                              event.key.length === 1 &&
+                              !event.metaKey &&
+                              !event.ctrlKey &&
+                              !event.altKey
+                            ) {
+                              showPasswordLimitWarning();
+                            }
+                          }}
                           className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                         />
                         <button
@@ -495,39 +699,31 @@ export default function Register() {
                           message={stepTwoErrors.password}
                         />
                       ) : null}
-
-                      <div className="mt-3 rounded-[16px] border border-[#edf1f7] bg-[#fbfcff] p-3">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-xs font-black text-[#344054]">
-                            Seguridad:
-                            <span className={`ml-1 ${passwordStrengthTone}`}>
-                              {passwordStrength.label}
-                            </span>
-                          </p>
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e6ebf3]">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                passwordStrength.score <= 1
-                                  ? 'bg-rose-500'
-                                  : passwordStrength.score === 2
-                                    ? 'bg-amber-500'
-                                    : passwordStrength.score === 3
-                                      ? 'bg-sky-500'
-                                      : 'bg-emerald-500'
-                              }`}
-                              style={{
-                                width: `${(passwordStrength.score / 4) * 100}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <PasswordChip active={passwordChecks.minLength} label="6 caracteres" />
-                          <PasswordChip active={passwordChecks.hasUpper} label="Mayúscula" />
-                          <PasswordChip active={passwordChecks.hasLower} label="Minúscula" />
-                          <PasswordChip active={passwordChecks.hasNumber} label="Número" />
-                        </div>
+                      {passwordLimitWarningVisible ? (
+                        <CharacterLimitNotice
+                          id="register-admin-password-limit-warning"
+                          maxLength={PASSWORD_MAX_LENGTH}
+                          exiting={passwordLimitWarningExiting}
+                        />
+                      ) : null}
+                      <div className="mt-2 flex items-center justify-end">
+                        <span
+                          className={`text-xs font-bold ${
+                            password.length >= PASSWORD_MAX_LENGTH
+                              ? 'text-amber-600'
+                              : 'text-[#64748b]'
+                          }`}
+                        >
+                          {password.length}/{PASSWORD_MAX_LENGTH}
+                        </span>
                       </div>
+
+                      <PasswordRequirementCard
+                        checks={passwordChecks}
+                        score={passwordStrength.score}
+                        label={passwordStrength.label}
+                        tone={passwordStrengthTone}
+                      />
                     </div>
 
                     <TextInput
@@ -535,7 +731,7 @@ export default function Register() {
                       label="Confirma tu contraseña"
                       value={confirmPassword}
                       onChange={(value) => {
-                        setConfirmPassword(value);
+                        setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
                         setStepTwoErrors((prev) => ({
                           ...prev,
                           confirmPassword: undefined,
@@ -545,6 +741,7 @@ export default function Register() {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       error={stepTwoErrors.confirmPassword}
+                      maxLength={PASSWORD_MAX_LENGTH}
                       compactLabel
                     />
 
@@ -716,6 +913,8 @@ function TextInput({
   autoComplete,
   error,
   compactLabel = false,
+  maxLength,
+  showCounter = false,
 }: {
   id: string;
   label: string;
@@ -727,38 +926,148 @@ function TextInput({
   autoComplete?: string;
   error?: string;
   compactLabel?: boolean;
+  maxLength?: number;
+  showCounter?: boolean;
 }) {
   const errorId = `${id}-error`;
+  const counterId = `${id}-counter`;
+  const limitWarningId = `${id}-limit-warning`;
+  const [limitWarningVisible, setLimitWarningVisible] = useState(false);
+  const [limitWarningExiting, setLimitWarningExiting] = useState(false);
+  const describedBy = [
+    error ? errorId : null,
+    showCounter && maxLength ? counterId : null,
+    limitWarningVisible && maxLength ? limitWarningId : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const showLimitWarning = () => {
+    if (!maxLength) {
+      return;
+    }
+
+    setLimitWarningVisible(true);
+    setLimitWarningExiting(false);
+  };
+
+  useEffect(() => {
+    if (!limitWarningVisible) {
+      return;
+    }
+
+    const fadeTimer = window.setTimeout(() => {
+      setLimitWarningExiting(true);
+    }, 3400);
+    const clearTimer = window.setTimeout(() => {
+      setLimitWarningVisible(false);
+      setLimitWarningExiting(false);
+    }, 3800);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [limitWarningVisible]);
 
   return (
     <div>
-      <label
-        htmlFor={id}
-        className={`mb-2 block text-[#344054] ${
-          compactLabel ? 'text-xs font-black' : 'text-sm font-semibold'
-        }`}
-      >
-        {label}
-      </label>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <label
+          htmlFor={id}
+          className={`block text-[#344054] ${
+            compactLabel ? 'text-xs font-black' : 'text-sm font-semibold'
+          }`}
+        >
+          {label}
+        </label>
+        {showCounter && maxLength ? (
+          <span
+            id={counterId}
+            className={`text-xs font-bold ${
+              value.length >= maxLength ? 'text-amber-600' : 'text-[#64748b]'
+            }`}
+          >
+            {value.length}/{maxLength}
+          </span>
+        ) : null}
+      </div>
       <input
         id={id}
         name={id}
         type={type}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          if (maxLength && event.target.value.length >= maxLength) {
+            showLimitWarning();
+          }
+
+          onChange(
+            maxLength
+              ? event.target.value.slice(0, maxLength)
+              : event.target.value,
+          );
+        }}
+        onKeyDown={(event) => {
+          if (
+            maxLength &&
+            value.length >= maxLength &&
+            event.key.length === 1 &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey
+          ) {
+            showLimitWarning();
+          }
+        }}
         onBlur={() => void onBlur?.()}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={describedBy || undefined}
         className={`block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#a8b4c5] ${
           error
             ? 'border-rose-300 bg-rose-50/50'
             : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/10'
         }`}
       />
+      {limitWarningVisible && maxLength ? (
+        <CharacterLimitNotice
+          id={limitWarningId}
+          maxLength={maxLength}
+          exiting={limitWarningExiting}
+        />
+      ) : null}
       {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
+  );
+}
+
+function CharacterLimitNotice({
+  id,
+  maxLength,
+  exiting,
+}: {
+  id?: string;
+  maxLength: number;
+  exiting: boolean;
+}) {
+  return (
+    <p
+      id={id}
+      role="status"
+      className={`mt-2 flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900 shadow-[0_8px_18px_rgba(180,83,9,0.08)] transition-all duration-300 ${
+        exiting ? '-translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
+      }`}
+    >
+      <AlertTriangle
+        size={14}
+        className="mt-0.5 shrink-0 text-amber-600"
+        aria-hidden="true"
+      />
+      Llegaste al máximo de {maxLength} caracteres.
+    </p>
   );
 }
 
@@ -852,24 +1161,89 @@ function SectionHeader({ label }: { label: string }) {
   );
 }
 
-function PasswordChip({ active, label }: { active: boolean; label: string }) {
+function PasswordRequirementCard({
+  checks,
+  score,
+  label,
+  tone,
+}: {
+  checks: ReturnType<typeof getPasswordChecks>;
+  score: number;
+  label: string;
+  tone: string;
+}) {
+  const requirements = [
+    { active: checks.minLength && checks.maxLength, label: '8 a 32 caracteres' },
+    { active: checks.hasUpper, label: 'Una mayúscula' },
+    { active: checks.hasLower, label: 'Una minúscula' },
+    { active: checks.hasNumber, label: 'Un número' },
+  ];
+
+  return (
+    <div className="mt-3 rounded-[15px] border border-[#e8edf6] bg-[#fbfcff] px-3.5 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+      <div className="flex items-center gap-3">
+        <p className="min-w-0 flex-1 text-xs font-black text-[#344054]">
+          Seguridad:
+          <span className={`ml-1 ${tone}`}>{label}</span>
+        </p>
+        <div
+          className="h-1.5 w-[74px] shrink-0 overflow-hidden rounded-full bg-[#e6ebf3]"
+          aria-hidden="true"
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              score <= 2
+                ? 'bg-slate-300'
+                : score === 3
+                  ? 'bg-amber-500'
+                  : score === 4
+                    ? 'bg-sky-500'
+                    : 'bg-emerald-500'
+            }`}
+            style={{
+              width: `${(score / 5) * 100}%`,
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+        {requirements.map((requirement) => (
+          <PasswordRequirementItem
+            key={requirement.label}
+            active={requirement.active}
+            label={requirement.label}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PasswordRequirementItem({
+  active,
+  label,
+}: {
+  active: boolean;
+  label: string;
+}) {
   return (
     <span
-      className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black transition ${
-        active
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          : 'border-[#e6ebf3] bg-white text-[#7b8798]'
+      className={`inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold leading-4 transition ${
+        active ? 'text-[#047857]' : 'text-[#7b8798]'
       }`}
     >
       <span
-        className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${
-          active ? 'bg-emerald-600 text-white' : 'bg-[#eef2f8] text-[#94a3b8]'
+        className={`inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border ${
+          active
+            ? 'border-emerald-500 bg-emerald-500 text-white'
+            : 'border-[#cbd5e1] bg-white text-transparent'
         }`}
         aria-hidden="true"
       >
-        <Check size={10} strokeWidth={3} />
+        <Check size={9} strokeWidth={3} />
       </span>
-      {label}
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }

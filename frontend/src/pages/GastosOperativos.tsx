@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ApiRequestError } from '../services/apiService';
 import { AccessibleModal } from '../components/AccessibleModal';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import {
   listarCompras,
   type CompraListadoItem,
@@ -58,6 +59,10 @@ type FloatingNotice = GuidanceMessage & {
   primaryLabel: string;
   primaryAction: 'focus-field' | 'retry-save';
 };
+
+function ariaInvalid(active: boolean) {
+  return { 'aria-invalid': active ? 'true' : 'false' } as const;
+}
 
 const FIELD_ORDER: FieldKey[] = ['concepto', 'monto', 'fecha', 'sublotes'];
 
@@ -144,7 +149,7 @@ function getFieldGuidance(
 function getSaveErrorGuidance(message: string): GuidanceMessage {
   return {
     what: 'No pude guardar el gasto.',
-    why: message || 'Hubo un problema interno. Intenta de nuevo.',
+    why: message || 'Ocurrió un problema temporal. Intenta de nuevo.',
     how: 'Revisa tus datos y vuelve a intentarlo.',
     action: 'Toca "Reintentar" para guardar de nuevo.',
   };
@@ -517,9 +522,7 @@ export default function GastosOperativos() {
         }
       }
 
-      const feedback = getSaveErrorGuidance(
-        error instanceof Error ? error.message : '',
-      );
+      const feedback = getSaveErrorGuidance('');
       setShowErrorModal(feedback);
       setFloatingNotice({
         ...feedback,
@@ -575,10 +578,11 @@ export default function GastosOperativos() {
 
         <div className="space-y-2.5">
           <div ref={conceptoSectionRef} className="space-y-1.5">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+            <label htmlFor="gasto-concepto" className="ml-1 text-[0.62rem] font-black text-slate-700">
               Concepto del gasto
             </label>
             <input
+              id="gasto-concepto"
               ref={conceptoInputRef}
               type="text"
               placeholder="Ej. Pago de jornaleros - Cosecha Oct"
@@ -587,7 +591,7 @@ export default function GastosOperativos() {
                 'px-3 py-2 text-[0.66rem] font-semibold',
               )}
               value={concepto}
-              aria-invalid={Boolean(fieldErrors.concepto)}
+              {...ariaInvalid(Boolean(fieldErrors.concepto))}
               aria-describedby={undefined}
               onChange={(event) => {
                 setConcepto(event.target.value);
@@ -597,10 +601,11 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+            <label htmlFor="gasto-descripcion" className="ml-1 text-[0.62rem] font-black text-slate-700">
               Descripción breve
             </label>
             <textarea
+              id="gasto-descripcion"
               placeholder="Ej: Pago transporte lote octubre"
               rows={2}
               className={getInputClassName(
@@ -614,7 +619,7 @@ export default function GastosOperativos() {
 
           <div className="grid grid-cols-2 gap-2">
             <div ref={montoSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              <label htmlFor="gasto-monto" className="ml-1 text-[0.62rem] font-black text-slate-700">
                 Monto ($)
               </label>
               <div className="relative">
@@ -622,6 +627,7 @@ export default function GastosOperativos() {
                   $
                 </span>
                 <input
+                  id="gasto-monto"
                   ref={montoInputRef}
                   type="text"
                   placeholder="0.00"
@@ -630,7 +636,7 @@ export default function GastosOperativos() {
                     'pl-6 pr-3 py-2 text-[0.66rem] font-semibold',
                   )}
                   value={formatearMonedaInput(montoStr)}
-                  aria-invalid={Boolean(fieldErrors.monto)}
+                  {...ariaInvalid(Boolean(fieldErrors.monto))}
                   aria-describedby={undefined}
                   onChange={handleMontoChange}
                 />
@@ -638,11 +644,12 @@ export default function GastosOperativos() {
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
-              <label className="ml-1 text-[0.62rem] font-black text-slate-700">
+              <label htmlFor="gasto-fecha" className="ml-1 text-[0.62rem] font-black text-slate-700">
                 Fecha
               </label>
               <div className="relative">
                 <input
+                  id="gasto-fecha"
                   ref={fechaInputRef}
                   type="date"
                   min={BUSINESS_MIN_DATE_VALUE}
@@ -652,7 +659,7 @@ export default function GastosOperativos() {
                     'appearance-none pl-3 pr-7 py-2 text-[0.66rem] font-semibold',
                   )}
                   value={fecha}
-                  aria-invalid={Boolean(fieldErrors.fecha)}
+                  {...ariaInvalid(Boolean(fieldErrors.fecha))}
                   aria-describedby={undefined}
                   onChange={(event) => {
                     setFecha(event.target.value);
@@ -803,7 +810,7 @@ export default function GastosOperativos() {
                   limpiarErrorCampo('sublotes');
                   setShowSublotesSelector((prev) => !prev);
                 }}
-                aria-invalid={Boolean(fieldErrors.sublotes)}
+                {...ariaInvalid(Boolean(fieldErrors.sublotes))}
                 aria-describedby={undefined}
                 className={`w-full rounded-[8px] px-3 py-2.5 text-left shadow-sm transition ${
                   fieldErrors.sublotes
@@ -959,43 +966,28 @@ export default function GastosOperativos() {
           title="Gasto registrado con exito"
           description="El gasto fue guardado correctamente en el sistema."
           onClose={() => setShowSuccessModal(false)}
+          className="border-0 bg-transparent p-0 shadow-none"
         >
-            <div className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <CheckCircle2 size={16} aria-hidden="true" />
-            </div>
-            <h2 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
-              Gasto registrado con exito
-            </h2>
-            <p className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500">
-              El gasto fue guardado correctamente en el sistema.
-            </p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  resetForm();
-                }}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
-              >
-                Registrar otro gasto
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => navigate('/gastos')}
-                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
-              >
-                Ver gastos
-              </button>
-            </div>
+          <CafeSmartErrorState
+            variant="success"
+            title="Gasto registrado con éxito"
+            message="El gasto fue guardado correctamente en el sistema."
+            primaryLabel="Registrar otro gasto"
+            secondaryLabel="Ver gastos"
+            onPrimary={() => {
+              setShowSuccessModal(false);
+              resetForm();
+            }}
+            onSecondary={() => navigate('/gastos')}
+            primaryBusy={saving}
+            info="El movimiento quedó disponible en tus gastos operativos."
+          />
         </AccessibleModal>
       ) : null}
 
       {showErrorModal ? (
         <AccessibleModal
-          title="Error al registrar gasto"
+          title="No pudimos registrar el gasto"
           description={`${showErrorModal.what} ${showErrorModal.action}`}
           onClose={() => setShowErrorModal(null)}
         >
@@ -1003,7 +995,7 @@ export default function GastosOperativos() {
               <AlertCircle size={16} aria-hidden="true" />
             </div>
             <h2 className="mb-2 text-center text-[0.92rem] font-black text-slate-900">
-              Error al registrar
+              No pudimos registrar el gasto
             </h2>
             <p
               className="mb-5 text-center text-[0.68rem] leading-5 text-slate-500"
@@ -1011,21 +1003,21 @@ export default function GastosOperativos() {
             >
               {showErrorModal.what} {showErrorModal.action}
             </p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setShowErrorModal(null);
                   void handleGuardar();
                 }}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
+                className="min-h-[42px] rounded-[12px] bg-[#2051e5] px-3 py-2.5 text-[0.68rem] font-black text-white shadow-[0_10px_22px_rgba(32,81,229,0.18)] transition hover:bg-[#1d45c5] active:scale-[0.98]"
               >
                 Reintentar
               </button>
               <button
                 type="button"
                 onClick={() => setShowErrorModal(null)}
-                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
+                className="min-h-[42px] rounded-[12px] border border-[#d5deee] bg-white px-3 py-2.5 text-[0.62rem] font-bold text-slate-600 transition hover:border-[#93c5fd] hover:bg-[#f8fbff] hover:text-[#1e3a8a] active:scale-[0.98]"
               >
                 Cancelar
               </button>

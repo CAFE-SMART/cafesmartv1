@@ -129,11 +129,7 @@ export default function SecadoInicio() {
           : (verdesDisponibles[0]?.id ?? null),
       );
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo cargar el flujo de secado.',
-      );
+      setError('No pudimos cargar el flujo de secado. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }

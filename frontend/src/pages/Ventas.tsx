@@ -5,7 +5,9 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
+  Coffee,
   IdCard,
+  PackageOpen,
   Pencil,
   Phone,
   Plus,
@@ -13,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Scale,
+  ShoppingCart,
   Trash2,
   User,
   X,
@@ -59,6 +62,7 @@ import {
   validatePersonName,
   validatePhoneNumber,
 } from '../utils/personValidation';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -78,6 +82,10 @@ type ClienteForm = {
   documento: string;
   tipoDocumento: DocumentType | '';
 };
+
+function ariaExpanded(open: boolean) {
+  return { 'aria-expanded': open ? 'true' : 'false' } as const;
+}
 type ClienteFormErrors = Partial<Record<keyof ClienteForm, string>>;
 type LoteVenta = {
   id: string;
@@ -434,9 +442,7 @@ function getVentaSubmitMessage(error: unknown) {
     }
   }
 
-  return error instanceof Error
-    ? error.message
-    : 'No fue posible registrar la venta.';
+  return 'No fue posible registrar la venta. Intenta nuevamente.';
 }
 
 function esErrorGeneralGuardadoVenta(error: unknown) {
@@ -479,6 +485,182 @@ function getCantidadLoteGuidance(
     'Cantidad invalida',
     'Ingresa una cantidad mayor a 0.',
     `Disponible: ${kg(disponible)}.`,
+  );
+}
+
+function SalesEmptyInventoryAnimations() {
+  return (
+    <style>
+      {`
+        @keyframes salesEmptyFadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes salesEmptyFloat {
+          0%, 100% { transform: translateY(0) rotate(-1deg); }
+          50% { transform: translateY(-8px) rotate(1deg); }
+        }
+
+        @keyframes salesEmptyGlow {
+          0%, 100% { opacity: .68; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.055); }
+        }
+
+        @keyframes salesEmptyParticle {
+          0%, 100% { opacity: .25; transform: translate3d(0, 0, 0); }
+          50% { opacity: .8; transform: translate3d(5px, -9px, 0); }
+        }
+      `}
+    </style>
+  );
+}
+
+function SalesEmptyInventoryIllustration() {
+  return (
+    <div className="relative mx-auto h-[188px] w-[236px]">
+      <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#dbeeff] blur-2xl animate-[salesEmptyGlow_3.1s_ease-in-out_infinite]" />
+      <div className="absolute left-1/2 top-8 h-28 w-44 -translate-x-1/2 rounded-full border border-white/70 bg-white/45 shadow-[0_28px_70px_rgba(37,99,235,0.13)] backdrop-blur-sm" />
+
+      <span className="absolute left-5 top-8 h-2.5 w-2.5 rounded-full bg-[#8cc8ff] animate-[salesEmptyParticle_3.2s_ease-in-out_infinite]" />
+      <span className="absolute right-10 top-3 h-2 w-2 rounded-full bg-[#b8dcff] animate-[salesEmptyParticle_3.7s_ease-in-out_infinite_140ms]" />
+      <span className="absolute right-2 top-24 h-3 w-3 rounded-full bg-[#d6ebff] animate-[salesEmptyParticle_3.5s_ease-in-out_infinite_90ms]" />
+      <span className="absolute left-3 bottom-[60px] h-2 w-2 rounded-full bg-[#a8d4ff] animate-[salesEmptyParticle_3.9s_ease-in-out_infinite_240ms]" />
+
+      <div className="absolute inset-x-0 bottom-6 mx-auto h-7 w-36 rounded-full bg-[#103b8f]/10 blur-md" />
+
+      <div className="absolute left-1/2 top-7 h-[145px] w-[178px] -translate-x-1/2 animate-[salesEmptyFloat_4.2s_ease-in-out_infinite]">
+        <div className="absolute left-3 top-[45px] h-16 w-[150px] rounded-[24px] border border-[#d7e4f4] bg-white shadow-[0_22px_46px_rgba(15,23,42,0.12)]" />
+        <div className="absolute left-5 top-[84px] h-20 w-28 rounded-[20px] border border-[#d7e4f4] bg-[#f8fbff] shadow-[0_24px_46px_rgba(15,23,42,0.11)]">
+          <div className="absolute left-4 right-4 top-5 h-3 rounded-full bg-[#e2eefb]" />
+          <div className="absolute left-4 right-10 top-10 h-3 rounded-full bg-[#eef6ff]" />
+          <div className="absolute bottom-0 left-0 right-0 h-6 rounded-b-[20px] bg-[#eef6ff]" />
+          <PackageOpen
+            className="absolute -top-5 left-8 text-[#2f80ed]"
+            size={34}
+            strokeWidth={2.1}
+          />
+        </div>
+
+        <div className="absolute right-4 top-16 flex h-[84px] w-[76px] rotate-[5deg] items-end justify-center rounded-[24px] border border-[#d9e4ee] bg-[#ead9bf] shadow-[0_22px_44px_rgba(15,23,42,0.12)]">
+          <div className="absolute top-4 h-8 w-11 rounded-full border-2 border-[#d2bea0]" />
+          <div className="absolute bottom-0 h-12 w-full rounded-[22px] bg-[#f1e2ca]" />
+          <Coffee
+            className="relative mb-4 text-[#8d642f]"
+            size={28}
+            strokeWidth={2.4}
+          />
+        </div>
+
+        <div className="absolute left-14 top-5 flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#2f80ed] text-white shadow-[0_16px_30px_rgba(47,128,237,0.28)]">
+          <ShoppingCart size={23} strokeWidth={2.4} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesEmptyInventoryWaves() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[170px] overflow-hidden">
+      <svg
+        className="absolute bottom-0 h-full w-full"
+        viewBox="0 0 430 170"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M0 72C58 42 111 60 162 89C218 121 264 84 316 75C363 67 395 86 430 108V170H0V72Z"
+          fill="#e8f4ff"
+          opacity="0.92"
+        />
+        <path
+          d="M0 112C62 82 118 94 174 119C226 143 273 113 321 104C365 95 397 113 430 130V170H0V112Z"
+          fill="#cfe6ff"
+          opacity="0.55"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function NoInventorySalesScreen({
+  onBack,
+  onRegisterPurchase,
+}: {
+  onBack: () => void;
+  onRegisterPurchase: () => void;
+}) {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_50%_12%,rgba(47,128,237,0.13),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#edf6ff_100%)] px-5 pb-28 pt-6 text-center text-[#07153b]">
+      <SalesEmptyInventoryAnimations />
+      <div className="pointer-events-none absolute left-6 top-10 h-20 w-20 rounded-full bg-[#e6f3ff]/70 blur-2xl" />
+      <div className="pointer-events-none absolute right-0 top-28 h-28 w-28 rounded-full bg-[#dbeeff]/70 blur-3xl" />
+
+      <header className="relative z-10 mx-auto flex w-full max-w-[430px] items-center justify-center">
+        <button
+          type="button"
+          onClick={onBack}
+          className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75"
+          aria-label="Salir a inicio"
+        >
+          <ArrowLeft size={22} />
+        </button>
+        <h1 className="text-[1.35rem] font-semibold text-slate-900">
+          Registro de Venta
+        </h1>
+      </header>
+
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-[390px] flex-col items-center justify-center">
+        <div className="animate-[salesEmptyFadeUp_320ms_ease-out_both]">
+          <SalesEmptyInventoryIllustration />
+        </div>
+
+        <div className="mt-2 animate-[salesEmptyFadeUp_340ms_ease-out_80ms_both]">
+          <p className="mx-auto mb-3 inline-flex min-h-[34px] items-center rounded-full border border-[#d9ebff] bg-white/70 px-4 text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#4d8ee9] shadow-[0_12px_28px_rgba(37,99,235,0.08)] backdrop-blur">
+            Inventario requerido
+          </p>
+          <h2 className="mx-auto max-w-[340px] text-[1.78rem] font-black leading-[1.08] text-[#07153b]">
+            Aún no tienes café disponible para vender
+          </h2>
+          <p className="mx-auto mt-4 max-w-[318px] text-[0.98rem] font-semibold leading-6 text-slate-500">
+            Registra una compra para llenar tu inventario y comenzar a realizar
+            ventas.
+          </p>
+        </div>
+
+        <article className="mt-6 w-full max-w-[318px] rounded-[20px] border border-[#d9ebff] bg-white/78 p-4 text-left shadow-[0_18px_42px_rgba(37,99,235,0.1)] backdrop-blur animate-[salesEmptyFadeUp_340ms_ease-out_130ms_both]">
+          <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-500">
+            Inventario actual
+          </p>
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[1.85rem] font-black leading-none text-[#102d92]">
+                0 kg
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                disponibles
+              </p>
+            </div>
+            <span className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#eef6ff] text-[#2f80ed] shadow-[0_12px_26px_rgba(37,99,235,0.1)]">
+              <PackageOpen size={25} strokeWidth={2.2} />
+            </span>
+          </div>
+        </article>
+
+        <button
+          type="button"
+          onClick={onRegisterPurchase}
+          className="mt-7 inline-flex min-h-[56px] w-full max-w-[318px] items-center justify-center gap-2 rounded-[18px] bg-[#2f80ed] px-6 text-[1rem] font-black text-white shadow-[0_18px_34px_rgba(47,128,237,0.28),0_0_0_6px_rgba(47,128,237,0.08)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#1f6fe0] hover:shadow-[0_22px_42px_rgba(47,128,237,0.34),0_0_0_8px_rgba(47,128,237,0.1)] active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#93c5fd] animate-[salesEmptyFadeUp_340ms_ease-out_180ms_both]"
+        >
+          <ShoppingCart size={19} strokeWidth={2.4} />
+          Registrar compra
+          <ArrowRight size={18} strokeWidth={2.4} />
+        </button>
+      </main>
+
+      <SalesEmptyInventoryWaves />
+    </div>
   );
 }
 
@@ -1093,83 +1275,42 @@ export default function Ventas() {
       setClienteFormError(null);
       setSubmitError(null);
     } catch (error) {
-      setClienteFormError(
-        error instanceof Error
-          ? error.message
-          : 'No fue posible registrar el cliente.',
-      );
+      setClienteFormError('No fue posible registrar el cliente. Intenta nuevamente.');
     }
   };
 
   if (registroErrorMensaje) {
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[420px] items-center">
-          <div className="w-full rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
-            <div className="text-center">
-              <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]">
-                <AlertTriangle size={24} strokeWidth={2.8} />
-              </div>
-              <h1 className="mt-5 text-[1.45rem] font-semibold text-slate-900">
-                No se pudo guardar la venta
-              </h1>
-              <p className="mt-3 text-[0.98rem] leading-6 text-slate-500">
-                {registroErrorMensaje}
-              </p>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              <button
-                type="button"
-                onClick={() => void confirmar()}
-                disabled={guardandoVenta}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {guardandoVenta ? (
-                  <>
-                    <RefreshCw size={18} className="animate-spin" />
-                    Reintentando...
-                  </>
-                ) : (
-                  'Reintentar'
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRegistroErrorMensaje(null);
-                  setPaso(3);
-                }}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#1f56dd]"
-              >
-                Volver a editar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CafeSmartErrorState
+        fullScreen
+        title="No se pudo guardar la venta"
+        message={registroErrorMensaje}
+        info="Los datos de la venta siguen disponibles. Puedes volver a editar o intentar nuevamente."
+        secondaryLabel="Volver a editar"
+        onPrimary={() => void confirmar()}
+        onSecondary={() => {
+          setRegistroErrorMensaje(null);
+          setPaso(3);
+        }}
+        primaryBusy={guardandoVenta}
+      />
     );
   }
 
   if (ventaGuardada) {
     return (
-      <div className="min-h-screen bg-[#f6f8fc] px-4 py-8 pb-10 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[430px] flex-col justify-center">
-          <section className="rounded-[26px] bg-white p-6 text-center shadow-[0_18px_48px_rgba(15,23,42,0.08)]">
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-full bg-[#eaf3ff]">
-              <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#12bf84] text-white">
-                <CheckCircle2 size={28} strokeWidth={3} />
-              </span>
-            </div>
-            <h2 className="mt-6 text-[1.75rem] font-black text-slate-950">
-              Venta registrada
-            </h2>
-            <p className="mt-2 text-base leading-6 text-slate-500">
-              La venta se guardó correctamente.
-            </p>
-
-            <article className="mt-6 rounded-[18px] border border-[#e1e7f3] bg-[#fbfcff] p-4 text-left">
+      <CafeSmartErrorState
+        fullScreen
+        variant="success"
+        title="Venta registrada"
+        message="La venta se guardó correctamente."
+        primaryLabel="Registrar nueva venta"
+        secondaryLabel="Ir a inventario"
+        onPrimary={reiniciar}
+        onSecondary={() => navigate('/inventario')}
+        info="El registro de venta quedó guardado y listo para consultarse."
+      >
+        <article className="rounded-[18px] border border-[#e1e7f3] bg-[#fbfcff] p-4 text-left">
               <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-slate-500">
                 Resumen de venta
               </p>
@@ -1203,27 +1344,17 @@ export default function Ventas() {
                   </div>
                 </div>
               </div>
-            </article>
+        </article>
+      </CafeSmartErrorState>
+    );
+  }
 
-            <div className="mt-6 grid gap-3">
-              <button
-                type="button"
-                onClick={reiniciar}
-                className="inline-flex min-h-[56px] items-center justify-center rounded-[16px] bg-[#1f3fa7] px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(31,63,167,0.22)]"
-              >
-                Registrar nueva venta
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/inventario')}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] bg-[#edf1f8] px-5 text-base font-black text-[#1f3f97]"
-              >
-                Ir a inventario
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
+  if (!cargando && !loadError && totalDisponibleVenta <= 0) {
+    return (
+      <NoInventorySalesScreen
+        onBack={() => navigate('/inicio')}
+        onRegisterPurchase={() => navigate('/compras')}
+      />
     );
   }
 
@@ -1256,8 +1387,13 @@ export default function Ventas() {
             </div>
             <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
               <div
-                className="h-full rounded-full bg-[#04337b] transition-all duration-300"
-                style={{ width: `${pasoActual.progreso}%` }}
+                className={`h-full rounded-full bg-[#04337b] transition-all duration-300 ${
+                  pasoActual.progreso === 33
+                    ? 'w-1/3'
+                    : pasoActual.progreso === 66
+                      ? 'w-2/3'
+                      : 'w-full'
+                }`}
               />
             </div>
           </div>
@@ -1324,6 +1460,7 @@ export default function Ventas() {
                   >
                     <CalendarDays size={16} className="text-[#102d92]" />
                     <input
+                      id="venta-fecha"
                       type="date"
                       value={fechaVenta}
                       min={BUSINESS_MIN_DATE_VALUE}
@@ -1333,6 +1470,7 @@ export default function Ventas() {
                         setSubmitError(null);
                       }}
                       className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                      aria-label="Fecha de venta"
                     />
                   </div>
                   {fechaVentaInvalida ? (
@@ -1581,7 +1719,7 @@ export default function Ventas() {
                                   )
                                 }
                                 className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
-                                aria-expanded={estaAjustandoPeso}
+                                {...ariaExpanded(estaAjustandoPeso)}
                               >
                                 <Scale size={14} />
                                 Ajustar
@@ -2251,6 +2389,7 @@ export default function Ventas() {
                   type="button"
                   onClick={() => setMostrarModal(false)}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar registro de cliente"
                 >
                   <X size={20} />
                 </button>

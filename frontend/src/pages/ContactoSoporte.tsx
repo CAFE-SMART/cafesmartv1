@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Bug,
-  CheckCircle2,
   ChevronDown,
   Headset,
   HelpCircle,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { AccessibleModal } from '../components/AccessibleModal';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { useUser } from '../context/UserContext';
 import API_URL from '../config/api';
 
@@ -34,6 +34,10 @@ type SupportForm = {
 };
 
 type SupportErrors = Partial<Record<keyof SupportForm, string>>;
+
+function ariaInvalid(active: boolean) {
+  return { 'aria-invalid': active ? 'true' : 'false' } as const;
+}
 
 const supportTypes: Array<{
   value: SupportType;
@@ -216,11 +220,7 @@ export default function ContactoSoporte() {
       });
       setShowSuccess(true);
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : 'No pudimos enviar tu mensaje. Inténtalo nuevamente.',
-      );
+      setStatusMessage('No pudimos enviar tu mensaje. Inténtalo nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -400,7 +400,9 @@ export default function ContactoSoporte() {
                   value={form.nombre}
                   onChange={(event) => updateField('nombre', event.target.value)}
                   placeholder="Ej: Laura Gómez"
-                  aria-invalid={errors.nombre ? 'true' : 'false'}
+                  {...ariaInvalid(Boolean(errors.nombre))}
+                  aria-label="Nombre"
+                  title="Nombre"
                   aria-describedby="support-name-hint support-name-error"
                   className={getFieldClass(Boolean(errors.nombre))}
                 />
@@ -419,7 +421,9 @@ export default function ContactoSoporte() {
                   value={form.correo}
                   onChange={(event) => updateField('correo', event.target.value)}
                   placeholder="ejemplo@correo.com"
-                  aria-invalid={errors.correo ? 'true' : 'false'}
+                  {...ariaInvalid(Boolean(errors.correo))}
+                  aria-label="Correo electrónico"
+                  title="Correo electrónico"
                   aria-describedby="support-email-hint support-email-error"
                   className={getFieldClass(Boolean(errors.correo))}
                 />
@@ -438,7 +442,9 @@ export default function ContactoSoporte() {
                     onChange={(event) =>
                       updateField('tipo', event.target.value as SupportType)
                     }
-                    aria-invalid={errors.tipo ? 'true' : 'false'}
+                    {...ariaInvalid(Boolean(errors.tipo))}
+                    aria-label="Tipo de solicitud"
+                    title="Tipo de solicitud"
                     aria-describedby="support-type-hint support-type-error"
                     className={`${getFieldClass(Boolean(errors.tipo))} appearance-none pr-12`}
                   >
@@ -477,7 +483,9 @@ export default function ContactoSoporte() {
                     updateField('mensaje', event.target.value)
                   }
                   placeholder="Ej: Estaba registrando una venta y no pude guardar el cliente."
-                  aria-invalid={errors.mensaje ? 'true' : 'false'}
+                  {...ariaInvalid(Boolean(errors.mensaje))}
+                  aria-label="Mensaje"
+                  title="Mensaje"
                   aria-describedby="support-message-hint support-message-error"
                   className={`${getFieldClass(Boolean(errors.mensaje))} min-h-[140px] py-3 leading-6`}
                 />
@@ -523,34 +531,18 @@ export default function ContactoSoporte() {
           title="Mensaje enviado con éxito"
           description="Recibirás una respuesta lo antes posible."
           onClose={() => setShowSuccess(false)}
-          className="rounded-[28px] p-6 text-center"
+          className="border-0 bg-transparent p-0 shadow-none"
         >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-            <CheckCircle2 className="h-9 w-9" aria-hidden="true" />
-          </div>
-          <h2 className="mt-4 text-2xl font-black text-slate-950">
-            ¡Mensaje enviado con éxito!
-          </h2>
-          <p className="mt-2 text-base leading-7 text-slate-600">
-            Recibirás una respuesta lo antes posible. Gracias por ayudarnos a
-            mejorar Café Smart.
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => navigate('/inicio')}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] bg-[#2448bd] px-4 text-sm font-black text-white"
-            >
-              Volver al inicio
-            </button>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#dce4f2] bg-white px-4 text-sm font-black text-[#2448bd]"
-            >
-              Enviar otro mensaje
-            </button>
-          </div>
+          <CafeSmartErrorState
+            variant="success"
+            title="Mensaje enviado con éxito"
+            message="Recibirás una respuesta lo antes posible. Gracias por ayudarnos a mejorar CaféSmart."
+            primaryLabel="Volver al inicio"
+            secondaryLabel="Enviar otro mensaje"
+            onPrimary={() => navigate('/inicio')}
+            onSecondary={resetForm}
+            info="Tu solicitud quedó registrada para que soporte pueda revisarla."
+          />
         </AccessibleModal>
       ) : null}
 

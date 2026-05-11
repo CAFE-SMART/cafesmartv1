@@ -183,7 +183,7 @@ export const authService = {
     const data = await postAuth<{ exists: boolean }>(
       '/check-email',
       { correo },
-      'No se pudo validar el correo',
+      'No pudimos revisar el correo. Intenta nuevamente.',
       { enabled: false },
     );
     return Boolean(data.exists);
@@ -198,19 +198,24 @@ export const authService = {
     correo: string;
     password: string;
   }): Promise<AuthResponse> {
-    return postAuth<AuthResponse>('/register', data, 'Error al registrarse', {
-      enabled: true,
-      source: 'register',
-      syncingMessage: 'Guardando cuenta...',
-      successMessage: 'Cuenta guardada.',
-    });
+    return postAuth<AuthResponse>(
+      '/register',
+      data,
+      'No pudimos completar el registro.',
+      {
+        enabled: true,
+        source: 'register',
+        syncingMessage: 'Guardando cuenta...',
+        successMessage: 'Cuenta guardada.',
+      },
+    );
   },
 
   login(email: string, password: string): Promise<AuthResponse> {
     return postAuth<AuthResponse>(
       '/login',
       { email, password },
-      'Error de autenticacion',
+      'No pudimos iniciar sesión en este momento.',
       {
         enabled: true,
         source: 'login',
@@ -224,7 +229,7 @@ export const authService = {
     return postAuth<AuthResponse>(
       '/login/google',
       { idToken },
-      'Error de autenticacion con Google',
+      'No pudimos entrar con Google en este momento.',
       {
         enabled: true,
         source: 'login-google',
@@ -247,7 +252,7 @@ export const authService = {
     return postAuth<AuthResponse>(
       '/register/google',
       data,
-      'Error al registrarse con Google',
+      'No pudimos completar el registro con Google.',
       {
         enabled: true,
         source: 'register-google',

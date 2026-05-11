@@ -13,6 +13,10 @@ function wait(ms: number) {
   });
 }
 
+function ariaBusy(active: boolean) {
+  return { 'aria-busy': active ? 'true' : 'false' } as const;
+}
+
 function LogoutAnimations() {
   return (
     <style>
@@ -50,6 +54,10 @@ function LogoutAnimations() {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.045); }
         }
+
+        .bg-cafesmart-logout {
+          background: radial-gradient(circle at 50% 16%, rgba(47,128,237,0.09), transparent 30%), linear-gradient(180deg,#ffffff 0%,#f8fbff 60%,#eef5ff 100%);
+        }
       `}
     </style>
   );
@@ -57,17 +65,16 @@ function LogoutAnimations() {
 
 function CoffeePlant({
   className,
-  delay = '0s',
+  delayClass = '',
 }: {
   className: string;
-  delay?: string;
+  delayClass?: string;
 }) {
   return (
     <svg
       viewBox="0 0 96 140"
-      className={className}
+      className={`${className} ${delayClass}`.trim()}
       fill="none"
-      style={{ animationDelay: delay }}
       aria-hidden="true"
     >
       <path
@@ -111,7 +118,7 @@ function BottomDecoration() {
       <CoffeePlant className="absolute bottom-3 left-8 h-24 w-20 origin-bottom opacity-85 animate-[cafesmartSway_4s_ease-in-out_infinite]" />
       <CoffeePlant
         className="absolute bottom-3 right-5 h-36 w-24 origin-bottom opacity-90 animate-[cafesmartSway_4.8s_ease-in-out_infinite]"
-        delay="0.35s"
+        delayClass="[animation-delay:350ms]"
       />
     </div>
   );
@@ -123,7 +130,7 @@ function SidePlants() {
       <CoffeePlant className="absolute -left-8 bottom-0 h-24 w-20 origin-bottom opacity-60 animate-[cafesmartSway_4.3s_ease-in-out_infinite]" />
       <CoffeePlant
         className="absolute -right-9 bottom-0 h-28 w-20 origin-bottom opacity-60 animate-[cafesmartSway_4.9s_ease-in-out_infinite]"
-        delay="0.25s"
+        delayClass="[animation-delay:250ms]"
       />
     </>
   );
@@ -172,17 +179,11 @@ export default function LogoutStatus() {
           ? 'animate-[cafesmartFadeOut_280ms_ease-in_both]'
           : ''
       }`}
-      aria-busy={!isError}
+      {...ariaBusy(!isError)}
       aria-live="polite"
     >
       <LogoutAnimations />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(circle at 50% 16%, rgba(47,128,237,0.09), transparent 30%), linear-gradient(180deg,#ffffff 0%,#f8fbff 60%,#eef5ff 100%)',
-        }}
-      />
+      <div className="pointer-events-none absolute inset-0 bg-cafesmart-logout" />
 
       <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
         <div className="animate-[cafesmartFadeScale_300ms_ease-out_both]">

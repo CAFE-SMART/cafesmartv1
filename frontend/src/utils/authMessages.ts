@@ -20,11 +20,20 @@ export function normalizeMessage(
   message: string | string[] | undefined,
   fallback: string,
 ) {
-  if (Array.isArray(message)) {
-    return message.filter(Boolean).join(', ');
+  const rawMessage = Array.isArray(message)
+    ? message.filter(Boolean).join(', ')
+    : message;
+
+  if (
+    !rawMessage ||
+    /api|autenticaci[oó]n fallida|backend|base de datos|conexi[oó]n rechazada|database|endpoint|error interno|exception|fetch failed|internal server|localhost|request|server|servidor|stack|timeout|token/i.test(
+      rawMessage,
+    )
+  ) {
+    return fallback;
   }
 
-  return message || fallback;
+  return rawMessage;
 }
 
 export function mapFriendlyAuthMessage(

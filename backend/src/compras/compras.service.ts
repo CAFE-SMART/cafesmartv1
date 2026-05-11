@@ -70,6 +70,7 @@ type MovimientoInventario = {
 
 const TIPOS_CAFE_BASE = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const CALIDADES_BASE = ['BUENO', 'REGULAR', 'MALO'];
+const CAPACIDAD_BODEGA_DEFECTO_KG = 3000;
 
 @Injectable()
 export class ComprasService {
@@ -612,14 +613,12 @@ export class ComprasService {
       select: { valor: true },
     });
 
-    if (!parametro?.valor?.trim()) {
-      return null;
-    }
-
-    const capacidadBodegaKg = Number(parametro.valor);
-
-    if (!Number.isFinite(capacidadBodegaKg) || capacidadBodegaKg <= 0) {
-      return null;
+    let capacidadBodegaKg = CAPACIDAD_BODEGA_DEFECTO_KG;
+    if (parametro?.valor?.trim()) {
+      const capacidadConfigurada = Number(parametro.valor);
+      if (Number.isFinite(capacidadConfigurada) && capacidadConfigurada > 0) {
+        capacidadBodegaKg = capacidadConfigurada;
+      }
     }
 
     const inventarioActualKg = await this.obtenerPesoInventarioActual(

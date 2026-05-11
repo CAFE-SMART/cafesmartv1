@@ -149,6 +149,125 @@ type InventarioError = {
   detalle: string;
 };
 
+function EmptyInventoryAnimations() {
+  return (
+    <style>
+      {`
+        @keyframes inventoryEmptyFadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes inventoryEmptyFloat {
+          0%, 100% { transform: translateY(0) rotate(-1deg); }
+          50% { transform: translateY(-9px) rotate(1deg); }
+        }
+
+        @keyframes inventoryEmptyGlow {
+          0%, 100% { opacity: .72; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.055); }
+        }
+
+        @keyframes inventoryEmptyParticle {
+          0%, 100% { opacity: .28; transform: translate3d(0, 0, 0); }
+          50% { opacity: .82; transform: translate3d(4px, -9px, 0); }
+        }
+
+        @keyframes inventoryEmptySteam {
+          0%, 100% { opacity: .38; transform: translateY(0) scaleX(1); }
+          50% { opacity: .78; transform: translateY(-6px) scaleX(.95); }
+        }
+      `}
+    </style>
+  );
+}
+
+function EmptyInventoryIllustration() {
+  return (
+    <div className="relative mx-auto h-[190px] w-[230px] sm:h-[210px] sm:w-[252px]">
+      <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#dbeeff] blur-2xl animate-[inventoryEmptyGlow_3.2s_ease-in-out_infinite]" />
+      <div className="absolute left-1/2 top-9 h-28 w-44 -translate-x-1/2 rounded-full border border-white/70 bg-white/45 shadow-[0_28px_70px_rgba(37,99,235,0.13)] backdrop-blur-sm" />
+
+      <span className="absolute left-6 top-9 h-2.5 w-2.5 rounded-full bg-[#8cc8ff] animate-[inventoryEmptyParticle_3.1s_ease-in-out_infinite]" />
+      <span className="absolute right-9 top-5 h-2 w-2 rounded-full bg-[#b8dcff] animate-[inventoryEmptyParticle_3.6s_ease-in-out_infinite_180ms]" />
+      <span className="absolute right-2 top-24 h-3 w-3 rounded-full bg-[#d6ebff] animate-[inventoryEmptyParticle_3.4s_ease-in-out_infinite_80ms]" />
+      <span className="absolute left-2 bottom-16 h-2 w-2 rounded-full bg-[#a8d4ff] animate-[inventoryEmptyParticle_3.8s_ease-in-out_infinite_260ms]" />
+
+      <div className="absolute inset-x-0 bottom-6 mx-auto h-7 w-36 rounded-full bg-[#103b8f]/10 blur-md" />
+
+      <div className="absolute left-1/2 top-7 h-[145px] w-[176px] -translate-x-1/2 animate-[inventoryEmptyFloat_4.2s_ease-in-out_infinite]">
+        <div className="absolute left-7 top-14 h-20 w-24 rotate-[-7deg] rounded-[20px] border border-[#d6e4f7] bg-[#f9fbff] shadow-[0_24px_46px_rgba(15,23,42,0.12)]">
+          <div className="h-8 rounded-t-[20px] border-b border-[#e6edf8] bg-[#eef6ff]" />
+          <div className="absolute left-5 top-4 h-10 w-10 rounded-full bg-white text-[#2f80ed] shadow-[0_10px_22px_rgba(37,99,235,0.12)]">
+            <Package2 className="m-2.5" size={20} strokeWidth={2.3} />
+          </div>
+          <div className="absolute bottom-4 left-5 h-2 w-12 rounded-full bg-[#d9e7f8]" />
+          <div className="absolute bottom-8 left-5 h-2 w-8 rounded-full bg-[#edf4fb]" />
+        </div>
+
+        <div className="absolute right-6 top-20 h-16 w-20 rotate-[6deg] rounded-[18px] border border-[#d8e6f7] bg-white shadow-[0_20px_40px_rgba(37,99,235,0.12)]">
+          <div className="absolute inset-x-4 top-0 h-5 rounded-b-[12px] bg-[#e9f4ff]" />
+          <div className="absolute bottom-4 left-4 h-2 w-11 rounded-full bg-[#dbeafe]" />
+          <div className="absolute bottom-8 left-4 h-2 w-7 rounded-full bg-[#eef6ff]" />
+        </div>
+
+        <div className="absolute left-12 top-3 flex h-[98px] w-[86px] rotate-[4deg] items-end justify-center rounded-[26px] border border-[#dce7f2] bg-[#f4eadb] shadow-[0_24px_48px_rgba(15,23,42,0.12)]">
+          <div className="absolute top-5 h-9 w-12 rounded-full border-2 border-[#d7c6ac]" />
+          <div className="absolute bottom-0 h-16 w-full rounded-[24px] bg-[#ead9bf]" />
+          <Coffee
+            className="relative mb-5 text-[#8d642f]"
+            size={31}
+            strokeWidth={2.3}
+          />
+        </div>
+
+        <div className="absolute right-12 top-10 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2f80ed] text-white shadow-[0_16px_30px_rgba(47,128,237,0.28)]">
+          <ShoppingCart size={20} strokeWidth={2.4} />
+        </div>
+
+        <Leaf
+          className="absolute left-4 top-32 rotate-[-18deg] text-[#5fc6a7]"
+          size={28}
+          strokeWidth={2.2}
+        />
+      </div>
+
+      <div className="absolute left-[102px] top-11 h-10 w-7 text-[#9ccfff] animate-[inventoryEmptySteam_2.9s_ease-in-out_infinite]">
+        <div className="mx-auto h-full w-1.5 rounded-full bg-current blur-[1px]" />
+      </div>
+      <div className="absolute left-[122px] top-8 h-12 w-8 text-[#c4e4ff] animate-[inventoryEmptySteam_3.2s_ease-in-out_infinite_120ms]">
+        <div className="mx-auto h-full w-1.5 rounded-full bg-current blur-[1px]" />
+      </div>
+    </div>
+  );
+}
+
+function EmptyInventoryWaves() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[170px] overflow-hidden">
+      <svg
+        className="absolute bottom-0 h-full w-full"
+        viewBox="0 0 430 170"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M0 72C58 42 111 60 162 89C218 121 264 84 316 75C363 67 395 86 430 108V170H0V72Z"
+          fill="#e8f4ff"
+          opacity="0.92"
+        />
+        <path
+          d="M0 112C62 82 118 94 174 119C226 143 273 113 321 104C365 95 397 113 430 130V170H0V112Z"
+          fill="#cfe6ff"
+          opacity="0.55"
+        />
+      </svg>
+      <div className="absolute bottom-9 left-7 h-16 w-16 rounded-full border border-white/70 bg-white/35 blur-[1px]" />
+      <div className="absolute bottom-5 right-10 h-24 w-24 rounded-full border border-white/60 bg-white/25 blur-[1px]" />
+    </div>
+  );
+}
+
 function traducirErrorInventario(error: unknown): InventarioError {
   const isBrowserOffline =
     typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -745,34 +864,39 @@ export default function Inventario() {
         ) : null}
 
         {showGlobalEmptyState ? (
-          <section className="px-1 pt-4">
-            <div className="mx-auto max-w-[360px] rounded-[22px] border border-[#e1e8f3] bg-white px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
-              <div className="relative mx-auto h-[96px] w-[96px]">
-                <div className="absolute inset-0 rotate-3 rounded-[24px] bg-[#f6f8fc]" />
-                <div className="absolute inset-[22px] flex items-center justify-center rounded-[16px] bg-[#eef3f8] text-slate-300">
-                  <Package2 size={28} />
-                </div>
-                <div className="absolute -right-1 bottom-2 flex h-10 w-10 rotate-[-9deg] items-center justify-center rounded-[13px] bg-[#ff7a10] text-white shadow-[0_8px_14px_rgba(255,122,16,0.35)]">
-                  <Coffee size={17} />
-                </div>
+          <section className="relative min-h-[calc(100vh-112px)] w-full overflow-hidden bg-[radial-gradient(circle_at_50%_14%,rgba(47,128,237,0.13),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#edf6ff_100%)] px-5 pb-28 pt-8 text-center text-[#07153b]">
+            <EmptyInventoryAnimations />
+            <div className="pointer-events-none absolute left-6 top-10 h-20 w-20 rounded-full bg-[#e6f3ff]/70 blur-2xl" />
+            <div className="pointer-events-none absolute right-0 top-28 h-28 w-28 rounded-full bg-[#dbeeff]/70 blur-3xl" />
+            <div className="relative z-10 mx-auto flex min-h-[calc(100vh-14rem)] w-full max-w-[390px] flex-col items-center justify-center">
+              <div className="animate-[inventoryEmptyFadeUp_320ms_ease-out_both]">
+                <EmptyInventoryIllustration />
               </div>
 
-              <h2 className="mt-4 text-[1.25rem] font-black leading-tight text-[#1f2432]">
-                Aún no hay café en inventario
-              </h2>
-              <p className="mx-auto mt-2 max-w-[260px] text-[0.84rem] font-medium leading-5 text-slate-500">
-                Registra tu primera compra para empezar.
-              </p>
+              <div className="mt-2 animate-[inventoryEmptyFadeUp_340ms_ease-out_80ms_both]">
+                <p className="mx-auto mb-3 inline-flex min-h-[34px] items-center rounded-full border border-[#d9ebff] bg-white/70 px-4 text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#4d8ee9] shadow-[0_12px_28px_rgba(37,99,235,0.08)] backdrop-blur">
+                  Primer paso
+                </p>
+                <h2 className="mx-auto max-w-[330px] text-[1.85rem] font-black leading-[1.08] text-[#07153b]">
+                  Aún no hay café en inventario
+                </h2>
+                <p className="mx-auto mt-4 max-w-[315px] text-[0.98rem] font-semibold leading-6 text-slate-500">
+                  Comienza registrando tu primera compra para organizar tu
+                  inventario y ver crecer tu negocio.
+                </p>
+              </div>
 
               <button
                 type="button"
                 onClick={() => navigate('/compras')}
-                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#2f64db] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(47,100,219,0.22)]"
+                className="mt-7 inline-flex min-h-[56px] w-full max-w-[318px] items-center justify-center gap-2 rounded-[18px] bg-[#2f80ed] px-6 text-[1rem] font-black text-white shadow-[0_18px_34px_rgba(47,128,237,0.28),0_0_0_6px_rgba(47,128,237,0.08)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#1f6fe0] hover:shadow-[0_22px_42px_rgba(47,128,237,0.34),0_0_0_8px_rgba(47,128,237,0.1)] active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#93c5fd] animate-[inventoryEmptyFadeUp_340ms_ease-out_160ms_both]"
               >
-                <ShoppingCart size={18} />
+                <ShoppingCart size={19} strokeWidth={2.4} />
                 Registrar compra
+                <ArrowRight size={18} strokeWidth={2.4} />
               </button>
             </div>
+            <EmptyInventoryWaves />
           </section>
         ) : null}
 

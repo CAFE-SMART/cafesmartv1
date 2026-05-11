@@ -121,11 +121,7 @@ export default function ResumenFinanciero() {
     try {
       setSummary(await obtenerDashboardSummary());
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo cargar el resumen financiero.',
-      );
+      setError('No pudimos cargar el resumen financiero. Intenta nuevamente.');
       setSummary(null);
     } finally {
       setLoading(false);
@@ -148,11 +144,7 @@ export default function ResumenFinanciero() {
       setPassword('');
       await cargar();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo validar la contrasena.',
-      );
+      setError('No pudimos validar la contraseña. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }

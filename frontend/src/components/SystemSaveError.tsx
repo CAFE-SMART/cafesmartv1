@@ -1,13 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  Home,
-  LifeBuoy,
-  RefreshCcw,
-  Send,
-  X,
-} from 'lucide-react';
+import { LifeBuoy, Send, X } from 'lucide-react';
 import API_URL from '../config/api';
+import { CafeSmartErrorState } from './CafeSmartErrorState';
 
 type SystemSaveErrorProps = {
   operation: string;
@@ -47,7 +41,7 @@ async function sendSupportReport(report: Record<string, unknown>) {
       throw new Error('Support report failed');
     }
   } catch {
-    // No guardamos reportes localmente: los datos operativos deben vivir en backend.
+    // Si el envio falla, la persona puede volver a intentar desde la ventana.
   }
 }
 
@@ -82,49 +76,25 @@ export function SystemSaveError({
 
   return (
     <>
-      <section
-        role="alert"
-        className={`rounded-[26px] border border-[#f0d6da] bg-white p-5 text-center shadow-[0_18px_48px_rgba(15,23,42,0.08)] ${className}`.trim()}
-      >
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#fff0f2] text-[#d1495b]">
-          <AlertTriangle size={28} strokeWidth={2.6} />
-        </div>
-        <h2 className="mt-4 text-[1.55rem] font-black leading-tight text-[#1f2937]">
-          No pudimos guardar la información
-        </h2>
-        <p className="mx-auto mt-2 max-w-[340px] text-base leading-6 text-slate-600">
-          Puede ser un problema temporal o de conexión. Tus datos siguen en
-          pantalla para que no tengas que escribirlos otra vez.
-        </p>
-
-        <div className="mt-5 grid gap-2">
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={retrying}
-            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCcw size={16} className={retrying ? 'animate-spin' : ''} />
-            {retrying ? 'Reintentando...' : 'Reintentar'}
-          </button>
-          <button
-            type="button"
-            onClick={onHome}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#d9deeb] bg-[#f8faff] px-4 text-base font-semibold text-[#102d92]"
-          >
-            <Home size={16} />
-            Volver al inicio
-          </button>
+      <CafeSmartErrorState
+        title="No pudimos guardar la información"
+        message="Revisa tu conexión a internet e intenta nuevamente."
+        info="Tus datos siguen en pantalla para que no tengas que escribirlos otra vez."
+        onPrimary={onRetry}
+        onSecondary={onHome}
+        primaryBusy={retrying}
+        className={className}
+        extraAction={
           <button
             type="button"
             onClick={() => setSupportOpen(true)}
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-base font-semibold text-slate-600"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black text-slate-600 transition hover:bg-white/70 hover:text-[#1e3a8a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18"
           >
-            <LifeBuoy size={16} />
+            <LifeBuoy size={16} aria-hidden="true" />
             Contactar soporte
           </button>
-        </div>
-      </section>
+        }
+      />
 
       {supportOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
@@ -150,21 +120,21 @@ export function SystemSaveError({
 
             {supportSent ? (
               <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-base leading-6 text-emerald-700">
-                Gracias. Registramos tu mensaje y adjuntamos la información
-                necesaria para revisar el problema.
+                Gracias. Registramos tu mensaje y adjuntamos lo necesario para
+                revisar el problema.
               </div>
             ) : (
               <>
                 <p className="mt-3 text-base leading-6 text-slate-600">
-                  Escribe una frase breve. El sistema enviará automáticamente el
-                  contexto del error sin mostrártelo.
+                  Escribe una frase breve. Enviaremos lo necesario para poder
+                  ayudarte sin interrumpir tu trabajo.
                 </p>
                 <textarea
                   value={supportText}
                   onChange={(event) => setSupportText(event.target.value)}
                   rows={4}
                   className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#102d92]"
-                  placeholder="Ej. Estaba registrando una compra y al guardar apareció el error."
+                  placeholder="Ej. Estaba registrando una compra y no pude guardarla."
                 />
                 <button
                   type="button"

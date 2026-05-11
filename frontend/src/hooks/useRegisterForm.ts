@@ -3,14 +3,19 @@ import type { NavigateFunction } from 'react-router-dom';
 import { authService } from '../services/authService';
 import {
   EMAIL_REGEX,
+  PASSWORD_MAX_LENGTH,
   getPasswordChecks,
   hasAtLeastOneSurname,
   isValidPhone,
+  normalizeBusinessNameInput,
+  validatePersonLastName,
+  validatePersonName,
   type RegisterLocationState,
   type StepOneErrors,
   type StepTwoErrors,
   type TipoOrg,
   type TipoOrgSelection,
+  validateBusinessName,
 } from '../utils/registerValidators';
 import { getPhoneDigits } from '../utils/formatPhone';
 import { normalizePossiblyMojibake } from '../utils/jwt';
@@ -26,23 +31,34 @@ export function useRegisterForm({
   routeState,
   navigate,
 }: UseRegisterFormParams) {
-  const [step, setStep] = useState(1);
+  const draft = routeState.registerDraft;
+  const [step, setStep] = useState(() => draft?.currentStep ?? 1);
 
-  const [nombreOrganizacion, setNombreOrganizacion] = useState('');
+  const [nombreOrganizacion, setNombreOrganizacion] = useState(
+    () => draft?.nombreOrganizacion ?? '',
+  );
   const [tipoOrganizacion, setTipoOrganizacion] =
-    useState<TipoOrgSelection>('');
-  const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
+    useState<TipoOrgSelection>(() => draft?.tipoOrganizacion ?? '');
+  const [otroTipoDetalle, setOtroTipoDetalle] = useState(
+    () => draft?.otroTipoDetalle ?? '',
+  );
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
   const [nombre, setNombre] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.nombre || draft?.nombre || '',
+    ),
   );
   const [apellidos, setApellidos] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.apellidos || draft?.apellidos || '',
+    ),
   );
-  const [telefono, setTelefono] = useState('');
+  const [telefono, setTelefono] = useState(() => draft?.telefono ?? '');
   const [correo, setCorreo] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
+    normalizePossiblyMojibake(
+      routeState.googlePrefill?.correo || draft?.correo || '',
+    ),
   );
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -106,10 +122,10 @@ export function useRegisterForm({
   const goToStep2 = () => {
     setError(null);
     const nextErrors: StepOneErrors = {};
+    const businessNameError = validateBusinessName(nombreOrganizacion);
 
-    if (!nombreOrganizacion.trim()) {
-      nextErrors.nombreOrganizacion =
-        'Escribe el nombre de tu negocio para continuar.';
+    if (businessNameError) {
+      nextErrors.nombreOrganizacion = businessNameError;
     }
 
     if (!tipoOrganizacion) {
@@ -136,11 +152,12 @@ export function useRegisterForm({
     e.preventDefault();
     setError(null);
     const nextErrors: StepTwoErrors = {};
+    const businessNameError = validateBusinessName(nombreOrganizacion);
 
-    if (!nombreOrganizacion.trim()) {
+    if (businessNameError) {
       setError('Falta el nombre del negocio.');
       setStepOneErrors({
-        nombreOrganizacion: 'Escribe el nombre de tu negocio para continuar.',
+        nombreOrganizacion: businessNameError,
       });
       setStep(1);
       return;
@@ -156,12 +173,14 @@ export function useRegisterForm({
       return;
     }
 
-    if (!nombre.trim()) {
-      nextErrors.nombre = 'Escribe tu nombre para continuar.';
+    const nameError = validatePersonName(nombre);
+    if (nameError) {
+      nextErrors.nombre = nameError;
     }
 
-    if (!apellidos.trim()) {
-      nextErrors.apellidos = 'Escribe tus apellidos para completar tu cuenta.';
+    const lastNameError = validatePersonLastName(apellidos);
+    if (lastNameError) {
+      nextErrors.apellidos = lastNameError;
     } else if (!hasAtLeastOneSurname(apellidos)) {
       nextErrors.apellidos = 'Ingresa al menos un apellido para continuar.';
     }
@@ -192,14 +211,17 @@ export function useRegisterForm({
     const checks = getPasswordChecks(password);
     if (!password.trim()) {
       nextErrors.password = 'Crea una contraseña para proteger tu cuenta.';
+    } else if (password.length > PASSWORD_MAX_LENGTH) {
+      nextErrors.password = 'La contraseña es demasiado larga. Usa máximo 32 caracteres.';
     } else if (
       !checks.minLength ||
-      !checks.hasLower ||
+      !checks.maxLength ||
       !checks.hasUpper ||
+      !checks.hasLower ||
       !checks.hasNumber
     ) {
       nextErrors.password =
-        'La contraseña debe tener mínimo 6 caracteres, una mayúscula, una minúscula y un número.';
+        'La contraseña debe tener 8 a 32 caracteres, una mayúscula, una minúscula y un número.';
     }
 
     if (!confirmPassword.trim()) {
@@ -225,7 +247,7 @@ export function useRegisterForm({
       state: {
         hasGoogleFlow,
         googleToken: routeState.googleToken,
-        nombreOrganizacion,
+        nombreOrganizacion: normalizeBusinessNameInput(nombreOrganizacion).trim(),
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
         otroTipoDetalle:
           tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()

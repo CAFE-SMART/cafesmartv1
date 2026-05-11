@@ -186,9 +186,7 @@ export default function SecadoProceso() {
         return;
       }
 
-      setError(
-        err instanceof Error ? err.message : 'No se pudo finalizar el secado.',
-      );
+      setError('No pudimos finalizar el secado. Intenta nuevamente.');
     }
   };
 

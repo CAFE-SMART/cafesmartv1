@@ -5,7 +5,6 @@ import {
   BadgeDollarSign,
   CalendarDays,
   Check,
-  CheckCircle2,
   Forklift,
   HandCoins,
   Loader2,
@@ -19,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { EmptyState } from '../components/EmptyState';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedErrorFromUi,
@@ -132,9 +132,7 @@ export default function Gastos() {
         setLotes(data.filter((lote) => lote.pesoActual > 0));
       } catch (err) {
         setLoadLotesError(
-          err instanceof Error
-            ? err.message
-            : 'No pude cargar los lotes disponibles.',
+          'No pudimos cargar los lotes disponibles. Intenta nuevamente.',
         );
         setLotes([]);
       } finally {
@@ -309,11 +307,15 @@ export default function Gastos() {
                 </p>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-700">
+                <label
+                  htmlFor="gasto-rapido-fecha"
+                  className="mb-2 block text-sm font-black text-slate-700"
+                >
                   Fecha
                 </label>
                 <div className="flex items-center gap-3 rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3">
                   <input
+                    id="gasto-rapido-fecha"
                     type="date"
                     value={form.fecha}
                     min={BUSINESS_MIN_DATE_VALUE}
@@ -582,36 +584,20 @@ export default function Gastos() {
                 onRetry={() => void guardarGasto()}
                 onHome={() => navigate('/inicio', { replace: true })}
                 retrying={submitting}
-                className="border-0 p-0 shadow-none"
               />
             ) : null}
 
             {modal === 'success' ? (
-              <>
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-600">
-                  <CheckCircle2 size={22} />
-                </div>
-                <h2 className="mt-4 text-[1.3rem] font-black text-[#121826]">
-                  {UI_MESSAGES.success.expenseCreated.titulo}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {UI_MESSAGES.success.expenseCreated.mensaje}
-                </p>
-                <button
-                  type="button"
-                  onClick={cerrarExito}
-                  className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-[#2558e5] px-4 py-3 text-sm font-black text-white"
-                >
-                  Registrar otro gasto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/inicio')}
-                  className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-[16px] border border-[#e3e7f3] px-4 py-3 text-sm font-semibold text-slate-500"
-                >
-                  Ir a inicio
-                </button>
-              </>
+              <CafeSmartErrorState
+                variant="success"
+                title={UI_MESSAGES.success.expenseCreated.titulo}
+                message={UI_MESSAGES.success.expenseCreated.mensaje}
+                primaryLabel="Registrar otro gasto"
+                secondaryLabel="Ir a inicio"
+                onPrimary={cerrarExito}
+                onSecondary={() => navigate('/inicio')}
+                info="El gasto quedó guardado correctamente en el sistema."
+              />
             ) : null}
           </div>
         </div>

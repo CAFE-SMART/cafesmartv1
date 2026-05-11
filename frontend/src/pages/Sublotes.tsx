@@ -462,11 +462,7 @@ export default function Sublotes() {
       writeCachedDetail(tipoCafeId, calidadId, hydrated);
       setOfflineNoticeVisible(false);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'No se pudo cargar el detalle del sublote.',
-      );
+      setError('No pudimos cargar el detalle del sublote. Intenta nuevamente.');
       setDetalle(null);
     } finally {
       setLoading(false);
@@ -728,11 +724,7 @@ export default function Sublotes() {
           motivo: reason || undefined,
           updatedAt: Date.now(),
         });
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'No se pudo guardar el ajuste de peso.',
-        );
+        setError('No pudimos guardar el ajuste de peso. Intenta nuevamente.');
       }
     })();
   }, [calidadId, cargar, isOnline, subloteActivo, tipoCafeId, weightModal]);
@@ -800,11 +792,7 @@ export default function Sublotes() {
             humedad: nextHumedad,
             updatedAt: Date.now(),
           });
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'No se pudo guardar la humedad.',
-          );
+          setError('No pudimos guardar la humedad. Intenta nuevamente.');
         }
       })();
 
@@ -870,9 +858,7 @@ export default function Sublotes() {
           factor: nextFactor,
           updatedAt: Date.now(),
         });
-        setError(
-          err instanceof Error ? err.message : 'No se pudo guardar el factor.',
-        );
+        setError('No pudimos guardar el factor. Intenta nuevamente.');
       }
     })();
   }, [calidadId, cargar, editModal, isOnline, subloteActivo, tipoCafeId]);

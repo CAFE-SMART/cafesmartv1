@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   LoaderCircle,
+  PackageCheck,
   RefreshCcw,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   SunMedium,
 } from 'lucide-react';
@@ -87,7 +89,7 @@ function resolveDashboardErrorMessage(error: unknown) {
     return 'No pudimos cargar el inicio. Vuelve a intentarlo.';
   }
 
-  return message || 'No pudimos cargar el inicio.';
+  return 'No pudimos cargar el inicio. Vuelve a intentarlo.';
 }
 
 function resolveCloudDotClass(tone: string) {
@@ -229,23 +231,82 @@ function EmptyDashboardState({
 }) {
   return (
     <section className="px-5 pt-6">
-      <div className="rounded-[28px] border border-[#e1e8f3] bg-white px-6 py-9 text-center shadow-[0_18px_44px_rgba(15,23,42,0.09)]">
-        <img
-          src="/imagenes-de-proyecto/granito-inteligente.png"
-          alt=""
-          className="mx-auto h-14 w-14 object-contain"
-        />
-        <h2 className="mt-5 text-[1.18rem] font-black text-[#101828]">
+      <style>
+        {`
+          @keyframes cafesmartFadeUp {
+            0% { opacity: 0; transform: translateY(14px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes cafesmartFloatSoft {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-7px); }
+          }
+
+          @keyframes cafesmartGlowBreath {
+            0%, 100% { opacity: .52; transform: scale(.96); }
+            50% { opacity: .9; transform: scale(1.06); }
+          }
+        `}
+      </style>
+      <div className="relative overflow-hidden rounded-[30px] border border-[#e1e8f3] bg-white px-6 pb-8 pt-9 text-center shadow-[0_22px_54px_rgba(15,23,42,0.1)]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24">
+          <svg
+            className="absolute bottom-0 h-full w-full"
+            viewBox="0 0 390 112"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M0 51C48 29 89 39 133 60C184 85 226 53 276 47C318 42 352 58 390 76V112H0V51Z"
+              fill="#dbeafe"
+              opacity="0.7"
+            />
+            <path
+              d="M0 76C52 55 101 62 151 82C199 101 238 78 284 72C328 66 357 79 390 94V112H0V76Z"
+              fill="#bfdbfe"
+              opacity="0.48"
+            />
+          </svg>
+        </div>
+
+        <div className="relative z-10 mx-auto h-36 w-36 animate-[cafesmartFadeUp_300ms_ease-out_both]">
+          <div className="absolute inset-0 rounded-full bg-[#e9f3ff] animate-[cafesmartGlowBreath_3.2s_ease-in-out_infinite]" />
+          <div className="absolute inset-4 rounded-full bg-[#bfdbfe]/55 blur-sm animate-[cafesmartGlowBreath_3.6s_ease-in-out_infinite]" />
+          <span className="absolute left-0 top-10 h-2 w-2 rounded-full bg-[#7db5ff] opacity-70 animate-[cafesmartFloatSoft_3.8s_ease-in-out_infinite]" />
+          <span className="absolute right-3 top-6 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_16px_rgba(22,131,247,0.32)] animate-[cafesmartGlowBreath_3.4s_ease-in-out_infinite]" />
+          <div className="absolute inset-3 flex items-center justify-center rounded-full bg-[#eef6ff] shadow-[0_22px_46px_rgba(37,99,235,0.13)] animate-[cafesmartFloatSoft_3.7s_ease-in-out_infinite]">
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-[26px] bg-white shadow-[0_14px_32px_rgba(37,99,235,0.12)]">
+              <PackageCheck
+                size={38}
+                className="text-[#1683f7]"
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
+              <span className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f1ff] text-[#102d92] shadow-[0_10px_24px_rgba(16,45,146,0.12)]">
+                <ShoppingCart size={19} strokeWidth={2.5} aria-hidden="true" />
+              </span>
+            </div>
+          </div>
+          <img
+            src="/imagenes-de-proyecto/granito-inteligente.png"
+            alt=""
+            className="absolute bottom-4 left-5 h-9 w-9 object-contain drop-shadow-sm"
+          />
+        </div>
+
+        <h2 className="relative z-10 mt-6 text-[1.34rem] font-black leading-tight text-[#101828] animate-[cafesmartFadeUp_320ms_ease-out_80ms_both]">
           Registra tu primera compra
         </h2>
-        <p className="mx-auto mt-2 max-w-[270px] text-[0.84rem] font-semibold leading-6 text-[#52627a]">
-          Para ver tu inventario y empezar a vender.
+        <p className="relative z-10 mx-auto mt-3 max-w-[292px] text-[0.9rem] font-semibold leading-6 text-[#52627a] animate-[cafesmartFadeUp_320ms_ease-out_140ms_both]">
+          Agrega tu primera compra para comenzar a organizar tu café.
         </p>
         <button
           type="button"
           onClick={onRegisterPurchase}
-          className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-[#173b9c] px-4 text-[0.84rem] font-black text-white shadow-[0_12px_24px_rgba(23,59,156,0.22)]"
+          className="relative z-10 mt-7 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#173b9c] px-5 text-[0.92rem] font-black text-white shadow-[0_16px_32px_rgba(23,59,156,0.24),0_0_22px_rgba(22,131,247,0.14)] transition duration-200 hover:bg-[#123384] hover:shadow-[0_20px_38px_rgba(23,59,156,0.28),0_0_28px_rgba(22,131,247,0.18)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#173b9c]/20 animate-[cafesmartFadeUp_320ms_ease-out_200ms_both]"
         >
+          <ShoppingCart size={17} strokeWidth={2.5} aria-hidden="true" />
           Registrar compra
         </button>
       </div>
@@ -261,10 +322,10 @@ function DashboardLoadingState() {
           <LoaderCircle size={18} className="animate-spin text-[#18479d]" />
           <div>
             <p className="text-[0.8rem] font-black text-[#1f2937]">
-              Cargando dashboard
+              Cargando inicio
             </p>
             <p className="mt-1 text-[0.68rem] font-semibold text-[#65758f]">
-              Consultando indicadores e inventario.
+              Preparando tus indicadores e inventario.
             </p>
           </div>
         </div>
@@ -282,10 +343,10 @@ function DashboardErrorState({
     <section className="px-5 pt-6">
       <div className="rounded-[18px] border border-rose-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
         <p className="text-[0.8rem] font-black text-[#1f2937]">
-          No se pudo cargar el dashboard
+          No pudimos cargar el inicio
         </p>
         <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
-          Presiona Recargar para intentarlo de nuevo.
+          Revisa tu conexión e intenta nuevamente.
         </p>
         <button
           type="button"

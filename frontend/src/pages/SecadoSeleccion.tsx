@@ -103,11 +103,7 @@ export default function SecadoSeleccion() {
         setSelectedWeights({});
         setActiveSessions(getActiveSecadoSessions());
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'No se pudo abrir el proceso de secado.',
-        );
+        setError('No pudimos abrir el proceso de secado. Intenta nuevamente.');
       } finally {
         setLoading(false);
       }
@@ -242,9 +238,7 @@ export default function SecadoSeleccion() {
         return;
       }
 
-      setError(
-        err instanceof Error ? err.message : 'No se pudo iniciar el secado.',
-      );
+      setError('No pudimos iniciar el secado. Intenta nuevamente.');
     }
   };
 
@@ -412,6 +406,7 @@ export default function SecadoSeleccion() {
                 type="button"
                 onClick={() => setEditing(null)}
                 className="text-slate-400"
+                aria-label="Cerrar ajuste de cantidad"
               >
                 <X size={18} />
               </button>

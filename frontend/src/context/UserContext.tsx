@@ -59,6 +59,7 @@ type UserState = {
 
 const UserContext = createContext<UserState | null>(null);
 const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
+const LOGIN_DRAFT_STORAGE_KEY = 'cafesmart:login-draft:v1';
 
 function getTokenExpirationMs(token: string): number | null {
   const payload = parseJwtPayload<{ exp?: number }>(token);
@@ -237,6 +238,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setToken(null);
     setHasCompany(false);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+    }
 
     await clearAuthStorage();
   };

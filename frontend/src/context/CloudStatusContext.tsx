@@ -104,11 +104,24 @@ export function CloudStatusProvider({
     void refreshHealth();
 
     const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
       void refreshHealth();
     }, 60000);
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshHealth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [refreshHealth]);
 

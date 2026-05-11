@@ -107,6 +107,83 @@ function normalizeTipoOrganizacion(
 }
 
 const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
+const LOGIN_DRAFT_STORAGE_KEY = 'cafesmart:login-draft:v1';
+const LOGIN_DRAFT_TTL_MS = 1000 * 60 * 60 * 24;
+
+type LoginDraft = {
+  authMode: 'login';
+  currentScreen: 'login';
+  email: string;
+  rememberMe: boolean;
+  savedAt: number;
+};
+
+function readLoginDraft() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOGIN_DRAFT_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const draft = JSON.parse(raw) as Partial<LoginDraft>;
+    if (
+      typeof draft.savedAt !== 'number' ||
+      Date.now() - draft.savedAt > LOGIN_DRAFT_TTL_MS
+    ) {
+      window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+      return null;
+    }
+
+    if (draft.authMode !== 'login' || draft.currentScreen !== 'login') {
+      window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+      return null;
+    }
+
+    return {
+      authMode: 'login',
+      currentScreen: 'login',
+      email: typeof draft.email === 'string' ? draft.email : '',
+      rememberMe: Boolean(draft.rememberMe),
+      savedAt: draft.savedAt,
+    };
+  } catch {
+    window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+    return null;
+  }
+}
+
+function saveLoginDraft(draft: Pick<LoginDraft, 'email' | 'rememberMe'>) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const email = draft.email.trim();
+  if (!email && !draft.rememberMe) {
+    window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(
+    LOGIN_DRAFT_STORAGE_KEY,
+    JSON.stringify({
+      email,
+      rememberMe: draft.rememberMe,
+      authMode: 'login',
+      currentScreen: 'login',
+      savedAt: Date.now(),
+    }),
+  );
+}
+
+function clearLoginDraft() {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+  }
+}
 
 export default function Login() {
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
@@ -129,6 +206,9 @@ export default function Login() {
   const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedAccountName, setRememberedAccountName] = useState('');
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
+  const restoredLoginDraftRef = useRef(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
@@ -144,6 +224,16 @@ export default function Login() {
 
   useEffect(() => {
     let active = true;
+    const draft = readLoginDraft();
+    if (draft?.email) {
+      restoredLoginDraftRef.current = true;
+      setEmail(draft.email);
+      setRememberMe(draft.rememberMe);
+      setEmailTouched(true);
+      setRecoveryNotice(
+        'Recuperamos tu información anterior. Por seguridad, vuelve a ingresar tu contraseña.',
+      );
+    }
 
     const loadRememberedAccount = async () => {
       const account = await getRememberedAccount();
@@ -151,7 +241,9 @@ export default function Login() {
         return;
       }
 
-      setEmail(account.email);
+      if (!restoredLoginDraftRef.current) {
+        setEmail(account.email);
+      }
       setRememberedAccountName(account.name);
       setRememberMe(true);
     };
@@ -171,6 +263,65 @@ export default function Login() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      saveLoginDraft({
+        email,
+        rememberMe,
+      });
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [email, rememberMe]);
+
+  useEffect(() => {
+    const saveCurrentDraft = () => {
+      saveLoginDraft({
+        email,
+        rememberMe,
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveCurrentDraft();
+      }
+    };
+
+    window.addEventListener('beforeunload', saveCurrentDraft);
+    window.addEventListener('blur', saveCurrentDraft);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      saveCurrentDraft();
+      window.removeEventListener('beforeunload', saveCurrentDraft);
+      window.removeEventListener('blur', saveCurrentDraft);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [email, rememberMe]);
+
+  useEffect(() => {
+    if (!recoveryNotice) {
+      return;
+    }
+
+    setRecoveryNoticeExiting(false);
+
+    const fadeTimer = window.setTimeout(() => {
+      setRecoveryNoticeExiting(true);
+    }, 4200);
+    const clearTimer = window.setTimeout(() => {
+      setRecoveryNotice(null);
+      setRecoveryNoticeExiting(false);
+    }, 4600);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [recoveryNotice]);
 
   useEffect(() => {
     if (!isGoogleAuthEnabled || isAndroidApp || googleLoading) {
@@ -249,6 +400,7 @@ export default function Login() {
   const resetForm = () => {
     setEmail('');
     setPassword('');
+    clearLoginDraft();
     setError(null);
     setEmailFieldError(null);
     setEmailFieldTone('assist');
@@ -296,7 +448,7 @@ export default function Login() {
     createGuidedError(
       message,
       'Problema al iniciar.',
-      'Puede ser un problema de conexión o del servidor.',
+      'Puede ser un problema temporal o de conexión.',
       'Espera un momento e intenta nuevamente.',
     );
 
@@ -367,6 +519,7 @@ export default function Login() {
         email: data.user.email || email.trim(),
         name: data.user.name,
       });
+      clearLoginDraft();
 
       navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
@@ -450,6 +603,7 @@ export default function Login() {
         email: data.user.email,
         name: data.user.name,
       });
+      clearLoginDraft();
 
       navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
@@ -512,6 +666,26 @@ export default function Login() {
 
           {error ? (
             <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
+          ) : null}
+
+          {recoveryNotice ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className={`mb-4 flex items-start gap-2.5 rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#334155] shadow-[0_10px_26px_rgba(30,58,138,0.08)] transition-all duration-300 ${
+                recoveryNoticeExiting
+                  ? '-translate-y-1 opacity-0'
+                  : 'translate-y-0 opacity-100'
+              }`}
+            >
+              <span
+                className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#1e3a8a] shadow-sm ring-1 ring-[#dbeafe]"
+                aria-hidden="true"
+              >
+                <Check size={15} strokeWidth={3} />
+              </span>
+              <span>{recoveryNotice}</span>
+            </div>
           ) : null}
 
           <form
