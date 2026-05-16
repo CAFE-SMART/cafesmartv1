@@ -1170,22 +1170,22 @@ export default function Sublotes() {
 
       {subloteActivo ? (
         <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1">
-          <div className="mx-auto grid w-full max-w-[430px] gap-1.5">
+          <div className="mx-auto grid w-full max-w-[430px] grid-cols-3 gap-1.5">
             <button
               type="button"
               onClick={() => navigate('/ventas')}
-              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f4aa4] text-[0.68rem] font-black text-white shadow-[0_6px_14px_rgba(47,74,164,0.14)]"
+              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#2f4aa4] px-1 text-[0.62rem] font-black text-white shadow-[0_6px_14px_rgba(47,74,164,0.14)]"
             >
-              <Tag size={13} strokeWidth={2.25} />
-              Vender sublote
+              <Tag size={12} strokeWidth={2.25} />
+              Vender
             </button>
 
             <button
               type="button"
               onClick={handleOpenWeightModal}
-              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e1e1e1] bg-white text-[0.68rem] font-black text-[#4f4f4f]"
+              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f]"
             >
-              <Scale size={13} strokeWidth={2.2} />
+              <Scale size={12} strokeWidth={2.2} />
               Ajustar peso
             </button>
 
@@ -1196,9 +1196,9 @@ export default function Sublotes() {
                   `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
                 )
               }
-              className="flex h-[32px] w-full items-center justify-center gap-2 rounded-[8px] border border-[#e1e1e1] bg-white text-[0.68rem] font-black text-[#4f4f4f]"
+              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f]"
             >
-              <Tag size={13} strokeWidth={2.2} />
+              <Tag size={12} strokeWidth={2.2} />
               Ver gastos
             </button>
           </div>

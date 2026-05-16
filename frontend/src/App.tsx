@@ -32,26 +32,48 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false }, () => {
+      window.location.reload();
+    });
   };
 
   private handleGoHome = () => {
-    window.location.assign('/');
+    const path = window.location.pathname;
+    const inAuthFlow =
+      path === '/' ||
+      path.startsWith('/login') ||
+      path.startsWith('/register') ||
+      path.startsWith('/crear-empresa');
+    window.location.assign(inAuthFlow ? '/login' : '/inicio');
   };
 
   render() {
     if (this.state.hasError) {
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      const inAuthFlow =
+        path === '/' ||
+        path.startsWith('/login') ||
+        path.startsWith('/register') ||
+        path.startsWith('/crear-empresa');
 
       return (
         <CafeSmartErrorState
           fullScreen
-          title="No pudimos cargar la pantalla"
+          title={
+            inAuthFlow
+              ? 'No pudimos cargar el acceso'
+              : 'No pudimos cargar la pantalla'
+          }
           message={
             isOffline
               ? 'Revisa tu conexión a internet e intenta nuevamente.'
-              : 'Puedes volver al inicio o intentar cargar la pantalla otra vez.'
+              : inAuthFlow
+                ? 'Puedes volver al login o intentar cargar nuevamente.'
+                : 'Puedes ir al inicio o intentar cargar la pantalla otra vez.'
           }
+          primaryLabel="Reintentar"
+          secondaryLabel={inAuthFlow ? 'Volver al login' : 'Ir al inicio'}
           onPrimary={this.handleRetry}
           onSecondary={this.handleGoHome}
         />

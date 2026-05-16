@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Sparkles,
   SunMedium,
+  Warehouse,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { useCloudStatus } from '../context/CloudStatusContext';
@@ -16,6 +17,7 @@ import {
   obtenerDashboardSummary,
   type DashboardSummary,
 } from '../services/dashboardService';
+import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
@@ -370,6 +372,12 @@ export default function Inicio() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [mostrarOnboardingBodega, setMostrarOnboardingBodega] = useState(false);
+  const [capacidadInicialKg, setCapacidadInicialKg] = useState('');
+  const [guardandoCapacidadInicial, setGuardandoCapacidadInicial] =
+    useState(false);
+  const [capacidadInicialError, setCapacidadInicialError] =
+    useState<string | null>(null);
 
   const cargarDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -386,6 +394,10 @@ export default function Inicio() {
 
       if (dashboardResult.status === 'fulfilled') {
         setSummary(dashboardResult.value);
+        setMostrarOnboardingBodega(
+          !dashboardResult.value.kgCapacidad ||
+            dashboardResult.value.kgCapacidad <= 0,
+        );
         setError(null);
       } else {
         setError(resolveDashboardErrorMessage(dashboardResult.reason));
@@ -425,6 +437,30 @@ export default function Inicio() {
     await Promise.allSettled([cargarDashboard(true), refreshHealth()]);
   }, [cargarDashboard, refreshHealth]);
 
+  const guardarCapacidadInicial = useCallback(async () => {
+    const capacidad = Number(capacidadInicialKg);
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      setCapacidadInicialError('Ingresa una capacidad mayor a 0.');
+      return;
+    }
+
+    setGuardandoCapacidadInicial(true);
+    setCapacidadInicialError(null);
+    try {
+      await guardarConfiguracionBodega({
+        nombreBodega: 'Bodega principal',
+        capacidadKg: capacidad,
+      });
+      setMostrarOnboardingBodega(false);
+      setCapacidadInicialKg('');
+      await cargarDashboard(true);
+    } catch {
+      setCapacidadInicialError('No pudimos guardar la capacidad. Intenta otra vez.');
+    } finally {
+      setGuardandoCapacidadInicial(false);
+    }
+  }, [capacidadInicialKg, cargarDashboard]);
+
   const ocupacion = useMemo(() => {
     const kgActual = summary?.kgActual ?? null;
     const kgCapacidad = summary?.kgCapacidad ?? null;
@@ -450,6 +486,39 @@ export default function Inicio() {
       excedida: porcentajeReal > 100,
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
+
+  const alertaBodega = useMemo(() => {
+    const kgActual = summary?.kgActual ?? null;
+    const kgCapacidad = summary?.kgCapacidad ?? null;
+    if (
+      kgActual === null ||
+      kgCapacidad === null ||
+      !Number.isFinite(kgActual) ||
+      !Number.isFinite(kgCapacidad) ||
+      kgCapacidad <= 0
+    ) {
+      return null;
+    }
+
+    const porcentajeReal = (kgActual / kgCapacidad) * 100;
+    if (porcentajeReal >= 100) {
+      return {
+        title: 'La bodega está llena',
+        text: 'Vende café o ajusta el inventario para liberar espacio.',
+        className: 'border-[#fb7185] bg-[#fff1f2] text-[#881337] shadow-[0_10px_24px_rgba(190,18,60,0.12)]',
+        icon: '!',
+      };
+    }
+    if (porcentajeReal >= 99) {
+      return {
+        title: 'La bodega está casi llena',
+        text: 'Registra una venta para liberar espacio antes de agregar nuevas compras.',
+        className: 'border-[#f59e0b] bg-[#fff4cc] text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]',
+        icon: '⚠',
+      };
+    }
+    return null;
+  }, [summary?.kgActual, summary?.kgCapacidad]);
 
   const cafeEnBodega = useMemo(() => {
     const sections: BodegaCoffeeItem[] = [
@@ -585,6 +654,73 @@ export default function Inicio() {
           </section>
         ) : null}
 
+        {dashboardState === 'valid' && mostrarOnboardingBodega ? (
+          <section className="px-5 pb-3">
+            <div className="rounded-[18px] border border-[#f59e0b] bg-[#fff4cc] px-4 py-3 text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#92400e]">
+                  <Warehouse size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.88rem] font-black">
+                    Configura la capacidad de tu bodega
+                  </p>
+                  <p className="mt-1 text-[0.74rem] font-bold leading-5">
+                    Necesitamos este dato para validar compras, inventario y ventas.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarOnboardingBodega(false)}
+                      className="inline-flex min-h-[34px] items-center rounded-full bg-white/70 px-3 text-[0.72rem] font-black text-[#5f370e]"
+                    >
+                      Más tarde
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCapacidadInicialKg((value) => value || '6000')}
+                      className="inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-[0.72rem] font-black text-white"
+                    >
+                      Configurar bodega
+                    </button>
+                  </div>
+                  {capacidadInicialKg ? (
+                    <div className="mt-3 rounded-[14px] bg-white/75 p-3">
+                      <label className="text-[0.72rem] font-black text-[#5f370e]">
+                        Capacidad máxima (kg)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={capacidadInicialKg}
+                        onChange={(event) => {
+                          setCapacidadInicialKg(event.target.value);
+                          setCapacidadInicialError(null);
+                        }}
+                        className="mt-1 h-10 w-full rounded-[12px] border border-[#f3c363] bg-white px-3 text-sm font-black text-slate-900 outline-none"
+                        placeholder="Ej. 6000"
+                      />
+                      {capacidadInicialError ? (
+                        <p className="mt-2 text-xs font-black text-[#b42318]">
+                          {capacidadInicialError}
+                        </p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void guardarCapacidadInicial()}
+                        disabled={guardandoCapacidadInicial}
+                        className="mt-2 inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {guardandoCapacidadInicial ? 'Guardando...' : 'Guardar capacidad'}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {dashboardState === 'valid' && isEmptyDashboard ? (
           <EmptyDashboardState
             onRegisterPurchase={() => navigate('/compras')}
@@ -668,6 +804,32 @@ export default function Inicio() {
                     total
                   </span>
                 </div>
+                {alertaBodega ? (
+                  <div
+                    className={`mt-3 rounded-[14px] border px-3 py-2.5 ${alertaBodega.className}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/75 text-[0.8rem] font-black">
+                        {alertaBodega.icon}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[0.8rem] font-black">
+                          {alertaBodega.title}
+                        </p>
+                        <p className="mt-1 text-[0.7rem] font-bold leading-5">
+                          {alertaBodega.text}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/ventas')}
+                      className="mt-2 inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
+                    >
+                      Registrar venta →
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </section>
 

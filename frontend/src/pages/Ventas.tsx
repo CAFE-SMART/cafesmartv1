@@ -4,8 +4,11 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Coffee,
+  History,
   IdCard,
   PackageOpen,
   Pencil,
@@ -14,7 +17,6 @@ import {
   ReceiptText,
   RefreshCw,
   Search,
-  Scale,
   ShoppingCart,
   Trash2,
   User,
@@ -29,6 +31,7 @@ import {
 } from '../components/forms/GuidedError';
 import { obtenerDeviceId } from '../utils/deviceId';
 import {
+  actualizarCliente,
   crearCliente,
   listarClientes,
   type ClienteItem,
@@ -41,6 +44,7 @@ import {
 } from '../services/lotesService';
 import { CreateVentaResponse, crearVenta } from '../services/ventasService';
 import { ApiRequestError } from '../services/apiService';
+import { Preferences } from '@capacitor/preferences';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import { applySecadoToDetalle, applySecadoToLots } from '../utils/secadoFlow';
 import { PRECIO_MINIMO_KG } from '../utils/businessRules';
@@ -53,14 +57,16 @@ import {
 } from '../utils/date';
 import {
   formatPhoneNumber,
+  normalizeCompanyName,
+  normalizeHumanName,
   normalizeDocumentForStorage,
   sanitizeDocumentInput,
   sanitizeDigits as sanitizePersonDigits,
   sanitizeNameInput,
+  validateCompanyName,
   type DocumentType,
   validateDocumentNumber,
   validatePersonName,
-  validatePhoneNumber,
 } from '../utils/personValidation';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 
@@ -73,6 +79,8 @@ type ClienteOption = {
   documento: string;
   detalle: string;
   telefono?: string;
+  tipoDocumento?: DocumentType;
+  createdAt?: string;
   rapido?: boolean;
 };
 
@@ -99,6 +107,15 @@ type LoteVenta = {
   precioKg: string;
   pesoVerificadoKg: string;
 };
+type VentaFifoItem = {
+  groupId: string;
+  subloteId: string;
+  subloteNombre: string;
+  fifoPosition: number;
+  pesoAsignado: number;
+  fechaEntrada: string;
+  costoBase: number | null;
+};
 type VentaGuardadaResumen = {
   referenciaId: string;
   fecha: string;
@@ -113,12 +130,404 @@ type VentaGuardadaResumen = {
     cantidadKg: number;
     subtotal: number;
   }>;
+  fifoBreakdown?: VentaFifoItem[];
+};
+type VentaParcialCardAlert = {
+  title: string;
+  detail: string;
 };
 
 const LIMITE = 6;
+type ClienteSortMode = 'recent' | 'oldest' | 'az' | 'za' | 'doc-asc' | 'doc-desc';
+const CLIENTE_SORT_OPTIONS: Array<{ value: ClienteSortMode; label: string }> = [
+  { value: 'recent', label: 'Más recientes' },
+  { value: 'oldest', label: 'Más antiguos' },
+  { value: 'az', label: 'A-Z' },
+  { value: 'za', label: 'Z-A' },
+  { value: 'doc-asc', label: 'Número menor a mayor' },
+  { value: 'doc-desc', label: 'Número mayor a menor' },
+];
+const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
+  { value: 'CEDULA', label: 'Cédula' },
+  { value: 'NIT', label: 'NIT' },
+];
+const VENTA_FILTRO_TODOS = 'TODOS';
+const VENTA_DRAFT_STORAGE_KEY = 'cafe-smart:venta-draft:v1';
+const MONTHS_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
 
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
+}
+
+function parseLocalDateValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+function formatLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isDateValueInRange(value: string, min: string, max: string) {
+  return value >= min && value <= max;
+}
+
+function CompactSelect<T extends string>({
+  id,
+  value,
+  options,
+  placeholder,
+  open,
+  icon,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  id: string;
+  value: T | '';
+  options: Array<{ value: T; label: string }>;
+  placeholder: string;
+  open: boolean;
+  icon?: React.ReactNode;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: T) => void;
+}) {
+  const selected = options.find((option) => option.value === value);
+  const buttonId = `${id}-button`;
+  const listId = `${id}-list`;
+
+  return (
+    <div className="relative">
+      <button
+        id={buttonId}
+        type="button"
+        aria-haspopup="listbox"
+        aria-controls={listId}
+        {...ariaExpanded(open)}
+        onClick={onToggle}
+        onBlur={(event) => {
+          if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
+            onClose();
+          }
+        }}
+        className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe2f0] bg-white px-4 py-2.5 text-left text-sm font-black text-slate-900 shadow-sm transition focus:border-[#1f3fa7] focus:outline-none focus:ring-4 focus:ring-[#1f3fa7]/10"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="text-[#1f3fa7]" aria-hidden="true">
+            {icon ?? <IdCard size={16} />}
+          </span>
+          <span className={selected ? 'truncate' : 'truncate text-slate-400'}>
+            {selected?.label ?? placeholder}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open ? (
+        <div
+          id={listId}
+          role="listbox"
+          aria-labelledby={buttonId}
+          className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 overflow-hidden rounded-[16px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)]"
+        >
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={active ? 'true' : 'false'}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option.value);
+                  onClose();
+                }}
+                className={`flex min-h-[40px] w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm font-black transition ${
+                  active
+                    ? 'bg-[#eef4ff] text-[#1f3fa7]'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {option.label}
+                {active ? <Check size={15} /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SalesDatePicker({
+  value,
+  min,
+  max,
+  open,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  value: string;
+  min: string;
+  max: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: string) => void;
+}) {
+  const selectedDate = parseLocalDateValue(value);
+  const maxDate = parseLocalDateValue(max) ?? new Date();
+  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
+  const visibleDate = selectedDate ?? maxDate;
+  const [calendarView, setCalendarView] = React.useState<'days' | 'months' | 'years'>('days');
+  const [visibleMonth, setVisibleMonth] = React.useState(
+    () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
+  );
+
+  React.useEffect(() => {
+    if (open) {
+      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+      setCalendarView('days');
+    }
+  }, [max, open, value]);
+
+  const calendarDays = React.useMemo(() => {
+    const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    const daysInMonth = new Date(
+      visibleMonth.getFullYear(),
+      visibleMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    return [
+      ...Array.from({ length: firstDay.getDay() }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => {
+        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1);
+        return { day: index + 1, value: formatLocalDateValue(date) };
+      }),
+    ];
+  }, [visibleMonth]);
+
+  const visibleYear = visibleMonth.getFullYear();
+  const previousMonth = new Date(visibleYear, visibleMonth.getMonth() - 1, 1);
+  const nextMonth = new Date(visibleYear, visibleMonth.getMonth() + 1, 1);
+  const canGoPrevious = previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const canGoNext = nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+  const yearOptions = Array.from(
+    { length: maxDate.getFullYear() - minDate.getFullYear() + 1 },
+    (_, index) => minDate.getFullYear() + index,
+  );
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        {...ariaExpanded(open)}
+        onClick={onToggle}
+        className={`mt-2.5 flex min-h-[58px] w-full cursor-pointer items-center justify-between gap-3 rounded-[16px] border bg-[#f8f9ff] px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
+          open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
+        }`}
+      >
+        <span className="min-w-0 flex-1 truncate text-[1.18rem] font-black leading-none text-[#08256d]">
+          {value ? formatDateLabel(value) : 'Selecciona una fecha'}
+        </span>
+        <CalendarDays size={20} className={open ? 'text-[#102d92]' : 'text-slate-500'} />
+      </button>
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Calendario de fecha de venta"
+          className="absolute left-0 right-0 z-30 mt-2 rounded-[22px] border border-[#d5deee] bg-white p-3 shadow-[0_22px_48px_rgba(15,23,42,0.18)]"
+        >
+          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+            <button
+              type="button"
+              disabled={!canGoPrevious}
+              onClick={() => setVisibleMonth(previousMonth)}
+              aria-label="Mes anterior"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
+              <button
+                type="button"
+                {...ariaPressed(calendarView === 'months')}
+                onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
+                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+              >
+                {MONTHS_ES[visibleMonth.getMonth()]}
+              </button>
+              <button
+                type="button"
+                {...ariaPressed(calendarView === 'years')}
+                onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
+                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+              >
+                {visibleYear}
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={!canGoNext}
+              onClick={() => setVisibleMonth(nextMonth)}
+              aria-label="Mes siguiente"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              <ArrowRight size={17} />
+            </button>
+          </div>
+
+          {calendarView === 'months' ? (
+            <div className="grid grid-cols-3 gap-2 px-1 py-1">
+              {MONTHS_ES.map((month, monthIndex) => {
+                const candidate = new Date(visibleYear, monthIndex, 1);
+                const disabled =
+                  candidate < new Date(minDate.getFullYear(), minDate.getMonth(), 1) ||
+                  candidate > new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+                const active = monthIndex === visibleMonth.getMonth();
+                return (
+                  <button
+                    key={month}
+                    type="button"
+                    disabled={disabled}
+                    {...ariaPressed(active)}
+                    onClick={() => {
+                      if (!disabled) {
+                        setVisibleMonth(new Date(visibleYear, monthIndex, 1));
+                        setCalendarView('days');
+                      }
+                    }}
+                    className={`min-h-[44px] rounded-[14px] px-2 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                  >
+                    {month}
+                  </button>
+                );
+              })}
+            </div>
+          ) : calendarView === 'years' ? (
+            <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto px-1 py-1">
+              {yearOptions.map((year) => {
+                const active = year === visibleYear;
+                return (
+                  <button
+                    key={year}
+                    type="button"
+                    {...ariaPressed(active)}
+                    onClick={() => {
+                      setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
+                      setCalendarView('months');
+                    }}
+                    className={`min-h-[44px] rounded-[14px] px-2 text-sm font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                  >
+                    {year}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-7 gap-1 px-1">
+              {WEEKDAYS_ES.map((day) => (
+                <span key={day} className="py-1 text-center text-[0.72rem] font-black text-slate-500">
+                  {day}
+                </span>
+              ))}
+              {calendarDays.map((day, index) =>
+                day ? (
+                  <button
+                    key={day.value}
+                    type="button"
+                    disabled={!isDateValueInRange(day.value, min, max)}
+                    {...ariaPressed(day.value === value)}
+                    onClick={() => {
+                      onChange(day.value);
+                      onClose();
+                    }}
+                    className={`h-10 rounded-full text-sm font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                      day.value === value
+                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
+                        : day.value === max
+                          ? 'bg-[#eef4ff] text-[#102d92]'
+                          : 'text-slate-800 hover:bg-[#f4f7ff]'
+                    }`}
+                  >
+                    {day.day}
+                  </button>
+                ) : (
+                  <span key={`empty-${index}`} aria-hidden="true" />
+                ),
+              )}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                onClose();
+              }}
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100"
+            >
+              Limpiar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(max);
+                onClose();
+              }}
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"
+            >
+              Hoy
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function SelectionCheck({ active }: { active: boolean }) {
@@ -247,10 +656,14 @@ function ClienteCard({
   cliente,
   active,
   onSelect,
+  onDetail,
+  onEdit,
 }: {
   cliente: ClienteOption;
   active: boolean;
   onSelect: () => void;
+  onDetail?: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <button
@@ -260,6 +673,37 @@ function ClienteCard({
       className={getSelectableCardClass(active, true)}
     >
       <span className="flex w-full items-center gap-3">
+        {onDetail || onEdit ? (
+          <span className="flex shrink-0 flex-col gap-1">
+            {onDetail ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDetail();
+                }}
+                className="rounded-full bg-white px-2.5 py-1 text-[0.66rem] font-black text-[#1f3fa7] shadow-sm"
+              >
+                Ver detalle
+              </span>
+            ) : null}
+            {onEdit ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+                className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[0.66rem] font-black text-[#1f3fa7]"
+              >
+                Editar
+              </span>
+            ) : null}
+          </span>
+        ) : null}
+
         <span
           className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
             active
@@ -341,7 +785,20 @@ const norm = (v: string) =>
 
 function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
   return lotes
-    .filter((l) => l.pesoActual > 0)
+    .filter((l) => {
+      const searchable = norm(
+        `${l.id} ${l.codigo} ${l.tipoCafeId} ${l.tipoCafe} ${l.calidadId} ${l.calidad}`,
+      );
+      const noVendible =
+        searchable.includes('en secado') ||
+        searchable.includes('secado activo') ||
+        searchable.includes('proceso de secado') ||
+        searchable.includes('no disponible') ||
+        searchable.includes('virtual-en-secado') ||
+        searchable.includes('secado-proceso');
+
+      return l.pesoActual > 0 && !noVendible;
+    })
     .map((l) => ({
       id: l.id,
       codigo: l.codigo,
@@ -361,6 +818,54 @@ const uid = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+async function readVentaDraft() {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const { value } = await Preferences.get({ key: VENTA_DRAFT_STORAGE_KEY });
+    const raw = value ?? window.localStorage.getItem(VENTA_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== 'object') return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+async function writeVentaDraft(draft: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+
+  const raw = JSON.stringify(draft);
+  try {
+    await Preferences.set({ key: VENTA_DRAFT_STORAGE_KEY, value: raw });
+  } catch {
+    // No bloquear la experiencia si Preferences falla.
+  }
+
+  try {
+    window.localStorage.setItem(VENTA_DRAFT_STORAGE_KEY, raw);
+  } catch {
+    // El borrador no debe bloquear el registro de venta.
+  }
+}
+
+async function clearVentaDraft() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    await Preferences.remove({ key: VENTA_DRAFT_STORAGE_KEY });
+  } catch {
+    // No bloquear la experiencia si Preferences falla.
+  }
+
+  try {
+    window.localStorage.removeItem(VENTA_DRAFT_STORAGE_KEY);
+  } catch {
+    // No bloquear la experiencia si el almacenamiento local falla.
+  }
+}
+
 function mapClienteToOption(cliente: ClienteItem): ClienteOption {
   return {
     id: cliente.id,
@@ -368,6 +873,8 @@ function mapClienteToOption(cliente: ClienteItem): ClienteOption {
     documento: cliente.documento?.trim() || 'Documento pendiente',
     detalle: cliente.telefono?.trim() || 'Cliente registrado en sistema',
     telefono: cliente.telefono ?? undefined,
+    tipoDocumento: (cliente as ClienteItem & { tipoDocumento?: DocumentType | null }).tipoDocumento ?? 'CEDULA',
+    createdAt: cliente.createdAt,
   };
 }
 
@@ -397,10 +904,12 @@ function findClienteExistente(
   clientes: ClienteOption[],
   nombre: string,
   documento: string,
+  excludeId?: string,
 ) {
   const key = clavePersona(nombre, documento);
   return clientes.find(
-    (cliente) => clavePersona(cliente.nombre, cliente.documento) === key,
+    (cliente) =>
+      cliente.id !== excludeId && clavePersona(cliente.nombre, cliente.documento) === key,
   );
 }
 
@@ -491,39 +1000,77 @@ function datosPasoVenta(step: Step) {
 }
 
 function getVentasGuidance(message: string): GuidedErrorMessage {
-  if (message.includes('nombre')) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('nombre del cliente') || normalized.includes('nombre')) {
     return createGuidedError(
       message,
-      'Revisa el nombre.',
-      'El nombre debe escribirse con letras, sin números.',
-      'Corrige el nombre para continuar.',
+      'Nombre incompleto.',
+      'Ingresa el nombre del cliente.',
+      'El nombre debe tener al menos 2 caracteres y no contener números.',
     );
   }
 
-  if (message.includes('teléfono') || message.includes('telefono')) {
+if (
+  normalized.includes('teléfono') ||
+  normalized.includes('telefono') ||
+  normalized.includes('celular') ||
+  normalized.includes('símbolos') ||
+  normalized.includes('simbolos')
+) {
     return createGuidedError(
       message,
-      'Revisa el teléfono.',
-      'Debe ser un celular colombiano de 10 dígitos que empieza por 3.',
-      'Corrige el número o deja el campo vacío.',
+      'Teléfono inválido.',
+      'Número celular colombiano opcional.',
+      'Ingresa un celular válido que empiece por 3 y tenga 10 dígitos.',
     );
   }
 
-  if (message.includes('cédula') || message.includes('documento')) {
+  if (
+    normalized.includes('tipo de documento') ||
+    (normalized.includes('tipo de') && normalized.includes('documento'))
+  ) {
     return createGuidedError(
       message,
-      'Revisa el documento.',
-      'Para cédula usa entre 6 y 10 dígitos. Para NIT usa 900123456-7.',
-      'Corrige el documento para continuar.',
+      'Selecciona el tipo de documento.',
+      'Selecciona si el cliente usa cédula o NIT.',
+      'Luego escribe el número de documento.',
     );
   }
 
-  if (message.includes('fecha')) {
+  if (normalized.includes('documento')) {
+    if (normalized.includes('solo') && normalized.includes('números')) {
+      return createGuidedError(
+        message,
+        'Documento inválido.',
+        'El documento solo puede contener números.',
+        'Borra letras y deja únicamente números.',
+      );
+    }
+
+    if (normalized.includes('puntos') || normalized.includes('guiones') || normalized.includes('espacios')) {
+      return createGuidedError(
+        message,
+        'Documento con formato inválido.',
+        'No uses puntos, espacios ni guiones.',
+        'Ingresa el documento sin esos caracteres.',
+      );
+    }
+
+    if (normalized.includes('muy pocos')) {
+      return createGuidedError(
+        message,
+        'Documento muy corto.',
+        'El documento tiene muy pocos números.',
+        'Revisa la cantidad de dígitos e intenta de nuevo.',
+      );
+    }
+
     return createGuidedError(
       message,
-      'Revisa la fecha de venta.',
-      'Solo puedes registrar ventas desde 2026 hasta hoy.',
-      'Elige una fecha valida para continuar.',
+      'Documento inválido.',
+      'Ingresa el número de documento sin formato.',
+      'Verifica cédula/NIT según el tipo seleccionado.',
     );
   }
 
@@ -563,10 +1110,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (
-    message.includes('modo de venta') ||
-    message.includes('como deseas realizar la venta')
-  ) {
+  if (message.includes('modo de venta') || message.includes('como deseas realizar la venta')) {
     return createGuidedError(
       message,
       'Selecciona como vender',
@@ -608,6 +1152,29 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
     'Revisa los campos señalados.',
     'Revisa el dato marcado y vuelve a intentarlo.',
   );
+}
+
+function getClienteSeleccionGuidance(): GuidedErrorMessage {
+  return createGuidedError(
+    'Elige una opción para continuar.',
+    'Opción no seleccionada.',
+    'Selecciona un cliente o una forma de registro.',
+    'Buscar cliente, Cliente genérico o Registrar cliente.',
+  );
+}
+
+function getClientePhoneError(value: string) {
+  const raw = value.trim();
+  if (!raw) return null;
+  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s]/.test(raw)) {
+    return 'No uses letras ni símbolos.';
+  }
+  const digits = sanitizePersonDigits(raw, 10);
+  if (digits.length !== 10) return 'El celular debe tener 10 números.';
+  if (!digits.startsWith('3')) {
+    return 'Ingresa un celular colombiano que empiece por 3.';
+  }
+  return null;
 }
 
 function getVentaSubmitMessage(error: unknown) {
@@ -805,7 +1372,7 @@ function NoInventorySalesScreen({
           <ArrowLeft size={22} />
         </button>
         <h1 className="text-[1.35rem] font-semibold text-slate-900">
-          Registro de Venta
+          Nueva Venta
         </h1>
       </header>
 
@@ -883,13 +1450,34 @@ export default function Ventas() {
   >(null);
   const [modoVenta, setModoVenta] = React.useState<ModoVenta | null>(null);
   const [fechaVenta, setFechaVenta] = React.useState(getTodayLocalDateValue());
+  const [fechaVentaPickerOpen, setFechaVentaPickerOpen] = React.useState(false);
   const [preciosVentaTotal, setPreciosVentaTotal] = React.useState<
     Record<string, string>
   >({});
   const [lotesVenta, setLotesVenta] = React.useState<LoteVenta[]>([]);
-  const [loteAjustandoId, setLoteAjustandoId] = React.useState<string | null>(
-    null,
-  );
+  const [ventaParcialOpenId, setVentaParcialOpenId] = React.useState<string | null>(null);
+  const [busquedaCafeVenta, setBusquedaCafeVenta] = React.useState('');
+  const [tipoCafeFiltroVenta, setTipoCafeFiltroVenta] = React.useState(VENTA_FILTRO_TODOS);
+  const [calidadFiltroVenta, setCalidadFiltroVenta] = React.useState(VENTA_FILTRO_TODOS);
+  const [tipoCafeFiltroOpen, setTipoCafeFiltroOpen] = React.useState(false);
+  const [calidadFiltroOpen, setCalidadFiltroOpen] = React.useState(false);
+  const [mostrarTodosCafeVenta, setMostrarTodosCafeVenta] = React.useState(false);
+  const [ventaParcialAlert, setVentaParcialAlert] = React.useState<string | null>(null);
+  const ventaParcialAlertTimerRef = React.useRef<number | null>(null);
+  const [ventaParcialCardAlerts, setVentaParcialCardAlerts] = React.useState<
+    Record<string, VentaParcialCardAlert>
+  >({});
+  const ventaParcialCardAlertTimerRef = React.useRef<number | null>(null);
+  const [ajustesVentaParcialConfirmados, setAjustesVentaParcialConfirmados] =
+    React.useState<Record<string, true>>({});
+  const [ventaFifoBreakdown, setVentaFifoBreakdown] = React.useState<
+    VentaFifoItem[]
+  >([]);
+  const [revisionDeleteAlert, setRevisionDeleteAlert] =
+    React.useState<VentaParcialCardAlert | null>(null);
+  const revisionDeleteAlertTimerRef = React.useRef<number | null>(null);
+  const [borradorVentaPendiente, setBorradorVentaPendiente] = React.useState<any | null>(null);
+  const [mostrarModalBorradorVenta, setMostrarModalBorradorVenta] = React.useState(false);
   const [clientes, setClientes] = React.useState<ClienteOption[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] =
     React.useState<ClienteOption | null>(null);
@@ -898,6 +1486,8 @@ export default function Ventas() {
   const [mostrarModal, setMostrarModal] = React.useState(false);
   const [mostrarModalClientes, setMostrarModalClientes] =
     React.useState(false);
+  const [clienteDetalle, setClienteDetalle] = React.useState<ClienteOption | null>(null);
+  const [clienteEditando, setClienteEditando] = React.useState<ClienteOption | null>(null);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] =
     React.useState(false);
   const [mostrarModalCancelar, setMostrarModalCancelar] =
@@ -908,14 +1498,32 @@ export default function Ventas() {
     React.useState('');
 
   const [clientesSortMode, setClientesSortMode] = React.useState<
-    'recent' | 'az' | 'za' | 'doc-asc' | 'doc-desc'
+    ClienteSortMode
   >('recent');
+  const [clientesSortDropdownOpen, setClientesSortDropdownOpen] =
+    React.useState(false);
+  const [clienteDocumentoDropdownOpen, setClienteDocumentoDropdownOpen] =
+    React.useState(false);
+  const [mostrarHistorialVentas, setMostrarHistorialVentas] =
+    React.useState(false);
+  const [historialVentaFecha, setHistorialVentaFecha] = React.useState('');
+  const [historialVentaCliente, setHistorialVentaCliente] = React.useState('TODOS');
+  const [historialVentaOrden, setHistorialVentaOrden] = React.useState<'recent' | 'oldest'>('recent');
+  const [mostrarHistorialLotesVenta, setMostrarHistorialLotesVenta] =
+    React.useState(false);
+  const [ventasRealizadas, setVentasRealizadas] = React.useState<
+    VentaGuardadaResumen[]
+  >([]);
   const [clienteForm, setClienteForm] = React.useState<ClienteForm>({
     nombre: '',
     telefono: '',
     documento: '',
     tipoDocumento: '',
   });
+  const [nombreMaxToast, setNombreMaxToast] = React.useState(false);
+  const nombreMaxToastTimerRef = React.useRef<number | null>(null);
+  const MAX_NOMBRE_CARACTERES = 60 as const;
+  const MIN_NOMBRE_CARACTERES = 2 as const;
   const [clienteFormErrors, setClienteFormErrors] =
     React.useState<ClienteFormErrors>({});
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(
@@ -927,16 +1535,34 @@ export default function Ventas() {
     try {
       setCargando(true);
       setLoadError(null);
-      const [lotes, clientesData] = await Promise.all([
+      const [lotesResult, clientesResult] = await Promise.allSettled([
         obtenerLotes(),
         listarClientes(),
       ]);
+      if (lotesResult.status === 'rejected') {
+        if (import.meta.env.DEV) {
+          console.warn('[Ventas] Error cargando inventario', lotesResult.reason);
+        }
+        throw lotesResult.reason;
+      }
+      if (clientesResult.status === 'rejected') {
+        if (import.meta.env.DEV) {
+          console.warn('[Ventas] Error cargando clientes', clientesResult.reason);
+        }
+        setClientes([]);
+      }
+      const lotes = lotesResult.value;
+      const clientesData =
+        clientesResult.status === 'fulfilled' ? clientesResult.value : [];
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
         : lotes;
       setLotesVenta(mkLotes(lotesDisponibles));
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
     } catch (e) {
+      if (import.meta.env.DEV) {
+        console.warn('[Ventas] No se pudo cargar la pantalla de venta', e);
+      }
       setLoadError(
         e instanceof Error
           ? e.message
@@ -951,10 +1577,75 @@ export default function Ventas() {
     void cargarLotes();
   }, [cargarLotes]);
 
+  React.useEffect(() => {
+    const loadDraft = async () => {
+      const draft = await readVentaDraft();
+      if (draft?.savedAt) {
+        setBorradorVentaPendiente(draft);
+        setMostrarModalBorradorVenta(true);
+      }
+    };
+
+    void loadDraft();
+  }, []);
+
+  React.useEffect(() => {
+    if (
+      cargando ||
+      ventaGuardada ||
+      registroErrorMensaje ||
+      mostrarModalBorradorVenta ||
+      borradorVentaPendiente
+    )
+      return;
+    const hasProgress =
+      paso > 1 ||
+      Boolean(clienteSeleccionado) ||
+      Boolean(modoVenta) ||
+      lotesVenta.some((lote) => lote.cantidadKg || lote.pesoVerificadoKg) ||
+      Object.values(preciosVentaTotal).some((precio) => precio.trim() !== '');
+
+    if (!hasProgress) {
+      clearVentaDraft();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      writeVentaDraft({
+        savedAt: Date.now(),
+        paso,
+        clienteSeleccionado,
+        clienteMetodo,
+        fechaVenta,
+        modoVenta,
+        lotesVenta,
+        preciosVentaTotal,
+        ajustesVentaParcialConfirmados,
+        localId: ventaLocalIdRef.current,
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    cargando,
+    borradorVentaPendiente,
+    clienteMetodo,
+    clienteSeleccionado,
+    fechaVenta,
+    lotesVenta,
+    mostrarModalBorradorVenta,
+    modoVenta,
+    paso,
+    preciosVentaTotal,
+    registroErrorMensaje,
+    ventaGuardada,
+    ajustesVentaParcialConfirmados,
+  ]);
+
   const clientesRecientes = React.useMemo(() => {
     const base = dedupeClientesOptions([...clientes]);
     const term = norm(busquedaAplicada.trim());
-    if (!term) return base.slice(0, LIMITE);
+    if (!term) return base;
     return base.filter((c) =>
       [c.nombre, c.documento, c.detalle].some((v) => norm(v).includes(term)),
     );
@@ -965,6 +1656,39 @@ export default function Ventas() {
   const mostrarResultadosClientes =
     clienteMetodo === 'BUSCAR' &&
     (!clienteSeleccionado || busquedaClienteActiva);
+  const historialVentaClientes = React.useMemo(() => {
+    const options = new Map<string, string>();
+    options.set('TODOS', 'Todos');
+    options.set('NO_REGISTRADO', 'Cliente no registrado');
+    ventasRealizadas.forEach((venta) => {
+      const nombre = venta.clienteNombre?.trim();
+      if (nombre) options.set(nombre, nombre);
+    });
+    return Array.from(options.entries());
+  }, [ventasRealizadas]);
+  const ventasHistorialFiltradas = React.useMemo(() => {
+    const sameDate = (value: string) => value.slice(0, 10) === historialVentaFecha;
+    return [...ventasRealizadas]
+      .filter((venta) => !historialVentaFecha || sameDate(venta.fecha))
+      .filter((venta) => {
+        if (historialVentaCliente === 'TODOS') return true;
+        const noRegistrado =
+          venta.clienteNombre === CLIENTE_GENERAL.nombre ||
+          venta.clienteDocumento === CLIENTE_GENERAL.documento;
+        if (historialVentaCliente === 'NO_REGISTRADO') return noRegistrado;
+        return venta.clienteNombre === historialVentaCliente;
+      })
+      .sort((a, b) =>
+        historialVentaOrden === 'oldest'
+          ? new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+          : new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+      );
+  }, [
+    historialVentaCliente,
+    historialVentaFecha,
+    historialVentaOrden,
+    ventasRealizadas,
+  ]);
 
   const lotesConCantidad = React.useMemo(() => {
     if (modoVenta === 'TOTAL') {
@@ -985,8 +1709,8 @@ export default function Ventas() {
         cantidad: toNum(l.cantidadKg),
         precio: toNum(l.precioKg),
       }))
-      .filter((l) => l.cantidad > 0);
-  }, [lotesVenta, modoVenta, preciosVentaTotal]);
+      .filter((l) => ajustesVentaParcialConfirmados[l.id] && l.cantidad > 0);
+  }, [ajustesVentaParcialConfirmados, lotesVenta, modoVenta, preciosVentaTotal]);
 
   const totalKg = React.useMemo(
     () => lotesConCantidad.reduce((a, l) => a + l.cantidad, 0),
@@ -1001,6 +1725,56 @@ export default function Ventas() {
       lotesVenta.reduce((total, lote) => total + getDisponibleVenta(lote), 0),
     [lotesVenta],
   );
+
+  React.useEffect(() => {
+    if (paso === 3 && !lotesConCantidad.length && !ventaGuardada) {
+      setPaso(2);
+      setIntentoPaso2(true);
+    }
+  }, [lotesConCantidad.length, paso, ventaGuardada]);
+  const tipoCafeFiltroOpciones = React.useMemo(() => {
+    const vistos = new Set<string>();
+    return [
+      { value: VENTA_FILTRO_TODOS, label: 'Todos los tipos' },
+      ...lotesVenta.reduce<Array<{ value: string; label: string }>>((opciones, lote) => {
+        const key = lote.tipoCafe.trim().toLowerCase();
+        if (!key || vistos.has(key)) return opciones;
+        vistos.add(key);
+        opciones.push({ value: lote.tipoCafe, label: lote.tipoCafe });
+        return opciones;
+      }, []),
+    ];
+  }, [lotesVenta]);
+  const calidadFiltroOpciones = React.useMemo(() => {
+    const vistos = new Set<string>();
+    return [
+      { value: VENTA_FILTRO_TODOS, label: 'Todas las calidades' },
+      ...lotesVenta.reduce<Array<{ value: string; label: string }>>((opciones, lote) => {
+        const key = lote.calidad.trim().toLowerCase();
+        if (!key || vistos.has(key)) return opciones;
+        vistos.add(key);
+        opciones.push({ value: lote.calidad, label: lote.calidad });
+        return opciones;
+      }, []),
+    ];
+  }, [lotesVenta]);
+  const lotesVentaParcialFiltrados = React.useMemo(() => {
+    const termino = norm(busquedaCafeVenta.trim());
+    return lotesVenta.filter((lote) => {
+      const texto = norm(`${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`);
+      const coincideBusqueda = !termino || texto.includes(termino);
+      const coincideTipo =
+        tipoCafeFiltroVenta === VENTA_FILTRO_TODOS ||
+        norm(lote.tipoCafe) === norm(tipoCafeFiltroVenta);
+      const coincideCalidad =
+        calidadFiltroVenta === VENTA_FILTRO_TODOS ||
+        norm(lote.calidad) === norm(calidadFiltroVenta);
+      return coincideBusqueda && coincideTipo && coincideCalidad;
+    });
+  }, [busquedaCafeVenta, calidadFiltroVenta, lotesVenta, tipoCafeFiltroVenta]);
+  const lotesVentaParcialVisibles = mostrarTodosCafeVenta
+    ? lotesVentaParcialFiltrados
+    : lotesVentaParcialFiltrados.slice(0, 3);
   const resumenDisponiblePorTipo = React.useMemo(() => {
     const resumen = new Map<
       string,
@@ -1051,7 +1825,7 @@ export default function Ventas() {
 
       return null;
     }
-    if (!lotesConCantidad.length)
+    if (modoVenta === 'PARCIAL' && !lotesConCantidad.length)
       return 'Ingresa al menos una cantidad para continuar.';
     for (const l of lotesConCantidad) {
       if (pesoVerificadoInvalido(l))
@@ -1073,14 +1847,20 @@ export default function Ventas() {
   ]);
 
   const hayCantidadParcial = React.useMemo(
-    () => lotesVenta.some((l) => toNum(l.cantidadKg) > 0),
-    [lotesVenta],
+    () =>
+      lotesVenta.some(
+        (l) =>
+          ajustesVentaParcialConfirmados[l.id] &&
+          toNum(l.cantidadKg) > 0 &&
+          toNum(l.precioKg) >= PRECIO_MINIMO_KG &&
+          toNum(l.cantidadKg) <= getDisponibleVenta(l),
+      ),
+    [ajustesVentaParcialConfirmados, lotesVenta],
   );
   const parcialConErrores = React.useMemo(() => {
     if (modoVenta !== 'PARCIAL') return false;
     return lotesVenta.some((lote) => {
-      const cantidadIngresada = lote.cantidadKg.trim() !== '';
-      if (!cantidadIngresada) return false;
+      if (!ajustesVentaParcialConfirmados[lote.id]) return false;
       const cantidad = toNum(lote.cantidadKg);
       return (
         cantidad <= 0 ||
@@ -1089,7 +1869,7 @@ export default function Ventas() {
         pesoVerificadoInvalido(lote)
       );
     });
-  }, [lotesVenta, modoVenta]);
+  }, [ajustesVentaParcialConfirmados, lotesVenta, modoVenta]);
   const puedeAvanzarPaso2 =
     !fechaVentaValidacion.isValid || modoVenta === null
       ? false
@@ -1099,9 +1879,125 @@ export default function Ventas() {
           !lotesVenta.some(pesoVerificadoInvalido)
         : hayCantidadParcial && !parcialConErrores;
 
+  const mostrarAlertaVentaParcial = React.useCallback((message: string) => {
+    setVentaParcialAlert(message);
+    if (ventaParcialAlertTimerRef.current) {
+      window.clearTimeout(ventaParcialAlertTimerRef.current);
+    }
+    ventaParcialAlertTimerRef.current = window.setTimeout(() => {
+      setVentaParcialAlert(null);
+    }, 4200);
+  }, []);
+
+  const getVentaParcialCardAlert = React.useCallback(
+    (
+      lote: LoteVenta,
+      requireEmpty = false,
+      skipConfirmCheck = false,
+    ): VentaParcialCardAlert | null => {
+      const nombreCafe = `${lote.tipoCafe} ${lote.calidad}`;
+      const cantidadTexto = lote.cantidadKg.trim();
+      const precioTexto = lote.precioKg.trim();
+      const cantidad = toNum(lote.cantidadKg);
+      const precio = toNum(lote.precioKg);
+      const disponible = getDisponibleVenta(lote);
+
+      if (!cantidadTexto && !precioTexto) {
+        return requireEmpty
+          ? {
+              title: `Confirma el ajuste de ${nombreCafe}.`,
+              detail:
+                'Completa cantidad y precio, luego confirma el ajuste para agregarlo a la venta.',
+            }
+          : null;
+      }
+
+      if (!cantidadTexto && precioTexto) {
+        return {
+          title: `Falta la cantidad en ${nombreCafe}.`,
+          detail: 'Ingresa cuántos kg deseas vender.',
+        };
+      }
+
+      if (cantidad <= 0) {
+        return {
+          title: `Falta la cantidad en ${nombreCafe}.`,
+          detail: 'Ingresa cuántos kg deseas vender.',
+        };
+      }
+
+      if (cantidad > disponible) {
+        return {
+          title: `La cantidad supera el disponible de ${nombreCafe}.`,
+          detail: `Disponible: ${kg(disponible)}.`,
+        };
+      }
+
+      if (!precioTexto) {
+        return {
+          title: `Falta el precio en ${nombreCafe}.`,
+          detail: 'Ingresa el precio por kg.',
+        };
+      }
+
+      if (precio < PRECIO_MINIMO_KG) {
+        return {
+          title: `El precio de ${nombreCafe} es demasiado bajo.`,
+          detail: 'Ingresa un valor desde $1.000 por kg.',
+        };
+      }
+
+      if (pesoVerificadoInvalido(lote)) {
+        return {
+          title: `Revisa el peso de ${nombreCafe}.`,
+          detail: `No puede superar el disponible: ${kg(disponible)}.`,
+        };
+      }
+
+      if (!skipConfirmCheck && !ajustesVentaParcialConfirmados[lote.id]) {
+        return {
+          title: `Confirma el ajuste de ${nombreCafe}.`,
+          detail: 'Presiona “Confirmar ajuste” para agregarlo a la venta.',
+        };
+      }
+
+      return null;
+    },
+    [ajustesVentaParcialConfirmados],
+  );
+
+  const mostrarAlertaTarjetaVentaParcial = React.useCallback(
+    (loteId: string, alert: VentaParcialCardAlert) => {
+      setVentaParcialCardAlerts({ [loteId]: alert });
+      if (ventaParcialCardAlertTimerRef.current) {
+        window.clearTimeout(ventaParcialCardAlertTimerRef.current);
+      }
+      ventaParcialCardAlertTimerRef.current = window.setTimeout(() => {
+        setVentaParcialCardAlerts({});
+      }, 4200);
+    },
+    [],
+  );
+
+  const mostrarAlertaRevision = React.useCallback((alert: VentaParcialCardAlert) => {
+    setRevisionDeleteAlert(alert);
+    if (revisionDeleteAlertTimerRef.current) {
+      window.clearTimeout(revisionDeleteAlertTimerRef.current);
+    }
+    revisionDeleteAlertTimerRef.current = window.setTimeout(() => {
+      setRevisionDeleteAlert(null);
+    }, 4200);
+  }, []);
+
   const siguiente = React.useCallback(() => {
     if (paso === 1) {
       setIntentoPaso1(true);
+      if (!clienteMetodo) {
+        setSubmitError(null);
+        // mantiene el estilo actual de errores de Ventas
+        setClienteFormError(null);
+        return;
+      }
       if (!clienteSeleccionado) return;
       setSubmitError(null);
       setIntentoPaso2(false);
@@ -1109,11 +2005,37 @@ export default function Ventas() {
     }
     if (paso === 2) {
       setIntentoPaso2(true);
+      if (modoVenta === 'PARCIAL') {
+        if (!hayCantidadParcial) {
+          const firstProblem = lotesVentaParcialFiltrados[0] ?? lotesVenta[0];
+          const firstProblemAlert = firstProblem
+            ? getVentaParcialCardAlert(firstProblem, true)
+            : null;
+
+          if (firstProblem && firstProblemAlert) {
+            setVentaParcialOpenId(firstProblem.id);
+            mostrarAlertaTarjetaVentaParcial(firstProblem.id, firstProblemAlert);
+          }
+        }
+      }
       if (!puedeAvanzarPaso2) return;
+      setVentaParcialCardAlerts({});
       setSubmitError(null);
       return setPaso(3);
     }
-  }, [paso, clienteSeleccionado, puedeAvanzarPaso2]);
+  }, [
+    clienteMetodo,
+    clienteSeleccionado,
+    hayCantidadParcial,
+    lotesVenta,
+    lotesVentaParcialFiltrados,
+    modoVenta,
+    getVentaParcialCardAlert,
+    mostrarAlertaTarjetaVentaParcial,
+    paso,
+    puedeAvanzarPaso2,
+  ]);
+
 
   const anterior = React.useCallback(() => {
     setSubmitError(null);
@@ -1130,7 +2052,16 @@ export default function Ventas() {
     (loteId: string) => {
       setSubmitError(null);
       setIntentoPaso2(false);
-      setPaso(2);
+
+      if (lotesConCantidad.length <= 1) {
+        setMostrarHistorialLotesVenta(false);
+        mostrarAlertaRevision({
+          title: 'Debe quedar al menos un café agregado',
+          detail:
+            'Si deseas cancelar completamente la venta, usa la opción “Cancelar venta”.',
+        });
+        return;
+      }
 
       setLotesVenta((prev) =>
         prev.map((lote) => {
@@ -1158,8 +2089,67 @@ export default function Ventas() {
         setPreciosVentaTotal({});
       }
     },
-    [modoVenta, preciosVentaTotal],
+    [lotesConCantidad.length, modoVenta, mostrarAlertaRevision, preciosVentaTotal],
   );
+
+  React.useEffect(() => {
+    if (paso !== 3 || modoVenta !== 'PARCIAL' || lotesConCantidad.length === 0) {
+      setVentaFifoBreakdown([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const breakdown: VentaFifoItem[] = [];
+
+      for (const lote of lotesConCantidad) {
+        const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+        const detalle = ENABLE_SECADO_PROTOTYPE
+          ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, {
+              includeGeneratedOutputs: false,
+            })
+          : detalleBase;
+        let restante = round2(lote.cantidad);
+        const sublotesOrdenados = [...(detalle?.sublotes ?? [])]
+          .filter((sublote) => sublote.pesoActual > 0)
+          .sort(
+            (a, b) =>
+              new Date(a.fechaIngreso).getTime() -
+              new Date(b.fechaIngreso).getTime(),
+          );
+
+        sublotesOrdenados.forEach((sublote, index) => {
+          if (restante <= 0) return;
+          const asignado = round2(Math.min(restante, sublote.pesoActual));
+          if (asignado <= 0) return;
+
+          breakdown.push({
+            groupId: lote.id,
+            subloteId: sublote.id,
+            subloteNombre: sublote.etiqueta || `Sublote ${index + 1}`,
+            fifoPosition: index + 1,
+            pesoAsignado: asignado,
+            fechaEntrada: sublote.fechaIngreso,
+            costoBase: Number.isFinite(sublote.costoPorKg)
+              ? sublote.costoPorKg
+              : null,
+          });
+          restante = round2(restante - asignado);
+        });
+      }
+
+      if (!cancelled) {
+        setVentaFifoBreakdown(breakdown);
+      }
+    })().catch(() => {
+      if (!cancelled) setVentaFifoBreakdown([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lotesConCantidad, modoVenta, paso]);
 
   const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
@@ -1280,7 +2270,7 @@ export default function Ventas() {
         detalles,
       });
 
-      setVentaGuardada({
+      const ventaResumen = {
         ...crearResumenVentaGuardada(respuesta),
         clienteNombre: clienteSeleccionado.nombre,
         clienteDocumento: clienteSeleccionado.documento,
@@ -1293,7 +2283,11 @@ export default function Ventas() {
           cantidadKg: item.cantidad,
           subtotal: item.cantidad * item.precio,
         })),
-      });
+        fifoBreakdown: ventaFifoBreakdown,
+      };
+      setVentaGuardada(ventaResumen);
+      setVentasRealizadas((actual) => [ventaResumen, ...actual]);
+      clearVentaDraft();
       void cargarLotes();
     } catch (error) {
       const mensaje = getVentaSubmitMessage(error);
@@ -1316,10 +2310,12 @@ export default function Ventas() {
     fechaVenta,
     totalEstimado,
     totalKg,
+    ventaFifoBreakdown,
     validarPasoVenta,
   ]);
 
   const reiniciar = React.useCallback(() => {
+    clearVentaDraft();
     setPaso(1);
     setGuardandoVenta(false);
     setSubmitError(null);
@@ -1334,6 +2330,8 @@ export default function Ventas() {
     setMostrarModalCancelar(false);
     setFechaVenta(getTodayLocalDateValue());
     setPreciosVentaTotal({});
+    setAjustesVentaParcialConfirmados({});
+    setVentaFifoBreakdown([]);
     setClienteFormErrors({});
     setIntentoPaso1(false);
     setIntentoPaso2(false);
@@ -1342,11 +2340,49 @@ export default function Ventas() {
     void cargarLotes();
   }, [cargarLotes]);
 
+  const continuarBorradorVenta = React.useCallback(() => {
+    const draft = borradorVentaPendiente;
+    if (!draft) return;
+    setPaso((draft.paso || 1) as Step);
+    setClienteSeleccionado(draft.clienteSeleccionado ?? null);
+    setClienteMetodo(draft.clienteMetodo ?? null);
+    setFechaVenta(draft.fechaVenta || getTodayLocalDateValue());
+    setModoVenta(draft.modoVenta ?? null);
+    if (Array.isArray(draft.lotesVenta)) setLotesVenta(draft.lotesVenta);
+    setPreciosVentaTotal(draft.preciosVentaTotal ?? {});
+    setAjustesVentaParcialConfirmados(
+      draft.ajustesVentaParcialConfirmados ?? {},
+    );
+    ventaLocalIdRef.current = draft.localId || uid();
+    setMostrarModalBorradorVenta(false);
+    setBorradorVentaPendiente(null);
+  }, [borradorVentaPendiente]);
+
+  const empezarVentaNuevaDesdeBorrador = React.useCallback(() => {
+    clearVentaDraft();
+    setMostrarModalBorradorVenta(false);
+    setBorradorVentaPendiente(null);
+    reiniciar();
+  }, [reiniciar]);
+
   const updateLote = (
     id: string,
     campo: 'cantidadKg' | 'precioKg' | 'pesoVerificadoKg',
     valor: string,
-  ) =>
+  ) => {
+    setVentaParcialCardAlerts((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setSubmitError(null);
+    setAjustesVentaParcialConfirmados((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setLotesVenta((prev) =>
       prev.map((l) =>
         l.id === id
@@ -1354,6 +2390,30 @@ export default function Ventas() {
           : l,
       ),
     );
+  };
+
+  const confirmarAjusteParcial = React.useCallback(
+    (lote: LoteVenta) => {
+      const alerta = getVentaParcialCardAlert(lote, false, true);
+      if (alerta) {
+        mostrarAlertaTarjetaVentaParcial(lote.id, alerta);
+        return;
+      }
+
+      setAjustesVentaParcialConfirmados((current) => ({
+        ...current,
+        [lote.id]: true,
+      }));
+      setVentaParcialCardAlerts((current) => {
+        if (!current[lote.id]) return current;
+        const next = { ...current };
+        delete next[lote.id];
+        return next;
+      });
+      setVentaParcialOpenId(null);
+    },
+    [getVentaParcialCardAlert, mostrarAlertaTarjetaVentaParcial],
+  );
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
     setClienteSeleccionado(cliente);
@@ -1396,41 +2456,47 @@ export default function Ventas() {
 
   const validarClienteForm = React.useCallback(() => {
     const errores: ClienteFormErrors = {};
-    const nombre = validatePersonName(
-      clienteForm.nombre,
-      'El nombre del cliente',
-    );
-    const telefono = validatePhoneNumber(clienteForm.telefono, 'El teléfono', {
-      optional: true,
-    });
+
+    const nombre =
+      clienteForm.tipoDocumento === 'NIT'
+        ? validateCompanyName(clienteForm.nombre)
+        : validatePersonName(clienteForm.nombre, 'El nombre');
+    if (!nombre.isValid) errores.nombre = nombre.message;
+
+    // Teléfono (opcional)
+    const telefono = getClientePhoneError(clienteForm.telefono);
+    if (telefono) errores.telefono = telefono;
+
+    if (!clienteForm.tipoDocumento) {
+      errores.tipoDocumento = 'Selecciona el tipo de documento.';
+    }
+
+    // Documento: NO validar si no hay tipo seleccionado
+    const tipoSeleccionado = clienteForm.tipoDocumento || null;
     const documento = validateDocumentNumber(
       clienteForm.documento,
       'El documento',
       {
-        optional: true,
-        type: clienteForm.documento.trim()
-          ? clienteForm.tipoDocumento || null
-          : undefined,
+        optional: false,
+        type: tipoSeleccionado,
       },
     );
 
-    if (!nombre.isValid) errores.nombre = nombre.message;
-    if (!telefono.isValid) errores.telefono = telefono.message;
+    // Si hay texto, pero no se ha elegido tipo, espera mensaje de tipo.
     if (clienteForm.documento.trim() && !clienteForm.tipoDocumento) {
-      errores.tipoDocumento = 'Selecciona el tipo de documento.';
+      errores.documento = undefined;
+    } else if (!documento.isValid) {
+      errores.documento = documento.message;
     }
-    if (!documento.isValid) errores.documento = documento.message;
 
     return errores;
-  }, [
-    clienteForm.documento,
-    clienteForm.nombre,
-    clienteForm.telefono,
-    clienteForm.tipoDocumento,
-  ]);
+  }, [clienteForm.documento, clienteForm.nombre, clienteForm.telefono, clienteForm.tipoDocumento]);
 
   const guardarCliente = async () => {
-    const nombre = clienteForm.nombre.trim();
+    const nombre =
+      clienteForm.tipoDocumento === 'NIT'
+        ? normalizeCompanyName(clienteForm.nombre)
+        : normalizeHumanName(clienteForm.nombre);
     const telefono = sanitizePersonDigits(clienteForm.telefono);
     const tipoDocumento = clienteForm.tipoDocumento || undefined;
     const documento = tipoDocumento
@@ -1445,27 +2511,33 @@ export default function Ventas() {
       return;
     }
 
-    const clienteExistente = findClienteExistente(clientes, nombre, documento);
+    const clienteExistente = findClienteExistente(
+      clientes,
+      nombre,
+      documento,
+      clienteEditando?.id,
+    );
     if (clienteExistente) {
-      setClienteSeleccionado(clienteExistente);
-      setClienteMetodo('BUSCAR');
-      setBusquedaCliente('');
-      setBusquedaAplicada('');
-      setMostrarModal(false);
-      setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
-      setClienteFormErrors({});
-      setIntentoPaso1(false);
-      setSubmitError(null);
+      setClienteFormErrors((actual) => ({
+        ...actual,
+        documento: 'Este documento ya está registrado.',
+      }));
+      setClienteFormError(
+        'Este documento ya está registrado. Busca el registro existente o usa otro número.',
+      );
       return;
     }
 
     try {
-      const clienteGuardado = await crearCliente({
+      const payload = {
         nombre,
         documento: documento || undefined,
         tipoDocumento,
         telefono: telefono || undefined,
-      });
+      };
+      const clienteGuardado = clienteEditando
+        ? await actualizarCliente(clienteEditando.id, payload)
+        : await crearCliente(payload);
       const nuevo = mapClienteToOption(clienteGuardado);
       setClientes((actual) =>
         dedupeClientesOptions([
@@ -1478,6 +2550,7 @@ export default function Ventas() {
       setBusquedaCliente('');
       setBusquedaAplicada('');
       setMostrarModal(false);
+      setClienteEditando(null);
       setClienteMetodo('BUSCAR');
       setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setClienteFormErrors({});
@@ -1553,7 +2626,167 @@ export default function Ventas() {
                   </div>
                 </div>
               </div>
-        </article>
+            </article>
+        {ventasRealizadas.length > 0 ? (
+          <article className="mt-3 rounded-[18px] border border-[#e1e7f3] bg-white p-4 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Última venta
+                </p>
+                <p className="mt-1 text-sm font-black text-slate-950">
+                  {ventasRealizadas[0].clienteNombre}
+                </p>
+              </div>
+              <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[0.78rem] font-black text-[#173ea6]">
+                {money(ventasRealizadas[0].totalVenta)}
+              </span>
+            </div>
+            {ventasRealizadas.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setMostrarHistorialVentas(true)}
+                className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+              >
+                Ver historial completo
+                <ArrowRight size={15} />
+              </button>
+            ) : null}
+          </article>
+        ) : null}
+        {mostrarHistorialVentas ? (
+          <div
+            className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+            role="presentation"
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ventas-history-title"
+              className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white text-left shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
+            >
+              <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2
+                      id="ventas-history-title"
+                      className="text-lg font-black text-slate-950"
+                    >
+                      Historial completo de la venta
+                    </h2>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      {ventasHistorialFiltradas.length} registros
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarHistorialVentas(false)}
+                    aria-label="Cerrar historial de ventas"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={historialVentaFecha}
+                        max={getTodayLocalDateValue()}
+                        onChange={(event) => setHistorialVentaFecha(event.target.value)}
+                        className="min-h-[42px] flex-1 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#1f3fa7]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setHistorialVentaFecha('')}
+                        className="min-h-[42px] rounded-[14px] bg-[#eef4ff] px-3 text-xs font-black text-[#173ea6]"
+                      >
+                        Limpiar fecha
+                      </button>
+                    </div>
+                  </label>
+                  {historialVentaFecha ? (
+                    <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                      Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-black text-slate-700">Cliente</span>
+                      <select
+                        value={historialVentaCliente}
+                        onChange={(event) => setHistorialVentaCliente(event.target.value)}
+                        className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                      >
+                        {historialVentaClientes.map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
+                      <select
+                        value={historialVentaOrden}
+                        onChange={(event) => setHistorialVentaOrden(event.target.value as 'recent' | 'oldest')}
+                        className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                      >
+                        <option value="recent">Más recientes</option>
+                        <option value="oldest">Más antiguos</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </header>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+                {ventasHistorialFiltradas.map((venta) => (
+                  <article
+                    key={venta.referenciaId}
+                    className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.11em] text-[#52657d]">
+                          Venta del {formatDateLabel(venta.fecha)}
+                        </p>
+                        <p className="mt-0.5 text-sm font-black text-slate-950">
+                          {venta.clienteNombre}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-[#173ea6]">
+                          {money(venta.totalVenta)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        <button
+                          type="button"
+                          aria-label="Editar venta"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Eliminar venta"
+                          onClick={() =>
+                            setVentasRealizadas((actual) =>
+                              actual.filter(
+                                (item) => item.referenciaId !== venta.referenciaId,
+                              ),
+                            )
+                          }
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
       </CafeSmartErrorState>
     );
   }
@@ -1583,7 +2816,7 @@ export default function Ventas() {
               <ArrowLeft size={22} />
             </button>
             <h1 className="text-[1.35rem] font-semibold text-slate-900">
-              Registro de Venta
+              Nueva Venta
             </h1>
           </div>
 
@@ -1660,28 +2893,18 @@ export default function Ventas() {
                   <p className="text-xs font-medium text-slate-500">
                     Fecha de venta
                   </p>
-                  <div
-                    className={`mt-2 flex items-center gap-3 rounded-[12px] border bg-white px-3 py-3 ${
-                      fechaVentaInvalida
-                        ? 'border-[#ef4444]'
-                        : 'border-[#d7dcec]'
-                    }`}
-                  >
-                    <CalendarDays size={16} className="text-[#102d92]" />
-                    <input
-                      id="venta-fecha"
-                      type="date"
-                      value={fechaVenta}
-                      min={BUSINESS_MIN_DATE_VALUE}
-                      max={getTodayLocalDateValue()}
-                      onChange={(event) => {
-                        setFechaVenta(event.target.value);
-                        setSubmitError(null);
-                      }}
-                      className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
-                      aria-label="Fecha de venta"
-                    />
-                  </div>
+                  <SalesDatePicker
+                    value={fechaVenta}
+                    min={BUSINESS_MIN_DATE_VALUE}
+                    max={getTodayLocalDateValue()}
+                    open={fechaVentaPickerOpen}
+                    onToggle={() => setFechaVentaPickerOpen((open) => !open)}
+                    onClose={() => setFechaVentaPickerOpen(false)}
+                    onChange={(value) => {
+                      setFechaVenta(value || getTodayLocalDateValue());
+                      setSubmitError(null);
+                    }}
+                  />
                   {fechaVentaInvalida ? (
                     <InlineGuidedError
                       message={getVentasGuidance(
@@ -1878,15 +3101,63 @@ export default function Ventas() {
 
                 {modoVenta === 'PARCIAL' ? (
                   <div className="mt-5 space-y-3">
-                    {lotesVenta.map((lote) => {
+                    <div className="space-y-2 rounded-[18px] border border-[#dfe6f4] bg-[#f8faff] p-3">
+                      <p className="rounded-[12px] bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-600">
+                        Completa cantidad y precio, luego confirma el ajuste para agregarlo a la venta.
+                      </p>
+                      <label className="relative block">
+                        <Search
+                          size={16}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                          aria-hidden="true"
+                        />
+                        <input
+                          type="text"
+                          value={busquedaCafeVenta}
+                          onChange={(event) => {
+                            setBusquedaCafeVenta(event.target.value);
+                            setMostrarTodosCafeVenta(false);
+                          }}
+                          placeholder="Buscar café"
+                          className="h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7] focus:ring-4 focus:ring-[#1f3fa7]/10"
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <CompactSelect
+                          id="venta-tipo-cafe-filtro"
+                          value={tipoCafeFiltroVenta}
+                          options={tipoCafeFiltroOpciones}
+                          placeholder="Tipo"
+                          open={tipoCafeFiltroOpen}
+                          icon={<Coffee size={16} />}
+                          onToggle={() => setTipoCafeFiltroOpen((open) => !open)}
+                          onClose={() => setTipoCafeFiltroOpen(false)}
+                          onChange={(value) => {
+                            setTipoCafeFiltroVenta(value);
+                            setMostrarTodosCafeVenta(false);
+                          }}
+                        />
+                        <CompactSelect
+                          id="venta-calidad-filtro"
+                          value={calidadFiltroVenta}
+                          options={calidadFiltroOpciones}
+                          placeholder="Calidad"
+                          open={calidadFiltroOpen}
+                          icon={<CheckCircle2 size={16} />}
+                          onToggle={() => setCalidadFiltroOpen((open) => !open)}
+                          onClose={() => setCalidadFiltroOpen(false)}
+                          onChange={(value) => {
+                            setCalidadFiltroVenta(value);
+                            setMostrarTodosCafeVenta(false);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {lotesVentaParcialVisibles.map((lote) => {
                       const cantidad = toNum(lote.cantidadKg);
                       const cantidadIngresada = lote.cantidadKg.trim() !== '';
                       const disponibleVenta = getDisponibleVenta(lote);
-                      const ajustePesoKg = round2(
-                        lote.disponibleKg - disponibleVenta,
-                      );
-                      const pesoVerificadoError = pesoVerificadoInvalido(lote);
-                      const estaAjustandoPeso = loteAjustandoId === lote.id;
                       const cantidadInvalida =
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
@@ -1895,131 +3166,56 @@ export default function Ventas() {
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
                         toNum(lote.precioKg) < PRECIO_MINIMO_KG;
+                      const ajusteVentaAbierto = ventaParcialOpenId === lote.id;
+                      const alertaTarjeta = ventaParcialCardAlerts[lote.id];
+                      const ajustePendiente =
+                        !ajustesVentaParcialConfirmados[lote.id] &&
+                        (lote.cantidadKg.trim() !== '' ||
+                          lote.precioKg.trim() !== '');
 
                       return (
                         <article
                           key={lote.id}
-                          className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-4"
+                          className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-3"
                         >
-                          <p className="text-lg font-semibold text-[#102d92]">
-                            {lote.codigo}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {lote.tipoCafe} - {lote.calidad}
-                          </p>
-                          <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                                  Peso para vender
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-base font-black uppercase text-[#102d92]">
+                                {lote.tipoCafe} {lote.calidad}
+                              </p>
+                              <p className="text-sm font-semibold text-slate-600">
+                                Disponible: {kg(disponibleVenta)}
+                              </p>
+                              {cantidad > 0 ? (
+                                <p className="mt-1 text-sm font-black text-slate-900">
+                                  {kg(cantidad)} · {money(cantidad * toNum(lote.precioKg))}
                                 </p>
-                                <p className="mt-1 text-base font-black text-slate-900">
-                                  {kg(disponibleVenta)}
-                                </p>
-                                <p className="text-[0.72rem] leading-5 text-slate-500">
-                                  Registrado: {kg(lote.disponibleKg)}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setLoteAjustandoId((actual) =>
-                                    actual === lote.id ? null : lote.id,
-                                  )
-                                }
-                                className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
-                                {...ariaExpanded(estaAjustandoPeso)}
-                              >
-                                <Scale size={14} />
-                                Ajustar
-                              </button>
+                              ) : null}
                             </div>
-                            {estaAjustandoPeso ? (
-                              <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <label
-                                    className="text-xs font-black text-slate-600"
-                                    htmlFor={`peso-${lote.id}`}
-                                  >
-                                    Peso total actual
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      updateLote(
-                                        lote.id,
-                                        'pesoVerificadoKg',
-                                        '',
-                                      )
-                                    }
-                                    className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#102d92] shadow-sm"
-                                  >
-                                    Usar registrado
-                                  </button>
-                                </div>
-                                <input
-                                  id={`peso-${lote.id}`}
-                                  type="range"
-                                  min={0}
-                                  max={lote.disponibleKg}
-                                  step="0.1"
-                                  value={disponibleVenta}
-                                  onChange={(event) =>
-                                    updateLote(
-                                      lote.id,
-                                      'pesoVerificadoKg',
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="mt-3 w-full accent-[#102d92]"
-                                />
-                                <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
-                                  <Scale
-                                    size={16}
-                                    className="shrink-0 text-[#102d92]"
-                                  />
-                                  <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={0}
-                                    max={lote.disponibleKg}
-                                    value={lote.pesoVerificadoKg}
-                                    onChange={(event) =>
-                                      updateLote(
-                                        lote.id,
-                                        'pesoVerificadoKg',
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                                    className={`w-full bg-transparent text-sm font-semibold outline-none ${
-                                      pesoVerificadoError
-                                        ? 'text-[#b42318]'
-                                        : 'text-slate-900'
-                                    }`}
-                                  />
-                                  <span className="text-xs font-black text-slate-400">
-                                    kg
-                                  </span>
-                                </label>
-                              </div>
-                            ) : null}
-                            {pesoVerificadoError ? (
-                              <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                                El peso verificado debe estar entre 0 y{' '}
-                                {kg(lote.disponibleKg)}.
-                              </p>
-                            ) : ajustePesoKg > 0 ? (
-                              <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
-                                Peso ajustado: se vendera sobre{' '}
-                                {kg(disponibleVenta)}.
-                              </p>
-                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVentaParcialOpenId((actual) =>
+                                  actual === lote.id ? null : lote.id,
+                                )
+                              }
+                              className="inline-flex min-h-[38px] shrink-0 items-center rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
+                              {...ariaExpanded(ajusteVentaAbierto)}
+                            >
+                              Vender
+                            </button>
                           </div>
 
-                          {modoVenta === 'PARCIAL' ? (
+                          {ajusteVentaAbierto ? (
                             <>
                               <div className="mt-3 grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-xs font-black text-slate-700">
+                                    Cantidad a vender (kg)
+                                  </label>
+                                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                                    No puede superar el peso disponible.
+                                  </p>
                                 <input
                                   type="number"
                                   inputMode="decimal"
@@ -2034,12 +3230,16 @@ export default function Ventas() {
                                     )
                                   }
                                   placeholder="Cantidad kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
-                                    cantidadInvalida
-                                      ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                      : 'border-[#d7dcec] bg-white text-slate-900'
-                                  }`}
+                                  className="mt-2 w-full rounded-xl border border-[#d7dcec] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92]"
                                 />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-black text-slate-700">
+                                    Precio por kg
+                                  </label>
+                                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                                    Ingresa el precio de venta para este café.
+                                  </p>
                                 <input
                                   type="text"
                                   inputMode="numeric"
@@ -2053,49 +3253,85 @@ export default function Ventas() {
                                     )
                                   }
                                   placeholder="Precio por kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
-                                    precioInvalido
-                                      ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                      : 'border-[#d7dcec] bg-white text-slate-900'
-                                  }`}
+                                  className="mt-2 w-full rounded-xl border border-[#d7dcec] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92]"
                                 />
+                                </div>
                               </div>
-                              {cantidadInvalida ? (
-                                <InlineGuidedError
-                                  message={getCantidadLoteGuidance(
-                                    lote,
-                                    cantidad,
-                                  )}
-                                  className="mt-2"
-                                />
-                              ) : null}
-                              {precioInvalido ? (
-                                <p className="mt-1 text-xs font-semibold text-[#b42318]">
-                                  Ingresa un precio mínimo de $1,000 para este
-                                  lote.
-                                </p>
+                              <div className="mt-3 flex items-center justify-between rounded-[12px] bg-[#eef3ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                                <span>Total estimado</span>
+                                <span>{money(cantidad * toNum(lote.precioKg))}</span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => confirmarAjusteParcial(lote)}
+                                  className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#102d92] text-sm font-black text-white"
+                                >
+                                  Confirmar ajuste
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setVentaParcialOpenId(null)}
+                                  className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white text-sm font-black text-[#334b85]"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                              {alertaTarjeta ? (
+                                <div
+                                  role="alert"
+                                  className="mt-3 flex items-start gap-2 rounded-[12px] border border-rose-200 bg-rose-50/80 px-3 py-2 text-left shadow-[0_8px_18px_rgba(190,18,60,0.06)]"
+                                >
+                                  <AlertTriangle
+                                    size={14}
+                                    className="mt-0.5 shrink-0 text-rose-500"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-[0.76rem] font-black leading-4 text-rose-800">
+                                      {alertaTarjeta.title}
+                                    </p>
+                                    <p className="mt-0.5 text-[0.68rem] font-semibold leading-4 text-rose-700/80">
+                                      {alertaTarjeta.detail}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : ajustePendiente ? (
+                                <div className="mt-3 flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50/90 px-3 py-2 text-left">
+                                  <AlertTriangle
+                                    size={14}
+                                    className="mt-0.5 shrink-0 text-amber-600"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-[0.78rem] font-black leading-4 text-amber-900">
+                                      Ajuste pendiente en {lote.tipoCafe} {lote.calidad}.
+                                    </p>
+                                    <p className="mt-1 text-[0.7rem] font-semibold leading-4 text-amber-800">
+                                      Confirma o cancela este ajuste.
+                                    </p>
+                                  </div>
+                                </div>
                               ) : null}
                             </>
-                          ) : (
-                            <p className="mt-3 text-sm text-slate-600">
-                              En modo total se vende el peso disponible
-                              verificado: {kg(disponibleVenta)}.
-                            </p>
-                          )}
+                          ) : null}
                         </article>
                       );
                     })}
+                    {lotesVentaParcialFiltrados.length > lotesVentaParcialVisibles.length ? (
+                      <button
+                        type="button"
+                        onClick={() => setMostrarTodosCafeVenta(true)}
+                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
+                      >
+                        Ver más cafés
+                      </button>
+                    ) : null}
+                    {lotesVentaParcialFiltrados.length === 0 ? (
+                      <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-sm font-semibold text-slate-500">
+                        No encontramos cafés con esos filtros.
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-                {parcialSinSeleccion ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(
-                      'Ingresa una cantidad en al menos un lote para continuar.',
-                    )}
-                    className="mt-2"
-                  />
-                ) : null}
-
                 <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
                   <div className="flex items-center justify-between text-sm font-black">
                     <span>Total seleccionado</span>
@@ -2107,27 +3343,27 @@ export default function Ventas() {
                   </div>
                 </article>
 
-                <div className="mt-4 grid gap-3">
+                <div className="mt-4 grid grid-cols-[0.8fr_1.2fr] gap-3">
+                  <button
+                    type="button"
+                    onClick={anterior}
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-3 py-3 text-sm font-semibold text-slate-600"
+                  >
+                    <ArrowLeft size={16} />
+                    Regresar
+                  </button>
                   <button
                     type="button"
                     onClick={siguiente}
                     disabled={sinInventario}
-                    className={`inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] px-5 py-4 text-[1.35rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] ${
+                    className={`inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] px-3 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] ${
                       sinInventario
                         ? 'cursor-not-allowed bg-[#7f93cf]'
                         : 'bg-[#1f3fa7]'
                     }`}
                   >
-                    Siguiente Paso
-                    <ArrowRight size={22} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={anterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
-                  >
-                    <ArrowLeft size={16} />
-                    Regresar
+                    Siguiente paso
+                    <ArrowRight size={18} />
                   </button>
                 </div>
               </section>
@@ -2153,17 +3389,17 @@ export default function Ventas() {
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <p className="truncate text-[1.05rem] font-black leading-6 text-slate-950">
-                          Clientes recientes
+                          Clientes registrados
                         </p>
                         <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
-                          Últimos clientes registrados
+                          Máximo 2 recientes
                         </p>
                       </div>
                       <span
                         className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] px-2 text-sm font-black text-[#1f3fa7] shadow-[0_8px_18px_rgba(31,63,167,0.14)]"
-                        aria-label={`${clientesRecientes.length} clientes recientes`}
+                        aria-label={`${clientes.length} clientes registrados`}
                       >
-                        {clientesRecientes.length}
+                        {clientes.length}
                       </span>
                     </div>
 
@@ -2179,6 +3415,7 @@ export default function Ventas() {
                           type="button"
                           onClick={() => {
                             setClienteMetodo('REGISTRAR');
+                            setClienteEditando(null);
                             setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
                             setClienteFormErrors({});
                             setClienteFormError(null);
@@ -2191,7 +3428,7 @@ export default function Ventas() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2">
-                        {clientesRecientes.slice(0, 4).map((cliente) => (
+                        {clientesRecientes.slice(0, 2).map((cliente) => (
                           <ClienteCard
                             key={cliente.id}
                             cliente={cliente}
@@ -2217,7 +3454,7 @@ export default function Ventas() {
                               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] transition group-hover:bg-white">
                                 <Search size={16} />
                               </span>
-                              Ver lista completa de clientes
+                              Ver todos →
                             </span>
                             <ArrowRight size={17} className="transition group-hover:translate-x-0.5" />
                           </button>
@@ -2243,6 +3480,7 @@ export default function Ventas() {
                   subtitle="Crear un nuevo cliente"
                   onClick={() => {
                     setClienteMetodo('REGISTRAR');
+                    setClienteEditando(null);
                     setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
                     setClienteFormErrors({});
                     setClienteFormError(null);
@@ -2286,7 +3524,7 @@ export default function Ventas() {
 
                 {clienteInvalido ? (
                   <InlineGuidedError
-                    message={getVentasGuidance('Selecciona un cliente para continuar.')}
+                    message={getClienteSeleccionGuidance()}
                   />
                 ) : null}
 
@@ -2316,6 +3554,25 @@ export default function Ventas() {
                     className="mt-4"
                   />
                 ) : null}
+                {revisionDeleteAlert ? (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-2 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2.5 text-left shadow-[0_8px_18px_rgba(180,83,9,0.08)]"
+                  >
+                    <AlertTriangle
+                      size={15}
+                      className="mt-0.5 shrink-0 text-amber-600"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[0.78rem] font-black leading-4 text-amber-900">
+                        {revisionDeleteAlert.title}
+                      </p>
+                      <p className="mt-1 text-[0.7rem] font-semibold leading-4 text-amber-800">
+                        {revisionDeleteAlert.detail}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
                   <p className="text-xs font-medium text-slate-500">Cliente</p>
@@ -2332,49 +3589,93 @@ export default function Ventas() {
                     {formatDateLabel(fechaVenta)}
                   </p>
                 </div>
-                <div className="mt-4 space-y-2">
-                  {lotesConCantidad.map((lote) => (
-                    <div
-                      key={lote.id}
-                      className="rounded-[12px] border border-[#e5e7f2] bg-[#fcfcff] px-3 py-2"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {lote.codigo}
-                          </p>
-                          <p className="text-xs text-slate-600">
-                            {lote.tipoCafe} - {lote.calidad}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#102d92]">
-                            {kg(lote.cantidad)} -{' '}
-                            {money(lote.cantidad * lote.precio)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={editarLoteDesdeRevision}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
-                            title="Editar producto"
-                            aria-label={`Editar ${lote.codigo}`}
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => eliminarLoteDesdeRevision(lote.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
-                            title="Quitar producto"
-                            aria-label={`Quitar ${lote.codigo}`}
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                {lotesConCantidad.length ? (
+                  <div className="mt-4 space-y-2">
+                    {(lotesConCantidad.length > 2
+                      ? lotesConCantidad.slice(-2)
+                      : lotesConCantidad
+                    ).map((lote) => (
+                      <div
+                        key={lote.id}
+                        className="rounded-[12px] border border-[#e5e7f2] bg-[#fcfcff] px-3 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {lote.codigo}
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              {lote.tipoCafe} — {lote.calidad}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[#102d92]">
+                              {kg(lote.cantidad)} ·{' '}
+                              {money(lote.cantidad * lote.precio)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={editarLoteDesdeRevision}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                              title="Editar producto"
+                              aria-label={`Editar ${lote.codigo}`}
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => eliminarLoteDesdeRevision(lote.id)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                              title="Quitar producto"
+                              aria-label={`Quitar ${lote.codigo}`}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                ) : null}
+                {lotesConCantidad.length > 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarHistorialLotesVenta(true)}
+                    className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+                  >
+                    Ver historial completo
+                    <ArrowRight size={15} />
+                  </button>
+                ) : null}
+
+                {ventaFifoBreakdown.length > 1 ? (
+                  <section className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-white p-3">
+                    <p className="text-sm font-black text-slate-950">
+                      Desglose de sublotes
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {ventaFifoBreakdown.map((item) => (
+                        <div
+                          key={`${item.groupId}-${item.subloteId}`}
+                          className="rounded-[12px] bg-[#f7f8fe] px-3 py-2"
+                        >
+                          <p className="text-xs font-black text-[#102d92]">
+                            FIFO #{item.fifoPosition} — {item.subloteNombre}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-slate-600">
+                            {kg(item.pesoAsignado)} asignados · Entrada:{' '}
+                            {formatDateLabel(item.fechaEntrada)}
+                          </p>
+                          {item.costoBase !== null ? (
+                            <p className="mt-0.5 text-[0.68rem] font-semibold text-slate-500">
+                              Costo base: {money(item.costoBase)}/kg
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </section>
+                ) : null}
 
                 <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
                   <div className="flex items-center justify-between text-sm font-black">
@@ -2398,7 +3699,19 @@ export default function Ventas() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMostrarModalConfirmar(true)}
+                    onClick={() => {
+                      const errorRevision = validarPasoVenta();
+                      if (errorRevision || !lotesConCantidad.length) {
+                        setSubmitError(
+                          errorRevision ??
+                            'Agrega al menos un café válido para confirmar la venta.',
+                        );
+                        setPaso(2);
+                        setIntentoPaso2(true);
+                        return;
+                      }
+                      setMostrarModalConfirmar(true);
+                    }}
                     disabled={guardandoVenta || botonConfirmarPresionado}
                     className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
                       guardandoVenta || botonConfirmarPresionado
@@ -2432,6 +3745,144 @@ export default function Ventas() {
           </>
         )}
       </div>
+
+      {mostrarModalBorradorVenta ? (
+        <div
+          className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="venta-draft-title"
+            aria-describedby="venta-draft-description"
+            className="w-full max-w-[430px] rounded-[24px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.11em] text-[#1f3fa7]">
+                  Registro de venta en progreso
+                </p>
+                <h2
+                  id="venta-draft-title"
+                  className="mt-1 text-xl font-black text-slate-950"
+                >
+                  Borrador guardado
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={empezarVentaNuevaDesdeBorrador}
+                aria-label="Cerrar borrador guardado"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p
+              id="venta-draft-description"
+              className="mt-3 text-sm font-medium leading-6 text-slate-600"
+            >
+              Encontramos una venta que no fue finalizada. Puedes continuar con
+              la información guardada o empezar una nueva venta.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={continuarBorradorVenta}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+              >
+                Continuar venta
+              </button>
+              <button
+                type="button"
+                onClick={empezarVentaNuevaDesdeBorrador}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#edf1fa] px-4 text-sm font-black text-slate-700"
+              >
+                Empezar de nuevo
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {mostrarHistorialLotesVenta ? (
+        <div
+          className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="venta-items-history-title"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
+          >
+            <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2
+                    id="venta-items-history-title"
+                    className="text-lg font-black text-slate-950"
+                  >
+                    Historial completo de la venta
+                  </h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {lotesConCantidad.length} registros · {kg(totalKg)} · {money(totalEstimado)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarHistorialLotesVenta(false)}
+                  aria-label="Cerrar historial de la venta"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {lotesConCantidad.map((lote) => (
+                <article
+                  key={lote.id}
+                  className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-950">
+                        {lote.tipoCafe} — {lote.calidad}
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-600">
+                        {kg(lote.cantidad)} · {money(lote.cantidad * lote.precio)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        aria-label={`Editar ${lote.codigo}`}
+                        onClick={() => {
+                          setMostrarHistorialLotesVenta(false);
+                          editarLoteDesdeRevision();
+                        }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Eliminar ${lote.codigo}`}
+                        onClick={() => eliminarLoteDesdeRevision(lote.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {mostrarModalClientes ? (
         <div
@@ -2494,34 +3945,25 @@ export default function Ventas() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'recent', label: 'Más recientes' },
-                    { value: 'az', label: 'A-Z' },
-                    { value: 'doc-asc', label: 'Documento ↑' },
-                    { value: 'doc-desc', label: 'Documento ↓' },
-                  ].map((opt) => {
-                    const active = clientesSortMode === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() =>
-                          setClientesSortMode(
-                            opt.value as typeof clientesSortMode,
-                          )
-                        }
-                        {...ariaPressed(active)}
-                        className={`min-h-[40px] rounded-[12px] border px-2.5 py-2 text-xs font-black leading-4 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
-                          active
-                            ? 'border-[#1f3fa7] bg-[#eef4ff] text-[#1f3fa7]'
-                            : 'border-[#e0e6f2] bg-white text-slate-500 hover:border-[#cbd6ea] hover:bg-[#f8faff]'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
+                <label className="block text-[0.82rem] font-black uppercase tracking-[0.11em] text-slate-500">
+                  Ordenar por
+                </label>
+                <div className="max-w-[260px]">
+                  <CompactSelect
+                    id="clientes-sort-select"
+                    value={clientesSortMode}
+                    options={CLIENTE_SORT_OPTIONS}
+                    placeholder="Más recientes"
+                    open={clientesSortDropdownOpen}
+                    icon={<History size={16} />}
+                    onToggle={() =>
+                      setClientesSortDropdownOpen((open) => !open)
+                    }
+                    onClose={() => setClientesSortDropdownOpen(false)}
+                    onChange={(value) =>
+                      setClientesSortMode(value as ClienteSortMode)
+                    }
+                  />
                 </div>
               </div>
             </header>
@@ -2552,7 +3994,7 @@ export default function Ventas() {
                     }}
                     className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
                   >
-                    Registrar cliente
+                    {clienteEditando ? 'Editar cliente' : 'Registrar cliente'}
                   </button>
                 </div>
               ) : (
@@ -2576,6 +4018,14 @@ export default function Ventas() {
                           sensitivity: 'base',
                         }),
                       );
+                    } else if (clientesSortMode === 'za') {
+                      arr.sort((a, b) =>
+                        b.nombre.localeCompare(a.nombre, 'es', {
+                          sensitivity: 'base',
+                        }),
+                      );
+                    } else if (clientesSortMode === 'oldest') {
+                      arr.reverse();
                     } else if (clientesSortMode === 'doc-asc' || clientesSortMode === 'doc-desc') {
                       const docDigits = (value: string) => value.replace(/\D/g, '');
                       arr.sort((a, b) => {
@@ -2610,11 +4060,79 @@ export default function Ventas() {
                         seleccionarCliente(c);
                         setMostrarModalClientes(false);
                       }}
+                      onDetail={() => setClienteDetalle(c)}
+                      onEdit={() => {
+                        setClienteEditando(c);
+                        setClienteForm({
+                          nombre: c.nombre,
+                          telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
+                          documento: c.documento === 'Documento pendiente' ? '' : c.documento,
+                          tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
+                        });
+                        setClienteFormErrors({});
+                        setClienteFormError(null);
+                        setMostrarModal(true);
+                      }}
                     />
                   ))}</div>;
                 })()
               )}
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {clienteDetalle ? (
+        <div className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cliente-detalle-title"
+            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
+                  Cliente
+                </p>
+                <h2 id="cliente-detalle-title" className="mt-1 text-lg font-black text-slate-950">
+                  {clienteDetalle.nombre}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClienteDetalle(null)}
+                aria-label="Cerrar detalle de cliente"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
+              <p>Cédula/NIT: <span className="font-black text-slate-900">{clienteDetalle.documento}</span></p>
+              <p>Teléfono: <span className="font-black text-slate-900">{clienteDetalle.telefono ? formatPhoneNumber(clienteDetalle.telefono) : 'No registrado'}</span></p>
+              <p>Dirección: <span className="font-black text-slate-900">No disponible</span></p>
+              <p>Observaciones: <span className="font-black text-slate-900">No disponible</span></p>
+              <p>Ubicación: <span className="font-black text-slate-900">No disponible</span></p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const c = clienteDetalle;
+                setClienteDetalle(null);
+                setClienteEditando(c);
+                setClienteForm({
+                  nombre: c.nombre,
+                  telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
+                  documento: c.documento === 'Documento pendiente' ? '' : c.documento,
+                  tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
+                });
+                setMostrarModal(true);
+              }}
+              className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+            >
+              Editar
+            </button>
           </section>
         </div>
       ) : null}
@@ -2662,32 +4180,35 @@ export default function Ventas() {
 
       {mostrarModalCancelar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
-            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
-            <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]">
-              <AlertTriangle size={24} />
+          <div className="w-full max-w-[390px] rounded-[24px] border border-rose-100 bg-white p-5 text-center shadow-[0_24px_60px_rgba(190,18,60,0.16)]">
+            <div className="mx-auto h-1.5 w-14 rounded-full bg-[#d7deeb]" />
+            <div className="mx-auto mt-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-500 shadow-[0_0_36px_rgba(244,63,94,0.18)]">
+              <AlertTriangle size={24} strokeWidth={2.4} />
             </div>
-            <h2 className="mt-5 text-[1.8rem] font-black leading-tight text-slate-950">
-              Cancelar venta
+            <h2 className="mt-4 text-[1.45rem] font-black leading-tight text-slate-950">
+              ¿Cancelar venta?
             </h2>
-            <p className="mt-3 text-base leading-6 text-slate-500">
-              Se perderán los datos de esta venta.
+            <p className="mx-auto mt-2 max-w-[300px] text-sm font-semibold leading-5 text-slate-600">
+              Si cancelas ahora, perderás todo el progreso de esta venta.
+            </p>
+            <p className="mx-auto mt-1 max-w-[300px] text-xs font-semibold leading-5 text-slate-400">
+              Los cafés agregados y valores ingresados no se guardarán.
             </p>
 
-            <div className="mt-6 grid gap-3">
-              <button
-                type="button"
-                onClick={confirmarCancelarVenta}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 text-base font-black text-white"
-              >
-                Cancelar venta
-              </button>
+            <div className="mt-5 grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(false)}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-[14px] px-5 text-base font-black text-[#1f3fa7]"
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#1f3fa7]"
               >
                 Continuar editando
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCancelarVenta}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-rose-50 px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"
+              >
+                Cancelar venta
               </button>
             </div>
           </div>
@@ -2711,12 +4232,19 @@ export default function Ventas() {
                     Registrar cliente
                   </h2>
                   <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
-                    Completa los datos básicos para usarlo en esta venta.
+                    {clienteEditando
+                      ? 'Actualiza los datos del cliente.'
+                      : 'Completa los datos básicos para usarlo en esta venta.'}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMostrarModal(false)}
+                  onClick={() => {
+                    setMostrarModal(false);
+                    setClienteEditando(null);
+                    setClienteFormErrors({});
+                    setClienteFormError(null);
+                  }}
                   aria-label="Cerrar registro de cliente"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
@@ -2726,20 +4254,55 @@ export default function Ventas() {
             </header>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-              <div className="space-y-5 pb-6">
-                <div>
+              <div className="flex flex-col gap-5 pb-6">
+                <div className="order-2">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Nombre completo
+                    {clienteForm.tipoDocumento === 'NIT'
+                      ? 'Nombre de la empresa'
+                      : 'Nombre completo'}
+                    <span
+                      className={`ml-2 inline-flex text-[0.72rem] font-black ${
+                        clienteForm.nombre.trim().length >= MAX_NOMBRE_CARACTERES
+                          ? 'text-amber-700'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      {clienteForm.nombre.trim().length}/{MAX_NOMBRE_CARACTERES}
+                    </span>
                   </label>
                   <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
                     <User size={17} className="text-slate-400" />
                     <input
                       type="text"
                       value={clienteForm.nombre}
+                      disabled={!clienteForm.tipoDocumento}
+                      placeholder={
+                        !clienteForm.tipoDocumento
+                          ? 'Primero selecciona el tipo de documento'
+                          : clienteForm.tipoDocumento === 'NIT'
+                          ? 'Ej. Café Los Alpes'
+                          : 'Ej. Juan Pérez Rodríguez'
+                      }
                       onChange={(event) => {
+                        const raw =
+                          clienteForm.tipoDocumento === 'NIT'
+                            ? event.target.value
+                            : sanitizeNameInput(event.target.value);
+                        const next = raw.slice(0, MAX_NOMBRE_CARACTERES);
+
+                        if (raw.length > MAX_NOMBRE_CARACTERES) {
+                          setNombreMaxToast(true);
+                          if (nombreMaxToastTimerRef.current) {
+                            window.clearTimeout(nombreMaxToastTimerRef.current);
+                          }
+                          nombreMaxToastTimerRef.current = window.setTimeout(() => {
+                            setNombreMaxToast(false);
+                          }, 3000);
+                        }
+
                         setClienteForm((actual) => ({
                           ...actual,
-                          nombre: sanitizeNameInput(event.target.value),
+                          nombre: next,
                         }));
                         setClienteFormErrors((actual) => ({
                           ...actual,
@@ -2747,10 +4310,28 @@ export default function Ventas() {
                         }));
                         setClienteFormError(null);
                       }}
-                      placeholder="Ej. Juan Pérez Rodríguez"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
+                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400"
                     />
                   </label>
+
+                  {nombreMaxToast ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mt-2 flex items-center gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
+                    >
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-800"
+                        aria-hidden="true"
+                      >
+                        <span className="text-[0.8rem] font-black">!</span>
+                      </span>
+                      <span>
+                        No puedes ingresar más de {MAX_NOMBRE_CARACTERES} caracteres.
+                      </span>
+                    </div>
+                  ) : null}
+
                   {clienteFormErrors.nombre ? (
                     <InlineGuidedError
                       message={getVentasGuidance(clienteFormErrors.nombre)}
@@ -2759,46 +4340,39 @@ export default function Ventas() {
                   ) : null}
                 </div>
 
-                <div>
+                <div className="order-1">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Tipo de documento
                   </label>
                   <p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">
                     Selecciona si el cliente usa cédula o NIT.
                   </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'CEDULA', label: 'Cédula' },
-                      { value: 'NIT', label: 'NIT' },
-                    ].map((item) => {
-                      const active = clienteForm.tipoDocumento === item.value;
-                      return (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => {
-                            setClienteForm((actual) => ({
-                              ...actual,
-                              tipoDocumento: item.value as DocumentType,
-                              documento: '',
-                            }));
-                            setClienteFormErrors((actual) => ({
-                              ...actual,
-                              tipoDocumento: undefined,
-                              documento: undefined,
-                            }));
-                            setClienteFormError(null);
-                          }}
-                          className={`rounded-[14px] border px-3 py-3 text-sm font-black ${
-                            active
-                              ? 'border-[#102d92] bg-[#eef3ff] text-[#102d92]'
-                              : 'border-[#dde4f1] bg-white text-slate-600'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      );
-                    })}
+                  <div className="mt-2">
+                    <CompactSelect
+                      id="cliente-document-type"
+                      value={clienteForm.tipoDocumento}
+                      options={DOCUMENT_TYPE_OPTIONS}
+                      placeholder="Selecciona el tipo de documento"
+                      open={clienteDocumentoDropdownOpen}
+                      icon={<IdCard size={16} />}
+                      onToggle={() =>
+                        setClienteDocumentoDropdownOpen((open) => !open)
+                      }
+                      onClose={() => setClienteDocumentoDropdownOpen(false)}
+                      onChange={(value) => {
+                        setClienteForm((actual) => ({
+                          ...actual,
+                          tipoDocumento: value,
+                          documento: '',
+                        }));
+                        setClienteFormErrors((actual) => ({
+                          ...actual,
+                          tipoDocumento: undefined,
+                          documento: undefined,
+                        }));
+                        setClienteFormError(null);
+                      }}
+                    />
                   </div>
                   {clienteFormErrors.tipoDocumento ? (
                     <InlineGuidedError
@@ -2808,7 +4382,7 @@ export default function Ventas() {
                   ) : null}
                 </div>
 
-                <div>
+                <div className="order-3">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Número de documento
                   </label>
@@ -2819,6 +4393,12 @@ export default function Ventas() {
                       inputMode={
                         clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
                       }
+                      disabled={!clienteForm.tipoDocumento}
+                      onPaste={(event) => {
+                        if (!clienteForm.tipoDocumento) {
+                          event.preventDefault();
+                        }
+                      }}
                       maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
                       value={clienteForm.documento}
                       onChange={(event) => {
@@ -2836,11 +4416,13 @@ export default function Ventas() {
                         setClienteFormError(null);
                       }}
                       placeholder={
-                        clienteForm.tipoDocumento === 'NIT'
+                        !clienteForm.tipoDocumento
+                          ? 'Primero selecciona el tipo de documento'
+                          : clienteForm.tipoDocumento === 'NIT'
                           ? '900123456-7'
                           : '1234567890'
                       }
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
+                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400"
                     />
                   </label>
                   {clienteFormErrors.documento ? (
@@ -2851,10 +4433,13 @@ export default function Ventas() {
                   ) : null}
                 </div>
 
-                <div>
+                <div className="order-4">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Teléfono (opcional)
                   </label>
+                  <p className="mb-2 text-xs font-medium leading-5 text-slate-500">
+                    Número celular colombiano.
+                  </p>
                   <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
                     <Phone size={17} className="text-slate-400" />
                     <input
@@ -2863,13 +4448,18 @@ export default function Ventas() {
                       maxLength={12}
                       value={clienteForm.telefono}
                       onChange={(event) => {
+                        const raw = event.target.value;
+                        const hasInvalid = /[^\d\s]/.test(raw);
+                        const next = formatPhoneNumber(raw);
                         setClienteForm((actual) => ({
                           ...actual,
-                          telefono: formatPhoneNumber(event.target.value),
+                          telefono: next,
                         }));
                         setClienteFormErrors((actual) => ({
                           ...actual,
-                          telefono: undefined,
+                          telefono: hasInvalid
+                            ? 'No uses letras ni símbolos.'
+                            : undefined,
                         }));
                         setClienteFormError(null);
                       }}
@@ -2888,26 +4478,34 @@ export default function Ventas() {
                 {clienteFormError ? (
                   <InlineGuidedError
                     message={getVentasGuidance(clienteFormError)}
+                    className="order-5"
                   />
                 ) : null}
               </div>
             </div>
 
             <footer className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-              <button
-                type="button"
-                onClick={guardarCliente}
-                className="inline-flex w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-semibold text-white"
-              >
-                Guardar cliente
-              </button>
-              <button
-                type="button"
-                onClick={() => setMostrarModal(false)}
-                className="mt-3 inline-flex w-full items-center justify-center px-5 py-2 text-[0.9rem] font-semibold text-slate-500"
-              >
-                Cancelar
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={guardarCliente}
+                  className="inline-flex min-h-[54px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.98rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.20)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {clienteEditando ? 'Guardar cambios' : 'Guardar cliente'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModal(false);
+                    setClienteEditando(null);
+                    setClienteFormErrors({});
+                    setClienteFormError(null);
+                  }}
+                  className="inline-flex min-h-[54px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 py-3.5 text-[0.98rem] font-semibold text-[#334b85] transition hover:bg-[#f4f7ff] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                >
+                  Cancelar
+                </button>
+              </div>
             </footer>
           </div>
         </div>
@@ -2951,3 +4549,4 @@ function LoadingCard({ text }: { text: string }) {
     </section>
   );
 }
+

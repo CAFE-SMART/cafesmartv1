@@ -10,6 +10,7 @@ import { GuardarProductorDto } from './dto/guardar-productor.dto';
 import { apiError } from '../common/errors/api-error';
 import {
   normalizarDocumentoPersona,
+  normalizarNombreEmpresaPersona,
   normalizarNombrePersona,
   normalizarTelefonoPersona,
 } from '../common/validations/person-fields';
@@ -71,7 +72,7 @@ export class ProductoresService {
     const productor = await this.prisma.productor.create({
       data: {
         organizacionId,
-        nombre: this.normalizarNombre(dto.nombre),
+        nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
         tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
@@ -129,7 +130,7 @@ export class ProductoresService {
     const productor = await this.prisma.productor.update({
       where: { id: productorId },
       data: {
-        nombre: this.normalizarNombre(dto.nombre),
+        nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
         tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
@@ -154,6 +155,27 @@ export class ProductoresService {
     };
   }
 
+  async eliminar(userId: string, productorId: string): Promise<void> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const existente = await this.prisma.productor.findFirst({
+      where: {
+        id: productorId,
+        organizacionId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!existente) {
+      throw new NotFoundException('Productor no encontrado');
+    }
+
+    await this.prisma.productor.update({
+      where: { id: productorId },
+      data: { deletedAt: new Date() },
+    });
+  }
+
   private async obtenerOrganizacionId(userId: string): Promise<string> {
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -173,8 +195,13 @@ export class ProductoresService {
     return usuario.organizacionId;
   }
 
-  private normalizarNombre(valor: string): string {
-    return normalizarNombrePersona(valor, 'productor');
+  private normalizarNombre(
+    valor: string,
+    tipoDocumento: GuardarProductorDto['tipoDocumento'],
+  ): string {
+    return tipoDocumento === 'NIT'
+      ? normalizarNombreEmpresaPersona(valor, 'productor')
+      : normalizarNombrePersona(valor, 'productor');
   }
 
   private normalizarDocumento(

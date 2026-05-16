@@ -5,6 +5,7 @@ type PersonaEntidad = 'cliente' | 'productor';
 type TipoDocumento = 'CEDULA' | 'NIT';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
+const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&()-]+$/;
 
 function prefix(entidad: PersonaEntidad) {
   return entidad === 'cliente' ? 'CLIENTE' : 'PRODUCTOR';
@@ -65,6 +66,51 @@ export function normalizarNombrePersona(
   return nombre;
 }
 
+export function normalizarNombreEmpresaPersona(
+  valor: string,
+  entidad: PersonaEntidad,
+) {
+  const nombre = valor.trim().replace(/\s+/g, ' ');
+
+  if (!nombre) {
+    throwPersonValidation(
+      entidad,
+      'NOMBRE_INVALIDO',
+      `El nombre del ${label(entidad)} es obligatorio.`,
+      'nombre',
+    );
+  }
+
+  if (valor !== valor.trim() || /\s{2,}/.test(valor)) {
+    throwPersonValidation(
+      entidad,
+      'NOMBRE_INVALIDO',
+      'No uses espacios al inicio, al final ni dobles.',
+      'nombre',
+    );
+  }
+
+  if (nombre.length < 3 || nombre.length > 100) {
+    throwPersonValidation(
+      entidad,
+      'NOMBRE_INVALIDO',
+      'El nombre debe tener entre 3 y 100 caracteres.',
+      'nombre',
+    );
+  }
+
+  if (/[@$%*=_+?¿!¡|<>]/.test(nombre) || !COMPANY_ALLOWED_CHARS.test(nombre)) {
+    throwPersonValidation(
+      entidad,
+      'NOMBRE_INVALIDO',
+      'Usa solo letras, números, espacios, puntos, comas, guiones y &.',
+      'nombre',
+    );
+  }
+
+  return nombre;
+}
+
 export function normalizarDocumentoPersona(
   valor: string | undefined,
   entidad: PersonaEntidad,
@@ -93,16 +139,22 @@ export function normalizarDocumentoPersona(
   }
 
   if (options.tipoDocumento === 'NIT') {
-    if (!/^\d{8,10}$/.test(documento)) {
+    const nit = documento.includes('-')
+      ? documento
+      : documento.length >= 9
+        ? `${documento.slice(0, -1)}-${documento.slice(-1)}`
+        : documento;
+
+    if (!/^\d{8,9}-\d$/.test(nit)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',
-        'Ingresa el NIT sin puntos ni guiones.',
+        'Para NIT usa el formato 900123456-7.',
         'documento',
       );
     }
 
-    return documento;
+    return nit;
   }
 
   if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {

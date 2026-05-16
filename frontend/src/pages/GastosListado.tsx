@@ -55,6 +55,9 @@ export default function GastosListado() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filtroFecha, setFiltroFecha] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('TODOS');
+  const [orden, setOrden] = useState<'recent' | 'oldest'>('recent');
 
   const cargar = useCallback(
     async (isRefresh = false) => {
@@ -85,9 +88,20 @@ export default function GastosListado() {
     void cargar();
   }, [cargar]);
 
+  const gastosFiltrados = useMemo(() => {
+    return [...gastos]
+      .filter((gasto) => !filtroFecha || gasto.fechaGasto.slice(0, 10) === filtroFecha)
+      .filter((gasto) => filtroTipo === 'TODOS' || gasto.tipoGasto === filtroTipo)
+      .sort((a, b) =>
+        orden === 'oldest'
+          ? new Date(a.fechaGasto).getTime() - new Date(b.fechaGasto).getTime()
+          : new Date(b.fechaGasto).getTime() - new Date(a.fechaGasto).getTime(),
+      );
+  }, [filtroFecha, filtroTipo, gastos, orden]);
+
   const totalAcumulado = useMemo(
-    () => gastos.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
-    [gastos],
+    () => gastosFiltrados.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
+    [gastosFiltrados],
   );
 
   return (
@@ -139,6 +153,67 @@ export default function GastosListado() {
           Registrar gasto
         </button>
 
+        <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-[#f8faff] px-3 py-3">
+          <label className="block">
+            <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
+              Fecha
+            </span>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={filtroFecha}
+                onChange={(event) => setFiltroFecha(event.target.value)}
+                className="min-h-[40px] flex-1 rounded-[12px] border border-[#dbe2f0] bg-white px-3 text-[0.68rem] font-bold outline-none focus:border-[#102d92]"
+              />
+              <button
+                type="button"
+                onClick={() => setFiltroFecha('')}
+                className="min-h-[40px] rounded-[12px] bg-[#eef4ff] px-3 text-[0.62rem] font-black text-[#102d92]"
+              >
+                Limpiar fecha
+              </button>
+            </div>
+          </label>
+          {filtroFecha ? (
+            <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.62rem] font-semibold leading-4 text-amber-800">
+              Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
+            </p>
+          ) : null}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
+                Tipo
+              </span>
+              <select
+                value={filtroTipo}
+                onChange={(event) => setFiltroTipo(event.target.value)}
+                className="h-10 w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.62rem] font-black text-slate-700 outline-none"
+              >
+                <option value="TODOS">Todos</option>
+                <option value="TRANSPORTE">Transporte</option>
+                <option value="COMIDA">Comida</option>
+                <option value="SECADO">Secado</option>
+                <option value="CARGUE">Cargue</option>
+                <option value="DESCARGUE">Descargue</option>
+                <option value="OTROS">Otros</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
+                Ordenar por
+              </span>
+              <select
+                value={orden}
+                onChange={(event) => setOrden(event.target.value as 'recent' | 'oldest')}
+                className="h-10 w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.62rem] font-black text-slate-700 outline-none"
+              >
+                <option value="recent">Más recientes</option>
+                <option value="oldest">Más antiguos</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
         {error ? (
           <section className="mt-3 rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-3 text-[0.68rem] font-semibold text-rose-700">
             {error}
@@ -152,7 +227,7 @@ export default function GastosListado() {
                 Gastos recientes
               </p>
               <span className="text-[0.56rem] font-bold text-slate-400">
-                {gastos.length} {gastos.length === 1 ? 'registro' : 'registros'}
+                {gastosFiltrados.length} {gastosFiltrados.length === 1 ? 'registro' : 'registros'}
               </span>
             </div>
           ) : null}
@@ -163,7 +238,7 @@ export default function GastosListado() {
             </div>
           ) : null}
 
-          {!loading && gastos.length === 0 && !error ? (
+          {!loading && gastosFiltrados.length === 0 && !error ? (
             <div className="rounded-[14px] border border-[#dbe2ee] bg-white px-4 py-6 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#eef4ff] text-[#2051e5]">
                 <Receipt size={18} />
@@ -178,7 +253,7 @@ export default function GastosListado() {
           ) : null}
 
           {!loading
-            ? gastos.map((gasto) => (
+            ? gastosFiltrados.map((gasto) => (
                 <article
                   key={gasto.id}
                   className="rounded-[12px] border border-[#eeeeee] bg-white px-3 py-3 shadow-[0_3px_10px_rgba(15,23,42,0.035)]"

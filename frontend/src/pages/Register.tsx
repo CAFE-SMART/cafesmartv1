@@ -28,6 +28,8 @@ import {
   getPasswordChecks,
   getPasswordStrength,
   BUSINESS_NAME_MAX_LENGTH,
+  normalizeBusinessNameInput,
+  normalizeHumanNameInput,
   PERSON_LASTNAME_MAX_LENGTH,
   PERSON_NAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
@@ -396,12 +398,15 @@ export default function Register() {
                 medida.
               </p>
 
+
+
               {error ? (
-                <AlertBanner
+                <ToastNotification
                   message="Revisa los campos resaltados."
-                  className="mt-4"
+                  onDismiss={() => setStepOneErrors({})}
                 />
               ) : null}
+
 
               <div className="mt-5">
                 <TextInput
@@ -409,7 +414,7 @@ export default function Register() {
                   label="Nombre del negocio"
                   value={nombreOrganizacion}
                   onChange={(value) => {
-                    setNombreOrganizacion(value.slice(0, BUSINESS_NAME_MAX_LENGTH));
+                    setNombreOrganizacion(normalizeBusinessNameInput(value));
                     setStepOneErrors((prev) => ({
                       ...prev,
                       nombreOrganizacion: undefined,
@@ -503,10 +508,11 @@ export default function Register() {
               </h2>
               <p className="mt-2 text-sm font-medium leading-5 text-[#667085]">
                 Crea la cuenta principal para operar Café Smart con seguridad.
+
               </p>
 
               {error ? (
-                <AlertBanner message="Revisa los campos resaltados." className="mt-4" />
+                <ToastNotification message="Revisa los campos resaltados." onDismiss={()=>setStepTwoErrors({})} />
               ) : null}
 
               <div className="mt-5 rounded-[22px] border border-[#e6ebf3] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.07)]">
@@ -520,13 +526,15 @@ export default function Register() {
                     </span>
                     <span className="mt-1 block text-sm font-medium leading-5 text-[#45607f]">
                       Gestionará usuarios, compras e inventario del sistema.
+
                     </span>
                   </span>
                 </div>
 
                 {hasGoogleFlow ? (
                   <p className="mb-5 rounded-[14px] border border-[#d9e5fb] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#355070]">
-                    Google completó tus datos. Revísalos y termina el registro.
+                      Google completó tus datos. Revísalos y termina el registro.
+
                   </p>
                 ) : null}
 
@@ -539,7 +547,7 @@ export default function Register() {
                         label="Nombre"
                         value={nombre}
                         onChange={(value) => {
-                          setNombre(value.slice(0, PERSON_NAME_MAX_LENGTH));
+                          setNombre(normalizeHumanNameInput(value));
                           setStepTwoErrors((prev) => ({
                             ...prev,
                             nombre: undefined,
@@ -558,7 +566,7 @@ export default function Register() {
                         label="Apellidos"
                         value={apellidos}
                         onChange={(value) => {
-                          setApellidos(value.slice(0, PERSON_LASTNAME_MAX_LENGTH));
+                          setApellidos(normalizeHumanNameInput(value).slice(0, PERSON_LASTNAME_MAX_LENGTH));
                           setStepTwoErrors((prev) => ({
                             ...prev,
                             apellidos: undefined,
@@ -628,7 +636,7 @@ export default function Register() {
                   <section className="space-y-3">
                     <SectionHeader label="Seguridad" />
                     <div>
-                      <label
+                    <label
                         htmlFor="register-admin-password"
                         className="mb-2 block text-xs font-black text-[#344054]"
                       >
@@ -657,15 +665,15 @@ export default function Register() {
                             }));
                           }}
                           maxLength={PASSWORD_MAX_LENGTH}
-                          placeholder="Crea una contraseña"
+                    placeholder="Crea una contraseña"
+
                           autoComplete="new-password"
-                          aria-invalid={Boolean(stepTwoErrors.password)}
                           aria-describedby={
                             stepTwoErrors.password
                               ? 'register-admin-password-error register-admin-password-limit-warning'
                               : passwordLimitWarningVisible
                                 ? 'register-admin-password-limit-warning'
-                              : undefined
+                                : undefined
                           }
                           onKeyDown={(event) => {
                             if (
@@ -754,6 +762,8 @@ export default function Register() {
                         {passwordsMatch
                           ? 'Las contraseñas coinciden.'
                           : 'Las contraseñas no coinciden.'}
+
+
                       </p>
                     ) : null}
                   </section>
@@ -860,8 +870,6 @@ function BusinessTypeCard({
   return (
     <button
       type="button"
-      role="radio"
-      aria-checked={selected}
       onClick={onSelect}
       className={`w-full rounded-[14px] border px-4 py-4 text-left shadow-sm transition-all duration-200 active:scale-[0.985] ${
         selected
@@ -941,7 +949,6 @@ function TextInput({
   ]
     .filter(Boolean)
     .join(' ');
-
   const showLimitWarning = () => {
     if (!maxLength) {
       return;
@@ -1024,7 +1031,6 @@ function TextInput({
         placeholder={placeholder}
         autoComplete={autoComplete}
         maxLength={maxLength}
-        aria-invalid={Boolean(error)}
         aria-describedby={describedBy || undefined}
         className={`block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#a8b4c5] ${
           error
@@ -1139,7 +1145,6 @@ function PhoneInput({
           placeholder="300 123 4567"
           autoComplete="tel-national"
           maxLength={12}
-          aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           className="h-full min-w-0 flex-1 border-0 bg-transparent px-4 py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
         />
@@ -1199,10 +1204,19 @@ function PasswordRequirementCard({
                   : score === 4
                     ? 'bg-sky-500'
                     : 'bg-emerald-500'
+            } ${
+              score <= 0
+                ? 'w-0'
+                : score === 1
+                  ? 'w-1/5'
+                  : score === 2
+                    ? 'w-2/5'
+                    : score === 3
+                      ? 'w-3/5'
+                      : score === 4
+                        ? 'w-4/5'
+                        : 'w-full'
             }`}
-            style={{
-              width: `${(score / 5) * 100}%`,
-            }}
           />
         </div>
       </div>
@@ -1351,23 +1365,54 @@ function FieldError({ id, message }: { id?: string; message: string }) {
   );
 }
 
-function AlertBanner({
+function ToastNotification({
   message,
-  className = '',
+  onDismiss,
+  type = 'error',
 }: {
   message: string;
-  className?: string;
+  onDismiss?: () => void;
+  type?: 'error' | 'info' | 'warning';
 }) {
+  const [fadeOut, setFadeOut] = useState(false);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setFadeOut(true), 2500);
+    const t2 = window.setTimeout(() => setHidden(true), 3000);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, []);
+
+  if (hidden) return null;
+
+  const colors =
+    type === 'error'
+      ? 'from-amber-50/90 to-orange-50/70 border-amber-200/60 text-amber-800/90'
+      : 'from-blue-50/80 to-sky-50/70 border-blue-200/60 text-blue-800/90';
+
+  const iconClr = type === 'error' ? 'text-amber-500' : 'text-blue-500';
+
   return (
     <div
       role="alert"
-      className={`flex items-center gap-2 rounded-[10px] border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs font-bold leading-5 text-rose-700 ${className}`.trim()}
+      aria-live="polite"
+      className={`transform rounded-xl border bg-gradient-to-r px-4 py-3 text-sm shadow-lg backdrop-blur-sm transition-all duration-500 ease-out ${
+        fadeOut ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
+      } ${colors} ${onDismiss ? 'cursor-pointer hover:opacity-80' : ''}`}
+      onClick={onDismiss}
     >
-      <AlertTriangle size={14} className="shrink-0" aria-hidden="true" />
-      <span>{message}</span>
+      <div className="flex items-center gap-3">
+        <AlertTriangle size={16} className={`shrink-0 ${iconClr}`} />
+        <span className="font-medium leading-relaxed">{message}</span>
+      </div>
     </div>
   );
 }
+
 
 function SupportModal({
   type,
@@ -1436,19 +1481,16 @@ function HelpModalContent() {
   const steps = [
     {
       number: '1',
-      icon: <Store size={25} />,
       title: 'Escribe el nombre del negocio',
       text: 'Usa el nombre exacto con el que lo usas diariamente.',
     },
     {
       number: '2',
-      icon: <Menu size={27} />,
       title: 'Selecciona el tipo de negocio',
       text: 'Elige la opción que mejor describa tu operación cafetera.',
     },
     {
       number: '3',
-      icon: <ArrowRight size={27} />,
       title: 'Pulsa Siguiente paso',
       text: 'Continuarás con los datos del administrador.',
     },
@@ -1465,27 +1507,36 @@ function HelpModalContent() {
         </p>
       </div>
 
-      <div className="space-y-0">
+      <div className="space-y-0" aria-label="Pasos de Ayuda básica">
         {steps.map((step, index) => (
           <div key={step.number}>
-            <div className="grid grid-cols-[3.25rem_3.75rem_1fr] items-center gap-2 py-5">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-base font-black text-[#1d4ed8]">
-                {step.number}
-              </span>
-              <span className="inline-flex h-11 w-11 items-center justify-center text-[#1d4ed8]">
-                {step.icon}
-              </span>
+            {/* Row layout: ONLY 2 columns (icon/number + text) */}
+            <div className="grid grid-cols-[3rem_1fr] items-center gap-3 py-3">
+              {/* Left column: ONLY numbered circle */}
+              <div className="flex items-center justify-center">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-sm font-black text-[#1d4ed8] leading-none">
+                  {step.number}
+                </span>
+              </div>
+
+
+              {/* Right column: title + description */}
               <span>
-                <span className="block text-sm font-black text-[#0f172a]">
+                <span className="block text-sm font-black leading-5 text-[#0f172a]">
                   {step.title}
                 </span>
-                <span className="mt-1 block text-sm font-medium leading-6 text-[#475569]">
+                <span className="mt-1 block text-sm font-medium leading-5 text-[#475569]">
                   {step.text}
                 </span>
               </span>
             </div>
+
+            {/* Divider aligns with text area (right column), not icons */}
             {index < steps.length - 1 ? (
-              <div className="ml-[4.3rem] h-px bg-[#e2e8f0]" />
+              <div className="grid grid-cols-[3rem_1fr] gap-3">
+                <div />
+                <div className="h-px bg-[#e2e8f0]" />
+              </div>
             ) : null}
           </div>
         ))}
@@ -1537,7 +1588,7 @@ function ContactModalContent() {
               {item.icon}
             </span>
             <p className="text-sm font-black text-[#0f172a]">{item.title}</p>
-            <p className="mt-2 max-w-full whitespace-pre-line break-words text-sm font-semibold leading-6 text-[#2563eb] [overflow-wrap:anywhere]">
+            <p className="mt-2 max-w-full whitespace-pre-line text-sm font-semibold leading-6 text-[#2563eb] break-words">
               {item.text}
             </p>
           </div>
@@ -1552,7 +1603,7 @@ function ContactModalContent() {
 function InfoNotice({ text }: { text: string }) {
   return (
     <div className="mt-6 flex items-center gap-3 rounded-[12px] bg-[#f1f5ff] px-4 py-4 text-sm font-medium leading-6 text-[#475569]">
-      <Info size={24} className="shrink-0 text-[#1d4ed8]" />
+              <Info size={24} className="shrink-0 text-[#1d4ed8]" />
       <span>{text}</span>
     </div>
   );

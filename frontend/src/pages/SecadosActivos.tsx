@@ -4,6 +4,7 @@ import { ArrowLeft, CircleDashed, Package2 } from 'lucide-react';
 import { getActiveSecadoSessions } from '../utils/secadoFlow';
 
 type ActiveSecadoSession = ReturnType<typeof getActiveSecadoSessions>[number];
+type SecadoFilter = 'recent' | 'oldest' | 'BUENO' | 'REGULAR' | 'MALO';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -54,13 +55,24 @@ function qualityTone(value: string) {
 export default function SecadosActivos() {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
+  const [filter, setFilter] = useState<SecadoFilter>('recent');
   const sessions = useMemo(
-    () =>
-      [...getActiveSecadoSessions()].sort(
+    () => {
+      const onlyGreen = getActiveSecadoSessions().filter(
+        (session) => qualityKey(session.tipoCafe) === 'VERDE',
+      );
+      const byQuality = ['BUENO', 'REGULAR', 'MALO'].includes(filter)
+        ? onlyGreen.filter((session) => qualityKey(session.calidad) === filter)
+        : onlyGreen;
+
+      return [...byQuality].sort(
         (a, b) =>
-          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-      ),
-    [],
+          filter === 'oldest'
+            ? new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+            : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      );
+    },
+    [filter],
   );
   const visibleSessions = showAll ? sessions : sessions.slice(0, 3);
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
@@ -92,6 +104,32 @@ export default function SecadosActivos() {
               el resultado cuando esten listos.
             </p>
           </section>
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {[
+              ['recent', 'Más recientes'],
+              ['oldest', 'Más antiguos'],
+              ['BUENO', 'Verde Bueno'],
+              ['REGULAR', 'Verde Regular'],
+              ['MALO', 'Verde Malo'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setFilter(value as SecadoFilter);
+                  setShowAll(false);
+                }}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[0.72rem] font-black ${
+                  filter === value
+                    ? 'border-[#102d92] bg-[#102d92] text-white'
+                    : 'border-[#d8deea] bg-white text-slate-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           {sessions.length === 0 ? (
             <section className="mt-5 rounded-[18px] border border-slate-200 bg-white px-5 py-8 text-center shadow-sm">

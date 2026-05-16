@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { dividirLoteSecado, getCalidadInferior } from '../services/secadoDivisionService';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -22,8 +23,11 @@ import {
 import {
   BUSINESS_MIN_DATE_VALUE,
   getTodayLocalDateValue,
+  toIsoDateAtUtcNoon,
   validateBusinessDateRange,
 } from '../utils/date';
+import { crearGasto } from '../services/gastosService';
+import { obtenerDeviceId } from '../utils/deviceId';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -93,11 +97,47 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
   );
 }
 
+
+const DivisionCalidadModal = ({ peso, calidad, onClose, onConfirm }: { peso: number; calidad: string; onClose: () => void; onConfirm: (pesoMismo: number, pesoInferior: number) => void }) => {
+  const [porcentaje, setPorcentaje] = useState(10);
+  const resultado = dividirLoteSecado(peso, calidad, porcentaje);
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-4 m-4 max-w-sm w-full">
+        <h3 className="font-bold text-lg mb-3">Dividir por Calidad</h3>
+        <p className="text-sm text-gray-600 mb-3">Ingrese el porcentaje de cafe con calidad inferior</p>
+        <div className="mb-3">
+          <label className="text-xs font-semibold text-gray-500">Porcentaje (%)</label>
+          <input type="number" min="0" max="100" value={porcentaje} onChange={e => setPorcentaje(Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 mb-4">
+          <div className="flex justify-between text-sm"><span>Cantidad misma calidad:</span><span className="font-bold">{resultado.pesoMismaCalidad.toFixed(1)} KG</span></div>
+          <div className="flex justify-between text-sm mt-1"><span>Cantidad inferior ({resultado.calidadInferior}):</span><span className="font-bold text-orange-600">{resultado.pesoCalidadInferior.toFixed(1)} KG</span></div>
+          <div className="flex justify-between text-sm mt-1"><span>Merma:</span><span className="font-bold text-red-600">{resultado.mermaTotal.toFixed(1)} KG</span></div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 border rounded-lg">Cancelar</button>
+          <button onClick={() => onConfirm(resultado.pesoMismaCalidad, resultado.pesoCalidadInferior)} className="flex-1 py-2 bg-green-600 text-white rounded-lg">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
+
+  const [showDivisionModal, setShowDivisionModal] = useState(false);
+  const [divisionData, setDivisionData] = useState<{ peso: number; calidad: string } | null>(null);
+
+  const abrirDivisionCalidad = (peso: number, calidad: string) => {
+    setDivisionData({ peso, calidad });
+    setShowDivisionModal(true);
+  };
+
   const [step, setStep] = useState<'config' | 'active' | 'finish'>(
     searchParams.get('step') === 'finish' || session?.estado === 'READY'
       ? 'finish'
@@ -106,7 +146,7 @@ export default function SecadoProceso() {
   const [startDate, setStartDate] = useState(
     session ? dateInput(session.startedAt) : dateInput(''),
   );
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(getTodayLocalDateValue());
   const [buenoKg, setBuenoKg] = useState(
     session?.outputBuenoKg ? String(session.outputBuenoKg) : '',
   );
@@ -117,6 +157,9 @@ export default function SecadoProceso() {
     session?.outputMaloKg ? String(session.outputMaloKg) : '',
   );
   const [withExpense, setWithExpense] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseConcept, setExpenseConcept] = useState('Gasto de secado');
+  const [expenseAmount, setExpenseAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
     useState(false);
@@ -129,20 +172,16 @@ export default function SecadoProceso() {
     [session],
   );
   const sourceQuality = keyOf(session?.calidad ?? '');
-  const visibleQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
-    (quality) => !sourceQuality || sourceQuality === quality,
-  );
-  const showAllOutputs = visibleQualities.length === 0;
-  const outputQualities = showAllOutputs
-    ? (['BUENO', 'REGULAR', 'MALO'] as const)
-    : visibleQualities;
+  const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
   const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
   const regular = outputQualities.includes('REGULAR')
     ? Number(regularKg) || 0
     : 0;
   const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
   const totalSalida = bueno + regular + malo;
-  const merma = Math.max(0, totalEntrada - totalSalida);
+  const hasResultadoIngresado =
+    buenoKg.trim() !== '' || regularKg.trim() !== '' || maloKg.trim() !== '';
+  const merma = hasResultadoIngresado ? Math.max(0, totalEntrada - totalSalida) : 0;
   const mermaPct =
     totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
   const outputFields = [
@@ -190,6 +229,44 @@ export default function SecadoProceso() {
     }
   };
 
+  const guardarGastoSecado = async () => {
+    const monto = Number(expenseAmount.replace(/\D/g, ''));
+    const fechaIso = toIsoDateAtUtcNoon(endDate);
+
+    if (!expenseConcept.trim()) {
+      setError('Falta el concepto del gasto de secado.');
+      return;
+    }
+
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setError('Ingresa el monto del gasto de secado.');
+      return;
+    }
+
+    if (!fechaIso) {
+      setError('Selecciona una fecha válida para el gasto de secado.');
+      return;
+    }
+
+    try {
+      await crearGasto({
+        conceptoGasto: expenseConcept.trim(),
+        montoGasto: monto,
+        fechaGasto: fechaIso,
+        tipoGasto: 'SECADO',
+        estadoPago: 'PAGADO',
+        deviceId: await obtenerDeviceId(),
+        localId: `${sessionId}-secado-gasto-${Date.now()}`,
+        asociarASublotes: false,
+      });
+      setWithExpense(true);
+      setShowExpenseModal(false);
+      setError(null);
+    } catch {
+      setError('No pudimos guardar el gasto de secado. Revisa el monto e intenta nuevamente.');
+    }
+  };
+
   const finalizar = () => {
     if (!sessionId || !session) return;
     const fechaInicioValidacion = validateBusinessDateRange(startDate);
@@ -207,6 +284,10 @@ export default function SecadoProceso() {
 
     if (totalSalida <= 0) {
       setError('Registra por lo menos una salida seca.');
+      return;
+    }
+    if ([bueno, regular, malo].some((value) => value < 0)) {
+      setError('Los pesos de salida no pueden ser negativos.');
       return;
     }
     if (totalSalida > totalEntrada) {
@@ -474,10 +555,10 @@ export default function SecadoProceso() {
                     Merma
                   </p>
                   <p className="mt-1 text-lg font-black text-rose-600">
-                    {kg(merma)}
+                    {hasResultadoIngresado ? kg(merma) : '-'}
                   </p>
                   <p className="text-[0.65rem] font-black text-rose-400">
-                    {mermaPct}%
+                    {hasResultadoIngresado ? `${mermaPct}%` : ''}
                   </p>
                 </div>
               </div>
@@ -507,7 +588,7 @@ export default function SecadoProceso() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWithExpense(true)}
+                  onClick={() => setShowExpenseModal(true)}
                   className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
                 >
                   Sí
@@ -563,6 +644,55 @@ export default function SecadoProceso() {
           </section>
         </div>
       ) : null}
+
+      {showExpenseModal ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-6 backdrop-blur-sm">
+          <section className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <h2 className="text-lg font-black text-slate-950">
+              Registrar gasto de secado
+            </h2>
+            <label className="mt-4 block text-xs font-black text-slate-700">
+              Concepto
+            </label>
+            <input
+              type="text"
+              value={expenseConcept}
+              onChange={(event) => setExpenseConcept(event.target.value)}
+              className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
+            />
+            <label className="mt-4 block text-xs font-black text-slate-700">
+              Monto
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={expenseAmount}
+              onChange={(event) => setExpenseAmount(event.target.value.replace(/\D/g, ''))}
+              placeholder="Ej: 50000"
+              className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
+            />
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="min-h-[44px] rounded-[14px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void guardarGastoSecado()}
+                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white"
+              >
+                Guardar gasto
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+export const MERMA_CRITICA_PCT=50
+

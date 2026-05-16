@@ -1,4 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
+
+function generarCodigoLote(tipo: string, calidad: string, numero: number): string {
+  const tipoMap: Record<string, string> = {
+    Verde: 'V',
+    'Verde Bueno': 'VB',
+    Seco: 'S',
+    'Seco Bueno': 'SB',
+    'Seco Regular': 'SR',
+    'Verde Regular': 'VR',
+  };
+
+  const calMap: Record<string, string> = {
+    Bueno: 'B',
+    Regular: 'R',
+    Excelente: 'E',
+  };
+
+  const t = tipoMap[tipo] || tipo.substring(0, 2).toUpperCase();
+  const c = calMap[calidad] || calidad.substring(0, 1).toUpperCase();
+  return `${t}-${c}-${String(numero).padStart(2, '0')}`;
+}
+
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -316,26 +338,19 @@ function CapacityRing({
   if (!capacityKg) {
     return (
       <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-        <p
-          className="text-[0.95rem] font-extrabold text-black"
-          style={{ fontWeight: 900 }}
-        >
+        <p className="text-[0.95rem] font-black text-black">
           Resumen de Inventario
         </p>
         <div className="mt-2 flex items-center justify-between gap-3">
           <div>
-            <p
-              className="text-[2.1rem] font-extrabold leading-none text-[#102d92]"
-              style={{ fontWeight: 900 }}
-            >
+            <p className="text-[2.1rem] font-black leading-none text-[#102d92]">
               {formatNumber(totalKg)} kg
+
             </p>
-            <p
-              className="mt-1 text-sm font-semibold text-slate-600"
-              style={{ fontWeight: 700 }}
-            >
+            <p className="mt-1 text-sm font-bold text-slate-600">
               Capacidad de bodega sin configurar
             </p>
+
           </div>
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
             <Coffee size={18} />
@@ -374,26 +389,20 @@ function CapacityRing({
       <div className="mt-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-end gap-2">
-            <p
-              className={`text-[2.1rem] font-extrabold leading-none ${accentTextClass}`}
-              style={{ fontWeight: 900 }}
-            >
+            <p className={`text-[2.1rem] font-black leading-none ${accentTextClass}`}>
               {formatNumber(totalKg)}
             </p>
-            <span
-              className="pb-0.5 text-[1.2rem] font-bold text-slate-400"
-              style={{ fontWeight: 900 }}
-            >
+            <span className="pb-0.5 text-[1.2rem] font-bold text-slate-400">
               / {formatNumber(safeCapacity)} kg
             </span>
           </div>
           <p
-            className={`mt-1 text-sm font-semibold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`}
-            style={{ fontWeight: 700 }}
+            className={`mt-1 text-sm font-bold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`}
           >
             Capacidad usada: {displayPercentage}%
           </p>
         </div>
+
 
         <div className="relative flex h-24 w-24 shrink-0 items-center justify-center self-start">
           <svg viewBox="0 0 140 140" className="h-24 w-24 -rotate-90">
@@ -543,6 +552,8 @@ function SecadoProcessCard({
     0,
   );
   const progress = secadoProgress(session.estado);
+  const progressWidthClass = `w-[${progress}%]`;
+
   const startedAt = new Date(session.startedAt);
   const fecha = Number.isNaN(startedAt.getTime())
     ? 'Hoy'
@@ -818,7 +829,9 @@ export default function Inventario() {
           <section className="flex flex-wrap items-center gap-3">
             <div className="w-full max-w-[180px]">
               <select
+                aria-label="Ordenar por"
                 value={sortKey}
+
                 onChange={(event) =>
                   setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
                 }
@@ -1099,3 +1112,6 @@ export default function Inventario() {
     </div>
   );
 }
+// Legacy helper utilities removed
+
+

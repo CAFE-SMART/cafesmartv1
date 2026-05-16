@@ -106,6 +106,7 @@ model Cliente {
   id         String    @id @default(uuid()) @map("id_cliente")
   nombre     String    @map("nombre")
   documento  String?   @map("documento")
+  tipoDocumento String? @map("tipo_documento")
   telefono   String?   @map("telefono")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
@@ -119,6 +120,8 @@ model Cliente {
 
   ventas Venta[]
 
+  @@index([organizacionId, deletedAt])
+  @@index([organizacionId, documento])
   @@map("cliente")
 }
 
@@ -140,6 +143,8 @@ model Productor {
 
   compras Compra[]
 
+  @@index([organizacionId, deletedAt])
+  @@index([organizacionId, documento])
   @@map("productor")
 }
 
@@ -219,6 +224,7 @@ model Sublote {
 
   @@unique([deviceId, localId])
   @@index([compraId])
+  @@index([deletedAt, compraId])
   @@index([tipoCafeId, calidadId, deletedAt])
   @@index([idLote])
   @@map("sublote")
@@ -247,6 +253,8 @@ model Venta {
 
   @@unique([deviceId, localId])
   @@index([organizacionId, fecha])
+  @@index([organizacionId, deletedAt, fecha])
+  @@index([organizacionId, deletedAt, fecha, createdAt])
   @@map("venta")
 }
 
@@ -401,6 +409,7 @@ model GastoOperativo {
 
   @@unique([deviceId, localId])
   @@index([organizacionId, fechaGasto])
+  @@index([organizacionId, deletedAt, fechaGasto])
   @@index([organizacionId, tipoGasto])
   @@index([organizacionId, deletedAt])
   @@map("gasto_operativo")

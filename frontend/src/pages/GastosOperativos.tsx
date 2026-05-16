@@ -60,6 +60,20 @@ type FloatingNotice = GuidanceMessage & {
   primaryAction: 'focus-field' | 'retry-save';
 };
 
+type GastoDraft = {
+  savedAt: number;
+  concepto: string;
+  descripcion: string;
+  montoStr: string;
+  fecha: string;
+  tipoGasto: TipoGastoValue;
+  estadoPago: EstadoPagoValue;
+  aplicaA: AplicaAValue;
+  sublotesSeleccionados: string[];
+};
+
+const GASTO_DRAFT_STORAGE_KEY = 'cafe-smart:gasto-draft:v1';
+
 function ariaInvalid(active: boolean) {
   return { 'aria-invalid': active ? 'true' : 'false' } as const;
 }
@@ -248,6 +262,8 @@ export default function GastosOperativos() {
     null,
   );
   const [showSublotesSelector, setShowSublotesSelector] = useState(false);
+  const [draftPending, setDraftPending] = useState<GastoDraft | null>(null);
+  const [showDraftModal, setShowDraftModal] = useState(false);
 
   const conceptoSectionRef = useRef<HTMLDivElement | null>(null);
   const montoSectionRef = useRef<HTMLDivElement | null>(null);
@@ -258,6 +274,73 @@ export default function GastosOperativos() {
   const montoInputRef = useRef<HTMLInputElement | null>(null);
   const fechaInputRef = useRef<HTMLInputElement | null>(null);
   const sublotesButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(GASTO_DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as GastoDraft;
+      if (
+        draft &&
+        (draft.concepto ||
+          draft.descripcion ||
+          draft.montoStr ||
+          draft.aplicaA === 'SUBLOTES' ||
+          draft.sublotesSeleccionados?.length)
+      ) {
+        setDraftPending(draft);
+        setShowDraftModal(true);
+      }
+    } catch {
+      window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDraftModal || showSuccessModal) return;
+    const draft: GastoDraft = {
+      savedAt: Date.now(),
+      concepto,
+      descripcion,
+      montoStr,
+      fecha,
+      tipoGasto,
+      estadoPago,
+      aplicaA,
+      sublotesSeleccionados,
+    };
+    const hasProgress =
+      concepto.trim() ||
+      descripcion.trim() ||
+      montoStr ||
+      fecha !== getTodayLocalDateValue() ||
+      tipoGasto !== 'TRANSPORTE' ||
+      estadoPago !== 'PAGADO' ||
+      aplicaA !== 'GENERAL' ||
+      sublotesSeleccionados.length > 0;
+
+    if (!hasProgress) {
+      window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(GASTO_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    aplicaA,
+    concepto,
+    descripcion,
+    estadoPago,
+    fecha,
+    montoStr,
+    showDraftModal,
+    showSuccessModal,
+    sublotesSeleccionados,
+    tipoGasto,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -403,6 +486,7 @@ export default function GastosOperativos() {
   };
 
   const resetForm = () => {
+    window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
     setConcepto('');
     setDescripcion('');
     setMontoStr('');
@@ -415,6 +499,27 @@ export default function GastosOperativos() {
     setFloatingNotice(null);
     setShowSublotesSelector(false);
     setBotonGuardarPresionado(false);
+  };
+
+  const continuarBorradorGasto = () => {
+    if (!draftPending) return;
+    setConcepto(draftPending.concepto ?? '');
+    setDescripcion(draftPending.descripcion ?? '');
+    setMontoStr(draftPending.montoStr ?? '');
+    setFecha(draftPending.fecha || getTodayLocalDateValue());
+    setTipoGasto(draftPending.tipoGasto ?? 'TRANSPORTE');
+    setEstadoPago(draftPending.estadoPago ?? 'PAGADO');
+    setAplicaA(draftPending.aplicaA ?? 'GENERAL');
+    setSublotesSeleccionados(draftPending.sublotesSeleccionados ?? []);
+    setShowDraftModal(false);
+    setDraftPending(null);
+  };
+
+  const empezarGastoNuevo = () => {
+    window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
+    setShowDraftModal(false);
+    setDraftPending(null);
+    resetForm();
   };
 
   const cerrarModalConfirmar = () => {
@@ -487,6 +592,7 @@ export default function GastosOperativos() {
       };
 
       await crearGasto(payload);
+      window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
       setFieldErrors({});
       setFloatingNotice(null);
       setShowSuccessModal(true);
@@ -958,6 +1064,37 @@ export default function GastosOperativos() {
                 Cancelar
               </button>
             </div>
+        </AccessibleModal>
+      ) : null}
+
+      {showDraftModal && draftPending ? (
+        <AccessibleModal
+          title="Borrador guardado"
+          description="Encontramos un registro sin finalizar. Puedes continuar o empezar de nuevo."
+          onClose={empezarGastoNuevo}
+        >
+          <h2 className="text-center text-lg font-black text-slate-950">
+            Borrador guardado
+          </h2>
+          <p className="mx-auto mt-2 max-w-[300px] text-center text-sm font-semibold leading-6 text-slate-600">
+            Encontramos un registro sin finalizar. Puedes continuar o empezar de nuevo.
+          </p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={continuarBorradorGasto}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white"
+            >
+              Continuar
+            </button>
+            <button
+              type="button"
+              onClick={empezarGastoNuevo}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+            >
+              Empezar de nuevo
+            </button>
+          </div>
         </AccessibleModal>
       ) : null}
 

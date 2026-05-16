@@ -1,0 +1,707 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  CalendarDays,
+  LoaderCircle,
+  PackageCheck,
+  RefreshCcw,
+  ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  SunMedium,
+} from 'lucide-react';
+import { AppBottomNav } from '../components/AppBottomNav';
+import { useCloudStatus } from '../context/CloudStatusContext';
+import {
+  obtenerDashboardSummary,
+  type DashboardSummary,
+} from '../services/dashboardService';
+import { obtenerLotes, type LoteResumen } from '../services/lotesService';
+import { applySecadoToLots } from '../utils/secadoFlow';
+import { getDaysInBodega } from '../utils/date';
+import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+
+const sectionTitleClass =
+  'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
+const cardClass =
+  'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
+
+function formatInteger(value: number) {
+  return new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatKg(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value)} kg`;
+}
+
+function formatKgUpper(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value)} KG`;
+}
+
+function resolveCloudLabel(tone: string) {
+  if (tone === 'offline' || tone === 'error') {
+    return 'SIN CONEXION';
+  }
+
+  if (tone === 'checking') {
+    return 'VERIFICANDO';
+  }
+
+  if (tone === 'syncing') {
+    return 'SINCRONIZANDO';
+  }
+
+  if (tone === 'degraded') {
+    return 'CONEXION INESTABLE';
+  }
+
+  return 'CONECTADO';
+}
+
+function keyOf(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function resolveDashboardErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+
+  if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(message)) {
+    return 'Inicio no disponible por el momento.';
+  }
+
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return 'Revisa la conexión a internet y vuelve a intentarlo.';
+  }
+
+  if (
+    /terminal|backend|internal server error|server error|stack|exception|endpoint/i.test(
+      message,
+    )
+  ) {
+    return 'No pudimos cargar el inicio. Vuelve a intentarlo.';
+  }
+
+  return 'No pudimos cargar el inicio. Vuelve a intentarlo.';
+}
+
+function resolveCloudDotClass(tone: string) {
+  if (tone === 'offline' || tone === 'error') {
+    return 'bg-[#a0aec0]';
+  }
+
+  if (tone === 'checking') {
+    return 'bg-[#c7d2e3]';
+  }
+
+  if (tone === 'syncing') {
+    return 'bg-[#d6a64d]';
+  }
+
+  if (tone === 'degraded') {
+    return 'bg-[#e38b47]';
+  }
+
+  return 'bg-[#3d8b5f]';
+}
+
+function formatMetric(
+  loading: boolean,
+  value: number | null,
+  formatter: (value: number) => string,
+) {
+  if (loading) {
+    return '...';
+  }
+
+  if (value === null) {
+    return '-';
+  }
+
+  return formatter(value);
+}
+
+function formatUpdatedAgo(updatedAt: string | null, now: number) {
+  if (!updatedAt) {
+    return 'Sin actualizar';
+  }
+
+  const timestamp = new Date(updatedAt).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return 'Actualizacion reciente';
+  }
+
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (seconds < 60) {
+    return `Actualizado hace ${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `Actualizado hace ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  return `Actualizado hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+}
+
+function MetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-[0.76rem]">
+      <span className="text-[#5a6b84]">{label}</span>
+      <span className="font-black text-[#1f2937]">{value}</span>
+    </div>
+  );
+}
+
+function lotDays(lot: LoteResumen) {
+  return Math.max(
+    getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha),
+    getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha),
+    lot.diasEnBodegaMax || 0,
+  );
+}
+
+type BodegaCoffeeItem = {
+  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
+  tipo: 'Verde' | 'Seco';
+  calidad: 'Bueno' | 'Regular';
+  totalKg: number;
+  lots: number;
+  averageDays: number;
+  dayWeight: number;
+};
+
+function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
+  const isGood = item.calidad === 'Bueno';
+  const isDry = item.tipo === 'Seco';
+  const Icon = isDry ? SunMedium : isGood ? ShieldCheck : Sparkles;
+  const iconClass = isDry
+    ? 'bg-[#fff1da] text-[#c4670e]'
+    : isGood
+      ? 'bg-[#dcfce7] text-[#16845a]'
+      : 'bg-[#fff7d6] text-[#b77905]';
+  const qualityClass = isGood
+    ? 'bg-[#dcfce7] text-[#16845a]'
+    : 'bg-[#fff3c4] text-[#a15c00]';
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${iconClass}`}
+        >
+          <Icon size={17} strokeWidth={2.35} />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937]">
+            {item.tipo}
+          </p>
+          <p className="mt-1 flex items-center gap-1 text-[0.58rem] font-bold uppercase tracking-[0.04em] text-[#8a98ad]">
+            <CalendarDays size={10} strokeWidth={2.2} />
+            Prom. {item.averageDays} dias
+          </p>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[0.78rem] font-black text-[#18479d]">
+          {formatKgUpper(item.totalKg)}
+        </p>
+        <span
+          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}
+        >
+          {item.calidad}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyDashboardState({
+  onRegisterPurchase,
+}: {
+  onRegisterPurchase: () => void;
+}) {
+  return (
+    <section className="px-5 pt-6">
+      <style>
+        {`
+          @keyframes cafesmartFadeUp {
+            0% { opacity: 0; transform: translateY(14px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes cafesmartFloatSoft {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-7px); }
+          }
+
+          @keyframes cafesmartGlowBreath {
+            0%, 100% { opacity: .52; transform: scale(.96); }
+            50% { opacity: .9; transform: scale(1.06); }
+          }
+        `}
+      </style>
+      <div className="relative overflow-hidden rounded-[30px] border border-[#e1e8f3] bg-white px-6 pb-8 pt-9 text-center shadow-[0_22px_54px_rgba(15,23,42,0.1)]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24">
+          <svg
+            className="absolute bottom-0 h-full w-full"
+            viewBox="0 0 390 112"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M0 51C48 29 89 39 133 60C184 85 226 53 276 47C318 42 352 58 390 76V112H0V51Z"
+              fill="#dbeafe"
+              opacity="0.7"
+            />
+            <path
+              d="M0 76C52 55 101 62 151 82C199 101 238 78 284 72C328 66 357 79 390 94V112H0V76Z"
+              fill="#bfdbfe"
+              opacity="0.48"
+            />
+          </svg>
+        </div>
+
+        <div className="relative z-10 mx-auto h-36 w-36 animate-[cafesmartFadeUp_300ms_ease-out_both]">
+          <div className="absolute inset-0 rounded-full bg-[#e9f3ff] animate-[cafesmartGlowBreath_3.2s_ease-in-out_infinite]" />
+          <div className="absolute inset-4 rounded-full bg-[#bfdbfe]/55 blur-sm animate-[cafesmartGlowBreath_3.6s_ease-in-out_infinite]" />
+          <span className="absolute left-0 top-10 h-2 w-2 rounded-full bg-[#7db5ff] opacity-70 animate-[cafesmartFloatSoft_3.8s_ease-in-out_infinite]" />
+          <span className="absolute right-3 top-6 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_16px_rgba(22,131,247,0.32)] animate-[cafesmartGlowBreath_3.4s_ease-in-out_infinite]" />
+          <div className="absolute inset-3 flex items-center justify-center rounded-full bg-[#eef6ff] shadow-[0_22px_46px_rgba(37,99,235,0.13)] animate-[cafesmartFloatSoft_3.7s_ease-in-out_infinite]">
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-[26px] bg-white shadow-[0_14px_32px_rgba(37,99,235,0.12)]">
+              <PackageCheck
+                size={38}
+                className="text-[#1683f7]"
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
+              <span className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f1ff] text-[#102d92] shadow-[0_10px_24px_rgba(16,45,146,0.12)]">
+                <ShoppingCart size={19} strokeWidth={2.5} aria-hidden="true" />
+              </span>
+            </div>
+          </div>
+          <img
+            src="/imagenes-de-proyecto/granito-inteligente.png"
+            alt=""
+            className="absolute bottom-4 left-5 h-9 w-9 object-contain drop-shadow-sm"
+          />
+        </div>
+
+        <h2 className="relative z-10 mt-6 text-[1.34rem] font-black leading-tight text-[#101828] animate-[cafesmartFadeUp_320ms_ease-out_80ms_both]">
+          Registra tu primera compra
+        </h2>
+        <p className="relative z-10 mx-auto mt-3 max-w-[292px] text-[0.9rem] font-semibold leading-6 text-[#52627a] animate-[cafesmartFadeUp_320ms_ease-out_140ms_both]">
+          Agrega tu primera compra para comenzar a organizar tu café.
+        </p>
+        <button
+          type="button"
+          onClick={onRegisterPurchase}
+          className="relative z-10 mt-7 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#173b9c] px-5 text-[0.92rem] font-black text-white shadow-[0_16px_32px_rgba(23,59,156,0.24),0_0_22px_rgba(22,131,247,0.14)] transition duration-200 hover:bg-[#123384] hover:shadow-[0_20px_38px_rgba(23,59,156,0.28),0_0_28px_rgba(22,131,247,0.18)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#173b9c]/20 animate-[cafesmartFadeUp_320ms_ease-out_200ms_both]"
+        >
+          <ShoppingCart size={17} strokeWidth={2.5} aria-hidden="true" />
+          Registrar compra
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <section className="px-5 pt-6">
+      <div className="rounded-[18px] border border-[#dbe2ee] bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+        <div className="flex items-center gap-3">
+          <LoaderCircle size={18} className="animate-spin text-[#18479d]" />
+          <div>
+            <p className="text-[0.8rem] font-black text-[#1f2937]">
+              Cargando inicio
+            </p>
+            <p className="mt-1 text-[0.68rem] font-semibold text-[#65758f]">
+              Preparando tus indicadores e inventario.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DashboardErrorState({
+  onRetry,
+}: {
+  onRetry: () => void;
+}) {
+  return (
+    <section className="px-5 pt-6">
+      <div className="rounded-[18px] border border-rose-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+        <p className="text-[0.8rem] font-black text-[#1f2937]">
+          No pudimos cargar el inicio
+        </p>
+        <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
+          Revisa tu conexión e intenta nuevamente.
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#173b9c] px-4 text-[0.78rem] font-black text-white"
+        >
+          <RefreshCcw size={14} />
+          Recargar
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export default function Inicio() {
+  const navigate = useNavigate();
+  const { tone, refreshHealth } = useCloudStatus();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const cargarDashboard = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const [dashboardResult, lotesResult] = await Promise.allSettled([
+        obtenerDashboardSummary(),
+        obtenerLotes(),
+      ]);
+
+      if (dashboardResult.status === 'fulfilled') {
+        setSummary(dashboardResult.value);
+        setError(null);
+      } else {
+        setError(resolveDashboardErrorMessage(dashboardResult.reason));
+      }
+
+      if (lotesResult.status === 'fulfilled') {
+        setLotesBodega(
+          ENABLE_SECADO_PROTOTYPE
+            ? applySecadoToLots(lotesResult.value)
+            : lotesResult.value,
+        );
+      } else {
+        setLotesBodega([]);
+      }
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void cargarDashboard();
+  }, [cargarDashboard]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNow(Date.now()), 60000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
+
+  const handleReload = useCallback(async () => {
+    await Promise.allSettled([cargarDashboard(true), refreshHealth()]);
+  }, [cargarDashboard, refreshHealth]);
+
+  const ocupacion = useMemo(() => {
+    const kgActual = summary?.kgActual ?? null;
+    const kgCapacidad = summary?.kgCapacidad ?? null;
+
+    if (
+      kgActual === null ||
+      kgCapacidad === null ||
+      !Number.isFinite(kgCapacidad) ||
+      kgCapacidad <= 0
+    ) {
+      return {
+        porcentaje: 0,
+        etiqueta: loading ? '...' : '0%',
+        excedida: false,
+      };
+    }
+
+    const porcentajeReal = Math.max(0, (kgActual / kgCapacidad) * 100);
+
+    return {
+      porcentaje: Math.min(100, porcentajeReal),
+      etiqueta: `${Math.round(porcentajeReal)}%`,
+      excedida: porcentajeReal > 100,
+    };
+  }, [loading, summary?.kgActual, summary?.kgCapacidad]);
+
+  const cafeEnBodega = useMemo(() => {
+    const sections: BodegaCoffeeItem[] = [
+      {
+        key: 'VERDE_BUENO',
+        tipo: 'Verde',
+        calidad: 'Bueno',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
+      {
+        key: 'VERDE_REGULAR',
+        tipo: 'Verde',
+        calidad: 'Regular',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
+      {
+        key: 'SECO_BUENO',
+        tipo: 'Seco',
+        calidad: 'Bueno',
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      },
+    ];
+
+    lotesBodega.forEach((lot) => {
+      const typeKey = keyOf(lot.tipoCafe);
+      const qualityKey = keyOf(lot.calidad);
+      const section = sections.find(
+        (item) => item.key === `${typeKey}_${qualityKey}`,
+      );
+      if (!section) return;
+
+      const weight = Math.max(1, lot.sublotes);
+      section.totalKg += lot.pesoActual;
+      section.lots += lot.sublotes;
+      section.dayWeight += lotDays(lot) * weight;
+    });
+
+    return sections
+      .map((section) => ({
+        ...section,
+        averageDays:
+          section.totalKg > 0
+            ? Math.round(section.dayWeight / Math.max(1, section.lots))
+            : 0,
+      }))
+      .filter((section) => section.totalKg > 0);
+  }, [lotesBodega]);
+
+  const isEmptyDashboard =
+    !loading &&
+    !error &&
+    summary !== null &&
+    summary.comprasHoy === 0 &&
+    summary.ventasHoy === 0 &&
+    summary.gastosHoy === 0 &&
+    summary.totalVentasHoy === 0 &&
+    summary.totalGastosHoy === 0 &&
+    summary.kgActual === 0 &&
+    lotesBodega.length === 0;
+  const dashboardState = loading
+    ? 'loading'
+    : error && !summary
+      ? 'error'
+      : 'valid';
+
+  return (
+    <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
+      <div className="mx-auto w-full max-w-[430px]">
+        <header className="px-5 pb-4 pt-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[1.35rem] font-black text-[#111827]">
+                Caf&eacute; Smart
+              </h1>
+              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${resolveCloudDotClass(tone)}`}
+                  aria-hidden="true"
+                />
+                <span>{resolveCloudLabel(tone)}</span>
+              </div>
+              {dashboardState === 'valid' ? (
+                <p className="mt-2 text-[0.68rem] font-bold text-[#72809a]">
+                  {formatUpdatedAgo(summary?.updatedAt ?? null, now)}
+                </p>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleReload()}
+              disabled={refreshing}
+              className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
+            >
+              {refreshing ? (
+                <LoaderCircle
+                  size={13}
+                  className="animate-spin text-[#4b5c77]"
+                />
+              ) : (
+                <RefreshCcw size={13} className="text-[#4b5c77]" />
+              )}
+              Recargar
+            </button>
+          </div>
+        </header>
+
+        {dashboardState === 'loading' ? <DashboardLoadingState /> : null}
+
+        {dashboardState === 'error' ? (
+          <DashboardErrorState onRetry={() => void handleReload()} />
+        ) : null}
+
+        {dashboardState === 'valid' && error ? (
+          <section className="px-5 pb-3">
+            <div className="rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-3">
+              <p className="text-[0.76rem] font-black text-[#1f2937]">
+                No se pudo cargar el resumen
+              </p>
+              <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
+                Presiona Recargar para intentarlo de nuevo.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {dashboardState === 'valid' && isEmptyDashboard ? (
+          <EmptyDashboardState
+            onRegisterPurchase={() => navigate('/compras')}
+          />
+        ) : dashboardState === 'valid' ? (
+          <>
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
+
+              <div className={`mt-3 ${cardClass}`}>
+                <div className="space-y-2.5">
+                  <MetricRow
+                    label="Compras hoy:"
+                    value={formatMetric(
+                      loading,
+                      summary?.comprasHoy ?? null,
+                      formatInteger,
+                    )}
+                  />
+                  <MetricRow
+                    label="Ventas hoy:"
+                    value={formatMetric(
+                      loading,
+                      summary?.ventasHoy ?? null,
+                      formatInteger,
+                    )}
+                  />
+                  <MetricRow
+                    label="Kg comprados hoy:"
+                    value={formatMetric(
+                      loading,
+                      summary?.kgCompradosHoy ?? null,
+                      formatKg,
+                    )}
+                  />
+                  <MetricRow
+                    label="Productores registrados:"
+                    value={formatMetric(
+                      loading,
+                      summary?.totalProductores ?? null,
+                      formatInteger,
+                    )}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Capacidad en bodega</p>
+
+              <div className={`mt-3 ${cardClass}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-[0.9rem] font-black text-[#1f2937]">
+                    Ocupaci&oacute;n actual
+                  </h2>
+                  <span
+                    className={`text-[1rem] font-black ${ocupacion.excedida ? 'text-[#b42318]' : 'text-[#18479d]'}`}
+                  >
+                    {ocupacion.etiqueta}
+                  </span>
+                </div>
+
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacion.excedida ? 'bg-[#d92d20]' : 'bg-[#17489c]'}`}
+                    style={{ width: `${ocupacion.porcentaje}%` }}
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black text-[#74839a]">
+                  <span>
+                    {formatMetric(loading, summary?.kgActual ?? null, formatKg)}{' '}
+                    usados
+                  </span>
+                  <span>
+                    {formatMetric(
+                      loading,
+                      summary?.kgCapacidad ?? null,
+                      formatKg,
+                    )}{' '}
+                    total
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section className="px-5 py-3">
+              <p className={sectionTitleClass}>Inventario en bodega</p>
+
+              <div className={`mt-3 overflow-hidden ${cardClass} p-0`}>
+                {loading && !summary ? (
+                  <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
+                    Cargando bodega...
+                  </div>
+                ) : cafeEnBodega.length === 0 ? (
+                  <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
+                    Aun no hay cafe disponible en bodega.
+                  </div>
+                ) : (
+                  <div>
+                    {cafeEnBodega.map((item, index) => (
+                      <div
+                        key={item.key}
+                        className={index > 0 ? 'border-t border-[#edf1f7]' : ''}
+                      >
+                        <BodegaCoffeeRow item={item} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        ) : null}
+      </div>
+
+      <AppBottomNav />
+    </div>
+  );
+}

@@ -36,3 +36,9 @@ export async function actualizarProductor(
     body: JSON.stringify(payload),
   }) as Promise<ProductorItem>;
 }
+
+export async function eliminarProductor(id: string) {
+  return apiFetch(`/productores/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
+}

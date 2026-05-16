@@ -82,7 +82,7 @@ export class PrismaService
         return await next(params);
       } finally {
         const durationMs = Date.now() - startedAt;
-        if (durationMs >= 750) {
+        if (durationMs >= 3000) {
           this.logger.warn(
             JSON.stringify({
               event: 'prisma_slow_query',

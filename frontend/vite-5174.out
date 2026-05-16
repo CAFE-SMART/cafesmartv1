@@ -1,0 +1,112 @@
+[32m✔[0m [33mConsole Ninja[0m extension is connected to [33mVite[0m, see [36mhttps://tinyurl.com/2vt8jxzw[0m
+
+  [32m[1mVITE[22m v5.4.11[39m  [2mready in [0m[1m8277[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.17.192.1:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.100.7:[1m5174[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m10:58:43 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:00:11 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:24 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:25 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:49 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:49 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:59 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:51:59 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:52:13 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:52:27 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:52:47 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:52:58 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:53:09 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:54:22 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:54:35 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:54:35 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:55:21 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:55:21 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:56:34 p. m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/clientesService.ts[22m
+[2m11:56:47 p. m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/productoresService.ts[22m
+[2m11:56:58 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:07 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:20 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:20 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:33 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:47 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:57:59 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:58:37 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:58:47 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:58:53 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:59:03 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:59:11 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:59:33 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:59:42 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m11:59:52 p. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:00:29 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:00:43 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:01:05 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:01:26 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:01:26 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:02:01 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:02:02 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:08:03 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:08:03 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m12:08:55 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:27:57 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:27:57 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:07 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:07 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:21 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:32 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:40 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:28:50 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:00 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:10 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:10 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:27 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:28 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:39 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:29:57 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:30:07 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:30:13 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:30:25 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:30:50 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:31:07 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:31:23 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:31:52 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:32:11 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/routes/AppRoutes.tsx, /src/index.css[22m
+[2m1:32:26 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:32:26 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:32:45 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:37:33 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:37:45 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:37:59 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m1:38:11 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:30:24 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:30:29 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:30:34 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:30:44 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:31:02 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:31:02 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:31:30 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:31:30 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:31:59 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:32:14 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:32:14 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:32:45 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:33:38 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:33:39 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:34:16 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:34:49 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:34:50 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:04 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:16 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:16 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:39 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:39 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:47 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:58 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:35:59 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:36:25 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:37:12 a. m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/comprasService.ts[22m
+[2m2:37:59 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m
+[2m2:38:22 a. m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css, /src/routes/AppRoutes.tsx[22m

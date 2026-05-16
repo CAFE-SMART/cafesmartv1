@@ -5,10 +5,103 @@ export type PersonFieldValidation = {
 
 export type DocumentType = 'CEDULA' | 'NIT';
 
-const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
+const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/;
+const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&(){}[\]-]+$/;
+
+export function normalizeHumanName(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|[\s'-])([a-záéíóúüñ])/g, (match, separator, letter) =>
+      `${separator}${letter.toLocaleUpperCase('es')}`,
+    );
+}
 
 export function sanitizeNameInput(value: string) {
-  return value.replace(/[0-9]/g, '');
+  return value.replace(/\s{2,}/g, ' ').slice(0, 60);
+}
+
+export function normalizeCompanyName(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|[\s&.,()-])([a-záéíóúüñ])/g, (match, separator, letter) =>
+      `${separator}${letter.toLocaleUpperCase('es')}`,
+    );
+}
+
+function hasAlternatingCaseWord(value: string) {
+  return value
+    .split(/\s+/)
+    .some((word) => {
+      const letters = word.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+      if (letters.length < 4) return false;
+      let changes = 0;
+      for (let index = 1; index < letters.length; index += 1) {
+        const previous = letters[index - 1];
+        const current = letters[index];
+        if (
+          previous.toLocaleLowerCase('es') !== previous.toLocaleUpperCase('es') &&
+          current.toLocaleLowerCase('es') !== current.toLocaleUpperCase('es') &&
+          (previous === previous.toLocaleUpperCase('es')) !==
+            (current === current.toLocaleUpperCase('es'))
+        ) {
+          changes += 1;
+        }
+      }
+      return changes >= 3;
+    });
+}
+
+export function validateCompanyName(value: string): PersonFieldValidation {
+  const nombreOriginal = value;
+  const nombre = normalizeCompanyName(value);
+
+  if (!nombre) {
+    return { isValid: false, message: 'El nombre de la empresa es obligatorio.' };
+  }
+
+  if (nombreOriginal !== nombreOriginal.trim() || /\s{2,}/.test(nombreOriginal)) {
+    return { isValid: false, message: 'No uses espacios al inicio, al final ni dobles.' };
+  }
+
+  if (nombre.length < 3 || nombre.length > 100) {
+    return { isValid: false, message: 'El nombre debe tener entre 3 y 100 caracteres.' };
+  }
+
+  if (/[()[\]{}]/.test(nombre)) {
+    const pairs = [
+      ['(', ')'],
+      ['[', ']'],
+      ['{', '}'],
+    ] as const;
+    for (const [open, close] of pairs) {
+      const openCount = nombre.split(open).length - 1;
+      const closeCount = nombre.split(close).length - 1;
+      if (openCount !== closeCount) {
+        return { isValid: false, message: 'Cierra bien los paréntesis o corchetes.' };
+      }
+    }
+    if (/\(\s*\)|\[\s*\]|\{\s*\}/.test(nombre)) {
+      return { isValid: false, message: 'No uses signos vacíos como ().' };
+    }
+  }
+
+  if (/(.)\1\1\1/i.test(nombre)) {
+    return { isValid: false, message: 'No repitas la misma letra más de 3 veces.' };
+  }
+
+  if (/[@$%*=_+?¿!¡|<>]/.test(nombre) || !COMPANY_ALLOWED_CHARS.test(nombre)) {
+    return { isValid: false, message: 'Usa solo letras, números, espacios, puntos, comas, guiones y &.' };
+  }
+
+  if (hasAlternatingCaseWord(nombre)) {
+    return { isValid: false, message: 'Evita mayúsculas alternadas en el nombre.' };
+  }
+
+  return { isValid: true };
 }
 
 export function sanitizeDigits(value: string, maxLength = 10) {
@@ -56,7 +149,8 @@ export function validatePersonName(
   value: string,
   label = 'El nombre',
 ): PersonFieldValidation {
-  const nombre = value.trim();
+  const nombreOriginal = value;
+  const nombre = value.trim().replace(/\s+/g, ' ');
 
   if (!nombre) {
     return {
@@ -65,17 +159,38 @@ export function validatePersonName(
     };
   }
 
-  if (/\d/.test(nombre)) {
+  if (nombreOriginal !== nombreOriginal.trim() || /\s{2,}/.test(nombreOriginal)) {
     return {
       isValid: false,
-      message: `${label} no debe tener números.`,
+      message: 'No uses espacios al inicio, al final ni dobles.',
     };
   }
 
-  if (!NAME_ALLOWED_CHARS.test(nombre)) {
+  if (nombre.length < 2) {
     return {
       isValid: false,
-      message: `${label} debe usar solo letras y espacios.`,
+      message: 'El nombre es demasiado corto.',
+    };
+  }
+
+  if (nombre.length > 60) {
+    return {
+      isValid: false,
+      message: 'El nombre no puede pasar de 60 caracteres.',
+    };
+  }
+
+  if (/\d/.test(nombre)) {
+    return {
+      isValid: false,
+      message: 'El nombre no puede contener números.',
+    };
+  }
+
+  if (/[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(nombre) || !NAME_ALLOWED_CHARS.test(nombre)) {
+    return {
+      isValid: false,
+      message: 'No uses símbolos especiales.',
     };
   }
 

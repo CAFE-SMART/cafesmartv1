@@ -12,6 +12,7 @@ const Inventario = lazy(() => import('../pages/Inventario'));
 const Ventas = lazy(() => import('../pages/Ventas'));
 const Sublotes = lazy(() => import('../pages/Sublotes'));
 const SecadoSeleccion = lazy(() => import('../pages/SecadoSeleccion'));
+const SecadoInicio = lazy(() => import('../pages/SecadoInicio'));
 const SecadosActivos = lazy(() => import('../pages/SecadosActivos'));
 const SecadoProceso = lazy(() => import('../pages/SecadoProceso'));
 const SecadoResumen = lazy(() => import('../pages/SecadoResumen'));
@@ -41,6 +42,7 @@ export default function AppRoutes() {
           {ENABLE_SECADO_PROTOTYPE ? (
             <>
               <Route path="/inventario/secados" element={<SecadosActivos />} />
+              <Route path="/inventario/secado/inicio" element={<SecadoInicio />} />
               <Route
                 path="/inventario/:tipoCafeId/:calidadId/secado"
                 element={<SecadoSeleccion />}

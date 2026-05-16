@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+
+const IndicatorGood = () => <span className="mt-2 text-green-600">OK</span>;
 import {
   ArrowLeft,
   CalendarDays,
@@ -10,9 +12,11 @@ import {
   Receipt,
   RefreshCcw,
   Scale,
+  Search,
   ShoppingCart,
   TrendingUp,
   Wallet,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -109,6 +113,13 @@ export default function ResumenFinanciero() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historialActivo, setHistorialActivo] = useState<
+    'VENTA' | 'COMPRA' | 'GASTO' | null
+  >(null);
+  const [historialSearch, setHistorialSearch] = useState('');
+  const [historialDate, setHistorialDate] = useState('');
+  const [historialTipo, setHistorialTipo] = useState('TODOS');
+  const [historialSort, setHistorialSort] = useState<'recent' | 'oldest' | 'amount-desc' | 'amount-asc'>('recent');
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -170,6 +181,50 @@ export default function ResumenFinanciero() {
     () => movimientos.slice(0, 8),
     [movimientos],
   );
+  const historialMovimientos = useMemo(() => {
+    if (!historialActivo) return [];
+    const term = historialSearch.trim().toLowerCase();
+    return movimientos
+      .filter((item) => item.tipo === historialActivo)
+      .filter((item) => {
+        if (!term) return true;
+        return [item.nombre, item.tipo, String(item.valor), String(item.kg)]
+          .join(' ')
+          .toLowerCase()
+          .includes(term);
+      })
+      .filter((item) => {
+        if (!historialDate) return true;
+        return item.fecha.slice(0, 10) === historialDate;
+      })
+      .filter((item) => historialTipo === 'TODOS' || item.nombre === historialTipo)
+      .sort((a, b) => {
+        if (historialSort === 'oldest') {
+          return new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
+        }
+        if (historialSort === 'amount-desc') return b.valor - a.valor;
+        if (historialSort === 'amount-asc') return a.valor - b.valor;
+        return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
+      });
+  }, [historialActivo, historialDate, historialSearch, historialSort, historialTipo, movimientos]);
+  const historialTipos = useMemo(
+    () => [
+      'TODOS',
+      ...Array.from(new Set(historialMovimientos.map((item) => item.nombre).filter(Boolean))),
+    ],
+    [historialMovimientos],
+  );
+  const historialTotal = historialMovimientos.reduce(
+    (total, item) => total + item.valor,
+    0,
+  );
+  const abrirHistorial = (tipo: 'VENTA' | 'COMPRA' | 'GASTO') => {
+    setHistorialActivo(tipo);
+    setHistorialSearch('');
+    setHistorialDate('');
+    setHistorialTipo('TODOS');
+    setHistorialSort('recent');
+  };
 
   const ventasTotal = summary?.totalVentasHoy ?? 0;
   const gastosTotal = summary?.totalGastosHoy ?? 0;
@@ -620,6 +675,68 @@ export default function ResumenFinanciero() {
               )}
             </section>
 
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[0.82rem] font-black text-[#111827]">
+                    Historiales financieros
+                  </p>
+                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500">
+                    Consulta completa por categoría
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {[
+                  {
+                    tipo: 'VENTA' as const,
+                    title: 'Historial de ventas',
+                    text: 'Consulta ventas registradas.',
+                    icon: ShoppingCart,
+                    tone: 'bg-[#e9f7ef] text-[#118444]',
+                  },
+                  {
+                    tipo: 'COMPRA' as const,
+                    title: 'Historial de compras',
+                    text: 'Consulta compras registradas.',
+                    icon: PackageCheck,
+                    tone: 'bg-[#eef4ff] text-[#0f58bd]',
+                  },
+                  {
+                    tipo: 'GASTO' as const,
+                    title: 'Historial de gastos',
+                    text: 'Consulta gastos registrados.',
+                    icon: Wallet,
+                    tone: 'bg-[#fff1f2] text-[#be123c]',
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.tipo}
+                      type="button"
+                      onClick={() => abrirHistorial(item.tipo)}
+                      className="flex min-h-[58px] items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-2 text-left"
+                    >
+                      <span
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${item.tone}`}
+                      >
+                        <Icon size={17} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black text-[#111827]">
+                          {item.title}
+                        </span>
+                        <span className="block text-xs font-semibold text-slate-500">
+                          {item.text}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             <section className="mt-4 grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -646,6 +763,121 @@ export default function ResumenFinanciero() {
                 Gasto
               </button>
             </section>
+
+            {historialActivo ? (
+              <div className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center bg-slate-900/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+                <section className="flex max-h-[88dvh] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+                  <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.1em] text-[#102d92]">
+                          Historial
+                        </p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">
+                          {historialActivo === 'VENTA'
+                            ? 'Ventas registradas'
+                            : historialActivo === 'COMPRA'
+                              ? 'Compras registradas'
+                              : 'Gastos registrados'}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setHistorialActivo(null)}
+                        aria-label="Cerrar historial"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <label className="mt-3 flex h-11 items-center gap-2 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3">
+                      <Search size={15} className="text-slate-400" />
+                      <input
+                        value={historialSearch}
+                        onChange={(event) => setHistorialSearch(event.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold outline-none"
+                        placeholder="Buscar registro"
+                      />
+                    </label>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <input
+                        type="date"
+                        value={historialDate}
+                        onChange={(event) => setHistorialDate(event.target.value)}
+                        className="min-h-[38px] rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.68rem] font-bold text-slate-700"
+                        aria-label="Filtrar por fecha"
+                      />
+                      <select
+                        value={historialTipo}
+                        onChange={(event) => setHistorialTipo(event.target.value)}
+                        className="min-h-[38px] rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.68rem] font-bold text-slate-700"
+                        aria-label="Filtrar por tipo"
+                      >
+                        {historialTipos.map((tipo) => (
+                          <option key={tipo} value={tipo}>
+                            {tipo === 'TODOS' ? 'Todos' : tipo}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={historialSort}
+                        onChange={(event) =>
+                          setHistorialSort(event.target.value as typeof historialSort)
+                        }
+                        className="min-h-[38px] rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.68rem] font-bold text-slate-700"
+                        aria-label="Ordenar historial"
+                      >
+                        <option value="recent">Recientes</option>
+                        <option value="oldest">Antiguos</option>
+                        <option value="amount-desc">Mayor valor</option>
+                        <option value="amount-asc">Menor valor</option>
+                      </select>
+                    </div>
+                    <div className="mt-3 rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                      Total acumulado: {formatCurrency(historialTotal)}
+                    </div>
+                  </header>
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    {historialMovimientos.length === 0 ? (
+                      <p className="rounded-[14px] bg-[#f8fafc] px-4 py-6 text-center text-sm font-bold text-slate-500">
+                        No hay registros con esos filtros.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {historialMovimientos.map((item) => {
+                          const copy = getMovimientoCopy(item);
+                          const Icon = copy.icon;
+                          return (
+                            <article
+                              key={`${item.tipo}-${item.id}-${item.fecha}`}
+                              className="flex items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-3"
+                            >
+                              <span
+                                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
+                              >
+                                <Icon size={17} />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-black text-[#111827]">
+                                  {item.nombre || copy.title}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-500">
+                                  {formatDate(item.fecha)}
+                                  {item.kg > 0 ? ` · ${formatKg(item.kg)}` : ''}
+                                </p>
+                              </div>
+                              <p className={`shrink-0 text-sm font-black ${copy.amountTone}`}>
+                                {formatCurrency(item.valor)}
+                              </p>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </>
         )}
       </main>

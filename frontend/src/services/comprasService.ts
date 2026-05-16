@@ -13,6 +13,8 @@ export type CatalogosCompra = {
 export type CompraListadoItem = {
   id: string;
   fecha: string;
+  productorNombre?: string | null;
+  productorDocumento?: string | null;
   totalCompra: number;
   totalSublotes: number;
   creadoEn: string;

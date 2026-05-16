@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -41,5 +42,11 @@ export class ProductoresController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.productoresService.actualizar(req.user.sub, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  eliminar(@Param('id') id: string, @Req() req: { user: { sub: string } }) {
+    return this.productoresService.eliminar(req.user.sub, id);
   }
 }

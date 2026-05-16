@@ -4,6 +4,7 @@ export type ClienteItem = {
   id: string;
   nombre: string;
   documento: string | null;
+  tipoDocumento?: 'CEDULA' | 'NIT' | null;
   telefono: string | null;
   createdAt: string;
 };
@@ -34,4 +35,10 @@ export async function actualizarCliente(
     method: 'PATCH',
     body: JSON.stringify(payload),
   }) as Promise<ClienteItem>;
+}
+
+export async function eliminarCliente(id: string) {
+  return apiFetch(`/clientes/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
 }

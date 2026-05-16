@@ -10,6 +10,8 @@ import {
   ChevronDown,
   Coffee,
   Frown,
+  History,
+  IdCard,
   Leaf,
   LoaderCircle,
   Meh,
@@ -44,14 +46,17 @@ import { ApiRequestError } from '../services/apiService';
 import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import {
   crearCompra,
+  listarCompras,
   obtenerCatalogosCompra,
   validarCapacidadCompra,
   type CatalogoItem,
   type CatalogosCompra,
+  type CompraListadoItem,
   type CreateCompraPayload,
   type EstadoCapacidadCompra,
 } from '../services/comprasService';
 import {
+  actualizarProductor,
   crearProductor,
   listarProductores,
   type ProductorItem,
@@ -59,8 +64,11 @@ import {
 import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 import {
   formatPhoneNumber,
+  normalizeCompanyName,
+  normalizeHumanName,
   sanitizeDigits as sanitizePersonDigits,
   type DocumentType,
+  validateCompanyName,
   validatePhoneNumber,
 } from '../utils/personValidation';
 
@@ -138,7 +146,7 @@ const PRODUCTOR_GENERAL: ProductorOption = {
     'Para compras rápidas o productores ocasionales no registrados en el sistema.',
   rapido: true,
 };
-const LIMITE_PRODUCTORES_RECIENTES = 4;
+const LIMITE_PRODUCTORES_RECIENTES = 2;
 const PRODUCTOR_SORT_OPTIONS: Array<{
   value: ProductorSortMode;
   label: string;
@@ -149,6 +157,10 @@ const PRODUCTOR_SORT_OPTIONS: Array<{
   { value: 'za', label: 'Z-A' },
   { value: 'doc-asc', label: 'Número menor a mayor' },
   { value: 'doc-desc', label: 'Número mayor a menor' },
+];
+const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
+  { value: 'CEDULA', label: 'Cédula' },
+  { value: 'NIT', label: 'NIT' },
 ];
 const PRODUCTOR_FORM_EMPTY: ProductorForm = {
   nombre: '',
@@ -206,7 +218,12 @@ function getProductorDocumentPlaceholder(
   return 'Ej. 1234567890';
 }
 
-function getProductorNameError(value: string) {
+function getProductorNameError(value: string, tipoDocumento?: ProductorForm['tipoDocumento']) {
+  if (tipoDocumento === 'NIT') {
+    const empresa = validateCompanyName(value);
+    return empresa.isValid ? null : empresa.message ?? 'Revisa el nombre de la empresa.';
+  }
+
   const nombre = value.trim();
 
   if (!nombre) {
@@ -221,8 +238,12 @@ function getProductorNameError(value: string) {
     return 'Escribe un nombre más completo.';
   }
 
-  if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/.test(nombre)) {
-    return 'Usa solo letras y espacios en el nombre.';
+  if (nombre.length > 60) {
+    return 'El nombre no puede pasar de 60 caracteres.';
+  }
+
+  if (/[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(nombre) || !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/.test(nombre)) {
+    return 'No uses símbolos especiales.';
   }
 
   return null;
@@ -292,7 +313,7 @@ function validateProductorField(
   form: ProductorForm,
 ) {
   if (field === 'nombre') {
-    return getProductorNameError(form.nombre);
+    return getProductorNameError(form.nombre, form.tipoDocumento);
   }
 
   if (field === 'tipoDocumento') {
@@ -619,10 +640,14 @@ function ProductorCard({
   productor,
   active,
   onSelect,
+  onDetail,
+  onEdit,
 }: {
   productor: ProductorOption;
   active: boolean;
   onSelect: () => void;
+  onDetail?: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <button
@@ -657,7 +682,38 @@ function ProductorCard({
             </span>
           ) : null}
         </span>
-        <SelectionCheck active={active} />
+        {onDetail || onEdit ? (
+          <span className="flex shrink-0 flex-col gap-1">
+            {onDetail ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDetail();
+                }}
+                className="rounded-full bg-white px-2.5 py-1 text-[0.66rem] font-black text-[#1f3fa7] shadow-sm"
+              >
+                Ver detalle
+              </span>
+            ) : null}
+            {onEdit ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+                className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[0.66rem] font-black text-[#1f3fa7]"
+              >
+                Editar
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <SelectionCheck active={active} />
+        )}
       </span>
     </button>
   );
@@ -669,6 +725,7 @@ function CoffeeTypeDropdown({
   options,
   error,
   open,
+  disabled,
   onToggle,
   onClose,
   onChange,
@@ -678,6 +735,7 @@ function CoffeeTypeDropdown({
   options: CatalogoItem[];
   error?: boolean;
   open: boolean;
+  disabled?: boolean;
   onToggle: () => void;
   onClose: () => void;
   onChange: (value: string) => void;
@@ -707,13 +765,20 @@ function CoffeeTypeDropdown({
         aria-haspopup="listbox"
         {...ariaExpanded(open)}
         aria-controls={listboxId}
-        onClick={onToggle}
+        onClick={() => {
+          if (!disabled) {
+            onToggle();
+          }
+        }}
+        disabled={disabled}
         className={`flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
-          error
-            ? 'border-rose-200 bg-rose-50/30'
-            : open
-              ? 'border-[#1f3fa7] bg-white'
-              : 'border-[#dfe5f2] hover:border-[#cbd6ea] hover:bg-[#fbfdff]'
+          disabled
+            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+            : error
+              ? 'border-rose-200 bg-rose-50/30'
+              : open
+                ? 'border-[#1f3fa7] bg-white'
+                : 'border-[#dfe5f2] hover:border-[#cbd6ea] hover:bg-[#fbfdff]'
         }`}
       >
         <span className="flex min-w-0 items-center gap-3">
@@ -795,6 +860,98 @@ function CoffeeTypeDropdown({
                 >
                   <Check size={14} strokeWidth={3} />
                 </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactSelect<T extends string>({
+  id,
+  value,
+  options,
+  placeholder,
+  open,
+  icon,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  id: string;
+  value: T | '';
+  options: Array<{ value: T; label: string }>;
+  placeholder: string;
+  open: boolean;
+  icon?: React.ReactNode;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: T) => void;
+}) {
+  const selected = options.find((option) => option.value === value);
+  const buttonId = `${id}-button`;
+  const listId = `${id}-list`;
+
+  return (
+    <div className="relative">
+      <button
+        id={buttonId}
+        type="button"
+        aria-haspopup="listbox"
+        aria-controls={listId}
+        {...ariaExpanded(open)}
+        onClick={onToggle}
+        onBlur={(event) => {
+          if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
+            onClose();
+          }
+        }}
+        className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe2f0] bg-white px-4 py-2.5 text-left text-sm font-black text-slate-900 shadow-sm transition focus:border-[#1f3fa7] focus:outline-none focus:ring-4 focus:ring-[#1f3fa7]/10"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="text-[#1f3fa7]" aria-hidden="true">
+            {icon ?? <IdCard size={16} />}
+          </span>
+          <span className={selected ? 'truncate' : 'truncate text-slate-400'}>
+            {selected?.label ?? placeholder}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open ? (
+        <div
+          id={listId}
+          role="listbox"
+          aria-labelledby={buttonId}
+          className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 overflow-hidden rounded-[16px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)]"
+        >
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={active ? 'true' : 'false'}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option.value);
+                  onClose();
+                }}
+                className={`flex min-h-[40px] w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm font-black transition ${
+                  active
+                    ? 'bg-[#eef4ff] text-[#1f3fa7]'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {option.label}
+                {active ? <Check size={15} /> : null}
               </button>
             );
           })}
@@ -1002,8 +1159,10 @@ function PurchaseDatePicker({
                     disabled={disabled}
                     {...ariaPressed(active)}
                     onClick={() => {
-                      setVisibleMonth(new Date(visibleYear, monthIndex, 1));
-                      setCalendarView('days');
+                      if (!disabled) {
+                        setVisibleMonth(new Date(visibleYear, monthIndex, 1));
+                        setCalendarView('days');
+                      }
                     }}
                     className={`min-h-[44px] rounded-[14px] px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
                       active
@@ -1644,10 +1803,13 @@ function findProductorExistente(
   productores: ProductorOption[],
   nombre: string,
   documento: string,
+  excludeId?: string,
 ) {
   const key = clavePersona(nombre, documento);
   return productores.find(
-    (productor) => clavePersona(productor.nombre, productor.documento) === key,
+    (productor) =>
+      productor.id !== excludeId &&
+      clavePersona(productor.nombre, productor.documento) === key,
   );
 }
 
@@ -1655,8 +1817,51 @@ function clave(nombre: string) {
   return nombre.trim().toUpperCase();
 }
 
+function formatCatalogName(nombre: string) {
+  const normalized = normalizeSearchText(nombre).trim();
+  if (normalized === 'verde') return 'Verde';
+  if (normalized === 'seco') return 'Seco';
+  if (normalized === 'pasilla') return 'Pasilla';
+  if (normalized === 'trillado') return 'Trillado';
+  if (normalized === 'bueno') return 'Bueno';
+  if (normalized === 'regular') return 'Regular';
+  if (normalized === 'malo') return 'Malo';
+  return nombre
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/(^|\s)\S/g, (match) => match.toUpperCase());
+}
+
+function normalizeCatalogText(value: string) {
+  return normalizeSearchText(value).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function dedupeCatalogItems(items: CatalogoItem[]) {
+  const usedIds = new Set<string>();
+  const usedNames = new Set<string>();
+
+  return items.reduce<CatalogoItem[]>((result, item) => {
+    const id = item.id?.trim();
+    const nameKey = normalizeCatalogText(item.nombre);
+    const duplicate = Boolean(id && usedIds.has(id)) || usedNames.has(nameKey);
+
+    if (duplicate || !nameKey) {
+      return result;
+    }
+
+    if (id) usedIds.add(id);
+    usedNames.add(nameKey);
+    result.push({
+      ...item,
+      nombre: formatCatalogName(item.nombre),
+    });
+    return result;
+  }, []);
+}
+
 function ordenarCatalogos(items: CatalogoItem[], ordenBase: string[]) {
-  return [...items].sort((a, b) => {
+  return dedupeCatalogItems(items).sort((a, b) => {
     const indexA = ordenBase.indexOf(clave(a.nombre));
     const indexB = ordenBase.indexOf(clave(b.nombre));
     if (indexA !== -1 || indexB !== -1) {
@@ -1990,6 +2195,10 @@ export default function Compras() {
     useState(false);
   const [productores, setProductores] = useState<ProductorOption[]>([]);
   const [mostrarModalProductores, setMostrarModalProductores] = useState(false);
+  const [productorDetalle, setProductorDetalle] =
+    useState<ProductorOption | null>(null);
+  const [productorEditando, setProductorEditando] =
+    useState<ProductorOption | null>(null);
   const [busquedaProductorModal, setBusquedaProductorModal] = useState('');
   const [productorSortMode, setProductorSortMode] =
     useState<ProductorSortMode>('recent');
@@ -2008,6 +2217,10 @@ export default function Compras() {
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [catalogosError, setCatalogosError] = useState<string | null>(null);
+  const [catalogosFeedback, setCatalogosFeedback] = useState<string | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [checkingConfirmacion, setCheckingConfirmacion] = useState(false);
   const [checkingCapacidadPreview, setCheckingCapacidadPreview] =
@@ -2052,12 +2265,23 @@ export default function Compras() {
   const [tipoCafeDropdownOpenId, setTipoCafeDropdownOpenId] = useState<
     string | null
   >(null);
+  const [productorDocumentoDropdownOpen, setProductorDocumentoDropdownOpen] =
+    useState(false);
+  const [productorFiltroDropdownOpen, setProductorFiltroDropdownOpen] =
+    useState(false);
   const [compraGuardada, setCompraGuardada] =
     useState<CompraGuardadaResumen | null>(null);
   const [draftReady, setDraftReady] = useState(false);
   const [borradorPendiente, setBorradorPendiente] =
     useState<CompraDraft | null>(null);
   const [mostrarModalBorrador, setMostrarModalBorrador] = useState(false);
+  const [comprasRealizadas, setComprasRealizadas] = useState<CompraListadoItem[]>([]);
+  const [mostrarHistorialCompras, setMostrarHistorialCompras] = useState(false);
+  const [historialCompraFecha, setHistorialCompraFecha] = useState('');
+  const [historialCompraProductor, setHistorialCompraProductor] = useState('TODOS');
+  const [historialCompraOrden, setHistorialCompraOrden] = useState<'recent' | 'oldest'>('recent');
+  const [mostrarHistorialSublotes, setMostrarHistorialSublotes] =
+    useState(false);
   const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] =
     useState(false);
   const [productorCreadoToast, setProductorCreadoToast] =
@@ -2068,18 +2292,24 @@ export default function Compras() {
   const cargarTodo = async () => {
     setLoading(true);
     setError(null);
+    setCatalogosError(null);
+    setCatalogosFeedback(null);
     setMostrarErrorFormulario(false);
     try {
-      const [catalogosData, productoresData] = await Promise.all([
+      const [catalogosData, productoresData, comprasData] = await Promise.all([
         obtenerCatalogosCompra(),
         listarProductores(),
+        listarCompras(),
       ]);
       setCatalogos(catalogosData);
       setProductores(
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
       );
+      setComprasRealizadas(comprasData);
+      setCatalogosFeedback('Opciones cargadas.');
     } catch (err) {
       console.warn('No se pudo cargar toda la informacion de compras:', err);
+      setCatalogosError('No pudimos cargar las opciones.');
     } finally {
       setLoading(false);
     }
@@ -2088,6 +2318,18 @@ export default function Compras() {
   useEffect(() => {
     void cargarTodo();
   }, []);
+
+  useEffect(() => {
+    if (!catalogosFeedback) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCatalogosFeedback(null);
+    }, 2200);
+
+    return () => window.clearTimeout(timer);
+  }, [catalogosFeedback]);
 
   useEffect(() => {
     const draft = readCompraDraft();
@@ -2289,12 +2531,12 @@ export default function Compras() {
     [catalogos.calidades],
   );
   const nombreTipoCafePorId = useMemo(
-    () => new Map(catalogos.tiposCafe.map((item) => [item.id, item.nombre])),
-    [catalogos.tiposCafe],
+    () => new Map(tiposCafe.map((item) => [item.id, item.nombre])),
+    [tiposCafe],
   );
   const nombreCalidadPorId = useMemo(
-    () => new Map(catalogos.calidades.map((item) => [item.id, item.nombre])),
-    [catalogos.calidades],
+    () => new Map(calidades.map((item) => [item.id, item.nombre])),
+    [calidades],
   );
   const resumen = useMemo(() => calcularResumenSublotes(sublotes), [sublotes]);
   const fechaCompraValidacion = useMemo(
@@ -2350,6 +2592,37 @@ export default function Compras() {
 
     return sortProductores(dedupeProductorOptions([...base]), productorSortMode);
   }, [busquedaProductorModal, productorSortMode, productores]);
+  const historialCompraProductores = useMemo(() => {
+    const options = new Map<string, string>();
+    options.set('TODOS', 'Todos');
+    options.set('NO_REGISTRADO', 'Productor no registrado');
+    comprasRealizadas.forEach((compra) => {
+      const nombre = compra.productorNombre?.trim();
+      if (nombre) options.set(nombre, nombre);
+    });
+    return Array.from(options.entries());
+  }, [comprasRealizadas]);
+  const comprasHistorialFiltradas = useMemo(() => {
+    const sameDate = (value: string) => value.slice(0, 10) === historialCompraFecha;
+    return [...comprasRealizadas]
+      .filter((compra) => !historialCompraFecha || sameDate(compra.fecha))
+      .filter((compra) => {
+        if (historialCompraProductor === 'TODOS') return true;
+        const isNoRegistrado = !compra.productorNombre || compra.productorNombre === 'Productor General';
+        if (historialCompraProductor === 'NO_REGISTRADO') return isNoRegistrado;
+        return compra.productorNombre === historialCompraProductor;
+      })
+      .sort((a, b) =>
+        historialCompraOrden === 'oldest'
+          ? new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+          : new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+      );
+  }, [
+    comprasRealizadas,
+    historialCompraFecha,
+    historialCompraOrden,
+    historialCompraProductor,
+  ]);
   const sinProductoresRegistrados = productores.length === 0;
   const subloteActual =
     sublotes.find((sublote) => sublote.id === subloteActivoId) ??
@@ -2490,6 +2763,7 @@ export default function Compras() {
   const abrirModalProductor = () => {
     setError(null);
     setProductorFormError(null);
+    setProductorEditando(null);
     setProductorFormErrors({});
     setProductorFormTouched({});
     setProductorForm(PRODUCTOR_FORM_EMPTY);
@@ -2500,6 +2774,7 @@ export default function Compras() {
     setMostrarModalProductor(false);
     setProductorForm(PRODUCTOR_FORM_EMPTY);
     setProductorFormError(null);
+    setProductorEditando(null);
     setProductorFormErrors({});
     setProductorFormTouched({});
   };
@@ -2579,7 +2854,10 @@ export default function Compras() {
 
   const validarProductorForm = () => {
     const errores: ProductorFormErrors = {};
-    const nombre = getProductorNameError(productorForm.nombre);
+    const nombre = getProductorNameError(
+      productorForm.nombre,
+      productorForm.tipoDocumento,
+    );
     const tipoDocumento = validateProductorField(
       'tipoDocumento',
       productorForm,
@@ -2601,7 +2879,10 @@ export default function Compras() {
   };
 
   const guardarProductorLocal = async () => {
-    const nombre = productorForm.nombre.trim();
+    const nombre =
+      productorForm.tipoDocumento === 'NIT'
+        ? normalizeCompanyName(productorForm.nombre)
+        : normalizeHumanName(productorForm.nombre);
     const tipoDocumento = productorForm.tipoDocumento || 'CEDULA';
     const documento = sanitizePersonDigits(productorForm.documento, 10);
     const telefono = sanitizePersonDigits(productorForm.telefono);
@@ -2628,11 +2909,20 @@ export default function Compras() {
       productores,
       nombre,
       documento,
+      productorEditando?.id,
     );
     if (productorExistente) {
+      setProductorFormErrors((actual) => ({
+        ...actual,
+        documento: 'Este documento ya está registrado.',
+      }));
+      setProductorFormTouched((actual) => ({
+        ...actual,
+        documento: true,
+      }));
       setProductorFormError({
-        title: 'Este productor ya existe.',
-        description: 'Ya hay un productor registrado con este documento.',
+        title: 'Este documento ya está registrado.',
+        description: 'Busca el registro existente o usa otro número.',
       });
       return;
     }
@@ -2640,12 +2930,15 @@ export default function Compras() {
     setBotonGuardarProductorPresionado(true);
 
     try {
-      const productorGuardado = await crearProductor({
+      const payload = {
         nombre,
         documento,
         tipoDocumento,
         telefono: telefono || undefined,
-      });
+      };
+      const productorGuardado = productorEditando
+        ? await actualizarProductor(productorEditando.id, payload)
+        : await crearProductor(payload);
 
       const productorBase = mapProductorToOption(productorGuardado);
 
@@ -2660,6 +2953,7 @@ export default function Compras() {
       setProductorStepAlert(null);
       setBusquedaProductorModal('');
       setMostrarModalProductor(false);
+      setProductorEditando(null);
       setProductorForm(PRODUCTOR_FORM_EMPTY);
       setProductorFormErrors({});
       setProductorFormTouched({});
@@ -2718,6 +3012,10 @@ export default function Compras() {
   const iniciarNuevaCompra = () => {
     setCompraGuardada(null);
     resetFormulario();
+    setFecha(hoyLocal());
+    clearCompraDraft();
+    setBorradorPendiente(null);
+    setMostrarModalBorrador(false);
   };
 
   const eliminarSubloteDesdeRevision = (id: string) => {
@@ -3230,14 +3528,20 @@ export default function Compras() {
                 Resumen de compra
               </p>
               <div className="mt-4 divide-y divide-slate-200/70 rounded-[16px] border border-slate-200/70 bg-white px-4">
-                <div className="flex items-center justify-between gap-4 py-3">
-                  <span className="text-[0.9rem] font-bold text-slate-600">
+          <div className="grid grid-cols-[3rem_1fr] items-center gap-2 py-3">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-sm font-black text-[#1d4ed8]">
+                  1
+                </span>
+
+                <span>
+                  <span className="block truncate text-sm font-black text-[#0f172a]">
                     Productor
                   </span>
-                  <span className="min-w-0 truncate text-right text-[0.98rem] font-bold text-slate-900">
+                  <span className="mt-1 block truncate text-sm font-medium leading-5 text-[#475569]">
                     {compraGuardada.productorNombre}
                   </span>
-                </div>
+                </span>
+              </div>
                 <div className="flex items-center justify-between gap-4 py-3">
                   <span className="text-[0.9rem] font-bold text-slate-600">
                     Total kg
@@ -3410,17 +3714,17 @@ export default function Compras() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <p className="truncate text-[1.05rem] font-black leading-6 text-slate-950">
-                      Productores recientes
+                      Productores registrados
                     </p>
                     <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
-                      Últimos productores registrados
+                      Máximo 2 recientes
                     </p>
                   </div>
                   <span
                     className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] px-2 text-sm font-black text-[#1f3fa7] shadow-[0_8px_18px_rgba(31,63,167,0.14)]"
-                    aria-label={`${productoresRecientes.length} productores recientes`}
+                    aria-label={`${productoresOrdenadosRecientes.length} productores registrados`}
                   >
-                    {productoresRecientes.length}
+                    {productoresOrdenadosRecientes.length}
                   </span>
                 </div>
 
@@ -3453,7 +3757,7 @@ export default function Compras() {
                   </div>
                 )}
 
-                {!sinProductoresRegistrados ? (
+                {!sinProductoresRegistrados && productoresOrdenadosRecientes.length > 1 ? (
                   <button
                     type="button"
                     onClick={() => setMostrarModalProductores(true)}
@@ -3463,7 +3767,7 @@ export default function Compras() {
                       <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] transition group-hover:bg-white">
                         <Search size={16} />
                       </span>
-                      Ver lista completa de productores
+                      Ver todos →
                     </span>
                     <ArrowRight
                       size={17}
@@ -3656,6 +3960,7 @@ export default function Compras() {
                       value={sublote.tipoCafeId}
                       options={tiposCafe}
                       error={Boolean(tipoCafeError)}
+                      disabled={loading || tiposCafe.length === 0}
                       open={tipoCafeDropdownOpenId === sublote.id}
                       onToggle={() =>
                         setTipoCafeDropdownOpenId((actual) =>
@@ -3671,6 +3976,34 @@ export default function Compras() {
                         actualizarSublote(sublote.id, 'tipoCafeId', value);
                       }}
                     />
+                    {loading && tiposCafe.length === 0 ? (
+                      <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        <p className="font-black text-slate-900">Cargando tipos de café...</p>
+                        <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
+                      </div>
+                    ) : catalogosError && tiposCafe.length === 0 ? (
+                      <div className="mt-3 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                        <p className="font-black">Sin conexión</p>
+                        <p className="mt-1 leading-5 text-slate-700">
+                          {catalogosError}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void cargarTodo()}
+                          disabled={loading}
+                          className="mt-3 inline-flex items-center rounded-[12px] bg-[#102d92] px-3 py-2 text-sm font-black text-white transition hover:bg-[#18358f] disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {loading ? 'Cargando...' : 'Reintentar'}
+                        </button>
+                      </div>
+                    ) : catalogosFeedback ? (
+                      <p
+                        role="status"
+                        className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700"
+                      >
+                        {catalogosFeedback}
+                      </p>
+                    ) : null}
                     {tipoCafeError ? (
                       <InlineGuidedError
                         message={getComprasGuidance(tipoCafeError)}
@@ -3724,6 +4057,34 @@ export default function Compras() {
                         );
                       })}
                     </div>
+                    {loading && calidades.length === 0 ? (
+                      <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        <p className="font-black text-slate-900">Cargando calidades...</p>
+                        <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
+                      </div>
+                    ) : catalogosError && calidades.length === 0 ? (
+                      <div className="mt-3 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                        <p className="font-black">Sin conexión</p>
+                        <p className="mt-1 leading-5 text-slate-700">
+                          {catalogosError}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void cargarTodo()}
+                          disabled={loading}
+                          className="mt-3 inline-flex items-center rounded-[12px] bg-[#102d92] px-3 py-2 text-sm font-black text-white transition hover:bg-[#18358f] disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {loading ? 'Cargando...' : 'Reintentar'}
+                        </button>
+                      </div>
+                    ) : catalogosFeedback ? (
+                      <p
+                        role="status"
+                        className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700"
+                      >
+                        {catalogosFeedback}
+                      </p>
+                    ) : null}
                     {calidadError ? (
                       <InlineGuidedError
                         message={getComprasGuidance(calidadError)}
@@ -4090,11 +4451,11 @@ export default function Compras() {
                 un producto si lo necesitas.
               </p>
               <div className="mt-3 space-y-3">
-                {sublotes.map((sublote) => {
+                {(sublotes.length > 2 ? sublotes.slice(-2) : sublotes).map((sublote) => {
                   const tipoCafe =
-                    nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
+                    nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
                   const calidad =
-                    nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
+                    nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
                   const peso = leerCantidadCompra(sublote.pesoInicial).valor;
                   const totalItem = peso * leerPrecioCompra(sublote.precioKg).valor;
                   const visual = iconoTipoCafe(tipoCafe);
@@ -4111,10 +4472,14 @@ export default function Compras() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-[0.68rem] font-black uppercase tracking-[0.11em] text-[#52657d]">
-                              {tipoCafe}
+                              {tipoCafe} — {calidad}
                             </p>
                             <p className="mt-0.5 text-[1.05rem] font-black leading-tight text-slate-950">
-                              Calidad: {calidad}
+                              {peso.toLocaleString('es-CO', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 2,
+                              })}{' '}
+                              kg · {formatoMoneda(totalItem)}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[0.78rem] font-bold text-slate-700">
@@ -4142,23 +4507,35 @@ export default function Compras() {
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              eliminarSubloteDesdeRevision(sublote.id)
-                            }
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a] transition hover:bg-[#ffe4e8] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200"
-                            title="Eliminar producto"
-                            aria-label={`Eliminar ${tipoCafe}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {sublotes.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                eliminarSubloteDesdeRevision(sublote.id)
+                              }
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a] transition hover:bg-[#ffe4e8] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200"
+                              title="Eliminar producto"
+                              aria-label={`Eliminar ${tipoCafe}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </article>
                   );
                 })}
               </div>
+              {sublotes.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => setMostrarHistorialSublotes(true)}
+                  className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+                >
+                  Ver historial completo
+                  <ArrowRight size={15} />
+                </button>
+              ) : null}
             </section>
 
             <article className="rounded-[26px] border border-[#dbe5fb] bg-white p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)]">
@@ -4487,53 +4864,26 @@ export default function Compras() {
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
             <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
             <div className="mt-5 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
                 <AlertTriangle size={24} />
               </div>
               <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
-                Bodega en nivel de alerta
+                Bodega casi llena
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                La compra dejará la bodega al {datosAlerta80.porcentaje}% de su
-                capacidad.
-              </p>
-              <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
-                Es recomendable considerar vender parte del inventario para
-                evitar problemas de almacenamiento.
+                Después de esta compra, la bodega quedará al {datosAlerta80.porcentaje}% de su capacidad.
               </p>
             </div>
 
-            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
-              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Capacidad total</span>
-                <span className="font-semibold text-slate-900">
-                  {datosAlerta80.capacidadKg.toLocaleString('es-CO', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                  kg
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Antes de la compra</span>
-                <span className="font-semibold text-slate-900">
-                  {datosAlerta80.inventarioActual.toLocaleString('es-CO', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                  kg
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Después de la compra</span>
-                <span className="font-semibold text-[#ea580c]">
-                  {datosAlerta80.nuevoTotal.toLocaleString('es-CO', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                  kg
-                </span>
-              </div>
+            <div className="mt-6 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-left">
+              <p className="text-[0.95rem] text-slate-600">Quedarán</p>
+              <p className="mt-1 text-[1.8rem] font-semibold text-slate-900">
+                {Math.max(0, datosAlerta80.capacidadKg - datosAlerta80.nuevoTotal).toLocaleString('es-CO', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 2,
+                })}{' '}
+                kg libres
+              </p>
             </div>
 
             <div className="mt-6 grid gap-3">
@@ -4543,9 +4893,29 @@ export default function Compras() {
                   setMostrarModalAlerta80(false);
                   setMostrarModalConfirmar(true);
                 }}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3 text-[1.05rem] font-semibold text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)] transition hover:bg-[#1b3f9d]"
               >
-                Continuar
+                Continuar compra
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalAlerta80(false);
+                  navigate('/ventas');
+                }}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] border border-slate-300 bg-white px-5 py-3 text-[1.05rem] font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Ir a ventas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalAlerta80(false);
+                  setMostrarModalConfigurarCapacidad(true);
+                }}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#eef2ff] px-5 py-3 text-[1.05rem] font-semibold text-[#1f3fa7] transition hover:bg-[#dfe7ff]"
+              >
+                Modificar capacidad
               </button>
             </div>
           </div>
@@ -4641,6 +5011,230 @@ export default function Compras() {
         </div>
       ) : null}
 
+      {mostrarHistorialCompras ? (
+        <div
+          className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compras-history-title"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
+          >
+            <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2
+                    id="compras-history-title"
+                    className="text-lg font-black text-slate-950"
+                  >
+                    Historial completo de la compra
+                  </h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {comprasHistorialFiltradas.length} registros
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarHistorialCompras(false)}
+                  aria-label="Cerrar historial de compras"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={historialCompraFecha}
+                      max={getTodayLocalDateValue()}
+                      onChange={(event) => setHistorialCompraFecha(event.target.value)}
+                      className="min-h-[42px] flex-1 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#1f3fa7]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setHistorialCompraFecha('')}
+                      className="min-h-[42px] rounded-[14px] bg-[#eef4ff] px-3 text-xs font-black text-[#173ea6]"
+                    >
+                      Limpiar fecha
+                    </button>
+                  </div>
+                </label>
+                {historialCompraFecha ? (
+                  <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                    Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
+                  </p>
+                ) : null}
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-black text-slate-700">Productor</span>
+                    <select
+                      value={historialCompraProductor}
+                      onChange={(event) => setHistorialCompraProductor(event.target.value)}
+                      className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                    >
+                      {historialCompraProductores.map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
+                    <select
+                      value={historialCompraOrden}
+                      onChange={(event) => setHistorialCompraOrden(event.target.value as 'recent' | 'oldest')}
+                      className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                    >
+                      <option value="recent">Más recientes</option>
+                      <option value="oldest">Más antiguos</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {comprasHistorialFiltradas.map((compra) => (
+                <article
+                  key={compra.id}
+                  className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[0.68rem] font-black uppercase tracking-[0.11em] text-[#52657d]">
+                        Compra del {formatoFecha(compra.fecha)}
+                      </p>
+                      <p className="mt-0.5 text-sm font-black text-slate-950">
+                        {compra.totalSublotes} sublotes
+                      </p>
+                      <p className="mt-1 text-sm font-black text-[#173ea6]">
+                        {formatoMoneda(compra.totalCompra)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        aria-label="Editar compra"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Eliminar compra"
+                        onClick={() =>
+                          setComprasRealizadas((actual) =>
+                            actual.filter((item) => item.id !== compra.id),
+                          )
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {mostrarHistorialSublotes ? (
+        <div
+          className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sublotes-history-title"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
+          >
+            <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2
+                    id="sublotes-history-title"
+                    className="text-lg font-black text-slate-950"
+                  >
+                    Historial completo de la compra
+                  </h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {sublotes.length} registros · {formatTotalKg(resumen.totalKg)} · {formatoMoneda(resumen.totalCompra)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarHistorialSublotes(false)}
+                  aria-label="Cerrar historial de la compra"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {sublotes.map((sublote) => {
+                const tipoCafe =
+                  nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
+                const calidad =
+                  nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
+                const peso = leerCantidadCompra(sublote.pesoInicial).valor;
+                const totalItem = peso * leerPrecioCompra(sublote.precioKg).valor;
+                return (
+                  <article
+                    key={sublote.id}
+                    className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">
+                          {tipoCafe} — {calidad}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-600">
+                          {peso.toLocaleString('es-CO', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          kg · {formatoMoneda(totalItem)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        <button
+                          type="button"
+                          aria-label={`Editar ${tipoCafe}`}
+                          onClick={() => {
+                            setMostrarHistorialSublotes(false);
+                            editarSubloteDesdeRevision(sublote.id);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        {sublotes.length > 1 ? (
+                          <button
+                            type="button"
+                            aria-label={`Eliminar ${tipoCafe}`}
+                            onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {mostrarModalProductores ? (
         <div
           className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
@@ -4702,25 +5296,23 @@ export default function Compras() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {PRODUCTOR_SORT_OPTIONS.map((option) => {
-                    const active = productorSortMode === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setProductorSortMode(option.value)}
-                        {...ariaPressed(active)}
-                        className={`min-h-[40px] rounded-[12px] border px-2.5 py-2 text-xs font-black leading-4 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
-                          active
-                            ? 'border-[#1f3fa7] bg-[#eef4ff] text-[#1f3fa7]'
-                            : 'border-[#e0e6f2] bg-white text-slate-500 hover:border-[#cbd6ea] hover:bg-[#f8faff]'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
+                <label className="block text-[0.82rem] font-black uppercase tracking-[0.11em] text-slate-500">
+                  Ordenar por
+                </label>
+                <div className="max-w-[260px]">
+                  <CompactSelect
+                    id="productor-sort-select"
+                    value={productorSortMode}
+                    options={PRODUCTOR_SORT_OPTIONS}
+                    placeholder="Más recientes"
+                    open={productorFiltroDropdownOpen}
+                    icon={<History size={16} />}
+                    onToggle={() =>
+                      setProductorFiltroDropdownOpen((open) => !open)
+                    }
+                    onClose={() => setProductorFiltroDropdownOpen(false)}
+                    onChange={setProductorSortMode}
+                  />
                 </div>
               </div>
             </header>
@@ -4762,11 +5354,88 @@ export default function Compras() {
                       productor={productor}
                       active={productorSeleccionado?.id === productor.id}
                       onSelect={() => seleccionarProductor(productor)}
+                      onDetail={() => setProductorDetalle(productor)}
+                      onEdit={() => {
+                        setProductorEditando(productor);
+                        setProductorForm({
+                          nombre: productor.nombre,
+                          telefono: productor.telefono
+                            ? formatPhoneNumber(productor.telefono)
+                            : '',
+                          documento:
+                            productor.documento === 'Documento pendiente'
+                              ? ''
+                              : productor.documento,
+                          tipoDocumento: productor.tipoDocumento ?? 'CEDULA',
+                        });
+                        setProductorFormErrors({});
+                        setProductorFormTouched({});
+                        setProductorFormError(null);
+                        setMostrarModalProductor(true);
+                      }}
                     />
                   ))}
                 </div>
               )}
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {productorDetalle ? (
+        <div className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="productor-detalle-title"
+            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
+                  Productor
+                </p>
+                <h2 id="productor-detalle-title" className="mt-1 text-lg font-black text-slate-950">
+                  {productorDetalle.nombre}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProductorDetalle(null)}
+                aria-label="Cerrar detalle de productor"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
+              <p>Cédula/NIT: <span className="font-black text-slate-900">{getProductorDocumentLabel(productorDetalle)}</span></p>
+              <p>Teléfono: <span className="font-black text-slate-900">{productorDetalle.telefono ? formatPhoneNumber(productorDetalle.telefono) : 'No registrado'}</span></p>
+              <p>Dirección: <span className="font-black text-slate-900">No disponible</span></p>
+              <p>Observaciones: <span className="font-black text-slate-900">No disponible</span></p>
+              <p>Ubicación: <span className="font-black text-slate-900">No disponible</span></p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const productor = productorDetalle;
+                setProductorDetalle(null);
+                setProductorEditando(productor);
+                setProductorForm({
+                  nombre: productor.nombre,
+                  telefono: productor.telefono ? formatPhoneNumber(productor.telefono) : '',
+                  documento:
+                    productor.documento === 'Documento pendiente'
+                      ? ''
+                      : productor.documento,
+                  tipoDocumento: productor.tipoDocumento ?? 'CEDULA',
+                });
+                setMostrarModalProductor(true);
+              }}
+              className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+            >
+              Editar
+            </button>
           </section>
         </div>
       ) : null}
@@ -4779,10 +5448,12 @@ export default function Compras() {
               <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
-                    Registrar Productor
+                    {productorEditando ? 'Editar productor' : 'Registrar productor'}
                   </h2>
                   <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
-                    Completa los datos básicos para usarlo en esta compra.
+                    {productorEditando
+                      ? 'Actualiza los datos del productor.'
+                      : 'Completa los datos básicos para usarlo en esta compra.'}
                   </p>
                 </div>
                 <button
@@ -4797,14 +5468,17 @@ export default function Compras() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-              <div className="space-y-5 pb-6">
-                <div>
+              <div className="flex flex-col gap-5 pb-6">
+                <div className="order-2">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Nombre completo
+                    {productorForm.tipoDocumento === 'NIT'
+                      ? 'Nombre de la empresa'
+                      : 'Nombre completo'}
                   </label>
                   <input
                     type="text"
                     value={productorForm.nombre}
+                    disabled={!productorForm.tipoDocumento}
                     onBlur={() => {
                       const nextForm = productorForm;
                       const message = validateProductorField('nombre', nextForm);
@@ -4820,7 +5494,10 @@ export default function Compras() {
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        nombre: event.target.value,
+                        nombre:
+                          actual.tipoDocumento === 'NIT'
+                            ? event.target.value
+                            : event.target.value.replace(/[0-9]/g, ''),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -4828,72 +5505,73 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. Juan Pérez Rodríguez"
-                    className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition-all focus:border-[#173ea6] focus:bg-white focus:ring-4 focus:ring-[#173ea6]/10 ${
+                    placeholder={
+                      !productorForm.tipoDocumento
+                        ? 'Primero selecciona el tipo de documento'
+                        : productorForm.tipoDocumento === 'NIT'
+                        ? 'Ej. Café Los Alpes'
+                        : 'Ej. Juan Pérez Rodríguez'
+                    }
+                    className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition-all disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400 focus:border-[#173ea6] focus:bg-white focus:ring-4 focus:ring-[#173ea6]/10 ${
                       productorFormErrors.nombre && productorFormTouched.nombre
                         ? 'border-rose-200 bg-rose-50/40'
                         : 'border-[#dde4f1] bg-[#f7f9fd]'
                     }`}
                   />
                   <ProductorHint>
-                    Coloca su nombre y apellidos o el nombre de la empresa.
+                    {productorForm.tipoDocumento === 'NIT'
+                      ? 'Coloca el nombre legal o comercial de la empresa.'
+                      : 'Coloca su nombre y apellidos.'}
                   </ProductorHint>
                   {productorFormErrors.nombre && productorFormTouched.nombre ? (
                     <ProductorFieldError message={productorFormErrors.nombre} />
                   ) : null}
                 </div>
-                <div>
+                <div className="order-1">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Tipo de documento
                   </label>
                   <ProductorHint>
                     Selecciona si el productor usa cédula o NIT.
                   </ProductorHint>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'CEDULA', label: 'Cédula' },
-                      { value: 'NIT', label: 'NIT' },
-                    ].map((item) => {
-                      const active = productorForm.tipoDocumento === item.value;
-                      return (
-                        <button
-                          key={item.value}
-                          type="button"
-                          onClick={() => {
-                            const nextForm = {
-                              ...productorForm,
-                              tipoDocumento: item.value as DocumentType,
-                              documento: '',
-                            };
-                            setProductorForm((actual) => ({
-                              ...actual,
-                              tipoDocumento: item.value as DocumentType,
-                              documento: '',
-                            }));
-                            setProductorFormTouched((actual) => ({
-                              ...actual,
-                              tipoDocumento: true,
-                              documento: false,
-                            }));
-                            setProductorFormErrors((actual) => ({
-                              ...actual,
-                              tipoDocumento:
-                                validateProductorField('tipoDocumento', nextForm) ??
-                                undefined,
-                              documento: undefined,
-                            }));
-                            setProductorFormError(null);
-                          }}
-                          className={`rounded-[14px] border px-3 py-3 text-sm font-black ${
-                            active
-                              ? 'border-[#102d92] bg-[#eef3ff] text-[#102d92]'
-                              : 'border-[#dde4f1] bg-white text-slate-600'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      );
-                    })}
+                  <div className="mt-2">
+                    <CompactSelect
+                      id="productor-document-type"
+                      value={productorForm.tipoDocumento}
+                      options={DOCUMENT_TYPE_OPTIONS}
+                      placeholder="Selecciona el tipo de documento"
+                      open={productorDocumentoDropdownOpen}
+                      icon={<IdCard size={16} />}
+                      onToggle={() =>
+                        setProductorDocumentoDropdownOpen((open) => !open)
+                      }
+                      onClose={() => setProductorDocumentoDropdownOpen(false)}
+                      onChange={(value) => {
+                        const nextForm = {
+                          ...productorForm,
+                          tipoDocumento: value,
+                          documento: '',
+                        };
+                        setProductorForm((actual) => ({
+                          ...actual,
+                          tipoDocumento: value,
+                          documento: '',
+                        }));
+                        setProductorFormTouched((actual) => ({
+                          ...actual,
+                          tipoDocumento: true,
+                          documento: false,
+                        }));
+                        setProductorFormErrors((actual) => ({
+                          ...actual,
+                          tipoDocumento:
+                            validateProductorField('tipoDocumento', nextForm) ??
+                            undefined,
+                          documento: undefined,
+                        }));
+                        setProductorFormError(null);
+                      }}
+                    />
                   </div>
                   {productorFormErrors.tipoDocumento &&
                   productorFormTouched.tipoDocumento ? (
@@ -4902,7 +5580,7 @@ export default function Compras() {
                     />
                   ) : null}
                 </div>
-                <div>
+                <div className="order-3">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Número de documento
                   </label>
@@ -4910,6 +5588,11 @@ export default function Compras() {
                     type="text"
                     inputMode="numeric"
                     disabled={!productorForm.tipoDocumento}
+                    onPaste={(event) => {
+                      if (!productorForm.tipoDocumento) {
+                        event.preventDefault();
+                      }
+                    }}
                     maxLength={14}
                     value={productorForm.documento}
                     onBlur={() => {
@@ -4943,9 +5626,11 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder={getProductorDocumentPlaceholder(
-                      productorForm.tipoDocumento,
-                    )}
+                    placeholder={
+                      productorForm.tipoDocumento
+                        ? getProductorDocumentPlaceholder(productorForm.tipoDocumento)
+                        : 'Primero selecciona el tipo de documento'
+                    }
                     className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] outline-none transition-all disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:placeholder:text-slate-400 ${
                       productorFormErrors.documento &&
                       productorFormTouched.documento
@@ -4961,7 +5646,7 @@ export default function Compras() {
                     <ProductorFieldError message={productorFormErrors.documento} />
                   ) : null}
                 </div>
-                <div>
+                <div className="order-4">
                   <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Teléfono (opcional)
                   </label>
@@ -5002,7 +5687,7 @@ export default function Compras() {
                         : 'border-[#dde4f1] bg-[#f7f9fd]'
                     }`}
                   />
-                  <ProductorHint>Número celular colombiano opcional.</ProductorHint>
+                  <ProductorHint>Número celular colombiano.</ProductorHint>
                   {productorFormErrors.telefono &&
                   productorFormTouched.telefono ? (
                     <ProductorFieldError message={productorFormErrors.telefono} />
@@ -5010,7 +5695,9 @@ export default function Compras() {
                 </div>
 
                 {productorFormError ? (
+                  <div className="order-5">
                   <ProductorGeneralError error={productorFormError} />
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -5024,7 +5711,9 @@ export default function Compras() {
               >
                 {botonGuardarProductorPresionado
                   ? 'Guardando productor...'
-                  : 'Guardar Productor'}
+                  : productorEditando
+                    ? 'Guardar cambios'
+                    : 'Guardar productor'}
               </button>
               <button
                 type="button"

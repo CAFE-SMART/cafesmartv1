@@ -16,6 +16,7 @@ import { ProductoresModule } from './productores/productores.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SupportModule } from './support/support.module';
 import { SecadoModule } from './secado/secado.module';
+import { CreditoModule } from './compras/credito.module';
 
 @Module({
   imports: [

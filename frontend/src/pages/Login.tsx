@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Capacitor } from '@capacitor/core';
+
 import {
   createGuidedError,
   InlineGuidedError,
@@ -43,7 +44,7 @@ function getProgressiveEmailError(value: string, mode: EmailValidationMode) {
 
   const [localPart, domainPart = '', extraPart] = trimmed.split('@');
   if (!localPart || extraPart !== undefined || /\s/.test(trimmed)) {
-    return 'El correo no parece válido.';
+    return 'El correo no parece valido.';
   }
 
   if (!domainPart) {
@@ -61,7 +62,7 @@ function getProgressiveEmailError(value: string, mode: EmailValidationMode) {
   }
 
   if (!isValidEmail(trimmed)) {
-    return 'El correo no parece válido.';
+    return 'El correo no parece valido.';
   }
 
   return null;
@@ -81,7 +82,7 @@ function FieldMessage({
   return (
     <p
       id={id}
-      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
       className={`mt-2 flex items-start gap-1.5 rounded-lg px-1 text-sm font-semibold leading-5 ${
         isError ? 'text-red-600' : 'text-slate-500'
       }`}
@@ -505,9 +506,7 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          telefono: data.user.telefono ?? null,
           organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
           tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
@@ -589,9 +588,7 @@ export default function Login() {
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          telefono: data.user.telefono ?? null,
           organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
           tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
           otroTipoDetalle: data.user.otroTipoDetalle ?? null,
         },
@@ -650,7 +647,7 @@ export default function Login() {
               type="button"
               onClick={() => void handleExitApp()}
               className="absolute right-0 top-0 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              aria-label="Salir de la aplicacion"
+              aria-label="Salir de la aplicación"
             >
               Salir
               <LogOut size={16} className="text-gray-500" />
@@ -658,9 +655,9 @@ export default function Login() {
           </div>
 
           <div className="animate-[cafesmartFadeUp_380ms_ease-out_120ms_both]">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar Sesión</h2>
-            <p className="text-center text-sm text-gray-500 mb-5 sm:mb-8 mx-auto" style={{ maxWidth: '300px' }}>
-              Bienvenido de nuevo a la gestion inteligente de Cafe Smart
+<h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar sesión</h2>
+            <p className="mx-auto mb-5 max-w-[300px] text-center text-sm text-gray-500 sm:mb-8">
+              Bienvenido de nuevo a la gestión inteligente de CaféSmart
             </p>
           </div>
 
@@ -695,7 +692,7 @@ export default function Login() {
           >
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
-                Correo electronico
+Correo electrónico
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -703,8 +700,9 @@ export default function Login() {
                 </div>
                 <input
                   type="email"
-                  aria-invalid={Boolean(emailFieldError)}
                   aria-describedby={emailFieldError ? 'login-email-error' : undefined}
+
+
                   className={`block w-full pl-10 pr-9 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10 ${
                     emailFieldError && emailFieldTone === 'error'
                       ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-red-100'
@@ -712,6 +710,7 @@ export default function Login() {
                         ? 'border-slate-300 bg-slate-50/70'
                         : 'border-gray-200'
                   }`}
+
                   placeholder="ejemplo@correo.com"
                   value={email}
                   onBlur={() => {
@@ -746,16 +745,16 @@ export default function Login() {
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-slate-700">Contraseña</label>
+<label className="block text-sm font-bold text-slate-700">Contraseña</label>
                 <button
                   type="button"
                   onClick={() => {
-                    const message = 'La recuperacion de contraseña aun no esta disponible.';
+                    const message = 'La recuperación de contraseña aún no está disponible.';
                     setError(message);
                   }}
                   className="text-sm font-semibold text-[#1e3a8a] hover:underline"
                 >
-                  Olvidaste tu contraseña?
+                  ¿Olvidaste tu contraseña?
                 </button>
               </div>
               <div className="relative">
@@ -764,8 +763,10 @@ export default function Login() {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  aria-invalid={Boolean(passwordFieldError)}
+
+
                   aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
+
                   className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
                     passwordFieldError
                       ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-4 focus:ring-red-100'
@@ -801,15 +802,16 @@ export default function Login() {
 
             <button
               type="button"
-              role="switch"
-              aria-checked={rememberMe}
               onClick={() => setRememberMe((current) => !current)}
               className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
                 rememberMe
                   ? 'border-[#1e3a8a] bg-[#eef4ff] shadow-[0_8px_24px_rgba(30,58,138,0.12)]'
                   : 'border-slate-200 bg-slate-50'
               }`}
+              aria-label="Recordar cuenta en este dispositivo"
             >
+
+
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
                   rememberMe

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   Check,
@@ -20,6 +21,12 @@ import {
   SecadoValidationError,
   type SecadoSession,
 } from '../utils/secadoFlow';
+
+const SECADO_SELECTION_DRAFT_PREFIX = 'cafe-smart:secado-seleccion-draft:v1';
+
+function getSecadoDraftKey(tipoCafeId?: string, calidadId?: string) {
+  return `${SECADO_SELECTION_DRAFT_PREFIX}:${tipoCafeId ?? 'na'}:${calidadId ?? 'na'}`;
+}
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -78,6 +85,9 @@ export default function SecadoSeleccion() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSessions, setActiveSessions] = useState<SecadoSession[]>([]);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
+  const [showDraftModal, setShowDraftModal] = useState(false);
 
   useEffect(() => {
     const cargar = async () => {
@@ -100,7 +110,20 @@ export default function SecadoSeleccion() {
           );
 
         setDetalle(visual);
-        setSelectedWeights({});
+        const draftRaw = window.localStorage.getItem(
+          getSecadoDraftKey(tipoCafeId, calidadId),
+        );
+        if (draftRaw) {
+          const draft = JSON.parse(draftRaw) as {
+            selectedWeights?: Record<string, number>;
+          };
+          setSelectedWeights(draft.selectedWeights ?? {});
+          if (Object.keys(draft.selectedWeights ?? {}).length > 0) {
+            setShowDraftModal(true);
+          }
+        } else {
+          setSelectedWeights({});
+        }
         setActiveSessions(getActiveSecadoSessions());
       } catch (err) {
         setError('No pudimos abrir el proceso de secado. Intenta nuevamente.');
@@ -111,6 +134,25 @@ export default function SecadoSeleccion() {
 
     void cargar();
   }, [calidadId, tipoCafeId]);
+
+  useEffect(() => {
+    const hasProgress = Object.values(selectedWeights).some((value) => value > 0);
+    const draftKey = getSecadoDraftKey(tipoCafeId, calidadId);
+
+    if (!hasProgress || showDraftModal) {
+      if (!hasProgress) window.localStorage.removeItem(draftKey);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(
+        draftKey,
+        JSON.stringify({ savedAt: Date.now(), selectedWeights }),
+      );
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [calidadId, selectedWeights, showDraftModal, tipoCafeId]);
 
   const selectedIds = useMemo(
     () =>
@@ -231,6 +273,7 @@ export default function SecadoSeleccion() {
     };
     try {
       const session = startSecadoWithWeights(availableDetail, selectedWeights);
+      window.localStorage.removeItem(getSecadoDraftKey(tipoCafeId, calidadId));
       navigate(`/inventario/secado/${session.id}/finalizar`);
     } catch (err) {
       if (err instanceof SecadoValidationError) {
@@ -242,15 +285,29 @@ export default function SecadoSeleccion() {
     }
   };
 
+  const volverSinIniciar = () => {
+    if (selectedIds.length > 0) {
+      setShowExitModal(true);
+      return;
+    }
+
+    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+  };
+
+  const salirSinGuardar = () => {
+    window.localStorage.removeItem(getSecadoDraftKey(tipoCafeId, calidadId));
+    setSelectedWeights({});
+    setShowExitModal(false);
+    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+  };
+
   return (
     <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#fbfbfb]">
         <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
           <button
             type="button"
-            onClick={() =>
-              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
-            }
+            onClick={volverSinIniciar}
             className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
             aria-label="Volver"
           >
@@ -388,14 +445,113 @@ export default function SecadoSeleccion() {
           </div>
           <button
             type="button"
-            onClick={iniciarSecado}
+            onClick={() => setShowStartConfirm(true)}
             disabled={selectedIds.length === 0}
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)] disabled:bg-slate-300"
           >
-            Continuar <ChevronRight size={16} />
+            Iniciar secado <ChevronRight size={16} />
           </button>
         </footer>
       </div>
+
+      {showExitModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">
+          <section className="w-full max-w-[390px] rounded-[20px] bg-white p-5 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <AlertTriangle size={22} />
+            </div>
+            <h2 className="mt-4 text-lg font-black text-slate-950">
+              ¿Salir del proceso?
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              El secado aún no ha sido iniciado.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExitModal(false)}
+                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white"
+              >
+                Continuar editando
+              </button>
+              <button
+                type="button"
+                onClick={salirSinGuardar}
+                className="min-h-[44px] rounded-[14px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600"
+              >
+                Salir sin guardar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showStartConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">
+          <section className="w-full max-w-[390px] rounded-[20px] bg-white p-5 text-center shadow-2xl">
+            <h2 className="text-lg font-black text-slate-950">
+              Confirmar inicio de secado
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Se iniciará el secado con {kg(totalSeleccionado)} seleccionados.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowStartConfirm(false)}
+                className="min-h-[44px] rounded-[14px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600"
+              >
+                Revisar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStartConfirm(false);
+                  iniciarSecado();
+                }}
+                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white"
+              >
+                Iniciar secado
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showDraftModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">
+          <section className="w-full max-w-[390px] rounded-[20px] bg-white p-5 text-center shadow-2xl">
+            <h2 className="text-lg font-black text-slate-950">
+              Borrador encontrado
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Encontramos un proceso sin finalizar.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white"
+              >
+                Continuar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.localStorage.removeItem(
+                    getSecadoDraftKey(tipoCafeId, calidadId),
+                  );
+                  setSelectedWeights({});
+                  setShowDraftModal(false);
+                }}
+                className="min-h-[44px] rounded-[14px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600"
+              >
+                Empezar de nuevo
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {editing ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">

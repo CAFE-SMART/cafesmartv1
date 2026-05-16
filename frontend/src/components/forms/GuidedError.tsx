@@ -41,17 +41,17 @@ export function InlineGuidedError({
       id={id}
       role="alert"
       aria-live="assertive"
-      className={`rounded-[8px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.68rem] text-rose-800 shadow-sm ${className}`.trim()}
+      className={`mt-1.5 rounded-lg border border-rose-200/80 bg-rose-50/60 px-2.5 py-1.5 text-[0.65rem] leading-tight text-rose-700 ${className}`.trim()}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-1.5">
         <AlertCircle
-          size={14}
-          className="mt-0.5 shrink-0 text-rose-600"
+          size={12}
+          className="mt-0.5 shrink-0 text-rose-500"
           aria-hidden="true"
         />
-        <div className="leading-snug">
-          {message.why ? <p className="font-bold">{message.why}</p> : null}
-          {guidance ? <p className="mt-0.5 text-rose-700">{guidance}</p> : null}
+        <div className="min-w-0">
+          {message.why ? <p className="font-semibold text-rose-800">{message.why}</p> : null}
+          {guidance ? <p className="mt-0.5 text-rose-600">{guidance}</p> : null}
         </div>
       </div>
     </div>

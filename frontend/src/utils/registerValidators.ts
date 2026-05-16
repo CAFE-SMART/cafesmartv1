@@ -12,6 +12,7 @@ export type RegisterLocationState = {
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
     otroTipoDetalle?: string;
     nombre?: string;
+    apellidos?: string;
     telefono?: string;
     correo?: string;
     password?: string;
@@ -38,14 +39,14 @@ export type StepTwoErrors = {
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const BUSINESS_NAME_MIN_LENGTH = 3;
-export const BUSINESS_NAME_MAX_LENGTH = 40;
+export const BUSINESS_NAME_MAX_LENGTH = 100;
 export const PERSON_NAME_MIN_LENGTH = 2;
-export const PERSON_NAME_MAX_LENGTH = 25;
-export const PERSON_LASTNAME_MAX_LENGTH = 35;
+export const PERSON_NAME_MAX_LENGTH = 60;
+export const PERSON_LASTNAME_MAX_LENGTH = 60;
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 32;
 
-const BUSINESS_NAME_ALLOWED_REGEX = /^[\p{L}\p{N} .,&'_-]+$/u;
+const BUSINESS_NAME_ALLOWED_REGEX = /^[\p{L}\p{N} .,&()[\]{}-]+$/u;
 const PERSON_NAME_ALLOWED_REGEX = /^[\p{L} '-]+$/u;
 
 function hasExcessiveRepetition(value: string) {
@@ -65,7 +66,31 @@ function hasExcessiveRepetition(value: string) {
 }
 
 export function normalizeBusinessNameInput(value: string) {
-  return value.replace(/\s+/g, ' ').slice(0, BUSINESS_NAME_MAX_LENGTH);
+  return value.replace(/\s{2,}/g, ' ').slice(0, BUSINESS_NAME_MAX_LENGTH);
+}
+
+export function normalizeHumanNameInput(value: string) {
+  return value.replace(/\s{2,}/g, ' ').slice(0, PERSON_NAME_MAX_LENGTH);
+}
+
+export function normalizeHumanNameForSave(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|[\s'-])(\p{L})/gu, (match, separator, letter) =>
+      `${separator}${letter.toLocaleUpperCase('es')}`,
+    );
+}
+
+export function normalizeBusinessNameForSave(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('es')
+    .replace(/(^|[\s&.,()-])(\p{L})/gu, (match, separator, letter) =>
+      `${separator}${letter.toLocaleUpperCase('es')}`,
+    );
 }
 
 export function validateBusinessName(value: string) {
@@ -79,12 +104,30 @@ export function validateBusinessName(value: string) {
     return 'Usa al menos 3 caracteres.';
   }
 
-  if (normalized.length > BUSINESS_NAME_MAX_LENGTH) {
-    return 'El nombre del negocio es demasiado largo. Usa máximo 40 caracteres.';
+  if (/\s{2,}/.test(value) || value !== value.trim()) {
+    return 'No uses espacios al inicio, al final ni dobles.';
   }
 
-  if (!BUSINESS_NAME_ALLOWED_REGEX.test(normalized)) {
-    return 'Usa letras, números, espacios y signos básicos.';
+  if (normalized.length > BUSINESS_NAME_MAX_LENGTH) {
+    return 'El nombre del negocio es demasiado largo. Usa máximo 100 caracteres.';
+  }
+
+  if (/[#@$%*=_+?¿!¡|<>/\\]/.test(normalized) || !BUSINESS_NAME_ALLOWED_REGEX.test(normalized)) {
+    return 'No uses símbolos especiales.';
+  }
+
+  if (/\(\s*\)|\[\s*\]|\{\s*\}/.test(normalized)) {
+    return 'No uses signos vacíos como ().';
+  }
+
+  for (const [open, close] of [
+    ['(', ')'],
+    ['[', ']'],
+    ['{', '}'],
+  ] as const) {
+    if (normalized.split(open).length !== normalized.split(close).length) {
+      return 'Cierra bien los paréntesis o corchetes.';
+    }
   }
 
   if (hasExcessiveRepetition(normalized)) {
@@ -106,11 +149,19 @@ export function validatePersonName(value: string) {
   }
 
   if (normalized.length > PERSON_NAME_MAX_LENGTH) {
-    return 'El nombre es demasiado largo. Usa máximo 25 caracteres.';
+    return 'El nombre es demasiado largo. Usa máximo 60 caracteres.';
   }
 
-  if (!PERSON_NAME_ALLOWED_REGEX.test(normalized)) {
-    return 'Usa solo letras, espacios y signos comunes.';
+  if (/\d/.test(normalized)) {
+    return 'El nombre no puede contener números.';
+  }
+
+  if (/\s{2,}/.test(value) || value !== value.trim()) {
+    return 'No uses espacios al inicio, al final ni dobles.';
+  }
+
+  if (/[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(normalized) || !PERSON_NAME_ALLOWED_REGEX.test(normalized)) {
+    return 'No uses símbolos especiales.';
   }
 
   if (hasExcessiveRepetition(normalized)) {
@@ -132,11 +183,19 @@ export function validatePersonLastName(value: string) {
   }
 
   if (normalized.length > PERSON_LASTNAME_MAX_LENGTH) {
-    return 'Los apellidos superan el límite permitido. Usa máximo 35 caracteres.';
+    return 'Los apellidos superan el límite permitido. Usa máximo 60 caracteres.';
   }
 
-  if (!PERSON_NAME_ALLOWED_REGEX.test(normalized)) {
-    return 'Usa solo letras, espacios y signos comunes.';
+  if (/\d/.test(normalized)) {
+    return 'El nombre no puede contener números.';
+  }
+
+  if (/\s{2,}/.test(value) || value !== value.trim()) {
+    return 'No uses espacios al inicio, al final ni dobles.';
+  }
+
+  if (/[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(normalized) || !PERSON_NAME_ALLOWED_REGEX.test(normalized)) {
+    return 'No uses símbolos especiales.';
   }
 
   if (hasExcessiveRepetition(normalized)) {

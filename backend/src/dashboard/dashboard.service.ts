@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { getCache, setCache } from '../common/dashboard-cache';
+import { Logger } from '@nestjs/common';
 import { ParametrosService } from '../parametros/parametros.service';
 
 type DashboardMovimiento = {
@@ -44,13 +46,18 @@ const LIMITE_MOVIMIENTOS_RECIENTES = 3;
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+  private readonly CACHE_TTL_MS = 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly parametrosService: ParametrosService,
   ) {}
 
-  async obtenerResumen(userId: string): Promise<DashboardSummaryResponse> {
+  async obtenerResumen(userId: string, forceRefresh = false): Promise<DashboardSummaryResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+    const startMs = Date.now();
+    if (!forceRefresh) { const cached = getCache(organizacionId); if (cached) { this.logger.log(`Cached hit (${(Date.now()-startMs)}ms)`); return cached; } }
     const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
 
     const [

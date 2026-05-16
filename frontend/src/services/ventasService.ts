@@ -46,3 +46,6 @@ export async function crearVenta(payload: CreateVentaPayload) {
     body: JSON.stringify(payload),
   }) as Promise<CreateVentaResponse>;
 }
+
+export function sortByFIFO(l:any[]):any[]{return[...l].sort((a,b)=>{return new Date(a.fechaIngreso||a.fecha).getTime()-new Date(b.fechaIngreso||b.fecha).getTime()})}
+
