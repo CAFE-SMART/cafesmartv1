@@ -10,6 +10,7 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { EmptyState } from '../components/EmptyState';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import {
@@ -78,8 +79,12 @@ function formatDate(value: string) {
 export default function SecadoInicio() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialView = (location.state as { secadoView?: SecadoView } | null)
-    ?.secadoView;
+  const locationState = location.state as {
+    secadoView?: SecadoView;
+    from?: string;
+  } | null;
+  const initialView = locationState?.secadoView;
+  const originPath = locationState?.from === '/ajustes' ? '/ajustes' : '/inventario';
   const [view, setView] = useState<SecadoView>(
     initialView === 'pending' ? 'pending' : 'start',
   );
@@ -149,12 +154,20 @@ export default function SecadoInicio() {
   const activeHumidity = activeSession ? humedadInicial(activeSession) : null;
 
   const volver = () => {
-    navigate('/ajustes');
+    navigate(
+      originPath,
+      originPath === '/inventario'
+        ? { state: { preferredTypeKey: 'VERDE' } }
+        : undefined,
+    );
   };
 
   const iniciarSeleccionado = () => {
     if (!loteSeleccionado || hasPending) return;
-    navigate(`/inventario/lote/${loteSeleccionado.id}/secado`);
+    navigate(
+      `/inventario/${loteSeleccionado.tipoCafeId}/${loteSeleccionado.calidadId}/secado`,
+      { state: { from: originPath } },
+    );
   };
 
   return (
@@ -174,16 +187,12 @@ export default function SecadoInicio() {
               <h1 className="truncate text-[1.25rem] font-black text-[#111827]">
                 {view === 'pending'
                   ? 'Secados pendientes'
-                  : hasPending
-                    ? 'Secado en proceso'
-                    : 'Iniciar secado'}
+                  : 'Proceso de secado'}
               </h1>
               <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
                 {view === 'pending'
                   ? 'Finaliza lotes que ya están en proceso.'
-                  : hasPending
-                    ? 'Tienes un lote en secado. Finaliza este proceso antes de iniciar uno nuevo.'
-                    : 'Selecciona un lote verde disponible.'}
+                  : 'Revisa secados activos o inicia un nuevo proceso.'}
               </p>
             </div>
           </div>
@@ -241,7 +250,9 @@ export default function SecadoInicio() {
                     <button
                       type="button"
                       onClick={() =>
-                        navigate(`/inventario/secado/${session.id}/finalizar`)
+                        navigate(`/inventario/secado/${session.id}/finalizar`, {
+                          state: { from: originPath },
+                        })
                       }
                       className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
                     >
@@ -265,104 +276,49 @@ export default function SecadoInicio() {
 
         {view === 'start' ? (
           <>
-            {activeSession ? (
-              <>
-                <section className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 shadow-sm">
-                  <p className="text-sm font-black text-amber-900">
-                    Ya hay un secado activo. Puedes revisarlo y finalizarlo
-                    cuando esté listo.
-                  </p>
-                </section>
+            <section className="rounded-[20px] border border-[#e6eaf3] bg-white p-4 shadow-sm">
+              <div className="mb-3">
+                <h2 className="text-base font-black text-[#102d92]">
+                  Proceso de secado
+                </h2>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                  Revisa secados activos o inicia un nuevo proceso.
+                </p>
+              </div>
+              <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate('/inventario/secados', { state: { from: originPath } })
+                }
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-[8px] border border-[#1e3a8a] bg-white px-3 text-center text-sm font-black text-[#1e3a8a] transition hover:bg-[#f3f4f6] active:scale-[0.99]"
+              >
+                Ver secados activos
+              </button>
+              <button
+                type="button"
+                onClick={iniciarSeleccionado}
+                disabled={!loteSeleccionado || hasPending}
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-[8px] bg-[#102d92] px-3 text-center text-sm font-black text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Iniciar secado
+              </button>
+              </div>
+            </section>
 
-                <section className="rounded-[24px] border border-[#e7ebf4] bg-white p-5 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <span className="inline-flex rounded-[16px] bg-[#fff7df] p-3 text-[#d29309]">
-                      <SunMedium size={22} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-                        Secado activo
-                      </p>
-                      <h2 className="mt-2 text-[1.35rem] font-black text-[#111827]">
-                        {activeSession.tipoCafe} {activeSession.calidad}
-                      </h2>
-                      <p className="mt-1 text-sm font-semibold text-slate-600">
-                        Lote {activeSession.loteCodigo}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">
-                        Cantidad
-                      </p>
-                      <p className="mt-1 text-xl font-black text-[#102d92]">
-                        {formatKg(totalSecadoKg(activeSession))} kg
-                      </p>
-                    </div>
-                    <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">
-                        Estado
-                      </p>
-                      <p className="mt-1 text-sm font-black text-[#9a5b00]">
-                        {estadoLabel(activeSession)}
-                      </p>
-                    </div>
-                    <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                      <p className="text-xs font-semibold text-slate-500">
-                        Fecha de inicio
-                      </p>
-                      <p className="mt-1 text-sm font-black text-slate-900">
-                        {formatDate(activeSession.startedAt)}
-                      </p>
-                    </div>
-                    {activeHumidity !== null ? (
-                      <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-3">
-                        <p className="text-xs font-semibold text-slate-500">
-                          Humedad inicial
-                        </p>
-                        <p
-                          className={`mt-1 inline-flex rounded-[10px] px-2 py-1 text-sm font-black ${classifyHumidity(activeHumidity).toneClass}`}
-                        >
-                          {formatHumidityWithClassification(activeHumidity)}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `/inventario/lote/${activeSession.loteId}/secado`,
-                        )
-                      }
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#102d92]"
-                    >
-                      Ver detalle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `/inventario/secado/${activeSession.id}/finalizar`,
-                        )
-                      }
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-                    >
-                      Finalizar secado
-                    </button>
-                  </div>
-                </section>
-              </>
-            ) : (
+            {!activeSession ? (
               <>
                 {error ? (
-                  <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {error}
-                  </section>
+                  <CafeSmartErrorState
+                    title="No pudimos cargar la información"
+                    message="Verifica tu conexión o vuelve a intentarlo."
+                    primaryLabel="Reintentar"
+                    secondaryLabel="Volver"
+                    onPrimary={() => void cargar()}
+                    onSecondary={volver}
+                    primaryBusy={loading}
+                    className="rounded-[20px] px-4 py-5"
+                  />
                 ) : null}
 
                 <section className="rounded-[22px] bg-white p-4 shadow-sm">
@@ -387,8 +343,13 @@ export default function SecadoInicio() {
 
                   <div className="mt-4 space-y-3">
                     {loading ? (
-                      <div className="rounded-[16px] bg-[#f6f8fd] px-4 py-6 text-sm text-slate-500">
-                        {UI_MESSAGES.loading.lotsForDrying}
+                      <div className="space-y-3" role="status" aria-label={UI_MESSAGES.loading.lotsForDrying}>
+                        {[0, 1, 2].map((item) => (
+                          <div
+                            key={item}
+                            className="h-[92px] animate-pulse rounded-[18px] bg-[#eef2f7]"
+                          />
+                        ))}
                       </div>
                     ) : lotes.length > 0 ? (
                       lotes.map((lote) => {
@@ -477,14 +438,14 @@ export default function SecadoInicio() {
                 <button
                   type="button"
                   onClick={iniciarSeleccionado}
-                  disabled={!loteSeleccionado}
+                  disabled={!loteSeleccionado || hasPending}
                   className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-[#2954d8] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Continuar
                   <ArrowRight size={16} />
                 </button>
               </>
-            )}
+            ) : null}
           </>
         ) : null}
       </div>

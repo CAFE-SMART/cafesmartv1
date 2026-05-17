@@ -1,10 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CircleDashed, Package2 } from 'lucide-react';
-import { getActiveSecadoSessions } from '../utils/secadoFlow';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, CircleDashed, Package2, X } from 'lucide-react';
+import {
+  getActiveSecadoSessions,
+  removeSecadoSession,
+} from '../utils/secadoFlow';
 
 type ActiveSecadoSession = ReturnType<typeof getActiveSecadoSessions>[number];
-type SecadoFilter = 'recent' | 'oldest' | 'BUENO' | 'REGULAR' | 'MALO';
+type SecadoSort = 'recent' | 'oldest';
+type SecadoQualityFilter = 'TODOS' | 'BUENO' | 'REGULAR' | 'MALO';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -54,25 +58,43 @@ function qualityTone(value: string) {
 
 export default function SecadosActivos() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const originPath =
+    (location.state as { from?: string } | null)?.from === '/ajustes'
+      ? '/ajustes'
+      : '/inventario';
   const [showAll, setShowAll] = useState(false);
-  const [filter, setFilter] = useState<SecadoFilter>('recent');
+  const [sort, setSort] = useState<SecadoSort>('recent');
+  const [qualityFilter, setQualityFilter] =
+    useState<SecadoQualityFilter>('TODOS');
+  const [interruptionTarget, setInterruptionTarget] =
+    useState<ActiveSecadoSession | null>(null);
+  const [interruptedVersion, setInterruptedVersion] = useState(0);
+  const handleBack = () => {
+    navigate('/inventario/secado/inicio', {
+      state: {
+        from: originPath,
+        secadoView: 'start',
+      },
+    });
+  };
   const sessions = useMemo(
     () => {
       const onlyGreen = getActiveSecadoSessions().filter(
         (session) => qualityKey(session.tipoCafe) === 'VERDE',
       );
-      const byQuality = ['BUENO', 'REGULAR', 'MALO'].includes(filter)
-        ? onlyGreen.filter((session) => qualityKey(session.calidad) === filter)
+      const byQuality = qualityFilter !== 'TODOS'
+        ? onlyGreen.filter((session) => qualityKey(session.calidad) === qualityFilter)
         : onlyGreen;
 
       return [...byQuality].sort(
         (a, b) =>
-          filter === 'oldest'
+          sort === 'oldest'
             ? new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
             : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       );
     },
-    [filter],
+    [interruptedVersion, qualityFilter, sort],
   );
   const visibleSessions = showAll ? sessions : sessions.slice(0, 3);
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
@@ -83,9 +105,7 @@ export default function SecadosActivos() {
         <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
           <button
             type="button"
-            onClick={() =>
-              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
-            }
+            onClick={handleBack}
             className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
             aria-label="Volver"
           >
@@ -105,31 +125,44 @@ export default function SecadosActivos() {
             </p>
           </section>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {[
-              ['recent', 'Más recientes'],
-              ['oldest', 'Más antiguos'],
-              ['BUENO', 'Verde Bueno'],
-              ['REGULAR', 'Verde Regular'],
-              ['MALO', 'Verde Malo'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setFilter(value as SecadoFilter);
-                  setShowAll(false);
-                }}
-                className={`shrink-0 rounded-full border px-3 py-2 text-[0.72rem] font-black ${
-                  filter === value
-                    ? 'border-[#102d92] bg-[#102d92] text-white'
-                    : 'border-[#d8deea] bg-white text-slate-600'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <section className="mt-4 rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="min-w-0">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  Filtro
+                </span>
+                <select
+                  value={sort}
+                  onChange={(event) => {
+                    setSort(event.target.value as SecadoSort);
+                    setShowAll(false);
+                  }}
+                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
+                >
+                  <option value="recent">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  Tipo de calidad
+                </span>
+                <select
+                  value={qualityFilter}
+                  onChange={(event) => {
+                    setQualityFilter(event.target.value as SecadoQualityFilter);
+                    setShowAll(false);
+                  }}
+                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="BUENO">Verde Bueno</option>
+                  <option value="REGULAR">Verde Regular</option>
+                  <option value="MALO">Verde Malo</option>
+                </select>
+              </label>
+            </div>
+          </section>
 
           {sessions.length === 0 ? (
             <section className="mt-5 rounded-[18px] border border-slate-200 bg-white px-5 py-8 text-center shadow-sm">
@@ -182,17 +215,27 @@ export default function SecadosActivos() {
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(
-                        `/inventario/secado/${session.id}/finalizar?step=finish`,
-                      )
-                    }
-                    className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-[0.9rem] font-black text-white"
-                  >
-                    Finalizar secado
-                  </button>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInterruptionTarget(session)}
+                      className="inline-flex h-11 items-center justify-center rounded-[14px] border border-rose-200 bg-white px-3 text-[0.78rem] font-black text-rose-700"
+                    >
+                      Interrumpir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          `/inventario/secado/${session.id}/finalizar?step=finish`,
+                          { state: { from: originPath } },
+                        )
+                      }
+                      className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-[0.78rem] font-black text-white"
+                    >
+                      Finalizar
+                    </button>
+                  </div>
                 </article>
               ))}
               {hiddenCount > 0 ? (
@@ -208,6 +251,58 @@ export default function SecadosActivos() {
           )}
         </main>
       </div>
+
+      {interruptionTarget ? (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 px-4 pb-4 pt-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="interrupt-secado-title"
+            className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.28)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-amber-50 text-amber-700">
+                <AlertTriangle size={20} />
+              </span>
+              <button
+                type="button"
+                onClick={() => setInterruptionTarget(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                aria-label="Cerrar confirmación"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <h2 id="interrupt-secado-title" className="mt-4 text-lg font-black leading-tight text-slate-950">
+              ¿Está seguro de que desea interrumpir el proceso de secado?
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              El café regresará a su estado de inventario original.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setInterruptionTarget(null)}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeSecadoSession(interruptionTarget.id);
+                  setInterruptionTarget(null);
+                  setShowAll(false);
+                  setInterruptedVersion((version) => version + 1);
+                }}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+              >
+                Sí
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

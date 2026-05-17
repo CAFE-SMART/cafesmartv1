@@ -50,6 +50,7 @@ export type TransformarSecadoResponse = {
   sessionId: string;
   totalEntradaKg: number;
   totalSalidaKg: number;
+  totalMermaKg?: number;
   alreadyProcessed: boolean;
   sublotes: Array<{
     id: string;
@@ -59,6 +60,21 @@ export type TransformarSecadoResponse = {
     calidadId: string;
   }>;
 };
+
+export type CrearSecadoPayload = {
+  subloteId: string;
+  pesoSalida: number;
+  calidadSalida: 'BUENO' | 'REGULAR' | 'MALO';
+};
+
+export async function crearSecado(
+  payload: CrearSecadoPayload,
+): Promise<TransformarSecadoResponse> {
+  return apiFetch('/secado', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function startSecado(
   tipoCafeId: string,

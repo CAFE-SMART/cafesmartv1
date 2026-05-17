@@ -322,7 +322,11 @@ export class AuthService {
     // Intentar cargar datos adicionales de sesión (organización, tipo, etc.)
     // pero usar los datos del usuario como fuente de verdad principal
     const sessionData: {
-      organizacion?: { tipo?: string; otroTipoDetalle?: string | null };
+      organizacion?: {
+        nombre?: string;
+        tipo?: string;
+        otroTipoDetalle?: string | null;
+      };
     } = {};
     try {
       const sessionUser = await this.usersService.findSessionById(user.id);
@@ -346,6 +350,7 @@ export class AuthService {
         email: user.correo,
         name: user.nombre,
         organizacionId: user.organizacionId ?? null,
+        nombreOrganizacion: sessionData.organizacion?.nombre ?? null,
         tipoOrganizacion: sessionData.organizacion?.tipo ?? null,
         otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,
       },

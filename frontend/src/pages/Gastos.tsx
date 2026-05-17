@@ -21,7 +21,7 @@ import { EmptyState } from '../components/EmptyState';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { SystemSaveError } from '../components/SystemSaveError';
 import {
-  createGuidedErrorFromUi,
+  createGuidedError,
   InlineGuidedError,
 } from '../components/forms/GuidedError';
 import {
@@ -74,6 +74,16 @@ const FORM_INICIAL: GastoForm = {
   aplicaA: 'GENERAL',
   lotesIds: [],
 };
+const GASTO_CONCEPTO_MAX = 60;
+const GASTO_DESCRIPCION_MAX = 200;
+const GASTO_MONTO_MAX = 20000000;
+
+function sanitizeMoneyInput(value: string, max = GASTO_MONTO_MAX) {
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+  if (!digits) return '';
+  const numeric = Number(digits);
+  return String(Math.min(max, Number.isFinite(numeric) ? numeric : max));
+}
 
 function generarId() {
   if (
@@ -162,7 +172,11 @@ export default function Gastos() {
     }
 
     if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
-      return UI_MESSAGES.forms.invalidValue.mensaje;
+      return 'Ingresa un valor válido para continuar.';
+    }
+
+    if (montoNumero > GASTO_MONTO_MAX) {
+      return 'El monto supera el límite permitido.';
     }
 
     if (form.aplicaA === 'SUBLOTES' && form.lotesIds.length === 0) {
@@ -254,15 +268,19 @@ export default function Gastos() {
               <input
                 type="text"
                 value={form.concepto}
+                maxLength={GASTO_CONCEPTO_MAX}
                 onChange={(event) =>
                   setForm((actual) => ({
                     ...actual,
-                    concepto: event.target.value,
+                    concepto: event.target.value.slice(0, GASTO_CONCEPTO_MAX),
                   }))
                 }
                 placeholder="Ej. Pago de jornaleros - Cosecha Oct"
                 className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
               />
+              <p className="mt-1 text-right text-xs font-bold text-slate-500">
+                {form.concepto.length}/{GASTO_CONCEPTO_MAX}
+              </p>
             </div>
 
             <div>
@@ -271,16 +289,20 @@ export default function Gastos() {
               </label>
               <textarea
                 value={form.descripcion}
+                maxLength={GASTO_DESCRIPCION_MAX}
                 onChange={(event) =>
                   setForm((actual) => ({
                     ...actual,
-                    descripcion: event.target.value,
+                    descripcion: event.target.value.slice(0, GASTO_DESCRIPCION_MAX),
                   }))
                 }
                 placeholder="Detalles adicionales..."
                 rows={3}
-                className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
+                className="max-h-28 w-full overflow-y-auto rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
               />
+              <p className="mt-1 text-right text-xs font-bold text-slate-500">
+                {form.descripcion.length}/{GASTO_DESCRIPCION_MAX}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -289,14 +311,13 @@ export default function Gastos() {
                   Monto ($)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="numeric"
                   value={form.monto}
                   onChange={(event) =>
                     setForm((actual) => ({
                       ...actual,
-                      monto: event.target.value,
+                      monto: sanitizeMoneyInput(event.target.value),
                     }))
                   }
                   placeholder="$ 0.00"
@@ -304,6 +325,9 @@ export default function Gastos() {
                 />
                 <p className="mt-2 text-xs font-semibold text-slate-500">
                   {formatoMontoInput(form.monto)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Máx. {formatoMoneda(GASTO_MONTO_MAX)}
                 </p>
               </div>
               <div>
@@ -516,12 +540,11 @@ export default function Gastos() {
 
             {error ? (
               <InlineGuidedError
-                message={createGuidedErrorFromUi(
-                  error === UI_MESSAGES.forms.invalidDate.mensaje
-                    ? UI_MESSAGES.forms.invalidDate
-                    : error === UI_MESSAGES.forms.invalidValue.mensaje
-                      ? UI_MESSAGES.forms.invalidValue
-                      : UI_MESSAGES.forms.incompleteData,
+                message={createGuidedError(
+                  'No pudimos registrar el gasto.',
+                  error,
+                  'Revisa los campos marcados antes de continuar.',
+                  'Corrige la información e intenta nuevamente.',
                 )}
               />
             ) : null}

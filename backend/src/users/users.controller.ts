@@ -9,15 +9,26 @@
 //   GET /users        →  Listar usuarios de la organización (solo ADMIN)
 // ============================================================
 
-import { Controller } from '@nestjs/common';
+import { Body, Controller, Patch, Req, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
 @Controller('users') // prefijo base: /users
 export class UsersController {
   constructor(private usersService: UsersService) {}
 
-  // Las rutas de gestión de usuarios se agregarán en futuras
-  // iteraciones del proyecto (perfil, listado, etc.)
+  @Patch('organization')
+  @UseGuards(JwtAuthGuard)
+  updateOrganization(
+    @Body()
+    dto: {
+      nombreOrganizacion: string;
+      tipoOrganizacion: string;
+    },
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.usersService.updateOrganizationSettings(req.user.sub, dto);
+  }
 }
 
 /*

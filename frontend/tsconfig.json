@@ -28,5 +28,12 @@
     "ignoreDeprecations": "5.0",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/**/*_backup.ts",
+    "src/**/*_backup.tsx",
+    "src/**/*.backup",
+    "src/**/*.bak",
+    "src/**/*.bak1"
+  ]
 }

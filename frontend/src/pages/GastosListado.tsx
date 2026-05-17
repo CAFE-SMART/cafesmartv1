@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Receipt, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt, RefreshCcw } from 'lucide-react';
 import { listarGastos, type GastoItem } from '../services/gastosService';
+import {
+  BUSINESS_MIN_DATE_VALUE,
+  formatDateLabel,
+  getTodayLocalDateValue,
+} from '../utils/date';
 
 function formatCurrency(value: number) {
   return `$ ${new Intl.NumberFormat('es-CO', {
@@ -47,6 +52,204 @@ function titleCase(value: string) {
     .join(' ');
 }
 
+function formatLongDateLabel(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+const MONTHS_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
+
+function parseLocalDateValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+function formatLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function GastosDatePicker({
+  value,
+  open,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  value: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: string) => void;
+}) {
+  const min = BUSINESS_MIN_DATE_VALUE;
+  const max = getTodayLocalDateValue();
+  const selectedDate = parseLocalDateValue(value);
+  const maxDate = parseLocalDateValue(max) ?? new Date();
+  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
+  const visibleDate = selectedDate ?? maxDate;
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
+  );
+
+  useEffect(() => {
+    if (open) {
+      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+    }
+  }, [max, open, value]);
+
+  const days = useMemo(() => {
+    const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    const daysInMonth = new Date(
+      visibleMonth.getFullYear(),
+      visibleMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    return [
+      ...Array.from({ length: firstDay.getDay() }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => {
+        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1);
+        return { day: index + 1, value: formatLocalDateValue(date) };
+      }),
+    ];
+  }, [visibleMonth]);
+
+  const previousMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+  const nextMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+  const canGoPrevious = previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const canGoNext = nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onClose();
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open ? 'true' : 'false'}
+        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] ${
+          open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
+        }`}
+      >
+        <span>{value ? formatLongDateLabel(value) : 'Selecciona fecha'}</span>
+        <CalendarDays size={15} className="text-[#102d92]" />
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 z-40 mt-2 w-[min(21.5rem,calc(100vw-2rem))] min-w-[20rem] rounded-[20px] border border-[#d5deee] bg-white p-4 shadow-[0_22px_48px_rgba(15,23,42,0.18)]">
+          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+            <button
+              type="button"
+              disabled={!canGoPrevious}
+              onClick={() => setVisibleMonth(previousMonth)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              aria-label="Mes anterior"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900">
+              {MONTHS_ES[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
+            </p>
+            <button
+              type="button"
+              disabled={!canGoNext}
+              onClick={() => setVisibleMonth(nextMonth)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              aria-label="Mes siguiente"
+            >
+              <ArrowRight size={17} />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5 px-1">
+            {WEEKDAYS_ES.map((day) => (
+              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500">
+                {day}
+              </span>
+            ))}
+            {days.map((day, index) =>
+              day ? (
+                <button
+                  key={day.value}
+                  type="button"
+                  disabled={day.value < min || day.value > max}
+                  onClick={() => {
+                    onChange(day.value);
+                    onClose();
+                  }}
+                  className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 ${
+                    day.value === value
+                      ? 'bg-[#102d92] text-white'
+                      : day.value === max
+                        ? 'bg-[#eef4ff] text-[#102d92]'
+                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                  }`}
+                >
+                  {day.day}
+                </button>
+              ) : (
+                <span key={`empty-${index}`} />
+              ),
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                onClose();
+              }}
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100"
+            >
+              Limpiar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(max);
+                onClose();
+              }}
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92]"
+            >
+              Hoy
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function GastosListado() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,6 +259,7 @@ export default function GastosListado() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtroFecha, setFiltroFecha] = useState('');
+  const [filtroFechaOpen, setFiltroFechaOpen] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
   const [orden, setOrden] = useState<'recent' | 'oldest'>('recent');
 
@@ -107,7 +311,7 @@ export default function GastosListado() {
   return (
     <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
       <main className="mx-auto w-full max-w-[430px] rounded-[24px] border border-[#dbe2ee] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
-        <header className="grid h-10 grid-cols-[36px_1fr_36px] items-center">
+        <header className="grid min-h-10 grid-cols-[36px_1fr_auto] items-center gap-2">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -122,13 +326,15 @@ export default function GastosListado() {
           <button
             type="button"
             onClick={() => void cargar(true)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400"
+            disabled={refreshing}
+            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-full border border-[#dbe2ee] bg-white px-2.5 text-[0.68rem] font-black text-[#334155] disabled:cursor-wait disabled:opacity-70"
             aria-label="Recargar gastos"
           >
             <RefreshCcw
               size={14}
               className={refreshing ? 'animate-spin' : ''}
             />
+            {refreshing ? 'Recargando...' : 'Recargar'}
           </button>
         </header>
 
@@ -158,21 +364,13 @@ export default function GastosListado() {
             <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
               Fecha
             </span>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={filtroFecha}
-                onChange={(event) => setFiltroFecha(event.target.value)}
-                className="min-h-[40px] flex-1 rounded-[12px] border border-[#dbe2f0] bg-white px-3 text-[0.68rem] font-bold outline-none focus:border-[#102d92]"
-              />
-              <button
-                type="button"
-                onClick={() => setFiltroFecha('')}
-                className="min-h-[40px] rounded-[12px] bg-[#eef4ff] px-3 text-[0.62rem] font-black text-[#102d92]"
-              >
-                Limpiar fecha
-              </button>
-            </div>
+            <GastosDatePicker
+              value={filtroFecha}
+              open={filtroFechaOpen}
+              onToggle={() => setFiltroFechaOpen((open) => !open)}
+              onClose={() => setFiltroFechaOpen(false)}
+              onChange={setFiltroFecha}
+            />
           </label>
           {filtroFecha ? (
             <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.62rem] font-semibold leading-4 text-amber-800">

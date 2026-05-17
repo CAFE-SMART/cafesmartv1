@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { apiError } from '../errors/api-error';
 
 type PersonaEntidad = 'cliente' | 'productor';
-type TipoDocumento = 'CEDULA' | 'NIT';
+export type TipoDocumento = 'CEDULA' | 'NIT' | 'CE' | 'PASAPORTE' | 'OTRO';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
 const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&()-]+$/;
@@ -155,6 +155,20 @@ export function normalizarDocumentoPersona(
     }
 
     return nit;
+  }
+
+  if (options.tipoDocumento === 'PASAPORTE' || options.tipoDocumento === 'OTRO') {
+    const normalized = documento.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
+    if (!/^[A-Za-z0-9-]{3,20}$/.test(normalized)) {
+      throwPersonValidation(
+        entidad,
+        'DOCUMENTO_INVALIDO',
+        'Ingresa un número de documento válido.',
+        'documento',
+      );
+    }
+
+    return normalized;
   }
 
   if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {

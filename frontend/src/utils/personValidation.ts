@@ -3,7 +3,7 @@ export type PersonFieldValidation = {
   message?: string;
 };
 
-export type DocumentType = 'CEDULA' | 'NIT';
+export type DocumentType = 'CEDULA' | 'NIT' | 'CE' | 'PASAPORTE' | 'OTRO';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/;
 const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&(){}[\]-]+$/;
@@ -126,6 +126,10 @@ export function sanitizeDocumentInput(value: string, type: DocumentType) {
       : baseDigits;
   }
 
+  if (type === 'PASAPORTE' || type === 'OTRO') {
+    return value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 20).toUpperCase();
+  }
+
   return sanitizeDigits(value, 10);
 }
 
@@ -136,6 +140,10 @@ export function normalizeDocumentForStorage(value: string, type: DocumentType) {
     const baseDigits = base.replace(/\D/g, '').slice(0, 9);
     const checkDigit = verificacion.replace(/\D/g, '').slice(0, 1);
     return checkDigit ? `${baseDigits}-${checkDigit}` : baseDigits;
+  }
+
+  if (type === 'PASAPORTE' || type === 'OTRO') {
+    return documento.replace(/[^A-Za-z0-9-]/g, '').slice(0, 20).toUpperCase();
   }
 
   return sanitizeDigits(documento, 10);
@@ -275,6 +283,17 @@ export function validateDocumentNumber(
       return {
         isValid: false,
         message: 'Para NIT usa el formato 900123456-7.',
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  if (tipoDocumento === 'PASAPORTE' || tipoDocumento === 'OTRO') {
+    if (!/^[A-Za-z0-9-]{3,20}$/.test(documento)) {
+      return {
+        isValid: false,
+        message: `${label} debe tener entre 3 y 20 caracteres.`,
       };
     }
 

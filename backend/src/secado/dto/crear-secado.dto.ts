@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsNumber, IsUUID, Min } from 'class-validator';
 
 export class CrearSecadoDto {
@@ -11,6 +11,7 @@ export class CrearSecadoDto {
   @Min(0.01, { message: 'El peso de salida debe ser mayor a 0' })
   pesoSalida: number;
 
+  @Transform(({ value }) => String(value ?? '').trim().toUpperCase())
   @IsIn(['BUENO', 'REGULAR', 'MALO'], {
     message: 'La calidad de salida no es valida',
   })

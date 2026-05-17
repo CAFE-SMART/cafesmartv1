@@ -68,7 +68,9 @@ import {
   validateDocumentNumber,
   validatePersonName,
 } from '../utils/personValidation';
+import { sanitizeSearchInput } from '../utils/inputLimits';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -189,6 +191,16 @@ function formatLocalDateValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function formatLongDateLabel(value: string) {
+  const date = parseLocalDateValue(value);
+  if (!date) return '';
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function isDateValueInRange(value: string, min: string, max: string) {
@@ -370,7 +382,7 @@ function SalesDatePicker({
         }`}
       >
         <span className="min-w-0 flex-1 truncate text-[1.18rem] font-black leading-none text-[#08256d]">
-          {value ? formatDateLabel(value) : 'Selecciona una fecha'}
+          {value ? formatLongDateLabel(value) : 'Selecciona una fecha'}
         </span>
         <CalendarDays size={20} className={open ? 'text-[#102d92]' : 'text-slate-500'} />
       </button>
@@ -1473,6 +1485,8 @@ export default function Ventas() {
   const [ventaFifoBreakdown, setVentaFifoBreakdown] = React.useState<
     VentaFifoItem[]
   >([]);
+  const [mostrarDesgloseSublotesVenta, setMostrarDesgloseSublotesVenta] =
+    React.useState(false);
   const [revisionDeleteAlert, setRevisionDeleteAlert] =
     React.useState<VentaParcialCardAlert | null>(null);
   const revisionDeleteAlertTimerRef = React.useRef<number | null>(null);
@@ -1507,6 +1521,8 @@ export default function Ventas() {
   const [mostrarHistorialVentas, setMostrarHistorialVentas] =
     React.useState(false);
   const [historialVentaFecha, setHistorialVentaFecha] = React.useState('');
+  const [historialVentaFechaPickerOpen, setHistorialVentaFechaPickerOpen] =
+    React.useState(false);
   const [historialVentaCliente, setHistorialVentaCliente] = React.useState('TODOS');
   const [historialVentaOrden, setHistorialVentaOrden] = React.useState<'recent' | 'oldest'>('recent');
   const [mostrarHistorialLotesVenta, setMostrarHistorialLotesVenta] =
@@ -2680,7 +2696,10 @@ export default function Ventas() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setMostrarHistorialVentas(false)}
+                    onClick={() => {
+                      setHistorialVentaFechaPickerOpen(false);
+                      setMostrarHistorialVentas(false);
+                    }}
                     aria-label="Cerrar historial de ventas"
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                   >
@@ -2690,22 +2709,17 @@ export default function Ventas() {
                 <div className="mt-4 grid gap-3">
                   <label className="block">
                     <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
+                    <SalesDatePicker
                         value={historialVentaFecha}
+                      min={BUSINESS_MIN_DATE_VALUE}
                         max={getTodayLocalDateValue()}
-                        onChange={(event) => setHistorialVentaFecha(event.target.value)}
-                        className="min-h-[42px] flex-1 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#1f3fa7]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setHistorialVentaFecha('')}
-                        className="min-h-[42px] rounded-[14px] bg-[#eef4ff] px-3 text-xs font-black text-[#173ea6]"
-                      >
-                        Limpiar fecha
-                      </button>
-                    </div>
+                      open={historialVentaFechaPickerOpen}
+                      onToggle={() =>
+                        setHistorialVentaFechaPickerOpen((open) => !open)
+                      }
+                      onClose={() => setHistorialVentaFechaPickerOpen(false)}
+                      onChange={setHistorialVentaFecha}
+                    />
                   </label>
                   {historialVentaFecha ? (
                     <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
@@ -3649,32 +3663,14 @@ export default function Ventas() {
                 ) : null}
 
                 {ventaFifoBreakdown.length > 1 ? (
-                  <section className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-white p-3">
-                    <p className="text-sm font-black text-slate-950">
-                      Desglose de sublotes
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      {ventaFifoBreakdown.map((item) => (
-                        <div
-                          key={`${item.groupId}-${item.subloteId}`}
-                          className="rounded-[12px] bg-[#f7f8fe] px-3 py-2"
-                        >
-                          <p className="text-xs font-black text-[#102d92]">
-                            FIFO #{item.fifoPosition} — {item.subloteNombre}
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-slate-600">
-                            {kg(item.pesoAsignado)} asignados · Entrada:{' '}
-                            {formatDateLabel(item.fechaEntrada)}
-                          </p>
-                          {item.costoBase !== null ? (
-                            <p className="mt-0.5 text-[0.68rem] font-semibold text-slate-500">
-                              Costo base: {money(item.costoBase)}/kg
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarDesgloseSublotesVenta(true)}
+                    className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
+                  >
+                    Ver desglose de sublotes
+                    <ArrowRight size={15} />
+                  </button>
                 ) : null}
 
                 <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
@@ -3801,6 +3797,61 @@ export default function Ventas() {
               >
                 Empezar de nuevo
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {mostrarDesgloseSublotesVenta ? (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="desglose-sublotes-venta-title"
+            className="max-h-[88dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#dbe1f1] bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#102d92]">
+                  Venta parcial
+                </p>
+                <h2 id="desglose-sublotes-venta-title" className="mt-1 text-lg font-black text-slate-950">
+                  Desglose de sublotes
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarDesgloseSublotesVenta(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                aria-label="Cerrar desglose de sublotes"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {ventaFifoBreakdown.map((item, index) => (
+                <article
+                  key={`${item.groupId}-${item.subloteId}`}
+                  className="rounded-[16px] border border-[#e6ebf5] bg-[#f8fbff] px-3 py-3"
+                >
+                  <p className="text-sm font-black text-[#102d92]">
+                    Sublote {index + 1}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    {kg(item.pesoAsignado)} asignados · Entrada:{' '}
+                    {formatDateLabel(item.fechaEntrada)}
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                    {item.subloteNombre}
+                  </p>
+                  {item.costoBase !== null ? (
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Costo base: {money(item.costoBase)}/kg
+                    </p>
+                  ) : null}
+                </article>
+              ))}
             </div>
           </section>
         </div>
@@ -3937,8 +3988,9 @@ export default function Ventas() {
                     ref={clientesSearchRef}
                     type="text"
                     value={busquedaClientesModal}
+                    maxLength={60}
                     onChange={(event) => {
-                      setBusquedaClientesModal(event.target.value);
+                      setBusquedaClientesModal(sanitizeSearchInput(event.target.value));
                     }}
                     placeholder="Buscar por nombre, documento o teléfono"
                     className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-10 py-3 text-[0.95rem] font-medium text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:bg-white focus:ring-4 focus:ring-[#1f3fa7]/10"
@@ -4151,7 +4203,15 @@ export default function Ventas() {
               Se registrará esta venta y se descontará del inventario.
             </p>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setMostrarModalConfirmar(false)}
+                disabled={guardandoVenta || botonConfirmarPresionado}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 text-base font-black text-[#334b85] transition hover:bg-[#f4f7ff] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Cancelar
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -4164,14 +4224,6 @@ export default function Ventas() {
                 {guardandoVenta || botonConfirmarPresionado
                   ? 'Guardando venta...'
                   : 'Confirmar venta'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMostrarModalConfirmar(false)}
-                disabled={guardandoVenta || botonConfirmarPresionado}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-[14px] px-5 text-base font-black text-slate-500 disabled:opacity-70"
-              >
-                Cancelar
               </button>
             </div>
           </div>
@@ -4512,22 +4564,14 @@ export default function Ventas() {
       ) : null}
 
       {guardandoVenta || botonConfirmarPresionado ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">
-          <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
-            <RefreshCw
-              size={28}
-              className="mx-auto animate-spin text-[#1f3fa7]"
-            />
-            <p className="mt-2 text-sm font-black text-slate-900">
-              Guardando venta
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Actualizando inventario...
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#102d92]" />
-            </div>
-          </div>
+        <div className="fixed inset-0 z-50">
+          <CafeSmartProcessingScreen
+            title="Procesando venta..."
+            subtitle="Estamos registrando tu venta de café."
+            helperText="Esto puede tardar unos segundos."
+            trustTitle="Venta segura"
+            trustText="Tu información y registro están siendo procesados de forma segura."
+          />
         </div>
       ) : null}
 

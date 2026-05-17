@@ -1,4 +1,9 @@
-export type HumidityQuality = 'buena' | 'regular' | 'deficiente' | 'sin_dato';
+export type HumidityQuality =
+  | 'buena'
+  | 'advertencia'
+  | 'descuento'
+  | 'rechazada'
+  | 'sin_dato';
 
 export type HumidityClassification = {
   quality: HumidityQuality;
@@ -17,6 +22,14 @@ export function classifyHumidity(
     };
   }
 
+  if (value < 8 || value > 14) {
+    return {
+      quality: 'rechazada',
+      label: value < 8 ? 'Muy seca' : 'Rechazada',
+      toneClass: 'bg-rose-50 text-rose-700',
+    };
+  }
+
   if (value >= 10 && value <= 12) {
     return {
       quality: 'buena',
@@ -25,19 +38,39 @@ export function classifyHumidity(
     };
   }
 
-  if ((value >= 9 && value < 10) || (value > 12 && value <= 12.5)) {
+  if (value >= 8 && value < 10) {
     return {
-      quality: 'regular',
-      label: 'Regular',
+      quality: 'advertencia',
+      label: 'Advertencia',
       toneClass: 'bg-amber-50 text-amber-700',
     };
   }
 
   return {
-    quality: 'deficiente',
-    label: 'Deficiente',
-    toneClass: 'bg-rose-50 text-rose-700',
+    quality: 'descuento',
+    label: 'Advertencia con descuento',
+    toneClass: 'bg-orange-50 text-orange-700',
   };
+}
+
+export function getHumidityValidationMessage(value: number | null) {
+  if (value === null) return null;
+  if (!Number.isFinite(value)) return 'Ingresa un valor válido para continuar.';
+  if (value < 8) return 'La humedad es menor a 8%. Revisa el dato antes de guardar.';
+  if (value > 14) return 'La humedad supera 14%. No se puede guardar ese valor.';
+  if (value < 10) return 'Humedad baja. Puedes continuar si confirmas el dato.';
+  if (value > 12) return 'Humedad alta. Puede aplicar descuento.';
+  return null;
+}
+
+export function getFactorValidationMessage(value: number | null) {
+  if (value === null) return null;
+  if (!Number.isFinite(value)) return 'Ingresa un valor válido para continuar.';
+  if (value < 80) return 'El factor no puede ser menor a 80.';
+  if (value > 120) return 'El factor no puede ser mayor a 120.';
+  if (value < 94) return 'Factor con bonificación frente al precio base.';
+  if (value > 94) return 'Factor mayor a 94. Revisa posible castigo de precio.';
+  return 'Factor base.';
 }
 
 export function formatHumidityWithClassification(

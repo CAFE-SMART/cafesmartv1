@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { dividirLoteSecado, getCalidadInferior } from '../services/secadoDivisionService';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   Play,
@@ -22,12 +23,14 @@ import {
 } from '../utils/secadoFlow';
 import {
   BUSINESS_MIN_DATE_VALUE,
+  formatDateLabel,
   getTodayLocalDateValue,
   toIsoDateAtUtcNoon,
   validateBusinessDateRange,
 } from '../utils/date';
 import { crearGasto } from '../services/gastosService';
 import { obtenerDeviceId } from '../utils/deviceId';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -61,7 +64,341 @@ function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+const MONTHS_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
+
+function ariaPressed(active: boolean) {
+  return { 'aria-pressed': active ? 'true' : 'false' } as const;
+}
+
+function parseLocalDateValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+function formatLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isDateValueInRange(value: string, min: string, max: string) {
+  return value >= min && value <= max;
+}
+
+function SecadoDatePicker({
+  value,
+  min,
+  max,
+  open,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  value: string;
+  min: string;
+  max: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: string) => void;
+}) {
+  const selectedDate = parseLocalDateValue(value);
+  const maxDate = parseLocalDateValue(max) ?? new Date();
+  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
+  const visibleDate = selectedDate ?? maxDate;
+  const [calendarView, setCalendarView] =
+    useState<'days' | 'months' | 'years'>('days');
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
+  );
+
+  React.useEffect(() => {
+    if (open) {
+      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+      setCalendarView('days');
+    }
+  }, [max, open, value]);
+
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    const daysInMonth = new Date(
+      visibleMonth.getFullYear(),
+      visibleMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    return [
+      ...Array.from({ length: firstDay.getDay() }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => {
+        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1);
+        return { day: index + 1, value: formatLocalDateValue(date) };
+      }),
+    ];
+  }, [visibleMonth]);
+
+  const visibleYear = visibleMonth.getFullYear();
+  const previousMonth = new Date(visibleYear, visibleMonth.getMonth() - 1, 1);
+  const nextMonth = new Date(visibleYear, visibleMonth.getMonth() + 1, 1);
+  const canGoPrevious = previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const canGoNext = nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+  const yearOptions = Array.from(
+    { length: maxDate.getFullYear() - minDate.getFullYear() + 1 },
+    (_, index) => minDate.getFullYear() + index,
+  );
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open ? 'true' : 'false'}
+        onClick={onToggle}
+        className={`mt-2.5 flex min-h-[58px] w-full cursor-pointer items-center justify-between gap-3 rounded-[16px] border bg-[#f8f9ff] px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
+          open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
+        }`}
+      >
+        <span className="min-w-0 flex-1 truncate text-[1.18rem] font-black leading-none text-[#08256d]">
+          {value ? formatDateLabel(value) : 'Selecciona una fecha'}
+        </span>
+        <CalendarDays size={20} className={open ? 'text-[#102d92]' : 'text-slate-500'} />
+      </button>
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Calendario de fecha de finalización"
+          className="absolute left-0 right-0 z-30 mt-2 rounded-[22px] border border-[#d5deee] bg-white p-3 shadow-[0_22px_48px_rgba(15,23,42,0.18)]"
+        >
+          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+            <button
+              type="button"
+              disabled={!canGoPrevious}
+              onClick={() => setVisibleMonth(previousMonth)}
+              aria-label="Mes anterior"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
+              <button
+                type="button"
+                {...ariaPressed(calendarView === 'months')}
+                onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
+                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+              >
+                {MONTHS_ES[visibleMonth.getMonth()]}
+              </button>
+              <button
+                type="button"
+                {...ariaPressed(calendarView === 'years')}
+                onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
+                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+              >
+                {visibleYear}
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={!canGoNext}
+              onClick={() => setVisibleMonth(nextMonth)}
+              aria-label="Mes siguiente"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              <ArrowRight size={17} />
+            </button>
+          </div>
+
+          {calendarView === 'months' ? (
+            <div className="grid grid-cols-3 gap-2 px-1 py-1">
+              {MONTHS_ES.map((month, monthIndex) => {
+                const candidate = new Date(visibleYear, monthIndex, 1);
+                const disabled =
+                  candidate < new Date(minDate.getFullYear(), minDate.getMonth(), 1) ||
+                  candidate > new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+                const active = monthIndex === visibleMonth.getMonth();
+                return (
+                  <button
+                    key={month}
+                    type="button"
+                    disabled={disabled}
+                    {...ariaPressed(active)}
+                    onClick={() => {
+                      if (!disabled) {
+                        setVisibleMonth(new Date(visibleYear, monthIndex, 1));
+                        setCalendarView('days');
+                      }
+                    }}
+                    className={`min-h-[44px] rounded-[14px] px-2 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                  >
+                    {month}
+                  </button>
+                );
+              })}
+            </div>
+          ) : calendarView === 'years' ? (
+            <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto px-1 py-1">
+              {yearOptions.map((year) => {
+                const active = year === visibleYear;
+                return (
+                  <button
+                    key={year}
+                    type="button"
+                    {...ariaPressed(active)}
+                    onClick={() => {
+                      setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
+                      setCalendarView('months');
+                    }}
+                    className={`min-h-[44px] rounded-[14px] px-2 text-sm font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                  >
+                    {year}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-7 gap-1 px-1">
+              {WEEKDAYS_ES.map((day) => (
+                <span key={day} className="py-1 text-center text-[0.72rem] font-black text-slate-500">
+                  {day}
+                </span>
+              ))}
+              {calendarDays.map((day, index) =>
+                day ? (
+                  <button
+                    key={day.value}
+                    type="button"
+                    disabled={!isDateValueInRange(day.value, min, max)}
+                    {...ariaPressed(day.value === value)}
+                    onClick={() => {
+                      onChange(day.value);
+                      onClose();
+                    }}
+                    className={`h-10 rounded-full text-sm font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                      day.value === value
+                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
+                        : day.value === max
+                          ? 'bg-[#eef4ff] text-[#102d92]'
+                          : 'text-slate-800 hover:bg-[#f4f7ff]'
+                    }`}
+                  >
+                    {day.day}
+                  </button>
+                ) : (
+                  <span key={`empty-${index}`} aria-hidden="true" />
+                ),
+              )}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                onClose();
+              }}
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100"
+            >
+              Limpiar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(max);
+                onClose();
+              }}
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"
+            >
+              Hoy
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function getSecadoGuidance(message: string): GuidedErrorMessage {
+  if (message.includes('Registra el resultado del secado')) {
+    return createGuidedError(
+      message,
+      'Registra el resultado del secado.',
+      'Ingresa al menos un peso en Bueno, Regular o Malo para continuar.',
+      'Completa un resultado para poder finalizar.',
+    );
+  }
+
+  if (
+    message.includes('Debes registrar al menos un resultado') ||
+    message.includes('resultado de secado')
+  ) {
+    return createGuidedError(
+      'Debes registrar al menos un resultado de secado.',
+      'Ingresa cuánto café quedó en Bueno, Regular o Malo.',
+      'Completa un resultado para poder finalizar.',
+      'Ingresa cuánto café quedó en Bueno, Regular o Malo.',
+    );
+  }
+
+  if (message.includes('resultado supera el peso disponible')) {
+    return createGuidedError(
+      'El resultado supera el peso disponible del secado.',
+      'La suma de Bueno, Regular y Malo no puede pasar el peso de entrada.',
+      'Ajusta los kilos antes de continuar.',
+      'Ajusta los kilos antes de continuar.',
+    );
+  }
+
+  if (message.includes('peso seco supera')) {
+    return createGuidedError(
+      message,
+      'El peso seco supera el peso inicial.',
+      'Revisa los valores antes de continuar.',
+      'La suma de Bueno, Regular y Malo no puede pasar la entrada húmeda.',
+    );
+  }
+
+  if (message.includes('peso válido') || message.includes('negativos')) {
+    return createGuidedError(
+      message,
+      'Ingresa un peso válido.',
+      'Usa solo números mayores o iguales a cero.',
+      'Revisa los valores antes de continuar.',
+    );
+  }
+
   if (message.includes('fecha')) {
     return createGuidedError(
       message,
@@ -83,9 +420,9 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
   if (message.includes('salida seca')) {
     return createGuidedError(
       message,
-      'Falta registrar la salida.',
-      'Necesitamos saber cuantos kilos secos quedaron.',
-      'Ingresa al menos un peso de salida.',
+      'Registra el resultado del secado.',
+      'Ingresa al menos un peso en Bueno, Regular o Malo para continuar.',
+      'Completa un resultado para poder finalizar.',
     );
   }
 
@@ -124,11 +461,43 @@ const DivisionCalidadModal = ({ peso, calidad, onClose, onConfirm }: { peso: num
   );
 };
 
+const MAX_SECADO_OUTPUT_KG = 100000;
+const MAX_SECADO_EXPENSE_COP = 20000000;
+
+function sanitizeKgInput(value: string, max: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integer = '', ...decimalParts] = normalized.split('.');
+  const decimal = decimalParts.join('').slice(0, 2);
+  const limitedInteger = integer.replace(/^0+(?=\d)/, '').slice(0, 7);
+  const next = decimalParts.length > 0 ? `${limitedInteger || '0'}.${decimal}` : limitedInteger;
+  const numeric = Number(next);
+  if (Number.isFinite(numeric) && numeric > max) return String(max);
+  return next;
+}
+
+function sanitizeMoneyInput(value: string, max = MAX_SECADO_EXPENSE_COP) {
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+  if (!digits) return '';
+  const numeric = Number(digits);
+  return String(Math.min(max, Number.isFinite(numeric) ? numeric : max));
+}
+
+function formatMoneyInput(value: string) {
+  const numeric = Number(value.replace(/\D/g, ''));
+  if (!Number.isFinite(numeric) || numeric <= 0) return '';
+  return new Intl.NumberFormat('es-CO').format(numeric);
+}
+
 export default function SecadoProceso() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
+  const originPath =
+    (location.state as { from?: string } | null)?.from === '/ajustes'
+      ? '/ajustes'
+      : '/inventario';
 
   const [showDivisionModal, setShowDivisionModal] = useState(false);
   const [divisionData, setDivisionData] = useState<{ peso: number; calidad: string } | null>(null);
@@ -147,6 +516,7 @@ export default function SecadoProceso() {
     session ? dateInput(session.startedAt) : dateInput(''),
   );
   const [endDate, setEndDate] = useState(getTodayLocalDateValue());
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [buenoKg, setBuenoKg] = useState(
     session?.outputBuenoKg ? String(session.outputBuenoKg) : '',
   );
@@ -161,8 +531,10 @@ export default function SecadoProceso() {
   const [expenseConcept, setExpenseConcept] = useState('Gasto de secado');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [outputNotice, setOutputNotice] = useState<string | null>(null);
   const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
     useState(false);
+  const [registrandoSecado, setRegistrandoSecado] = useState(false);
 
   const totalEntrada = useMemo(
     () =>
@@ -171,13 +543,22 @@ export default function SecadoProceso() {
         : 0,
     [session],
   );
+  const maxSalidaPermitida = Math.min(totalEntrada, MAX_SECADO_OUTPUT_KG);
   const sourceQuality = keyOf(session?.calidad ?? '');
   const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
-  const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
-  const regular = outputQualities.includes('REGULAR')
-    ? Number(regularKg) || 0
-    : 0;
-  const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
+  const outputEntries = [buenoKg, regularKg, maloKg].map((raw) => {
+    const clean = raw.trim();
+    const value = clean === '' ? 0 : Number(clean);
+    return {
+      clean,
+      value: Number.isFinite(value) ? value : 0,
+      invalid: clean !== '' && (!Number.isFinite(value) || value < 0),
+    };
+  });
+  const [buenoEntry, regularEntry, maloEntry] = outputEntries;
+  const bueno = outputQualities.includes('BUENO') ? buenoEntry.value : 0;
+  const regular = outputQualities.includes('REGULAR') ? regularEntry.value : 0;
+  const malo = outputQualities.includes('MALO') ? maloEntry.value : 0;
   const totalSalida = bueno + regular + malo;
   const hasResultadoIngresado =
     buenoKg.trim() !== '' || regularKg.trim() !== '' || maloKg.trim() !== '';
@@ -187,28 +568,61 @@ export default function SecadoProceso() {
   const outputFields = [
     {
       quality: 'BUENO' as const,
-      label: 'Seco bueno (kg)',
+      label: 'Bueno kg',
       value: buenoKg,
       setter: setBuenoKg,
     },
     {
       quality: 'REGULAR' as const,
-      label: 'Seco regular (kg)',
+      label: 'Regular kg',
       value: regularKg,
       setter: setRegularKg,
     },
     {
       quality: 'MALO' as const,
-      label: 'Seco malo (kg)',
+      label: 'Malo kg',
       value: maloKg,
       setter: setMaloKg,
     },
   ].filter((field) => outputQualities.includes(field.quality));
 
+  const getOtherOutputsTotal = (quality: 'BUENO' | 'REGULAR' | 'MALO') => {
+    if (quality === 'BUENO') return regular + malo;
+    if (quality === 'REGULAR') return bueno + malo;
+    return bueno + regular;
+  };
+
+  const updateOutputWeight = (
+    quality: 'BUENO' | 'REGULAR' | 'MALO',
+    rawValue: string,
+    setter: React.Dispatch<React.SetStateAction<string>>,
+  ) => {
+    const otherTotal = getOtherOutputsTotal(quality);
+    const remaining = Math.max(0, round2(totalEntrada - otherTotal));
+    const next = sanitizeKgInput(rawValue, remaining);
+    const attempted = Number(rawValue.replace(',', '.').replace(/[^\d.]/g, ''));
+
+    if (Number.isFinite(attempted) && attempted > remaining) {
+      setOutputNotice(
+        `La salida no puede superar la entrada. Ya registraste ${kg(
+          otherTotal + Number(next || 0),
+        )} de ${kg(totalEntrada)} disponibles.`,
+      );
+    } else {
+      setOutputNotice(null);
+    }
+
+    setter(next);
+    setError(null);
+    setMostrarConfirmacionMermaCero(false);
+  };
+
   const guardarResultadoSecado = () => {
-    if (!sessionId || !session) return;
+    if (!sessionId || !session || registrandoSecado) return;
 
     try {
+      setRegistrandoSecado(true);
+      setMostrarConfirmacionMermaCero(false);
       saveSecadoResults(sessionId, {
         outputBuenoKg: bueno,
         outputBuenoHumedad: null,
@@ -217,9 +631,11 @@ export default function SecadoProceso() {
         outputMaloKg: malo,
         outputMaloHumedad: null,
       });
-      setMostrarConfirmacionMermaCero(false);
-      navigate(`/inventario/secado/${sessionId}/resumen`);
+      window.setTimeout(() => {
+        navigate(`/inventario/secado/${sessionId}/resumen`);
+      }, 650);
     } catch (err) {
+      setRegistrandoSecado(false);
       if (err instanceof SecadoValidationError) {
         setError(err.message);
         return;
@@ -239,7 +655,12 @@ export default function SecadoProceso() {
     }
 
     if (!Number.isFinite(monto) || monto <= 0) {
-      setError('Ingresa el monto del gasto de secado.');
+      setError('Ingresa un valor válido para continuar.');
+      return;
+    }
+
+    if (monto > MAX_SECADO_EXPENSE_COP) {
+      setError('El monto supera el límite permitido.');
       return;
     }
 
@@ -268,6 +689,7 @@ export default function SecadoProceso() {
   };
 
   const finalizar = () => {
+    if (registrandoSecado) return;
     if (!sessionId || !session) return;
     const fechaInicioValidacion = validateBusinessDateRange(startDate);
     const fechaFinValidacion = validateBusinessDateRange(endDate);
@@ -282,16 +704,25 @@ export default function SecadoProceso() {
       return;
     }
 
-    if (totalSalida <= 0) {
-      setError('Registra por lo menos una salida seca.');
+    if (!hasResultadoIngresado) {
+      setError('Debes registrar al menos un resultado de secado.');
       return;
     }
-    if ([bueno, regular, malo].some((value) => value < 0)) {
-      setError('Los pesos de salida no pueden ser negativos.');
+
+    if (outputEntries.some((entry) => entry.invalid)) {
+      setError('Ingresa un peso válido.');
       return;
     }
-    if (totalSalida > totalEntrada) {
-      setError('La salida no puede superar el peso de entrada.');
+    if (outputEntries.some((entry) => entry.value > maxSalidaPermitida)) {
+      setError('El resultado supera el peso disponible del secado.');
+      return;
+    }
+    if (round2(totalSalida) <= 0) {
+      setError('Debes registrar al menos un resultado de secado.');
+      return;
+    }
+    if (round2(totalSalida) > round2(totalEntrada)) {
+      setError('El resultado supera el peso disponible del secado.');
       return;
     }
 
@@ -310,7 +741,12 @@ export default function SecadoProceso() {
       return;
     }
 
-    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+    navigate(
+      originPath,
+      originPath === '/inventario'
+        ? { state: { preferredTypeKey: 'VERDE' } }
+        : undefined,
+    );
   };
   const fechaSecadoError = error?.includes('fecha') ? error : null;
   const resultadoSecadoError = fechaSecadoError ? null : error;
@@ -323,7 +759,12 @@ export default function SecadoProceso() {
           <button
             type="button"
             onClick={() =>
-              navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
+              navigate(
+                originPath,
+                originPath === '/inventario'
+                  ? { state: { preferredTypeKey: 'VERDE' } }
+                  : undefined,
+              )
             }
             className="mt-4 h-11 rounded-full bg-[#0647d6] px-5 text-xs font-black text-white"
           >
@@ -341,6 +782,7 @@ export default function SecadoProceso() {
           <button
             type="button"
             onClick={handleBack}
+            disabled={registrandoSecado}
             className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
             aria-label="Volver"
           >
@@ -483,13 +925,17 @@ export default function SecadoProceso() {
               <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">
                 Fecha de finalización
               </label>
-              <input
-                type="date"
+              <SecadoDatePicker
                 value={endDate}
                 min={BUSINESS_MIN_DATE_VALUE}
                 max={getTodayLocalDateValue()}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-black outline-none"
+                open={endDatePickerOpen}
+                onToggle={() => setEndDatePickerOpen((open) => !open)}
+                onClose={() => setEndDatePickerOpen(false)}
+                onChange={(value) => {
+                  setEndDate(value);
+                  setError(null);
+                }}
               />
               {fechaSecadoError ? (
                 <InlineGuidedError
@@ -504,26 +950,40 @@ export default function SecadoProceso() {
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
                 Registra la salida para café verde {titleCase(session.calidad)}.
               </p>
-              {outputFields.map((field) => (
-                <label key={field.quality} className="mt-4 block">
+              <div className="mt-4 grid grid-cols-3 gap-2 max-[360px]:grid-cols-2">
+                {outputFields.map((field) => (
+                <label key={field.quality} className="block min-w-0">
                   <span className="text-[0.62rem] font-black uppercase text-slate-500">
                     {field.label}
                   </span>
                   <input
                     type="number"
                     min="0"
+                    max={Math.max(0, totalEntrada - getOtherOutputsTotal(field.quality))}
                     step="0.1"
                     value={field.value}
                     onChange={(event) => {
-                      field.setter(event.target.value);
-                      setError(null);
-                      setMostrarConfirmacionMermaCero(false);
+                      updateOutputWeight(field.quality, event.target.value, field.setter);
                     }}
-                    className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
+                    onPaste={(event) => {
+                      event.preventDefault();
+                      updateOutputWeight(
+                        field.quality,
+                        event.clipboardData.getData('text'),
+                        field.setter,
+                      );
+                    }}
+                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-center text-base font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
                     placeholder="0"
                   />
                 </label>
-              ))}
+                ))}
+              </div>
+              {outputNotice ? (
+                <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                  {outputNotice}
+                </div>
+              ) : null}
               {resultadoSecadoError ? (
                 <InlineGuidedError
                   message={getSecadoGuidance(resultadoSecadoError)}
@@ -596,11 +1056,12 @@ export default function SecadoProceso() {
               </div>
             </section>
 
-            <button
-              type="button"
-              onClick={finalizar}
-              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
-            >
+              <button
+                type="button"
+                onClick={finalizar}
+                disabled={registrandoSecado}
+                className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+              >
               <CheckCircle2 size={16} />
               Finalizar secado
             </button>
@@ -629,6 +1090,7 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={guardarResultadoSecado}
+                disabled={registrandoSecado}
                 className="flex min-h-[52px] w-full items-center justify-center rounded-[16px] bg-[#102d92] px-5 text-sm font-black text-white"
               >
                 Si, registrar asi
@@ -636,6 +1098,7 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={() => setMostrarConfirmacionMermaCero(false)}
+                disabled={registrandoSecado}
                 className="flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-slate-100 px-5 text-sm font-black text-[#102d92]"
               >
                 Ajustar peso
@@ -666,11 +1129,14 @@ export default function SecadoProceso() {
             <input
               type="text"
               inputMode="numeric"
-              value={expenseAmount}
-              onChange={(event) => setExpenseAmount(event.target.value.replace(/\D/g, ''))}
+              value={formatMoneyInput(expenseAmount)}
+              onChange={(event) => setExpenseAmount(sanitizeMoneyInput(event.target.value))}
               placeholder="Ej: 50000"
-              className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
+              className="mt-2 h-11 w-full min-w-0 rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
             />
+            <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
+              Máximo permitido: ${new Intl.NumberFormat('es-CO').format(MAX_SECADO_EXPENSE_COP)}
+            </p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -688,6 +1154,19 @@ export default function SecadoProceso() {
               </button>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {registrandoSecado ? (
+        <div className="fixed inset-0 z-[100]">
+          <CafeSmartProcessingScreen
+            variant="drying"
+            title="Procesando secado..."
+            subtitle="Estamos registrando el resultado del secado."
+            helperText="Esto puede tardar unos segundos."
+            trustTitle="Tu información está segura"
+            trustText="El inventario se actualizará cuando termine el proceso."
+          />
         </div>
       ) : null}
     </div>

@@ -7,6 +7,7 @@ type CafeSmartProcessingScreenProps = {
   helperText: string;
   trustTitle: string;
   trustText: string;
+  variant?: 'purchase' | 'drying';
 };
 
 function ProcessingAnimations() {
@@ -210,6 +211,76 @@ function PurchaseIllustration() {
   );
 }
 
+function DryingIllustration() {
+  return (
+    <div className="relative mt-7 h-[190px] w-full animate-[cafesmartFadeUp_420ms_ease-out_100ms_both]">
+      <div className="absolute left-1/2 top-5 h-40 w-40 -translate-x-1/2 rounded-full bg-[#e9f3ff] shadow-[0_0_70px_rgba(22,131,247,0.16)] animate-[cafesmartPulseSoft_2.8s_ease-in-out_infinite]" />
+      <div className="absolute left-1/2 top-9 h-16 w-16 -translate-x-1/2 rounded-full bg-[#ffd166] shadow-[0_0_34px_rgba(255,209,102,0.32)] animate-[cafesmartPulseSoft_2.4s_ease-in-out_infinite]" />
+
+      <FloatingLeaf className="absolute left-8 top-14 h-10 w-8 opacity-80 animate-[cafesmartFloat_4.2s_ease-in-out_infinite]" />
+      <FloatingLeaf
+        className="absolute right-9 top-12 h-11 w-8 opacity-80 animate-[cafesmartFloat_4.8s_ease-in-out_infinite]"
+        delay="0.35s"
+      />
+      <CoffeePlant className="absolute bottom-0 left-5 h-24 w-20 origin-bottom opacity-70 animate-[cafesmartSway_4.3s_ease-in-out_infinite]" />
+      <CoffeePlant
+        className="absolute bottom-0 right-5 h-28 w-20 origin-bottom opacity-70 animate-[cafesmartSway_4.9s_ease-in-out_infinite]"
+        delay="0.25s"
+      />
+
+      <span className="absolute left-12 top-9 h-1.5 w-1.5 rounded-full bg-[#9ccaff] opacity-80 animate-[cafesmartFloat_4.6s_ease-in-out_infinite]" />
+      <span className="absolute right-16 top-7 h-2 w-2 rounded-full bg-[#7db5ff] opacity-70 animate-[cafesmartFloat_5s_ease-in-out_infinite]" />
+      <span className="absolute left-20 top-[128px] h-1.5 w-1.5 rounded-full bg-[#8fbeff] opacity-75 animate-[cafesmartFloat_5.4s_ease-in-out_infinite]" />
+
+      <svg
+        viewBox="0 0 220 170"
+        className="absolute left-1/2 top-5 h-[170px] w-[220px] -translate-x-1/2"
+        fill="none"
+        aria-hidden="true"
+      >
+        <ellipse cx="110" cy="156" rx="82" ry="10" fill="#cfe0fb" opacity="0.85" />
+        <path d="M48 111L170 92L186 128L66 151L48 111Z" fill="#1683f7" />
+        <path d="M48 111L66 151L56 150L38 113L48 111Z" fill="#0f62c9" />
+        <path d="M66 151L186 128L176 140L56 163L66 151Z" fill="#2f80ed" />
+        <path d="M60 115L167 99L177 122L72 142L60 115Z" fill="#f8fbff" />
+        <path d="M70 121L164 106M75 132L171 114" stroke="#d8e6fb" strokeWidth="3" strokeLinecap="round" />
+
+        {[
+          [84, 120, 8],
+          [103, 117, 7],
+          [123, 114, 8],
+          [143, 111, 7],
+          [91, 132, 7],
+          [112, 128, 8],
+          [134, 125, 7],
+          [155, 121, 8],
+        ].map(([cx, cy, r], index) => (
+          <g key={`${cx}-${cy}-${index}`}>
+            <ellipse
+              cx={cx}
+              cy={cy}
+              rx={r}
+              ry={r + 4}
+              transform={`rotate(68 ${cx} ${cy})`}
+              fill="#8b572a"
+            />
+            <path
+              d={`M${cx - 5} ${cy + 5}C${cx - 1} ${cy} ${cx + 2} ${cy - 4} ${cx + 6} ${cy - 8}`}
+              stroke="#6f3f1f"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </g>
+        ))}
+
+        <path d="M79 69C74 59 78 49 88 45" stroke="#86bfff" strokeWidth="4" strokeLinecap="round" opacity="0.88" />
+        <path d="M109 64C104 53 109 43 119 38" stroke="#86bfff" strokeWidth="4" strokeLinecap="round" opacity="0.82" />
+        <path d="M140 70C135 59 140 49 150 44" stroke="#86bfff" strokeWidth="4" strokeLinecap="round" opacity="0.88" />
+      </svg>
+    </div>
+  );
+}
+
 function BottomDecoration() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[190px] overflow-hidden">
@@ -245,6 +316,7 @@ export function CafeSmartProcessingScreen({
   helperText,
   trustTitle,
   trustText,
+  variant = 'purchase',
 }: CafeSmartProcessingScreenProps) {
   return (
     <main
@@ -267,7 +339,7 @@ export function CafeSmartProcessingScreen({
           <CafeSmartLogo size="sm" compact />
         </div>
 
-        <PurchaseIllustration />
+        {variant === 'drying' ? <DryingIllustration /> : <PurchaseIllustration />}
 
         <div className="mt-3 animate-[cafesmartFadeUp_420ms_ease-out_180ms_both]">
           <h1 className="text-[1.55rem] font-black leading-tight text-[#07153b]">

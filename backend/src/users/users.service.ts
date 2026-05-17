@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, RolUsuario, TipoOrganizacion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { apiError } from '../common/errors/api-error';
 
 type CrearUsuarioData = {
   nombre: string;
@@ -21,6 +22,11 @@ type CreateAdminWithOrganizationInput = {
   telefono: string;
   password: string;
   googleId?: string | null;
+};
+
+type UpdateOrganizationSettingsInput = {
+  nombreOrganizacion: string;
+  tipoOrganizacion: string;
 };
 
 @Injectable()
@@ -154,5 +160,56 @@ export class UsersService {
         googleId: true,
       },
     });
+  }
+
+  async updateOrganizationSettings(
+    userId: string,
+    input: UpdateOrganizationSettingsInput,
+  ) {
+    const nombre = input.nombreOrganizacion.trim();
+    const tipo = this.normalizeTipoOrganizacion(input.tipoOrganizacion);
+
+    if (!nombre) {
+      throw new BadRequestException(
+        apiError('ORGANIZACION_NOMBRE_REQUERIDO', 'Escribe el nombre de la empresa.'),
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { organizacionId: true },
+      });
+
+      if (!user?.organizacionId) {
+        throw new BadRequestException(
+          apiError('ORGANIZACION_REQUERIDA', 'Usuario sin organizacion.'),
+        );
+      }
+
+      return tx.organization.update({
+        where: { id: user.organizacionId },
+        data: {
+          nombre,
+          tipo,
+        },
+        select: {
+          id: true,
+          nombre: true,
+          tipo: true,
+          otroTipoDetalle: true,
+        },
+      });
+    });
+  }
+
+  private normalizeTipoOrganizacion(value: string): TipoOrganizacion {
+    const normalized = value.trim().toUpperCase();
+
+    if (normalized.includes('COOPERATIVA')) return TipoOrganizacion.COOPERATIVA;
+    if (normalized.includes('COMPRAVENTA')) return TipoOrganizacion.COMPRAVENTA;
+    if (normalized === 'OTRO') return TipoOrganizacion.OTRO;
+
+    return TipoOrganizacion.OTRO;
   }
 }

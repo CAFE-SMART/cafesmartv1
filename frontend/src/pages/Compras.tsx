@@ -71,6 +71,7 @@ import {
   validateCompanyName,
   validatePhoneNumber,
 } from '../utils/personValidation';
+import { sanitizeSearchInput } from '../utils/inputLimits';
 
 type Step = 1 | 2 | 3;
 type SubloteForm = {
@@ -1072,7 +1073,7 @@ function PurchaseDatePicker({
         }`}
       >
         <span className="min-w-0 flex-1 truncate text-[1.18rem] font-black leading-none text-[#08256d]">
-          {value ? formatDateLabel(value) : 'Selecciona una fecha'}
+          {value ? formatLongDateLabel(value) : 'Selecciona una fecha'}
         </span>
         <CalendarDays
           size={20}
@@ -1328,6 +1329,16 @@ function formatLocalDateValue(date: Date) {
 
 function isDateValueInRange(value: string, min: string, max: string) {
   return value >= min && value <= max;
+}
+
+function formatLongDateLabel(value: string) {
+  const date = parseLocalDateValue(value);
+  if (!date) return '';
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function crearSubloteVacio(): SubloteForm {
@@ -2278,6 +2289,8 @@ export default function Compras() {
   const [comprasRealizadas, setComprasRealizadas] = useState<CompraListadoItem[]>([]);
   const [mostrarHistorialCompras, setMostrarHistorialCompras] = useState(false);
   const [historialCompraFecha, setHistorialCompraFecha] = useState('');
+  const [historialCompraFechaPickerOpen, setHistorialCompraFechaPickerOpen] =
+    useState(false);
   const [historialCompraProductor, setHistorialCompraProductor] = useState('TODOS');
   const [historialCompraOrden, setHistorialCompraOrden] = useState<'recent' | 'oldest'>('recent');
   const [mostrarHistorialSublotes, setMostrarHistorialSublotes] =
@@ -4868,10 +4881,12 @@ export default function Compras() {
                 <AlertTriangle size={24} />
               </div>
               <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
-                Bodega casi llena
+                {datosAlerta80.porcentaje >= 90
+                  ? 'La bodega está casi llena.'
+                  : 'La bodega se está llenando.'}
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Después de esta compra, la bodega quedará al {datosAlerta80.porcentaje}% de su capacidad.
+                Libera espacio antes de comprar más café.
               </p>
             </div>
 
@@ -4906,6 +4921,16 @@ export default function Compras() {
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] border border-slate-300 bg-white px-5 py-3 text-[1.05rem] font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 Ir a ventas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalAlerta80(false);
+                  setMostrarModalConfigurarCapacidad(true);
+                }}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] border border-slate-300 bg-white px-5 py-3 text-[1.05rem] font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Editar bodega
               </button>
               <button
                 type="button"
@@ -5037,7 +5062,10 @@ export default function Compras() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMostrarHistorialCompras(false)}
+                  onClick={() => {
+                    setHistorialCompraFechaPickerOpen(false);
+                    setMostrarHistorialCompras(false);
+                  }}
                   aria-label="Cerrar historial de compras"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
@@ -5047,22 +5075,17 @@ export default function Compras() {
               <div className="mt-4 grid gap-3">
                 <label className="block">
                   <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
+                  <PurchaseDatePicker
                       value={historialCompraFecha}
+                    min={BUSINESS_MIN_DATE_VALUE}
                       max={getTodayLocalDateValue()}
-                      onChange={(event) => setHistorialCompraFecha(event.target.value)}
-                      className="min-h-[42px] flex-1 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#1f3fa7]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setHistorialCompraFecha('')}
-                      className="min-h-[42px] rounded-[14px] bg-[#eef4ff] px-3 text-xs font-black text-[#173ea6]"
-                    >
-                      Limpiar fecha
-                    </button>
-                  </div>
+                    open={historialCompraFechaPickerOpen}
+                    onToggle={() =>
+                      setHistorialCompraFechaPickerOpen((open) => !open)
+                    }
+                    onClose={() => setHistorialCompraFechaPickerOpen(false)}
+                    onChange={setHistorialCompraFecha}
+                  />
                 </label>
                 {historialCompraFecha ? (
                   <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
@@ -5288,8 +5311,9 @@ export default function Compras() {
                     ref={productoresSearchRef}
                     type="text"
                     value={busquedaProductorModal}
+                    maxLength={60}
                     onChange={(event) =>
-                      setBusquedaProductorModal(event.target.value)
+                      setBusquedaProductorModal(sanitizeSearchInput(event.target.value))
                     }
                     placeholder="Buscar por nombre, cédula o NIT"
                     className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-10 py-3 text-[0.95rem] font-medium text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:bg-white focus:ring-4 focus:ring-[#1f3fa7]/10"

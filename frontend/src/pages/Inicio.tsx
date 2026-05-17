@@ -22,6 +22,12 @@ import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import {
+  BODEGA_CAPACITY_MAX_KG,
+  BODEGA_NAME_MAX_LENGTH,
+  sanitizeLimitedText,
+  sanitizePositiveIntegerInput,
+} from '../utils/inputLimits';
 
 const sectionTitleClass =
   'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
@@ -378,6 +384,11 @@ export default function Inicio() {
     useState(false);
   const [capacidadInicialError, setCapacidadInicialError] =
     useState<string | null>(null);
+  const [mostrarEditorBodega, setMostrarEditorBodega] = useState(false);
+  const [nombreBodegaLocal, setNombreBodegaLocal] = useState('Bodega principal');
+  const [capacidadBodegaLocal, setCapacidadBodegaLocal] = useState('');
+  const [bodegaLocalError, setBodegaLocalError] = useState<string | null>(null);
+  const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
 
   const cargarDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -461,6 +472,37 @@ export default function Inicio() {
     }
   }, [capacidadInicialKg, cargarDashboard]);
 
+  const abrirEditorBodegaLocal = () => {
+    setNombreBodegaLocal('Bodega principal');
+    setCapacidadBodegaLocal(
+      summary?.kgCapacidad ? String(Math.min(summary.kgCapacidad, BODEGA_CAPACITY_MAX_KG)) : '',
+    );
+    setBodegaLocalError(null);
+    setMostrarEditorBodega(true);
+  };
+
+  const guardarBodegaLocal = async () => {
+    const capacidad = Number(capacidadBodegaLocal);
+    if (!nombreBodegaLocal.trim()) {
+      setBodegaLocalError('Escribe un nombre para la bodega.');
+      return;
+    }
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      setBodegaLocalError('Ingresa un valor válido para continuar.');
+      return;
+    }
+    if (capacidad > BODEGA_CAPACITY_MAX_KG) {
+      setBodegaLocalError('La capacidad no puede superar 100.000 kg.');
+      return;
+    }
+    await guardarConfiguracionBodega({
+      nombreBodega: nombreBodegaLocal.trim(),
+      capacidadKg: capacidad,
+    });
+    setMostrarEditorBodega(false);
+    await cargarDashboard(true);
+  };
+
   const ocupacion = useMemo(() => {
     const kgActual = summary?.kgActual ?? null;
     const kgCapacidad = summary?.kgCapacidad ?? null;
@@ -503,18 +545,39 @@ export default function Inicio() {
     const porcentajeReal = (kgActual / kgCapacidad) * 100;
     if (porcentajeReal >= 100) {
       return {
-        title: 'La bodega está llena',
-        text: 'Vende café o ajusta el inventario para liberar espacio.',
-        className: 'border-[#fb7185] bg-[#fff1f2] text-[#881337] shadow-[0_10px_24px_rgba(190,18,60,0.12)]',
+        title: 'La bodega alcanzó su límite.',
+        text: 'Libera espacio antes de comprar más café.',
+        className:
+          'border-[#fb7185] bg-[#fff1f2] text-[#881337] shadow-[0_10px_24px_rgba(190,18,60,0.12)]',
         icon: '!',
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
       };
     }
-    if (porcentajeReal >= 99) {
+    if (porcentajeReal >= 90) {
       return {
-        title: 'La bodega está casi llena',
-        text: 'Registra una venta para liberar espacio antes de agregar nuevas compras.',
-        className: 'border-[#f59e0b] bg-[#fff4cc] text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]',
+        title: 'La bodega está casi llena.',
+        text: 'Libera espacio antes de comprar más café.',
+        className:
+          'border-[#f59e0b] bg-[#fff4cc] text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]',
         icon: '⚠',
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
+      };
+    }
+    if (porcentajeReal >= 80) {
+      return {
+        title: 'La bodega se está llenando.',
+        text: 'Libera espacio antes de comprar más café.',
+        className:
+          'border-[#fbbf24] bg-[#fffbeb] text-[#713f12] shadow-[0_10px_24px_rgba(180,83,9,0.12)]',
+        icon: '⚠',
+        primary: 'Ir a ventas',
+        primaryPath: '/ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
       };
     }
     return null;
@@ -721,6 +784,88 @@ export default function Inicio() {
           </section>
         ) : null}
 
+        {mostrarEditorBodega ? (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+            <section className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-slate-950">
+                  Editar capacidad de bodega
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setMostrarEditorBodega(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+              {bodegaLimitNotice ? (
+                <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                  {bodegaLimitNotice}
+                </div>
+              ) : null}
+              <label className="mt-4 block text-xs font-black text-slate-700">
+                Nombre de bodega
+              </label>
+              <input
+                type="text"
+                value={nombreBodegaLocal}
+                maxLength={BODEGA_NAME_MAX_LENGTH}
+                onChange={(event) => {
+                  if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                    setBodegaLimitNotice('Llegaste al máximo permitido.');
+                    window.setTimeout(() => setBodegaLimitNotice(null), 1800);
+                  }
+                  setNombreBodegaLocal(
+                    sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
+                  );
+                }}
+                className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+              />
+              <p className="mt-1 text-right text-xs font-bold text-slate-500">
+                {nombreBodegaLocal.length}/{BODEGA_NAME_MAX_LENGTH}
+              </p>
+              <label className="mt-3 block text-xs font-black text-slate-700">
+                Capacidad máxima kg
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={capacidadBodegaLocal}
+                onChange={(event) =>
+                  setCapacidadBodegaLocal(
+                    sanitizePositiveIntegerInput(event.target.value, BODEGA_CAPACITY_MAX_KG),
+                  )
+                }
+                className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+                placeholder="100000"
+              />
+              {bodegaLocalError ? (
+                <p className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                  {bodegaLocalError}
+                </p>
+              ) : null}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void guardarBodegaLocal()}
+                  className="min-h-[42px] rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white"
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostrarEditorBodega(false)}
+                  className="min-h-[42px] rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
         {dashboardState === 'valid' && isEmptyDashboard ? (
           <EmptyDashboardState
             onRegisterPurchase={() => navigate('/compras')}
@@ -821,13 +966,28 @@ export default function Inicio() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/ventas')}
-                      className="mt-2 inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
-                    >
-                      Registrar venta →
-                    </button>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(alertaBodega.primaryPath ?? '/ventas')
+                        }
+                        className="inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
+                      >
+                        {alertaBodega.primary}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          alertaBodega.secondary === 'Editar bodega'
+                            ? abrirEditorBodegaLocal()
+                            : navigate(alertaBodega.secondaryPath)
+                        }
+                        className="inline-flex min-h-[32px] items-center rounded-full bg-[#102d92] px-3 text-[0.7rem] font-black text-white shadow-sm"
+                      >
+                        {alertaBodega.secondary}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>

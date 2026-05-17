@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { obtenerConfiguracionBodega } from '../services/bodegaApi';
+import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
 import {
   applySecadoToLots,
@@ -49,6 +49,12 @@ import {
   classifyHumidity,
   formatHumidityWithClassification,
 } from '../utils/humidity';
+import {
+  BODEGA_CAPACITY_MAX_KG,
+  BODEGA_NAME_MAX_LENGTH,
+  sanitizeLimitedText,
+  sanitizePositiveIntegerInput,
+} from '../utils/inputLimits';
 
 const TYPE_ORDER = [
   'VERDE',
@@ -614,6 +620,7 @@ export default function Inventario() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<InventarioError | null>(null);
   const [typeKey, setTypeKey] = useState('');
+  const [qualityFilterKey, setQualityFilterKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
   const [bodegaConfig, setBodegaConfig] = useState<{
@@ -623,6 +630,43 @@ export default function Inventario() {
     nombreBodega: 'Bodega principal',
     capacidadKg: null,
   });
+  const [showBodegaEditor, setShowBodegaEditor] = useState(false);
+  const [bodegaNameDraft, setBodegaNameDraft] = useState('Bodega principal');
+  const [bodegaCapacityDraft, setBodegaCapacityDraft] = useState('');
+  const [bodegaEditorError, setBodegaEditorError] = useState<string | null>(null);
+  const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
+
+  const openBodegaEditor = () => {
+    setBodegaNameDraft(bodegaConfig.nombreBodega || 'Bodega principal');
+    setBodegaCapacityDraft(bodegaConfig.capacidadKg ? String(bodegaConfig.capacidadKg) : '');
+    setBodegaEditorError(null);
+    setShowBodegaEditor(true);
+  };
+
+  const saveBodegaEditor = async () => {
+    const capacidad = Number(bodegaCapacityDraft);
+    if (!bodegaNameDraft.trim()) {
+      setBodegaEditorError('Escribe un nombre para la bodega.');
+      return;
+    }
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      setBodegaEditorError('Ingresa un valor válido para continuar.');
+      return;
+    }
+    if (capacidad > BODEGA_CAPACITY_MAX_KG) {
+      setBodegaEditorError('La capacidad no puede superar 100.000 kg.');
+      return;
+    }
+    const saved = await guardarConfiguracionBodega({
+      nombreBodega: bodegaNameDraft.trim(),
+      capacidadKg: capacidad,
+    });
+    setBodegaConfig({
+      nombreBodega: saved.nombreBodega,
+      capacidadKg: saved.capacidadKg,
+    });
+    setShowBodegaEditor(false);
+  };
 
   const loadLots = async () => {
     setLoading(true);
@@ -706,15 +750,60 @@ export default function Inventario() {
     typeKey,
   ]);
 
+  useEffect(() => {
+    if (typeKey !== 'VERDE' && qualityFilterKey) {
+      setQualityFilterKey('');
+    }
+  }, [qualityFilterKey, typeKey]);
+
   const filteredLots = useMemo(() => {
     if (!typeKey) return [];
-    return lots.filter((lot) => keyOf(lot.tipoCafe) === typeKey);
-  }, [lots, typeKey]);
+    return lots.filter(
+      (lot) =>
+        keyOf(lot.tipoCafe) === typeKey &&
+        (!qualityFilterKey || keyOf(lot.calidad) === qualityFilterKey),
+    );
+  }, [lots, qualityFilterKey, typeKey]);
 
   const visibleLots = useMemo(
     () => (typeKey ? filteredLots : lots),
     [filteredLots, lots, typeKey],
   );
+  const coffeeFilterValue = useMemo(() => {
+    if (!typeKey) return 'TODOS';
+    if (typeKey === 'VERDE' && qualityFilterKey === 'BUENO') return 'VERDE_BUENO';
+    if (typeKey === 'VERDE' && qualityFilterKey === 'REGULAR') return 'VERDE_REGULAR';
+    if (typeKey === 'SECO') return 'SECO';
+    return typeKey;
+  }, [qualityFilterKey, typeKey]);
+
+  const handleCoffeeFilterChange = (value: string) => {
+    if (value === 'EN_SECADO') {
+      navigate('/inventario/secados');
+      return;
+    }
+
+    if (value === 'VERDE_BUENO') {
+      setTypeKey('VERDE');
+      setQualityFilterKey('BUENO');
+      return;
+    }
+
+    if (value === 'VERDE_REGULAR') {
+      setTypeKey('VERDE');
+      setQualityFilterKey('REGULAR');
+      return;
+    }
+
+    if (value === 'SECO') {
+      setTypeKey('SECO');
+      setQualityFilterKey('');
+      return;
+    }
+
+    setTypeKey('');
+    setQualityFilterKey('');
+  };
 
   const orderedLots = useMemo(() => {
     const copy = [...visibleLots];
@@ -782,6 +871,43 @@ export default function Inventario() {
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
     [lots],
   );
+  const capacityAlert = useMemo(() => {
+    const capacityKg = bodegaConfig.capacidadKg;
+    if (!capacityKg || capacityKg <= 0) return null;
+
+    const percentage = (totalKg / capacityKg) * 100;
+    if (percentage >= 100) {
+      return {
+        title: 'La bodega alcanzó su límite.',
+        text: 'Libera espacio antes de comprar más café.',
+        className: 'border-rose-200 bg-rose-50 text-rose-900',
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
+      };
+    }
+    if (percentage >= 90) {
+      return {
+        title: 'La bodega está casi llena.',
+        text: 'Libera espacio antes de comprar más café.',
+        className: 'border-amber-200 bg-amber-50 text-amber-950',
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
+      };
+    }
+    if (percentage >= 80) {
+      return {
+        title: 'La bodega se está llenando.',
+        text: 'Libera espacio antes de comprar más café.',
+        className: 'border-yellow-300 bg-yellow-50 text-yellow-950',
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
+      };
+    }
+    return null;
+  }, [bodegaConfig.capacidadKg, totalKg]);
   const activeSecadoSessions = useMemo(
     () =>
       ENABLE_SECADO_PROTOTYPE
@@ -825,53 +951,78 @@ export default function Inventario() {
           />
         ) : null}
 
-        {!showGlobalEmptyState ? (
-          <section className="flex flex-wrap items-center gap-3">
-            <div className="w-full max-w-[180px]">
-              <select
-                aria-label="Ordenar por"
-                value={sortKey}
-
-                onChange={(event) =>
-                  setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
-                }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 py-2.5 text-[1rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
-              >
-                <option value="OLDEST">Más antiguo</option>
-                <option value="NEWEST">Más reciente</option>
-              </select>
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              {[
-                { key: '', label: 'Todos' },
-                ...availableTypes.map((type) => ({
-                  key: type.key,
-                  label: type.name,
-                })),
-              ].map((item) => {
-                const active = item.key === typeKey;
-                return (
+        {!showGlobalEmptyState && capacityAlert ? (
+          <section className={`rounded-[18px] border px-4 py-3 shadow-sm ${capacityAlert.className}`}>
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/75">
+                <BadgeAlert size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[0.92rem] font-black">{capacityAlert.title}</p>
+                <p className="mt-1 text-[0.76rem] font-bold leading-5">
+                  {capacityAlert.text}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
-                    key={item.key || 'all'}
                     type="button"
-                    onClick={() => {
-                      if (item.key === 'EN SECADO') {
-                        navigate('/inventario/secados');
-                        return;
-                      }
-
-                      setTypeKey(item.key);
-                    }}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
-                        : 'border-[#d8deea] bg-white text-slate-600'
-                    }`}
+                    onClick={() => navigate('/ventas')}
+                    className="inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-[0.72rem] font-black text-white"
                   >
-                    {item.key === 'EN SECADO' ? 'En secado' : item.label}
+                    {capacityAlert.primary}
                   </button>
-                );
-              })}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      capacityAlert.secondary === 'Editar bodega'
+                        ? openBodegaEditor()
+                        : navigate(capacityAlert.secondaryPath)
+                    }
+                    className="inline-flex min-h-[34px] items-center rounded-full bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm"
+                  >
+                    {capacityAlert.secondary}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {!showGlobalEmptyState ? (
+          <section className="rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="min-w-0">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  Filtro
+                </span>
+                <select
+                  aria-label="Filtro"
+                  value={sortKey}
+                  onChange={(event) =>
+                    setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
+                  }
+                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
+                >
+                  <option value="NEWEST">Más reciente</option>
+                  <option value="OLDEST">Más antiguo</option>
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  Tipo de café
+                </span>
+                <select
+                  aria-label="Tipo de café"
+                  value={coffeeFilterValue}
+                  onChange={(event) => handleCoffeeFilterChange(event.target.value)}
+                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="VERDE_BUENO">Verde Bueno</option>
+                  <option value="VERDE_REGULAR">Verde Regular</option>
+                  <option value="EN_SECADO">En secado</option>
+                  <option value="SECO">Secado terminado</option>
+                </select>
+              </label>
             </div>
           </section>
         ) : null}
@@ -935,6 +1086,7 @@ export default function Inventario() {
                     }
 
                     setTypeKey(group.key);
+                    setQualityFilterKey('');
                   }}
                 />
               ))}
@@ -942,31 +1094,42 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {typeKey === 'VERDE' && activeSession ? (
-          <button
-            type="button"
-            onClick={() => navigate('/inventario/secados')}
-            className="inline-flex w-full items-center justify-center gap-2 text-[0.82rem] font-semibold text-[#647cb8]"
-          >
-            <CircleDashed size={15} />
-            Ver secados activos
-            <ArrowRight size={15} />
-          </button>
-        ) : null}
-
-        {typeKey === 'VERDE' && secadoTarget ? (
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
-              )
-            }
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
-          >
-            <SunMedium size={17} />
-            Iniciar secado
-          </button>
+        {typeKey === 'VERDE' && (activeSession || secadoTarget) ? (
+          <section className="rounded-[20px] border border-[#e6eaf3] bg-white p-4 shadow-sm">
+            <div className="mb-3">
+              <h2 className="text-base font-black text-[#102d92]">
+                Proceso de secado
+              </h2>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Revisa secados activos o inicia un nuevo proceso.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/inventario/secados')}
+                disabled={!activeSession}
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#1e3a8a] bg-white px-3 text-center text-[0.78rem] font-black text-[#1e3a8a] transition hover:bg-[#f3f4f6] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CircleDashed size={15} />
+                Ver secados activos
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  secadoTarget &&
+                  navigate(
+                    `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
+                  )
+                }
+                disabled={!secadoTarget}
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[#102d92] px-3 text-center text-[0.78rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <SunMedium size={16} />
+                Iniciar secado
+              </button>
+            </div>
+          </section>
         ) : null}
 
         {typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
@@ -1107,6 +1270,88 @@ export default function Inventario() {
           </section>
         ) : null}
       </main>
+
+      {showBodegaEditor ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <section className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-slate-950">
+                Editar capacidad de bodega
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowBodegaEditor(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            {bodegaLimitNotice ? (
+              <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                {bodegaLimitNotice}
+              </div>
+            ) : null}
+            <label className="mt-4 block text-xs font-black text-slate-700">
+              Nombre de bodega
+            </label>
+            <input
+              type="text"
+              value={bodegaNameDraft}
+              maxLength={BODEGA_NAME_MAX_LENGTH}
+              onChange={(event) => {
+                if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                  setBodegaLimitNotice('Llegaste al máximo permitido.');
+                  window.setTimeout(() => setBodegaLimitNotice(null), 1800);
+                }
+                setBodegaNameDraft(
+                  sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
+                );
+              }}
+              className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+            />
+            <p className="mt-1 text-right text-xs font-bold text-slate-500">
+              {bodegaNameDraft.length}/{BODEGA_NAME_MAX_LENGTH}
+            </p>
+            <label className="mt-3 block text-xs font-black text-slate-700">
+              Capacidad máxima kg
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={bodegaCapacityDraft}
+              onChange={(event) =>
+                setBodegaCapacityDraft(
+                  sanitizePositiveIntegerInput(event.target.value, BODEGA_CAPACITY_MAX_KG),
+                )
+              }
+              className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+              placeholder="100000"
+            />
+            {bodegaEditorError ? (
+              <p className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                {bodegaEditorError}
+              </p>
+            ) : null}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void saveBodegaEditor()}
+                className="min-h-[42px] rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBodegaEditor(false)}
+                className="min-h-[42px] rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <AppBottomNav />
     </div>

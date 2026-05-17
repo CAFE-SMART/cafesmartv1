@@ -35,6 +35,8 @@ pnpm-debug.log*
 hs_err_pid*.log
 replay_pid*.log
 *.log
+*.out
+frontend/vite-*.out
 
 # Editor (VS Code / JetBrains)
 .vscode/

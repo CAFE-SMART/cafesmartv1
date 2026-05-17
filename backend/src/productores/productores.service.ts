@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GuardarProductorDto } from './dto/guardar-productor.dto';
 import { apiError } from '../common/errors/api-error';
 import {
+  type TipoDocumento,
   normalizarDocumentoPersona,
   normalizarNombreEmpresaPersona,
   normalizarNombrePersona,
@@ -19,7 +20,7 @@ type ProductorListadoItem = {
   id: string;
   nombre: string;
   documento: string | null;
-  tipoDocumento: 'CEDULA' | 'NIT' | null;
+  tipoDocumento: TipoDocumento | null;
   telefono: string | null;
   createdAt: string;
 };
@@ -217,7 +218,7 @@ export class ProductoresService {
   private obtenerTipoDocumento(
     valor: string,
     tipoDocumento: GuardarProductorDto['tipoDocumento'],
-  ): 'CEDULA' | 'NIT' {
+  ): TipoDocumento {
     return tipoDocumento ?? (valor.includes('-') ? 'NIT' : 'CEDULA');
   }
 

@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  ArrowRight,
   Calendar,
   CheckCircle2,
   ChevronDown,
@@ -73,6 +74,24 @@ type GastoDraft = {
 };
 
 const GASTO_DRAFT_STORAGE_KEY = 'cafe-smart:gasto-draft:v1';
+const GASTO_CONCEPTO_MAX = 60;
+const GASTO_DESCRIPCION_MAX = 200;
+const GASTO_MONTO_MAX = 20000000;
+const MONTHS_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 
 function ariaInvalid(active: boolean) {
   return { 'aria-invalid': active ? 'true' : 'false' } as const;
@@ -96,6 +115,41 @@ function generarId() {
   }
 
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function sanitizeMoneyInput(value: string, max = GASTO_MONTO_MAX) {
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+  if (!digits) return '';
+  const numeric = Number(digits);
+  return String(Math.min(max, Number.isFinite(numeric) ? numeric : max));
+}
+
+function parseLocalDateValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+function formatLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatLongDate(value: string) {
+  const date = parseLocalDateValue(value);
+  if (!date) return 'Selecciona fecha';
+  return date.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function getInputClassName(hasError: boolean, extraClasses = '') {
@@ -128,8 +182,8 @@ function getFieldGuidance(
     return {
       what: whatOverride ?? 'El monto del gasto no es valido.',
       why: 'Solo se permiten valores mayores a cero.',
-      how: 'Ingresa solo numeros y un monto mayor a 0.',
-      action: 'Escribe un monto mayor a $0.',
+      how: 'Ingresa solo numeros y un monto dentro del límite permitido.',
+      action: 'Ingresa un valor válido para continuar.',
     };
   }
 
@@ -232,6 +286,155 @@ function FloatingNoticeCard({
   );
 }
 
+function GastoDatePicker({
+  value,
+  open,
+  hasError,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  value: string;
+  open: boolean;
+  hasError: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: string) => void;
+}) {
+  const min = BUSINESS_MIN_DATE_VALUE;
+  const max = getTodayLocalDateValue();
+  const selectedDate = parseLocalDateValue(value);
+  const maxDate = parseLocalDateValue(max) ?? new Date();
+  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date((selectedDate ?? maxDate).getFullYear(), (selectedDate ?? maxDate).getMonth(), 1),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const next = parseLocalDateValue(value) ?? maxDate;
+    setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [max, open, value]);
+
+  const days = useMemo(() => {
+    const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+    return [
+      ...Array.from({ length: firstDay.getDay() }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => {
+        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1);
+        return { day: index + 1, value: formatLocalDateValue(date) };
+      }),
+    ];
+  }, [visibleMonth]);
+
+  const previousMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+  const nextMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+  const canGoPrevious = previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const canGoNext = nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onClose();
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className={getInputClassName(
+          hasError,
+          'flex min-h-[38px] items-center justify-between gap-2 px-3 py-2 text-left text-[0.66rem] font-semibold',
+        )}
+      >
+        <span className="min-w-0 truncate">{formatLongDate(value)}</span>
+        <Calendar size={13} className="shrink-0 text-slate-400" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-50 mt-2 w-[min(21.5rem,calc(100vw-2rem))] min-w-[20rem] rounded-[20px] border border-[#d5deee] bg-white p-4 shadow-[0_22px_48px_rgba(15,23,42,0.18)]">
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <button
+              type="button"
+              disabled={!canGoPrevious}
+              onClick={() => setVisibleMonth(previousMonth)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              aria-label="Mes anterior"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900">
+              {MONTHS_ES[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
+            </p>
+            <button
+              type="button"
+              disabled={!canGoNext}
+              onClick={() => setVisibleMonth(nextMonth)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              aria-label="Mes siguiente"
+            >
+              <ArrowRight size={17} />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {WEEKDAYS_ES.map((day) => (
+              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500">
+                {day}
+              </span>
+            ))}
+            {days.map((day, index) =>
+              day ? (
+                <button
+                  key={day.value}
+                  type="button"
+                  disabled={day.value < min || day.value > max}
+                  onClick={() => {
+                    onChange(day.value);
+                    onClose();
+                  }}
+                  className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 ${
+                    day.value === value
+                      ? 'bg-[#102d92] text-white'
+                      : day.value === max
+                        ? 'bg-[#eef4ff] text-[#102d92]'
+                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                  }`}
+                >
+                  {day.day}
+                </button>
+              ) : (
+                <span key={`empty-${index}`} />
+              ),
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                onClose();
+              }}
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100"
+            >
+              Limpiar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(max);
+                onClose();
+              }}
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92]"
+            >
+              Hoy
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function GastosOperativos() {
   const navigate = useNavigate();
 
@@ -239,6 +442,8 @@ export default function GastosOperativos() {
   const [descripcion, setDescripcion] = useState('');
   const [montoStr, setMontoStr] = useState('');
   const [fecha, setFecha] = useState(getTodayLocalDateValue());
+  const [fechaPickerOpen, setFechaPickerOpen] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [tipoGasto, setTipoGasto] = useState<TipoGastoValue>('TRANSPORTE');
   const [estadoPago, setEstadoPago] = useState<EstadoPagoValue>('PAGADO');
   const [aplicaA, setAplicaA] = useState<AplicaAValue>('GENERAL');
@@ -251,6 +456,12 @@ export default function GastosOperativos() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [botonGuardarPresionado, setBotonGuardarPresionado] = useState(false);
+
+  useEffect(() => {
+    if (!limitNotice) return undefined;
+    const timeout = window.setTimeout(() => setLimitNotice(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [limitNotice]);
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [floatingNotice, setFloatingNotice] = useState<FloatingNotice | null>(
     null,
@@ -272,7 +483,7 @@ export default function GastosOperativos() {
 
   const conceptoInputRef = useRef<HTMLInputElement | null>(null);
   const montoInputRef = useRef<HTMLInputElement | null>(null);
-  const fechaInputRef = useRef<HTMLInputElement | null>(null);
+  const fechaInputRef = useRef<HTMLDivElement | null>(null);
   const sublotesButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -460,8 +671,15 @@ export default function GastosOperativos() {
       errors.concepto = getFieldGuidance('concepto');
     }
 
-    if (!montoStr || Number(montoStr) <= 0) {
-      errors.monto = getFieldGuidance('monto');
+    const monto = Number(montoStr);
+    if (!montoStr || !Number.isFinite(monto) || monto <= 0) {
+      errors.monto = getFieldGuidance('monto', {
+        whatOverride: 'Ingresa un valor válido para continuar.',
+      });
+    } else if (monto > GASTO_MONTO_MAX) {
+      errors.monto = getFieldGuidance('monto', {
+        whatOverride: 'El monto supera el límite permitido.',
+      });
     }
 
     if (!fechaValidacion.isValid) {
@@ -480,8 +698,7 @@ export default function GastosOperativos() {
   };
 
   const handleMontoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const crudo = event.target.value.replace(/\D/g, '');
-    setMontoStr(crudo);
+    setMontoStr(sanitizeMoneyInput(event.target.value));
     limpiarErrorCampo('monto');
   };
 
@@ -683,6 +900,11 @@ export default function GastosOperativos() {
         </div>
 
         <div className="space-y-2.5">
+          {limitNotice ? (
+            <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.66rem] font-black text-amber-800">
+              {limitNotice}
+            </div>
+          ) : null}
           <div ref={conceptoSectionRef} className="space-y-1.5">
             <label htmlFor="gasto-concepto" className="ml-1 text-[0.62rem] font-black text-slate-700">
               Concepto del gasto
@@ -697,13 +919,20 @@ export default function GastosOperativos() {
                 'px-3 py-2 text-[0.66rem] font-semibold',
               )}
               value={concepto}
+              maxLength={GASTO_CONCEPTO_MAX}
               {...ariaInvalid(Boolean(fieldErrors.concepto))}
               aria-describedby={undefined}
               onChange={(event) => {
-                setConcepto(event.target.value);
+                if (event.target.value.length >= GASTO_CONCEPTO_MAX) {
+                  setLimitNotice('Llegaste al máximo permitido.');
+                }
+                setConcepto(event.target.value.slice(0, GASTO_CONCEPTO_MAX));
                 limpiarErrorCampo('concepto');
               }}
             />
+            <div className="flex justify-end text-[0.58rem] font-bold text-slate-500">
+              {concepto.length}/{GASTO_CONCEPTO_MAX}
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -716,11 +945,22 @@ export default function GastosOperativos() {
               rows={2}
               className={getInputClassName(
                 false,
-                'resize-none px-3 py-2 text-[0.66rem] font-semibold',
+                'max-h-24 resize-none overflow-y-auto px-3 py-2 text-[0.66rem] font-semibold',
               )}
               value={descripcion}
-              onChange={(event) => setDescripcion(event.target.value)}
+              maxLength={GASTO_DESCRIPCION_MAX}
+              onChange={(event) =>
+                {
+                  if (event.target.value.length >= GASTO_DESCRIPCION_MAX) {
+                    setLimitNotice('Llegaste al máximo permitido.');
+                  }
+                  setDescripcion(event.target.value.slice(0, GASTO_DESCRIPCION_MAX));
+                }
+              }
             />
+            <div className="flex justify-end text-[0.58rem] font-bold text-slate-500">
+              {descripcion.length}/{GASTO_DESCRIPCION_MAX}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -747,34 +987,26 @@ export default function GastosOperativos() {
                   onChange={handleMontoChange}
                 />
               </div>
+              <p className="text-[0.56rem] font-semibold text-slate-500">
+                Máx. ${new Intl.NumberFormat('es-CO').format(GASTO_MONTO_MAX)}
+              </p>
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
               <label htmlFor="gasto-fecha" className="ml-1 text-[0.62rem] font-black text-slate-700">
                 Fecha
               </label>
-              <div className="relative">
-                <input
-                  id="gasto-fecha"
-                  ref={fechaInputRef}
-                  type="date"
-                  min={BUSINESS_MIN_DATE_VALUE}
-                  max={getTodayLocalDateValue()}
-                  className={getInputClassName(
-                    Boolean(fieldErrors.fecha),
-                    'appearance-none pl-3 pr-7 py-2 text-[0.66rem] font-semibold',
-                  )}
+              <div ref={fechaInputRef} tabIndex={-1}>
+                <GastoDatePicker
                   value={fecha}
-                  {...ariaInvalid(Boolean(fieldErrors.fecha))}
-                  aria-describedby={undefined}
-                  onChange={(event) => {
-                    setFecha(event.target.value);
+                  open={fechaPickerOpen}
+                  hasError={Boolean(fieldErrors.fecha)}
+                  onToggle={() => setFechaPickerOpen((open) => !open)}
+                  onClose={() => setFechaPickerOpen(false)}
+                  onChange={(nextFecha) => {
+                    setFecha(nextFecha);
                     limpiarErrorCampo('fecha');
                   }}
-                />
-                <Calendar
-                  size={13}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
               </div>
             </div>

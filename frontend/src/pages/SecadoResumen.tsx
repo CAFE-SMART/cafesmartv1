@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LoaderCircle } from 'lucide-react';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   finalizeSecado,
   getSecadoSession,
   removeSecadoSession,
 } from '../utils/secadoFlow';
-import { transformarSecado } from '../services/secadoService';
+import { crearSecado, transformarSecado } from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 
@@ -68,31 +68,41 @@ export default function SecadoResumen() {
       setPersistError(null);
 
       try {
-        await transformarSecado({
-          sessionId: finalized.id,
-          deviceId: await obtenerDeviceId(),
-          fuentes: finalized.sublotes.map((sublote) => ({
-            id: sublote.id,
-            pesoKg: sublote.pesoActual,
-          })),
-          salidas: [
-            {
-              calidad: 'BUENO',
-              pesoKg: finalized.outputBuenoKg,
-              humedad: finalized.outputBuenoHumedad,
-            },
-            {
-              calidad: 'REGULAR',
-              pesoKg: finalized.outputRegularKg,
-              humedad: finalized.outputRegularHumedad,
-            },
-            {
-              calidad: 'MALO',
-              pesoKg: finalized.outputMaloKg ?? 0,
-              humedad: finalized.outputMaloHumedad ?? null,
-            },
-          ].filter((salida) => salida.pesoKg > 0),
-        });
+        const salidas = [
+          {
+            calidad: 'BUENO' as const,
+            pesoKg: finalized.outputBuenoKg,
+            humedad: finalized.outputBuenoHumedad,
+          },
+          {
+            calidad: 'REGULAR' as const,
+            pesoKg: finalized.outputRegularKg,
+            humedad: finalized.outputRegularHumedad,
+          },
+          {
+            calidad: 'MALO' as const,
+            pesoKg: finalized.outputMaloKg ?? 0,
+            humedad: finalized.outputMaloHumedad ?? null,
+          },
+        ].filter((salida) => salida.pesoKg > 0);
+
+        if (finalized.sublotes.length === 1 && salidas.length === 1) {
+          await crearSecado({
+            subloteId: finalized.sublotes[0].id,
+            pesoSalida: salidas[0].pesoKg,
+            calidadSalida: salidas[0].calidad,
+          });
+        } else {
+          await transformarSecado({
+            sessionId: finalized.id,
+            deviceId: await obtenerDeviceId(),
+            fuentes: finalized.sublotes.map((sublote) => ({
+              id: sublote.id,
+              pesoKg: sublote.pesoActual,
+            })),
+            salidas,
+          });
+        }
 
         removeSecadoSession(finalized.id);
         setPersisted(true);
@@ -148,7 +158,7 @@ export default function SecadoResumen() {
           persistError
             ? persistError
             : persisting
-              ? 'Registrando secado en inventario...'
+              ? 'Procesando secado...'
               : persisted
                 ? 'Inventario real actualizado.'
                 : 'Proceso guardado.'
@@ -211,22 +221,15 @@ export default function SecadoResumen() {
       </CafeSmartErrorState>
 
       {persisting ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">
-          <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
-            <LoaderCircle
-              size={28}
-              className="mx-auto animate-spin text-[#1f3fa7]"
-            />
-            <p className="mt-2 text-sm font-black text-slate-900">
-              Registrando secado
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Actualizando inventario...
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#102d92]" />
-            </div>
-          </div>
+        <div className="fixed inset-0 z-50">
+          <CafeSmartProcessingScreen
+            variant="drying"
+            title="Procesando secado..."
+            subtitle="Estamos registrando el resultado del secado."
+            helperText="Esto puede tardar unos segundos."
+            trustTitle="Tu información está segura"
+            trustText="El inventario se actualizará al terminar."
+          />
         </div>
       ) : null}
     </div>

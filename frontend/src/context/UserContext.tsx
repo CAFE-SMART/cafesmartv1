@@ -15,7 +15,7 @@ import {
 } from '../storage/authStorage';
 import { parseJwtPayload } from '../utils/jwt';
 
-type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
+type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO';
 
 type User = {
   id: number | string;

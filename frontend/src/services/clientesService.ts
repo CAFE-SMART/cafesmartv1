@@ -1,10 +1,11 @@
 import { apiFetch } from './apiService';
+import type { DocumentType } from '../utils/personValidation';
 
 export type ClienteItem = {
   id: string;
   nombre: string;
   documento: string | null;
-  tipoDocumento?: 'CEDULA' | 'NIT' | null;
+  tipoDocumento?: DocumentType | null;
   telefono: string | null;
   createdAt: string;
 };
@@ -12,7 +13,7 @@ export type ClienteItem = {
 export type GuardarClientePayload = {
   nombre: string;
   documento?: string;
-  tipoDocumento?: 'CEDULA' | 'NIT';
+  tipoDocumento?: DocumentType;
   telefono?: string;
 };
 

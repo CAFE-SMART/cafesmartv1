@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -70,12 +70,32 @@ function formatDaysLabel(fechaIngreso: string) {
   return `Hace ${days}d`;
 }
 
+function sanitizeSecadoWeightInput(value: string, max: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integer = '', ...decimalParts] = normalized.split('.');
+  const decimal = decimalParts.join('').slice(0, 1);
+  const next =
+    decimalParts.length > 0
+      ? `${integer.slice(0, 6) || '0'}.${decimal}`
+      : integer.slice(0, 6);
+  const numeric = Number(next);
+  if (Number.isFinite(numeric) && numeric > max) {
+    return String(max);
+  }
+  return next;
+}
+
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tipoCafeId, calidadId } = useParams<{
     tipoCafeId: string;
     calidadId: string;
   }>();
+  const originPath =
+    (location.state as { from?: string } | null)?.from === '/ajustes'
+      ? '/ajustes'
+      : '/inventario';
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
   const [selectedWeights, setSelectedWeights] = useState<
     Record<string, number>
@@ -88,6 +108,7 @@ export default function SecadoSeleccion() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [adjustNotice, setAdjustNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const cargar = async () => {
@@ -274,7 +295,9 @@ export default function SecadoSeleccion() {
     try {
       const session = startSecadoWithWeights(availableDetail, selectedWeights);
       window.localStorage.removeItem(getSecadoDraftKey(tipoCafeId, calidadId));
-      navigate(`/inventario/secado/${session.id}/finalizar`);
+      navigate(`/inventario/secado/${session.id}/finalizar`, {
+        state: { from: originPath },
+      });
     } catch (err) {
       if (err instanceof SecadoValidationError) {
         setError(err.message);
@@ -285,20 +308,44 @@ export default function SecadoSeleccion() {
     }
   };
 
+  const updateDraftWeight = (rawValue: string) => {
+    if (!editing) return;
+    const next = sanitizeSecadoWeightInput(rawValue, editing.pesoActual);
+    const attempted = Number(rawValue.replace(',', '.').replace(/[^\d.]/g, ''));
+    if (Number.isFinite(attempted) && attempted > editing.pesoActual) {
+      setAdjustNotice(
+        `La cantidad no puede superar ${kg(editing.pesoActual)}. Ajusta los kilos antes de continuar.`,
+      );
+    } else {
+      setAdjustNotice(null);
+    }
+    setDraftWeight(next);
+  };
+
   const volverSinIniciar = () => {
     if (selectedIds.length > 0) {
       setShowExitModal(true);
       return;
     }
 
-    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+    navigate(
+      originPath,
+      originPath === '/inventario'
+        ? { state: { preferredTypeKey: 'VERDE' } }
+        : undefined,
+    );
   };
 
   const salirSinGuardar = () => {
     window.localStorage.removeItem(getSecadoDraftKey(tipoCafeId, calidadId));
     setSelectedWeights({});
     setShowExitModal(false);
-    navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } });
+    navigate(
+      originPath,
+      originPath === '/inventario'
+        ? { state: { preferredTypeKey: 'VERDE' } }
+        : undefined,
+    );
   };
 
   return (
@@ -333,7 +380,9 @@ export default function SecadoSeleccion() {
               lo que ya guardaste.
               <button
                 type="button"
-                onClick={() => navigate('/inventario/secados')}
+                onClick={() =>
+                  navigate('/inventario/secados', { state: { from: originPath } })
+                }
                 className="mt-3 w-full rounded-[14px] bg-[#1747d4] py-3 text-xs font-black text-white"
               >
                 Revisar secado activo
@@ -522,10 +571,10 @@ export default function SecadoSeleccion() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-5 backdrop-blur-[2px]">
           <section className="w-full max-w-[390px] rounded-[20px] bg-white p-5 text-center shadow-2xl">
             <h2 className="text-lg font-black text-slate-950">
-              Borrador encontrado
+              Borrador de secado encontrado
             </h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Encontramos un proceso sin finalizar.
+              Puedes continuar el proceso o empezar de nuevo.
             </p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
@@ -592,10 +641,19 @@ export default function SecadoSeleccion() {
               max={editing.pesoActual}
               step="0.1"
               value={draftWeight}
-              onChange={(event) => setDraftWeight(event.target.value)}
+              onChange={(event) => updateDraftWeight(event.target.value)}
+              onPaste={(event) => {
+                event.preventDefault();
+                updateDraftWeight(event.clipboardData.getData('text'));
+              }}
               className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 px-4 text-sm font-bold outline-none focus:border-[#0647d6]"
               placeholder="Ej: 50"
             />
+            {adjustNotice ? (
+              <div className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                {adjustNotice}
+              </div>
+            ) : null}
             <p className="mt-2 text-[0.68rem] text-slate-400">
               Debe ser menor o igual a {kg(editing.pesoActual)}.
             </p>

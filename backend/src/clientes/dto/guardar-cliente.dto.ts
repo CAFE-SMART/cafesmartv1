@@ -17,7 +17,7 @@ export class GuardarClienteDto {
 
   @IsOptional()
   @IsString({ message: 'Selecciona el tipo de documento.' })
-  tipoDocumento?: 'CEDULA' | 'NIT';
+  tipoDocumento?: 'CEDULA' | 'NIT' | 'CE' | 'PASAPORTE' | 'OTRO';
 
   @IsOptional()
   @IsString({ message: 'El telefono del cliente debe ser texto' })

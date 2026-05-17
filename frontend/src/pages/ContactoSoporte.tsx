@@ -17,6 +17,8 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { useUser } from '../context/UserContext';
 import API_URL from '../config/api';
+import { validatePersonName } from '../utils/personValidation';
+import { sanitizeLimitedText } from '../utils/inputLimits';
 
 type SupportType =
   | 'Problema tecnico'
@@ -42,6 +44,8 @@ const supportTypes: Array<{ value: SupportType; label: string }> = [
   { value: 'Sugerencia', label: 'Sugerencia' },
   { value: 'Otro', label: 'Otro' },
 ];
+const SUPPORT_NAME_MAX = 60;
+const SUPPORT_MESSAGE_MAX = 500;
 
 const supportItems: Array<{
   id: Exclude<SupportModal, null>;
@@ -112,6 +116,8 @@ export default function ContactoSoporte() {
   }));
   const [errors, setErrors] = useState<SupportErrors>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusTone, setStatusTone] = useState<'success' | 'error' | null>(null);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateField = <Key extends keyof SupportForm>(
@@ -121,11 +127,22 @@ export default function ContactoSoporte() {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
     setStatusMessage(null);
+    setStatusTone(null);
   };
+
+  React.useEffect(() => {
+    if (!limitNotice) return undefined;
+    const timeout = window.setTimeout(() => setLimitNotice(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [limitNotice]);
 
   const validateForm = () => {
     const nextErrors: SupportErrors = {};
+    const nameValidation = validatePersonName(form.nombre, 'El nombre');
     if (!form.nombre.trim()) nextErrors.nombre = 'Escribe tu nombre.';
+    else if (!nameValidation.isValid) {
+      nextErrors.nombre = nameValidation.message ?? 'Escribe un nombre válido.';
+    }
     if (!form.correo.trim()) {
       nextErrors.correo = 'Escribe tu correo.';
     } else if (!isValidEmail(form.correo)) {
@@ -144,6 +161,7 @@ export default function ContactoSoporte() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage(null);
+    setStatusTone(null);
     if (!validateForm()) return;
 
     setIsSubmitting(true);
@@ -159,7 +177,8 @@ export default function ContactoSoporte() {
           tipo: form.tipo,
         },
       });
-      setStatusMessage('Mensaje enviado. Te responderemos pronto.');
+      setStatusMessage('Reporte enviado correctamente.');
+      setStatusTone('success');
       setForm({
         nombre: user?.name ?? '',
         correo: user?.email ?? '',
@@ -168,7 +187,10 @@ export default function ContactoSoporte() {
       });
       setErrors({});
     } catch {
-      setStatusMessage('No pudimos enviar tu mensaje. Intenta nuevamente.');
+      setStatusMessage(
+        'No pudimos enviar el reporte. Revisa tu conexión e intenta nuevamente.',
+      );
+      setStatusTone('error');
     } finally {
       setIsSubmitting(false);
     }
@@ -249,7 +271,10 @@ export default function ContactoSoporte() {
               form={form}
               errors={errors}
               statusMessage={statusMessage}
+              statusTone={statusTone}
               isSubmitting={isSubmitting}
+              limitNotice={limitNotice}
+              setLimitNotice={setLimitNotice}
               updateField={updateField}
               onSubmit={handleSubmit}
             />
@@ -370,14 +395,20 @@ function ReportForm({
   form,
   errors,
   statusMessage,
+  statusTone,
   isSubmitting,
+  limitNotice,
+  setLimitNotice,
   updateField,
   onSubmit,
 }: {
   form: SupportForm;
   errors: SupportErrors;
   statusMessage: string | null;
+  statusTone: 'success' | 'error' | null;
   isSubmitting: boolean;
+  limitNotice: string | null;
+  setLimitNotice: (message: string) => void;
   updateField: <Key extends keyof SupportForm>(
     field: Key,
     value: SupportForm[Key],
@@ -386,16 +417,33 @@ function ReportForm({
 }) {
   return (
     <form className="space-y-4" noValidate onSubmit={onSubmit}>
+      {limitNotice ? (
+        <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+          {limitNotice}
+        </div>
+      ) : null}
       <SupportField id="support-name" label="Nombre" error={errors.nombre}>
         <input
           id="support-name"
           type="text"
           autoComplete="name"
           value={form.nombre}
-          onChange={(event) => updateField('nombre', event.target.value)}
+          maxLength={SUPPORT_NAME_MAX}
+          onChange={(event) => {
+            if (event.target.value.length >= SUPPORT_NAME_MAX) {
+              setLimitNotice('Llegaste al máximo permitido.');
+            }
+            updateField(
+              'nombre',
+              sanitizeLimitedText(event.target.value, SUPPORT_NAME_MAX),
+            );
+          }}
           placeholder="Ej. Laura Gómez"
           className={getFieldClass(Boolean(errors.nombre))}
         />
+        <p className="mt-1 text-right text-xs font-bold text-slate-500">
+          {form.nombre.length}/{SUPPORT_NAME_MAX}
+        </p>
       </SupportField>
       <SupportField id="support-email" label="Correo electrónico" error={errors.correo}>
         <input
@@ -436,15 +484,41 @@ function ReportForm({
           id="support-message"
           rows={5}
           value={form.mensaje}
-          onChange={(event) => updateField('mensaje', event.target.value)}
+          maxLength={SUPPORT_MESSAGE_MAX}
+          onChange={(event) => {
+            if (event.target.value.length >= SUPPORT_MESSAGE_MAX) {
+              setLimitNotice('Llegaste al máximo permitido.');
+            }
+            updateField(
+              'mensaje',
+              sanitizeLimitedText(event.target.value, SUPPORT_MESSAGE_MAX),
+            );
+          }}
           placeholder="Ej. Estaba registrando una venta y no pude guardar."
           className={`${getFieldClass(Boolean(errors.mensaje))} min-h-[130px] py-3 leading-6`}
         />
+        <p className="mt-1 text-right text-xs font-bold text-slate-500">
+          {form.mensaje.length}/{SUPPORT_MESSAGE_MAX}
+        </p>
       </SupportField>
       {statusMessage ? (
-        <p className="rounded-[15px] border border-[#dbeafe] bg-[#f8fbff] px-4 py-3 text-sm font-bold text-[#2448bd]">
-          {statusMessage}
-        </p>
+        <div
+          className={`rounded-[15px] border px-4 py-3 text-sm font-bold ${
+            statusTone === 'error'
+              ? 'border-rose-200 bg-rose-50 text-rose-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          <p>{statusMessage}</p>
+          {statusTone === 'error' ? (
+            <button
+              type="submit"
+              className="mt-3 rounded-[12px] bg-[#2448bd] px-4 py-2 text-xs font-black text-white"
+            >
+              Reintentar
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <button
         type="submit"

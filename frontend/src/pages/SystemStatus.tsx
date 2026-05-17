@@ -14,6 +14,7 @@ import {
   type AuthResponse,
 } from '../services/authService';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
 
 type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
 type ProcessStatus = 'creating' | 'success' | 'error';
@@ -33,6 +34,12 @@ type RegisterProcessState = {
 
 const CONFIRMATION_DURATION_MS = 1700;
 const REGISTER_DRAFT_STORAGE_KEY = 'cafesmart:register-draft:v1';
+
+function toAuthTipoOrganizacion(
+  tipo: TipoOrg,
+): 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' {
+  return tipo === 'PERSONALIZADO' ? 'OTRO' : tipo;
+}
 
 function ConfirmSuccessView() {
   return (
@@ -147,18 +154,22 @@ export default function SystemStatus() {
             telefono: processState.telefono,
             password: processState.password,
             nombreOrganizacion: processState.nombreOrganizacion,
-            tipoOrganizacion: processState.tipoOrganizacion,
+            tipoOrganizacion: toAuthTipoOrganizacion(
+              processState.tipoOrganizacion,
+            ),
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
+              processState.tipoOrganizacion === 'PERSONALIZADO'
                 ? processState.otroTipoDetalle
                 : undefined,
           });
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
-            tipoOrganizacion: processState.tipoOrganizacion,
+            tipoOrganizacion: toAuthTipoOrganizacion(
+              processState.tipoOrganizacion,
+            ),
             otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
+              processState.tipoOrganizacion === 'PERSONALIZADO'
                 ? processState.otroTipoDetalle
                 : undefined,
             nombre: processState.nombre,
@@ -174,6 +185,8 @@ export default function SystemStatus() {
             email: response.user.email,
             name: response.user.name,
             organizacionId: response.user.organizacionId ?? null,
+            nombreOrganizacion:
+              response.user.nombreOrganizacion ?? processState.nombreOrganizacion,
             tipoOrganizacion: response.user.tipoOrganizacion ?? null,
             otroTipoDetalle: response.user.otroTipoDetalle ?? null,
           },

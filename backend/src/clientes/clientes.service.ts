@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GuardarClienteDto } from './dto/guardar-cliente.dto';
 import { apiError } from '../common/errors/api-error';
 import {
+  type TipoDocumento,
   normalizarDocumentoPersona,
   normalizarNombreEmpresaPersona,
   normalizarNombrePersona,
@@ -19,7 +20,7 @@ type ClienteListadoItem = {
   id: string;
   nombre: string;
   documento: string | null;
-  tipoDocumento: 'CEDULA' | 'NIT' | null;
+  tipoDocumento: TipoDocumento | null;
   telefono: string | null;
   createdAt: string;
 };
@@ -208,14 +209,14 @@ export class ClientesService {
   private obtenerTipoDocumento(
     valor: string | undefined,
     tipoDocumento: GuardarClienteDto['tipoDocumento'],
-  ): 'CEDULA' | 'NIT' | null {
+  ): TipoDocumento | null {
     if (!valor) return tipoDocumento ?? null;
     return tipoDocumento ?? (valor.includes('-') ? 'NIT' : 'CEDULA');
   }
 
   private inferirTipoDocumento(
     documento: string | null,
-  ): 'CEDULA' | 'NIT' | null {
+  ): TipoDocumento | null {
     if (!documento) return null;
     return documento.includes('-') ? 'NIT' : 'CEDULA';
   }

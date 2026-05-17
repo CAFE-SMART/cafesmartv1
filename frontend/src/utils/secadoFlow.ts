@@ -639,21 +639,21 @@ function validarResultadoSecado(
   ) {
     throw new SecadoValidationError(
       'SECADO_CANTIDAD_INVALIDA',
-      'Las cantidades de salida deben ser numeros mayores o iguales a 0.',
+      'Ingresa un peso válido.',
     );
   }
 
   if (totalSalida <= 0) {
     throw new SecadoValidationError(
       'SECADO_CANTIDAD_INVALIDA',
-      'Registra por lo menos una salida seca.',
+      'Debes registrar al menos un resultado de secado.',
     );
   }
 
   if (totalSalida > totalEntrada) {
     throw new SecadoValidationError(
       'SECADO_SALIDA_MAYOR_ENTRADA',
-      'La salida no puede superar el peso de entrada.',
+      'El resultado supera el peso disponible del secado.',
       { inputKg: totalEntrada, outputKg: totalSalida },
     );
   }

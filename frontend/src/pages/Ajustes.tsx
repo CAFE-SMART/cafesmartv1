@@ -9,18 +9,15 @@ import {
   Eye,
   FlaskConical,
   LifeBuoy,
-  ListChecks,
   Lock,
   LogOut,
   Pencil,
-  PlayCircle,
   ScanSearch,
   Save,
   Settings,
   Shield,
   Trash2,
   UserCircle2,
-  UserCog,
   X,
   Users,
   Users2,
@@ -54,12 +51,20 @@ import {
   listarProductores,
   type ProductorItem,
 } from '../services/productoresService';
+import { actualizarConfiguracionOrganizacion } from '../services/userSettingsService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_MAX_LENGTH,
   validateBusinessName,
 } from '../utils/registerValidators';
+import {
+  BODEGA_CAPACITY_MAX_KG,
+  BODEGA_NAME_MAX_LENGTH,
+  sanitizeLimitedText,
+  sanitizePositiveIntegerInput,
+  sanitizeSearchInput,
+} from '../utils/inputLimits';
 import {
   formatPhoneNumber,
   normalizeCompanyName,
@@ -405,7 +410,13 @@ export default function Ajustes() {
   const [peopleEditing, setPeopleEditing] = useState<PeopleAdminItem | null>(null);
   const [peopleDeleteTarget, setPeopleDeleteTarget] =
     useState<PeopleAdminItem | null>(null);
-  const [secadoActionsOpen, setSecadoActionsOpen] = useState(false);
+  const [peopleFormError, setPeopleFormError] = useState<string | null>(null);
+  const [peopleDraft, setPeopleDraft] = useState<{
+    editing: PeopleAdminItem;
+    form: PeopleAdminForm;
+  } | null>(null);
+  const [showPeopleDraftModal, setShowPeopleDraftModal] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [peopleForm, setPeopleForm] = useState<PeopleAdminForm>({
     nombre: '',
     tipoDocumento: '',
@@ -428,6 +439,22 @@ export default function Ajustes() {
     setError(null);
     setSuccess(null);
     setFloatingError(null);
+  };
+
+  useEffect(() => {
+    if (!success) return undefined;
+    const timeout = window.setTimeout(() => setSuccess(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [success]);
+
+  useEffect(() => {
+    if (!limitNotice) return undefined;
+    const timeout = window.setTimeout(() => setLimitNotice(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [limitNotice]);
+
+  const showLimitNotice = (message = 'Llegaste al máximo permitido.') => {
+    setLimitNotice(message);
   };
 
   const abrirEditorBodega = () => {
@@ -507,6 +534,9 @@ export default function Ajustes() {
   };
 
   useEffect(() => {
+    const nombreOrganizacionReal = normalizeCompanyName(
+      user?.nombreOrganizacion ?? '',
+    );
     const nextNombre = profile.nombre || user?.name || '';
     const nextCorreo = profile.correo || user?.email || '';
     const nextTelefono = profile.telefono || formatPhoneNumber(user?.telefono ?? '');
@@ -530,9 +560,16 @@ export default function Ajustes() {
       }));
     }
 
-    if (!company.nombreEmpresa || !company.tipoEmpresa) {
+    if (
+      !company.nombreEmpresa ||
+      !company.tipoEmpresa ||
+      (company.nombreEmpresa === 'Mi empresa cafetera' && nombreOrganizacionReal)
+    ) {
       setCompany((prev) => ({
-        nombreEmpresa: prev.nombreEmpresa || 'Mi empresa cafetera',
+        nombreEmpresa:
+          !prev.nombreEmpresa || prev.nombreEmpresa === 'Mi empresa cafetera'
+            ? nombreOrganizacionReal || 'Mi empresa cafetera'
+            : prev.nombreEmpresa,
         tipoEmpresa: nextTipo,
         descripcion:
           prev.descripcion ||
@@ -549,6 +586,7 @@ export default function Ajustes() {
     user?.name,
     user?.email,
     user?.telefono,
+    user?.nombreOrganizacion,
     user?.tipoOrganizacion,
   ]);
 
@@ -676,11 +714,9 @@ export default function Ajustes() {
     }));
     setProfileErrors({});
     setSuccess('Perfil actualizado correctamente.');
-    setIsEditingProfile(false);
-    setIsViewingPublicProfile(true);
   };
 
-  const guardarEmpresa = () => {
+  const guardarEmpresa = async () => {
     clearFeedback();
     const companyNameValidation = validateCompanyName(company.nombreEmpresa);
     const businessNameError = companyNameValidation.isValid
@@ -698,12 +734,23 @@ export default function Ajustes() {
       setFloatingError(getAjustesGuidance(message));
       return;
     }
-    setCompany((prev) => ({
-      ...prev,
-      nombreEmpresa: normalizeCompanyName(prev.nombreEmpresa),
-    }));
-    setSuccess('Información de la empresa actualizada.');
-    setIsEditingCompany(false);
+    const nombreEmpresa = normalizeCompanyName(company.nombreEmpresa);
+    try {
+      await actualizarConfiguracionOrganizacion({
+        nombreOrganizacion: nombreEmpresa,
+        tipoOrganizacion: company.tipoEmpresa,
+      });
+      setCompany((prev) => ({
+        ...prev,
+        nombreEmpresa,
+      }));
+      setSuccess('Información de la empresa actualizada.');
+    } catch {
+      const message =
+        'No pudimos guardar la empresa. Revisa tu conexión e intenta nuevamente.';
+      setError(message);
+      setFloatingError(getAjustesGuidance(message));
+    }
   };
 
   const guardarPersonaAdmin = async () => {
@@ -763,11 +810,13 @@ export default function Ajustes() {
           ),
         );
       }
-      setSuccess('Registro actualizado correctamente.');
+      setSuccess('Contacto actualizado correctamente.');
       setPeopleEditing(null);
       setPeopleFormErrors({});
     } catch {
-      setPeopleError('No pudimos guardar los cambios. Intenta otra vez.');
+      setPeopleError(
+        'No pudimos guardar el contacto. Revisa tu conexión e intenta nuevamente.',
+      );
     } finally {
       setPeopleLoading(false);
     }
@@ -806,9 +855,9 @@ export default function Ajustes() {
       setCapacidadKg(result.capacidadKg ? String(result.capacidadKg) : '');
       setUpdatedAt(result.updatedAt);
       setSuccess('Capacidad de bodega actualizada.');
-      setIsEditingBodega(false);
     } catch (err) {
-      const message = 'No pudimos guardar la bodega. Intenta nuevamente.';
+      const message =
+        'No pudimos guardar la capacidad. Revisa tu conexión e intenta nuevamente.';
       setError(message);
     }
   };
@@ -887,7 +936,40 @@ export default function Ajustes() {
     setPeopleFormError(null);
   };
 
+  const hasPeopleDraftChanges = (item: PeopleAdminItem | null, form: PeopleAdminForm) => {
+    if (!item) return false;
+    if (!item.id) {
+      return Boolean(
+        form.nombre.trim() ||
+          form.tipoDocumento ||
+          form.documento.trim() ||
+          form.telefono.trim(),
+      );
+    }
+    return (
+      form.nombre.trim() !== item.nombre ||
+      form.tipoDocumento !== item.tipoDocumento ||
+      normalizeDocumentForStorage(form.documento, item.tipoDocumento) !==
+        normalizeDocumentForStorage(item.documento, item.tipoDocumento) ||
+      sanitizeDigits(form.telefono, 10) !== sanitizeDigits(item.telefono, 10)
+    );
+  };
+
+  const cerrarEdicionPersona = () => {
+    if (hasPeopleDraftChanges(peopleEditing, peopleForm) && peopleEditing) {
+      setPeopleDraft({ editing: peopleEditing, form: peopleForm });
+      setShowPeopleDraftModal(true);
+    }
+    setPeopleEditing(null);
+    setPeopleFormError(null);
+    setPeopleFormErrors({});
+  };
+
   const iniciarRegistroPersona = () => {
+    if (peopleDraft) {
+      setShowPeopleDraftModal(true);
+      return;
+    }
     setPeopleDetail(null);
     setPeopleEditing({
       id: '',
@@ -899,7 +981,7 @@ export default function Ajustes() {
     });
     setPeopleForm({
       nombre: '',
-      tipoDocumento: 'CEDULA',
+      tipoDocumento: '',
       documento: '',
       telefono: '',
     });
@@ -907,12 +989,83 @@ export default function Ajustes() {
     setPeopleFormError(null);
   };
 
-  const [peopleFormError, setPeopleFormError] = useState<string | null>(null);
+  const validarPersonaEnTiempoReal = (
+    nextForm: PeopleAdminForm,
+    currentEditing = peopleEditing,
+  ) => {
+    const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
+    const tipoDocumento = nextForm.tipoDocumento;
+    if (!tipoDocumento) {
+      setPeopleFormErrors(nextErrors);
+      return;
+    }
+
+    const documentoNormalizado = normalizeDocumentForStorage(
+      nextForm.documento,
+      tipoDocumento,
+    );
+    const telefonoNormalizado = sanitizeDigits(nextForm.telefono, 10);
+    const contactos = [...clientesAdmin, ...productoresAdmin].filter(
+      (item) =>
+        !(
+          currentEditing &&
+          item.id === currentEditing.id &&
+          item.contactType === currentEditing.contactType
+        ),
+    );
+
+    if (documentoNormalizado) {
+      const documentoDuplicado = contactos.some(
+        (item) =>
+          item.tipoDocumento === tipoDocumento &&
+          normalizeDocumentForStorage(item.documento, item.tipoDocumento) ===
+            documentoNormalizado,
+      );
+      if (documentoDuplicado) {
+        nextErrors.documento =
+          tipoDocumento === 'NIT'
+            ? 'Ya existe un registro con este NIT.'
+            : 'Ya existe un registro con esta cédula.';
+      }
+    }
+
+    if (telefonoNormalizado.length === 10) {
+      const telefonoDuplicado = contactos.some(
+        (item) => sanitizeDigits(item.telefono, 10) === telefonoNormalizado,
+      );
+      if (telefonoDuplicado) {
+        nextErrors.telefono = 'Este número ya está registrado.';
+      }
+    } else if (nextForm.telefono.trim()) {
+      const telefonoValidation = validatePhoneNumber(nextForm.telefono, 'El celular', {
+        optional: true,
+      });
+      if (!telefonoValidation.isValid) {
+        nextErrors.telefono = telefonoValidation.message;
+      }
+    }
+
+    setPeopleFormErrors((prev) => ({
+      ...prev,
+      documento: nextErrors.documento,
+      telefono: nextErrors.telefono,
+    }));
+  };
 
   const guardarPersona = async () => {
     if (!peopleMode || !peopleEditing) return;
 
-    const tipoDocumento = peopleForm.tipoDocumento || 'CEDULA';
+    const tipoDocumento = peopleForm.tipoDocumento;
+    const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
+    if (!tipoDocumento) {
+      const message =
+        'Selecciona el tipo de documento para continuar. Luego podrás ingresar el nombre y documento.';
+      nextErrors.tipoDocumento = message;
+      setPeopleFormErrors(nextErrors);
+      setPeopleFormError(message);
+      return;
+    }
+
     const nombreNormalizado =
       tipoDocumento === 'NIT'
         ? normalizeCompanyName(peopleForm.nombre)
@@ -922,7 +1075,6 @@ export default function Ajustes() {
       tipoDocumento,
     );
     const telefonoNormalizado = sanitizeDigits(peopleForm.telefono, 10);
-    const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
     const nombreValidation =
       tipoDocumento === 'NIT'
         ? validateCompanyName(peopleForm.nombre)
@@ -933,8 +1085,6 @@ export default function Ajustes() {
     const telefonoValidation = validatePhoneNumber(peopleForm.telefono, 'El celular', {
       optional: true,
     });
-
-    if (!peopleForm.tipoDocumento) nextErrors.tipoDocumento = 'Selecciona el tipo de documento.';
     if (!nombreValidation.isValid) nextErrors.nombre = nombreValidation.message;
     if (!documentoValidation.isValid) nextErrors.documento = documentoValidation.message;
     if (!telefonoValidation.isValid) nextErrors.telefono = telefonoValidation.message;
@@ -993,9 +1143,15 @@ export default function Ajustes() {
         ]);
       }
       setPeopleEditing(null);
+      setPeopleDraft(null);
+      setShowPeopleDraftModal(false);
       setPeopleFormErrors({});
       setPeopleFormError(null);
-      setSuccess(`${peopleEditing.contactType === 'cliente' ? 'Cliente' : 'Productor'} guardado correctamente.`);
+      setSuccess(
+        peopleEditing.id
+          ? 'Contacto actualizado correctamente.'
+          : 'Contacto registrado correctamente.',
+      );
     } catch (err) {
       const message =
         err instanceof Error
@@ -1017,11 +1173,11 @@ export default function Ajustes() {
         setProductoresAdmin((items) => items.filter((current) => current.id !== item.id));
       }
       setPeopleDetail(null);
-      setSuccess(
-        `${item.contactType === 'cliente' ? 'Cliente' : 'Productor'} eliminado correctamente.`,
-      );
+      setSuccess('Contacto eliminado correctamente.');
     } catch {
-      setPeopleError('No pudimos eliminar el contacto. Intenta nuevamente.');
+      setPeopleError(
+        'No pudimos eliminar el contacto. Revisa tu conexión e intenta nuevamente.',
+      );
     } finally {
       setPeopleLoading(false);
     }
@@ -1044,7 +1200,8 @@ export default function Ajustes() {
       description: 'Tiempo y humedad',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () => setSecadoActionsOpen(true),
+      onClick: () =>
+        navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } }),
     },
     {
       id: 'gastos',
@@ -1059,7 +1216,7 @@ export default function Ajustes() {
   const configuracionNegocio = [
     {
       id: 'info-empresa',
-      title: 'Información de la empresa',
+      title: 'Empresa',
       description: company.nombreEmpresa || 'Datos principales del negocio',
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
@@ -1094,17 +1251,8 @@ export default function Ajustes() {
       onClick: abrirEditorBodega,
     },
     {
-      id: 'perfil-usuario',
-      title: 'Perfil de usuario',
-      description: 'Datos de tu cuenta',
-      icon: UserCog,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: false,
-      onClick: abrirPerfilPublico,
-    },
-    {
       id: 'gestion-usuarios',
-      title: 'Gestión de usuarios',
+      title: 'Usuarios',
       description: 'Próximamente',
       icon: Users,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
@@ -1113,7 +1261,7 @@ export default function Ajustes() {
     },
     {
       id: 'contacto-soporte',
-      title: 'Contacto y soporte',
+      title: 'Soporte',
       description: 'Ayuda, dudas y reportes',
       icon: LifeBuoy,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
@@ -1125,7 +1273,7 @@ export default function Ajustes() {
   const gestionPersonas = [
     {
       id: 'gestion-contactos',
-      title: 'Gestión de contactos',
+      title: 'Contactos',
       description: 'Clientes y productores registrados',
       icon: Users2,
       iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
@@ -1181,9 +1329,19 @@ export default function Ajustes() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
+                onClick={abrirPerfilPublico}
+                aria-label="Ver perfil de usuario"
+                title="Ver perfil"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#f3f4f6] text-[#1f3fa7] transition hover:bg-[#e9edf5] active:scale-95"
+              >
+                <Eye size={17} />
+              </button>
+              <button
+                type="button"
                 onClick={abrirEditorPerfil}
-                aria-label="Editar perfil"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-[#d6deef] bg-[#f9fbff] text-[#102d92]"
+                aria-label="Editar perfil de usuario"
+                title="Editar perfil"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#f3f4f6] text-[#1f3fa7] transition hover:bg-[#e9edf5] active:scale-95"
               >
                 <Pencil size={16} />
               </button>
@@ -1191,16 +1349,40 @@ export default function Ajustes() {
                 type="button"
                 onClick={() => void cerrarSesion()}
                 disabled={cerrandoSesion}
-                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[13px] border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label={cerrandoSesion ? 'Cerrando sesión' : 'Cerrar sesión'}
+                title="Cerrar sesión"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#fee2e2] text-rose-700 transition hover:bg-[#fecaca] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <LogOut size={15} />
-                {cerrandoSesion ? 'Saliendo...' : 'Cerrar sesión'}
               </button>
             </div>
           </div>
 
           {isViewingPublicProfile ? (
-            <div className="mt-4 rounded-[18px] border border-[#dbe5f7] bg-[#f8fbff] p-4">
+            <div
+              className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
+              onClick={() => setIsViewingPublicProfile(false)}
+            >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="perfil-usuario-title"
+              className="max-h-[86dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#dbe5f7] bg-[#f8fbff] p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 id="perfil-usuario-title" className="text-base font-black text-slate-950">
+                  Perfil de usuario
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsViewingPublicProfile(false)}
+                  aria-label="Cerrar perfil de usuario"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm"
+                >
+                  <X size={18} />
+                </button>
+              </div>
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#102d92] text-base font-black text-white">
                   {getInitials(profile.nombre || company.nombreEmpresa)}
@@ -1234,13 +1416,24 @@ export default function Ajustes() {
               >
                 Editar perfil
               </button>
+            </section>
             </div>
           ) : null}
 
           {isEditingProfile ? (
-            <div className="mt-4 space-y-3 rounded-[18px] border border-[#e7ebf6] bg-[#fbfcff] p-4">
+            <div
+              className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
+              onClick={cerrarEditorPerfil}
+            >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="editar-perfil-title"
+              className="max-h-[88dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#e7ebf6] bg-[#fbfcff] p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black text-slate-950">
+                <h3 id="editar-perfil-title" className="text-base font-black text-slate-950">
                   Editar perfil
                 </h3>
                 <button
@@ -1366,6 +1559,14 @@ export default function Ajustes() {
               {error && activeErrorSection === 'profile' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
+              {success === 'Perfil actualizado correctamente.' ? (
+                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
+                  <span>Perfil actualizado correctamente.</span>
+                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -1383,6 +1584,7 @@ export default function Ajustes() {
                   Cancelar
                 </button>
               </div>
+            </section>
             </div>
           ) : null}
         </section>
@@ -1391,7 +1593,7 @@ export default function Ajustes() {
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Procesos operativos
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {procesosOperativos.map((item) => {
               const Icon = item.icon;
               return (
@@ -1399,19 +1601,25 @@ export default function Ajustes() {
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="rounded-[14px] border border-[#e5e9f5] bg-white p-3 text-left shadow-sm"
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:bg-[#f9fafb]"
                 >
                   <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                    className={`inline-flex shrink-0 rounded-lg p-2 ${item.iconStyle}`}
                   >
                     <Icon size={14} />
                   </span>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {item.title}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {item.description}
-                  </p>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </span>
+                    <span className="block truncate text-[11px] text-slate-500">
+                      {item.description}
+                    </span>
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="mt-0.5 shrink-0 text-slate-300"
+                  />
                 </button>
               );
             })}
@@ -1534,17 +1742,22 @@ export default function Ajustes() {
                 </button>
               </div>
               <div className="mt-4 space-y-3">
+              {limitNotice ? (
+                <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                  {limitNotice}
+                </div>
+              ) : null}
               <input
                 type="text"
                 value={company.nombreEmpresa}
                 onChange={(event) => {
                   setCompany((prev) => ({
                     ...prev,
-                    nombreEmpresa: event.target.value.slice(
-                      0,
-                      BUSINESS_NAME_MAX_LENGTH,
-                    ),
+                    nombreEmpresa: event.target.value.slice(0, BUSINESS_NAME_MAX_LENGTH),
                   }));
+                  if (event.target.value.length >= BUSINESS_NAME_MAX_LENGTH) {
+                    showLimitNotice('Llegaste al máximo de caracteres.');
+                  }
                   clearFeedback();
                 }}
                 maxLength={BUSINESS_NAME_MAX_LENGTH}
@@ -1584,16 +1797,33 @@ export default function Ajustes() {
                 onChange={(event) => {
                   setCompany((prev) => ({
                     ...prev,
-                    descripcion: event.target.value,
+                    descripcion: event.target.value.slice(0, 200),
                   }));
+                  if (event.target.value.length >= 200) {
+                    showLimitNotice('Llegaste al máximo de caracteres.');
+                  }
                   clearFeedback();
                 }}
+                maxLength={200}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 rows={3}
                 placeholder="Descripción breve del negocio"
               />
+              <div className="-mt-1 flex justify-end">
+                <span className="text-xs font-bold text-slate-500">
+                  {company.descripcion.length}/200
+                </span>
+              </div>
               {error && activeErrorSection === 'company' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
+              ) : null}
+              {success === 'Información de la empresa actualizada.' ? (
+                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
+                  <span>Información de la empresa actualizada.</span>
+                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <X size={14} />
+                  </button>
+                </div>
               ) : null}
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -1617,14 +1847,8 @@ export default function Ajustes() {
         </div>
         ) : null}
 
-        {error && !activeErrorSection && !isEditingBodega ? (
+              {error && !activeErrorSection && !isEditingBodega ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
-        ) : null}
-
-        {success ? (
-          <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {success}
-          </div>
         ) : null}
 
       </div>
@@ -1648,20 +1872,32 @@ export default function Ajustes() {
             </div>
 
             <div className="mt-4 space-y-3">
+              {limitNotice ? (
+                <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                  {limitNotice}
+                </div>
+              ) : null}
               <div>
                 <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
                   Nombre
                 </p>
                 <input
                   type="text"
+                  maxLength={BODEGA_NAME_MAX_LENGTH}
                   value={nombreBodega}
                   onChange={(event) => {
-                    setNombreBodega(event.target.value);
+                    if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                      showLimitNotice();
+                    }
+                    setNombreBodega(sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH));
                     clearFeedback();
                   }}
                   className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="Bodega principal"
                 />
+                <p className="mt-1 text-right text-[0.62rem] font-bold text-slate-500">
+                  {nombreBodega.length}/{BODEGA_NAME_MAX_LENGTH}
+                </p>
               </div>
 
               <div>
@@ -1671,15 +1907,27 @@ export default function Ajustes() {
                 <input
                   type="number"
                   min="1"
+                  max={BODEGA_CAPACITY_MAX_KG}
                   step="1"
                   value={capacidadKg}
                   onChange={(event) => {
-                    setCapacidadKg(event.target.value);
+                    if (event.target.value.replace(/\D/g, '').length >= 6) {
+                      showLimitNotice();
+                    }
+                    setCapacidadKg(
+                      sanitizePositiveIntegerInput(
+                        event.target.value,
+                        BODEGA_CAPACITY_MAX_KG,
+                      ),
+                    );
                     clearFeedback();
                   }}
                   className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="6000"
                 />
+                <p className="mt-1 text-[0.62rem] font-bold text-slate-500">
+                  Máximo recomendado: 100.000 kg
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -1718,8 +1966,27 @@ export default function Ajustes() {
                   Guardar cambios
                 </button>
               </div>
+              {success === 'Capacidad de bodega actualizada.' ? (
+                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
+                  <span>Capacidad de bodega actualizada.</span>
+                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
               {error ? (
-                <InlineGuidedError message={getAjustesGuidance(error)} />
+                <div>
+                  <InlineGuidedError message={getAjustesGuidance(error)} />
+                  {error.includes('No pudimos guardar') ? (
+                    <button
+                      type="button"
+                      onClick={() => void guardarBodega()}
+                      className="mt-2 rounded-[12px] bg-[#102d92] px-4 py-2 text-xs font-black text-white"
+                    >
+                      Reintentar
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500">
                 <CalendarDays size={12} className="text-[#102d92]" />
@@ -1731,40 +1998,49 @@ export default function Ajustes() {
       ) : null}
 
       {peopleMode ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm sm:items-center">
+        <div className="fixed inset-0 z-[80] bg-[#f4f7fb] text-slate-950">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="personas-admin-title"
-            className="flex max-h-[88dvh] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb]"
           >
-            <header className="shrink-0 border-b border-slate-100 px-5 py-4">
+            <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="flex min-w-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={cerrarModuloPersonas}
+                    aria-label="Volver a ajustes"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92]"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <div className="min-w-0">
                   <h3 id="personas-admin-title" className="text-lg font-black text-slate-950">
                     Gestión de contactos
                   </h3>
                   <p className="text-xs font-bold text-slate-500">
                     Clientes y productores registrados
                   </p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setPeopleMode(null);
-                    setPeopleDetail(null);
-                    setPeopleEditing(null);
-                  }}
-                  aria-label="Cerrar listado"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  onClick={iniciarRegistroPersona}
+                  className="inline-flex min-h-10 shrink-0 items-center rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white"
                 >
-                  <X size={18} />
+                  Nuevo
                 </button>
               </div>
               <input
                 type="text"
                 value={peopleSearch}
-                onChange={(event) => setPeopleSearch(event.target.value)}
+                maxLength={60}
+                onChange={(event) => {
+                  if (event.target.value.length >= 60) showLimitNotice();
+                  setPeopleSearch(sanitizeSearchInput(event.target.value));
+                }}
                 placeholder="Buscar por nombre, documento o teléfono"
                 className="mt-3 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
               />
@@ -1828,6 +2104,14 @@ export default function Ajustes() {
               <p className="mt-3 text-xs font-black text-slate-500">
                 {peopleFiltered.length} contacto{peopleFiltered.length === 1 ? '' : 's'}
               </p>
+              {success && success.includes('Contacto') ? (
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-opacity duration-300">
+                  <span>{success}</span>
+                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {peopleLoading ? (
@@ -1982,7 +2266,7 @@ export default function Ajustes() {
               <h3 className="text-lg font-black text-slate-950">Editar registro</h3>
               <button
                 type="button"
-                onClick={() => setPeopleEditing(null)}
+                onClick={cerrarEdicionPersona}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 aria-label="Cerrar edición"
               >
@@ -1990,6 +2274,44 @@ export default function Ajustes() {
               </button>
             </div>
             <div className="mt-4 space-y-3">
+              {peopleFormError ? (
+                <div className="rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  <p>{peopleFormError}</p>
+                </div>
+              ) : null}
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-black text-slate-700">
+                  Tipo de registro
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ['cliente', 'Cliente'],
+                    ['productor', 'Productor'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setPeopleEditing((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                contactType: value as 'cliente' | 'productor',
+                              }
+                            : prev,
+                        )
+                      }
+                      className={`min-h-[40px] rounded-[13px] text-xs font-black ${
+                        peopleEditing.contactType === value
+                          ? 'bg-[#102d92] text-white'
+                          : 'border border-[#d5deee] bg-white text-[#334b85]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </label>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
                   Tipo de documento
@@ -2006,16 +2328,20 @@ export default function Ajustes() {
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none"
                 aria-label="Tipo de documento"
               >
+                <option value="">Selecciona el tipo de documento</option>
                 <option value="CEDULA">Cédula</option>
                 <option value="NIT">NIT</option>
+                <option value="CE">Cédula de extranjería</option>
+                <option value="PASAPORTE">Pasaporte</option>
+                <option value="OTRO">Otro</option>
               </select>
               </label>
               {peopleFormErrors.tipoDocumento ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.tipoDocumento}</p> : null}
               <label className="block">
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
                   {peopleForm.tipoDocumento === 'NIT'
-                    ? 'Nombre completo / Nombre de la empresa'
-                    : 'Nombre completo / Nombre de la empresa'}
+                    ? 'Nombre de la empresa'
+                    : 'Nombre completo'}
                 </span>
               <input
                 type="text"
@@ -2026,8 +2352,15 @@ export default function Ajustes() {
                     nombre: event.target.value.replace(/\s{2,}/g, ' '),
                   }))
                 }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none"
-                placeholder={peopleForm.tipoDocumento === 'NIT' ? 'Nombre de la empresa' : 'Nombre completo'}
+                disabled={!peopleForm.tipoDocumento}
+                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                placeholder={
+                  peopleForm.tipoDocumento
+                    ? peopleForm.tipoDocumento === 'NIT'
+                      ? 'Nombre de la empresa'
+                      : 'Nombre completo'
+                    : 'Primero selecciona el tipo de documento'
+                }
               />
               </label>
               {peopleFormErrors.nombre ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.nombre}</p> : null}
@@ -2038,17 +2371,27 @@ export default function Ajustes() {
               <input
                 type="text"
                 value={peopleForm.documento}
-                onChange={(event) =>
-                  setPeopleForm((prev) => ({
-                    ...prev,
-                    documento: sanitizeDocumentInput(
-                      event.target.value,
-                      prev.tipoDocumento || 'CEDULA',
-                    ),
-                  }))
+                onChange={(event) => {
+                  setPeopleForm((prev) => {
+                    const next = {
+                      ...prev,
+                      documento: prev.tipoDocumento
+                        ? sanitizeDocumentInput(event.target.value, prev.tipoDocumento)
+                        : '',
+                    };
+                    validarPersonaEnTiempoReal(next);
+                    return next;
+                  });
+                }}
+                disabled={!peopleForm.tipoDocumento}
+                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                placeholder={
+                  peopleForm.tipoDocumento
+                    ? peopleForm.tipoDocumento === 'NIT'
+                      ? '900123456-7'
+                      : '1234567890'
+                    : 'Luego podrás ingresar el documento'
                 }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none"
-                placeholder={peopleForm.tipoDocumento === 'NIT' ? '900123456-7' : '1234567890'}
               />
               </label>
               {peopleFormErrors.documento ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.documento}</p> : null}
@@ -2059,21 +2402,26 @@ export default function Ajustes() {
               <input
                 type="text"
                 value={peopleForm.telefono}
-                onChange={(event) =>
-                  setPeopleForm((prev) => ({
-                    ...prev,
-                    telefono: formatPhoneNumber(event.target.value),
-                  }))
-                }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none"
-                placeholder="300 123 4567"
+                onChange={(event) => {
+                  setPeopleForm((prev) => {
+                    const next = {
+                      ...prev,
+                      telefono: formatPhoneNumber(event.target.value),
+                    };
+                    validarPersonaEnTiempoReal(next);
+                    return next;
+                  });
+                }}
+                disabled={!peopleForm.tipoDocumento}
+                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                placeholder={peopleForm.tipoDocumento ? '300 123 4567' : 'Opcional después del documento'}
               />
               </label>
               {peopleFormErrors.telefono ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.telefono}</p> : null}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => void guardarPersonaAdmin()}
+                  onClick={() => void guardarPersona()}
                   disabled={peopleLoading}
                   className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:opacity-70"
                 >
@@ -2081,12 +2429,67 @@ export default function Ajustes() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPeopleEditing(null)}
+                  onClick={cerrarEdicionPersona}
                   className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
                 >
                   Cancelar
                 </button>
               </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showPeopleDraftModal && peopleDraft ? (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="people-draft-title"
+            className="w-full max-w-[390px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
+                  Edición sin finalizar
+                </p>
+                <h3 id="people-draft-title" className="mt-1 text-lg font-black text-slate-950">
+                  Encontramos cambios que no fueron guardados.
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPeopleDraftModal(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar aviso"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPeopleEditing(peopleDraft.editing);
+                  setPeopleForm(peopleDraft.form);
+                  setPeopleFormErrors({});
+                  setPeopleFormError(null);
+                  setShowPeopleDraftModal(false);
+                }}
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+              >
+                Continuar edición
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPeopleDraft(null);
+                  setShowPeopleDraftModal(false);
+                }}
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+              >
+                Descartar cambios
+              </button>
             </div>
           </section>
         </div>
@@ -2139,60 +2542,6 @@ export default function Ajustes() {
                 className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-rose-50 px-4 text-sm font-black text-rose-700 ring-1 ring-rose-100"
               >
                 Eliminar
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {secadoActionsOpen ? (
-        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="secado-actions-title"
-            className="w-full max-w-[390px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
-                  Proceso de secado
-                </p>
-                <h3 id="secado-actions-title" className="mt-1 text-lg font-black text-slate-950">
-                  ¿Qué deseas hacer?
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSecadoActionsOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-                aria-label="Cerrar proceso de secado"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSecadoActionsOpen(false);
-                  navigate('/inventario/secado/inicio');
-                }}
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-              >
-                <PlayCircle size={16} />
-                Iniciar secado
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSecadoActionsOpen(false);
-                  navigate('/inventario/secados');
-                }}
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
-              >
-                <ListChecks size={16} />
-                Ver secados activos
               </button>
             </div>
           </section>

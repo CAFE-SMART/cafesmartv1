@@ -47,6 +47,11 @@ export class SecadoService {
           select: {
             id: true,
             pesoActual: true,
+            tipoCafe: {
+              select: {
+                nombre: true,
+              },
+            },
           },
         });
 
@@ -55,6 +60,15 @@ export class SecadoService {
             apiError(
               'SECADO_SUBLOTE_ORIGEN_INVALIDO',
               'El sublote origen no esta disponible para secado.',
+            ),
+          );
+        }
+
+        if (sublote.tipoCafe.nombre.trim().toUpperCase() !== 'VERDE') {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+              'Solo puedes finalizar secado desde cafe verde disponible.',
             ),
           );
         }
@@ -84,7 +98,7 @@ export class SecadoService {
           userId,
           organizacionId,
           {
-            sessionId: `secado-${dto.subloteId}-${Date.now()}`,
+            sessionId: `secado-${dto.subloteId}-${dto.calidadSalida}-${dto.pesoSalida}`,
             deviceId: 'backend-secado',
             referenciaSubloteOrigenId: dto.subloteId,
             fuentes: [{ id: dto.subloteId, pesoKg: pesoEntrada }],
