@@ -7,7 +7,11 @@ import {
   VentaDetalle,
 } from '@prisma/client';
 import { CreateVentaDto } from './dto/crear-venta.dto';
-import { PRECIO_MINIMO_KG } from '../common/business-rules';
+import {
+  PESO_MINIMO_KG,
+  PRECIO_MAXIMO_KG,
+  PRECIO_MINIMO_KG,
+} from '../common/business-rules';
 
 export type CrearVentaResultado = {
   venta: Venta;
@@ -133,17 +137,21 @@ export function validarVentaCritica(data: ProcesarVentaInput): void {
       );
     }
 
-    if (!Number.isFinite(detalle.pesoVendido) || detalle.pesoVendido <= 0) {
+    if (
+      !Number.isFinite(detalle.pesoVendido) ||
+      detalle.pesoVendido < PESO_MINIMO_KG
+    ) {
       throw new VentaValidacionCriticaError(
         'VENTA_CANTIDAD_INVALIDA',
-        'La cantidad a vender debe ser mayor a 0.',
+        `La cantidad a vender debe ser minimo ${PESO_MINIMO_KG} kg.`,
         { index, subloteId: detalle.subloteId },
       );
     }
 
     if (
       !Number.isFinite(detalle.precioKg) ||
-      detalle.precioKg < PRECIO_MINIMO_KG
+      detalle.precioKg < PRECIO_MINIMO_KG ||
+      detalle.precioKg > PRECIO_MAXIMO_KG
     ) {
       throw new VentaValidacionCriticaError(
         'VENTA_PRECIO_INVALIDO',

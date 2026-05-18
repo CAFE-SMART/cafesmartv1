@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
+  Coffee,
   Scale,
   X,
 } from 'lucide-react';
@@ -30,6 +31,33 @@ function kg(value: number) {
     minimumFractionDigits: value % 1 === 0 ? 0 : 1,
     maximumFractionDigits: 1,
   }).format(value)} kg`;
+}
+
+const MAX_SECADO_INPUT_KG = 99999;
+
+function sanitizeDecimalInput(value: string, maxDigits: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integer = '', ...decimalParts] = normalized.split('.');
+  const digits = `${integer}${decimalParts.join('')}`.slice(0, maxDigits);
+
+  if (!digits) return '';
+  if (!normalized.includes('.')) return digits;
+
+  const integerLength = Math.min(integer.length, digits.length);
+  const nextInteger = digits.slice(0, integerLength) || '0';
+  const nextDecimal = digits.slice(integerLength);
+
+  return nextDecimal ? `${nextInteger}.${nextDecimal}` : `${nextInteger}.`;
+}
+
+function clampDecimalInput(value: string, maxDigits: number, maxValue: number) {
+  const next = sanitizeDecimalInput(value, maxDigits);
+  if (!next || next.endsWith('.')) return next;
+
+  const parsed = Number(next);
+  if (!Number.isFinite(parsed)) return '';
+
+  return parsed > maxValue ? String(maxValue) : next;
 }
 
 function qualityKey(value: string) {
@@ -236,6 +264,26 @@ export default function SecadoSeleccion() {
     });
   };
 
+  const seleccionarTodo = () => {
+    setSelectedWeights(
+      Object.fromEntries(
+        availableSublotes.map((sublote) => [sublote.id, sublote.pesoActual]),
+      ),
+    );
+    setError(null);
+  };
+
+  const seleccionarParte = () => {
+    setSelectedWeights({});
+    setError(null);
+  };
+
+  const allSelected =
+    availableSublotes.length > 0 &&
+    availableSublotes.every(
+      (sublote) => (selectedWeights[sublote.id] ?? 0) >= sublote.pesoActual,
+    );
+
   const openAdjust = (sublote: SubloteDetalle) => {
     setEditing(sublote);
     setDraftWeight(String(selectedWeights[sublote.id] || sublote.pesoActual));
@@ -293,15 +341,49 @@ export default function SecadoSeleccion() {
           <h1 className="text-sm font-extrabold">Iniciar secado</h1>
         </header>
 
-        <main className="flex flex-1 flex-col gap-4 px-4 py-4 pb-5">
-          <section>
+        <main className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4 pb-3">
+          <section className="overflow-hidden rounded-[20px] bg-[linear-gradient(135deg,#24442a_0%,#6b5b35_100%)] p-4 text-white shadow-[0_14px_30px_rgba(36,68,42,0.18)]">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/15 text-white">
+                <Coffee size={22} />
+              </div>
+              <div className="min-w-0">
             <h2 className="text-[1.05rem] font-black leading-tight">
               Selecciona los sublotes de café verde
             </h2>
-            <p className="mt-2 text-[0.72rem] leading-5 text-slate-500">
+            <p className="mt-2 text-[0.72rem] leading-5 text-white/80">
               Selecciona los sublotes que vas a secar. Puedes enviar todo el
               peso o tocar Ajustar cantidad para secar solo una parte.
             </p>
+              </div>
+            </div>
+
+            {availableSublotes.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-[14px] bg-white/12 p-1">
+                <button
+                  type="button"
+                  onClick={seleccionarTodo}
+                  className={`h-9 rounded-[10px] text-[0.7rem] font-black transition ${
+                    allSelected
+                      ? 'bg-white text-[#24442a] shadow-sm'
+                      : 'text-white/85'
+                  }`}
+                >
+                  Todo el peso
+                </button>
+                <button
+                  type="button"
+                  onClick={seleccionarParte}
+                  className={`h-9 rounded-[10px] text-[0.7rem] font-black transition ${
+                    !allSelected
+                      ? 'bg-white text-[#24442a] shadow-sm'
+                      : 'text-white/85'
+                  }`}
+                >
+                  Una parte
+                </button>
+              </div>
+            ) : null}
           </section>
 
           {latestActiveSession ? (
@@ -336,7 +418,7 @@ export default function SecadoSeleccion() {
           ) : null}
 
           {!loading && detalle && availableSublotes.length > 0 ? (
-            <section className="space-y-4">
+            <section className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {grouped.map(({ quality, items }) =>
                 items.length > 0 ? (
                   <div key={quality} className="space-y-2">
@@ -465,13 +547,18 @@ export default function SecadoSeleccion() {
               Cantidad a secar (kg)
             </label>
             <input
-              type="number"
-              min="0"
-              max={editing.pesoActual}
-              step="0.1"
+              type="text"
+              inputMode="decimal"
+              maxLength={8}
               value={draftWeight}
               onChange={(event) => {
-                setDraftWeight(event.target.value);
+                setDraftWeight(
+                  clampDecimalInput(
+                    event.target.value,
+                    7,
+                    Math.min(MAX_SECADO_INPUT_KG, editing.pesoActual),
+                  ),
+                );
                 setAdjustError(null);
               }}
               className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 px-4 text-sm font-bold outline-none focus:border-[#0647d6]"

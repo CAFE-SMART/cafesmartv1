@@ -7,6 +7,7 @@ import {
   BadgeAlert,
   CalendarDays,
   Check,
+  ChevronDown,
   Coffee,
   Frown,
   Leaf,
@@ -54,17 +55,28 @@ import {
   type EstadoCapacidadCompra,
 } from '../services/comprasService';
 import {
+  actualizarProductor,
   crearProductor,
   listarProductores,
   type ProductorItem,
 } from '../services/productoresService';
-import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 import {
+  PESO_MAXIMO_ENTRADA_KG,
+  PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
+  PESO_MINIMO_KG,
+  PRECIO_MAXIMO_KG,
+  PRECIO_MINIMO_KG,
+} from '../utils/businessRules';
+import {
+  type DocumentType,
+  PERSON_NAME_MAX_LENGTH,
+  normalizeDocumentValue,
+  sanitizeDocumentInput,
   sanitizeDigits as sanitizePersonDigits,
-  sanitizeNameInput,
+  sanitizeProducerNameInput,
   validateDocumentNumber,
-  validatePersonName,
   validatePhoneNumber,
+  validateProducerName,
 } from '../utils/personValidation';
 
 type Step = 1 | 2 | 3;
@@ -92,30 +104,58 @@ type CompraGuardadaResumen = {
 type ProductorOption = {
   id: string;
   nombre: string;
+  tipoDocumento: DocumentType | null;
   documento: string;
   detalle: string;
+  createdAt: string;
   telefono?: string;
   rapido?: boolean;
 };
 type ProductorForm = {
   nombre: string;
+  tipoDocumento: DocumentType;
   telefono: string;
   documento: string;
 };
 type ProductorFormErrors = Partial<Record<keyof ProductorForm, string>>;
 type ProductorSelectionMode = 'buscar' | 'generico' | null;
+type ProductorOrden = 'recientes' | 'antiguos' | 'az';
 
 const ORDEN_TIPOS = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const ORDEN_CALIDADES = ['BUENO', 'REGULAR', 'MALO'];
 const PRODUCTOR_GENERAL: ProductorOption = {
   id: 'general',
   nombre: 'Productor Generico',
+  tipoDocumento: null,
   documento: 'Compra rapida',
   detalle:
     'Para compras rápidas o productores ocasionales no registrados en el sistema.',
+  createdAt: '',
   rapido: true,
 };
-const LIMITE_PRODUCTORES_RECIENTES = 5;
+const LIMITE_PRODUCTORES_RECIENTES = 2;
+const LIMITE_PRODUCTORES_MODAL = 100;
+const CAPACIDAD_BODEGA_MAX_KG = 999999;
+const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
+const MAX_PESO_ENTRADA_KG = PESO_MAXIMO_ENTRADA_KG;
+const MAX_PESO_OPERATIVO_DEFAULT_KG = PESO_MAXIMO_OPERATIVO_DEFAULT_KG;
+const CAPACIDAD_BODEGA_INVALIDA = 'Ingresa una capacidad de bodega válida.';
+const CAPACIDAD_BODEGA_MENOR_INVENTARIO =
+  'La capacidad no puede ser menor al café almacenado actualmente.';
+const TIPOS_DOCUMENTO_PRODUCTOR: Array<{
+  value: DocumentType;
+  label: string;
+}> = [
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
+
+const PRODUCTOR_FORM_INICIAL: ProductorForm = {
+  nombre: '',
+  tipoDocumento: 'CC',
+  documento: '',
+  telefono: '',
+};
 
 function generarId() {
   if (
@@ -135,6 +175,14 @@ function normalizeSearchText(value: string) {
 
 function soloDigitos(value: string) {
   return value.replace(/\D/g, '');
+}
+
+function sanitizeCapacidadBodegaInput(value: string) {
+  return soloDigitos(value).slice(0, 6);
+}
+
+function normalizarDocumentoClave(value: string) {
+  return normalizeSearchText(value).replace(/[^a-z0-9]/g, '');
 }
 
 function crearSubloteVacio(): SubloteForm {
@@ -161,6 +209,29 @@ function formatoMoneda(valor: number) {
     currency: 'COP',
     maximumFractionDigits: 0,
   }).format(valor);
+}
+
+function formatoKg(valor: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(valor)} kg`;
+}
+
+function claseValorResumen(valor: string) {
+  if (valor.length >= 17) return 'text-[0.78rem] sm:text-[1.25rem]';
+  if (valor.length >= 14) return 'text-[0.9rem] sm:text-[1.4rem]';
+  return 'text-[1.12rem] sm:text-[1.65rem]';
+}
+
+function formatoKgCorto(valor: number) {
+  if (valor >= 10000) {
+    return `${new Intl.NumberFormat('es-CO', {
+      maximumFractionDigits: valor >= 100000 ? 0 : 1,
+    }).format(valor / 1000)} mil kg`;
+  }
+
+  return formatoKg(valor);
 }
 
 function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
@@ -191,6 +262,272 @@ function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
   };
 }
 
+function clasificarCapacidadVista(capacidad?: EstadoCapacidadCompra | null) {
+  const porcentaje = capacidad?.porcentajeOcupacion ?? 0;
+
+  if (!capacidad?.validada) {
+    return {
+      titulo: 'Revisar bodega',
+      mensaje: 'Toca Siguiente Paso para validar capacidad y datos faltantes.',
+      borde: 'border-[#e5e7eb]',
+      fondo: 'bg-white',
+      texto: 'text-slate-700',
+      barra: 'bg-[#94a3b8]',
+      icono: 'bg-[#eef2f7] text-slate-500',
+    };
+  }
+
+  if (capacidad.nivel === 'exceso' || porcentaje > 100) {
+    return {
+      titulo: 'Capacidad superada',
+      mensaje:
+        'Reduce la compra, vende café o aumenta la capacidad para continuar.',
+      borde: 'border-[#fecaca]',
+      fondo: 'bg-[#fff5f5]',
+      texto: 'text-[#b42318]',
+      barra: 'bg-[#d92d20]',
+      icono: 'bg-[#fee2e2] text-[#b42318]',
+    };
+  }
+
+  if (porcentaje >= 90) {
+    return {
+      titulo: 'Bodega casi al límite',
+      mensaje:
+        'Vende café pronto para liberar espacio antes de seguir comprando.',
+      borde: 'border-[#fed7aa]',
+      fondo: 'bg-[#fff7ed]',
+      texto: 'text-[#c2410c]',
+      barra: 'bg-[#ea580c]',
+      icono: 'bg-[#ffedd5] text-[#ea580c]',
+    };
+  }
+
+  if (capacidad.nivel === 'alerta' || porcentaje >= 80) {
+    return {
+      titulo: 'Bodega en alerta',
+      mensaje: 'Aún puedes comprar, pero la bodega ya está entrando en zona alta.',
+      borde: 'border-[#fde68a]',
+      fondo: 'bg-[#fffbeb]',
+      texto: 'text-[#92400e]',
+      barra: 'bg-[#d97706]',
+      icono: 'bg-[#fef3c7] text-[#d97706]',
+    };
+  }
+
+  return {
+    titulo: 'Espacio disponible',
+    mensaje: 'La compra cabe dentro de la capacidad configurada.',
+    borde: 'border-[#bfdbfe]',
+    fondo: 'bg-[#eff6ff]',
+    texto: 'text-[#1d4ed8]',
+    barra: 'bg-[#1d4ed8]',
+    icono: 'bg-[#dbeafe] text-[#1d4ed8]',
+  };
+}
+
+function PanelCapacidadCompra({
+  capacidad,
+  compraKg,
+  validando,
+  fueraDeLimite,
+  maximoPermitidoKg,
+}: {
+  capacidad: EstadoCapacidadCompra | null;
+  compraKg: number;
+  validando: boolean;
+  fueraDeLimite: boolean;
+  maximoPermitidoKg: number;
+}) {
+  const [detallesAbiertos, setDetallesAbiertos] = useState(false);
+
+  if (compraKg <= 0 && !validando && !capacidad) {
+    return null;
+  }
+
+  const vista = fueraDeLimite
+    ? {
+        titulo: 'Compra fuera del limite permitido',
+        mensaje: `Maximo permitido: ${formatoKgCorto(maximoPermitidoKg)}.`,
+        borde: 'border-[#fecaca]',
+        fondo: 'bg-[#fff5f5]',
+        texto: 'text-[#b42318]',
+        barra: 'bg-[#d92d20]',
+        icono: 'bg-[#fee2e2] text-[#b42318]',
+      }
+    : clasificarCapacidadVista(capacidad);
+  const capacidadKg = capacidad?.capacidadBodegaKg ?? 0;
+  const inventarioActual = capacidad?.inventarioActualKg ?? 0;
+  const porcentaje = capacidad?.validada
+    ? Math.max(0, capacidad.porcentajeOcupacion ?? 0)
+    : 0;
+  const porcentajeBarra = Math.min(100, porcentaje);
+  const disponibleDespues = Math.max(0, capacidad?.capacidadRestanteKg ?? 0);
+  const disponibleActual = Math.max(0, capacidadKg - inventarioActual);
+  const puedeVerDetalles = Boolean(capacidad?.validada && !fueraDeLimite);
+
+  return (
+    <article className={`rounded-[22px] border ${vista.borde} ${vista.fondo} p-4 shadow-sm`}>
+      <div className="flex items-start gap-3">
+        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${vista.icono}`}>
+          <Warehouse size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className={`text-[0.95rem] font-black ${vista.texto}`}>
+                {validando ? 'Revisando bodega...' : vista.titulo}
+              </p>
+              <p className="mt-1 text-[0.78rem] font-semibold leading-5 text-slate-600">
+                {validando
+                  ? 'Calculando ocupación con la compra actual.'
+                  : vista.mensaje}
+              </p>
+            </div>
+            {puedeVerDetalles ? (
+              <button
+                type="button"
+                onClick={() => setDetallesAbiertos((actual) => !actual)}
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 ${vista.texto} shadow-sm transition`}
+                aria-label={
+                  detallesAbiertos
+                    ? 'Ocultar detalle de bodega'
+                    : 'Ver detalle de bodega'
+                }
+              >
+                <ChevronDown
+                  size={18}
+                  className={`transition-transform ${detallesAbiertos ? 'rotate-180' : ''}`}
+                />
+              </button>
+            ) : null}
+          </div>
+
+          {capacidad?.validada || fueraDeLimite ? (
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/80">
+              <div
+                className={`h-full rounded-full transition-[width] duration-300 ${vista.barra}`}
+                style={{ width: `${porcentajeBarra}%` }}
+              />
+            </div>
+          ) : null}
+
+          {puedeVerDetalles && detallesAbiertos ? (
+            <div className="mt-3 space-y-2 text-[0.78rem] font-black text-slate-700">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Capacidad disponible</span>
+                <span className={vista.texto}>{formatoKgCorto(disponibleActual)}</span>
+              </div>
+              {compraKg > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Disponible despues</span>
+                  <span className={vista.texto}>{formatoKgCorto(disponibleDespues)}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function getSubloteFieldErrors(
+  sublote: SubloteForm,
+  maxPesoKg: number,
+  maxPrecioKg: number,
+) {
+  const pesoText = sublote.pesoInicial.trim();
+  const precioText = sublote.precioKg.trim();
+  const peso = Number(pesoText.replace(',', '.'));
+  const precio = Number(precioText);
+
+  const errors = {
+    tipoCafe: !sublote.tipoCafeId ? 'Selecciona el tipo de café.' : null,
+    calidad: !sublote.calidadId ? 'Selecciona la calidad.' : null,
+    peso: null as string | null,
+    precio: null as string | null,
+  };
+
+  if (!pesoText) {
+    errors.peso = 'Ingresa el peso.';
+  } else if (!Number.isFinite(peso) || peso < PESO_MINIMO_KG) {
+    errors.peso = `El peso mínimo es ${new Intl.NumberFormat('es-CO').format(PESO_MINIMO_KG)} kg.`;
+  } else if (peso > maxPesoKg) {
+    errors.peso = `El peso no puede superar ${new Intl.NumberFormat('es-CO').format(maxPesoKg)} kg.`;
+  }
+
+  if (!precioText) {
+    errors.precio = 'Ingresa el precio por kilo.';
+  } else if (!Number.isFinite(precio) || precio < PRECIO_MINIMO_KG) {
+    errors.precio = `El precio mínimo es $${new Intl.NumberFormat('es-CO').format(PRECIO_MINIMO_KG)}/kg.`;
+  } else if (precio > maxPrecioKg) {
+    errors.precio = `El precio no puede superar $${new Intl.NumberFormat('es-CO').format(maxPrecioKg)}/kg.`;
+  }
+
+  return errors;
+}
+
+function countSubloteErrors(errors: ReturnType<typeof getSubloteFieldErrors>) {
+  return Object.values(errors).filter(Boolean).length;
+}
+
+function getSingleSubloteErrorMessage(
+  errors: ReturnType<typeof getSubloteFieldErrors>,
+) {
+  if (errors.tipoCafe) return 'Selecciona el tipo de café para continuar.';
+  if (errors.calidad) return 'Selecciona la calidad del café para continuar.';
+  if (errors.peso === 'Ingresa el peso.') {
+    return 'Ingresa el peso para continuar.';
+  }
+  if (errors.precio === 'Ingresa el precio por kilo.') {
+    return 'Ingresa el precio por kilo para continuar.';
+  }
+
+  return errors.peso ?? errors.precio ?? null;
+}
+
+function productorFieldClass(hasError?: boolean) {
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition ${
+    hasError
+      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+      : 'border-[#dde4f1] focus:border-[#173ea6]'
+  }`;
+}
+
+function ProducerFieldError({ message }: { message: string }) {
+  return (
+    <p className="mt-1.5 text-[0.78rem] font-semibold leading-5 text-rose-600">
+      {message}
+    </p>
+  );
+}
+
+function getProducerNameLabel(type: DocumentType) {
+  if (type === 'NIT') {
+    return 'Nombre de la empresa';
+  }
+
+  if (type === 'OTRO') {
+    return 'Nombre del productor';
+  }
+
+  return 'Nombre completo';
+}
+
+function getProducerNamePlaceholder(type: DocumentType) {
+  if (type === 'NIT') {
+    return 'Ej: Café Los Alpes';
+  }
+
+  if (type === 'OTRO') {
+    return 'Ej: Productor Los Andes';
+  }
+
+  return 'Ej: Juan Pérez Rodríguez';
+}
+
 function getCompraErrorMessage(error: unknown) {
   if (error instanceof ApiRequestError) {
     if (error.status === 0) {
@@ -202,7 +539,11 @@ function getCompraErrorMessage(error: unknown) {
     }
 
     if (error.code === 'COMPRA_CANTIDAD_INVALIDA') {
-      return 'La cantidad de la compra debe ser mayor a 0.';
+      return `La cantidad minima de compra es ${PESO_MINIMO_KG} kg.`;
+    }
+
+    if (error.code === 'COMPRA_CAPACIDAD_EXCEDIDA') {
+      return 'La compra supera el espacio disponible en bodega. Reduce kilos o vende cafe para liberar espacio.';
     }
 
     if (error.code === 'COMPRA_PRECIO_INVALIDO') {
@@ -241,16 +582,22 @@ function mapProductorToOption(productor: ProductorItem): ProductorOption {
   return {
     id: productor.id,
     nombre: productor.nombre,
+    tipoDocumento: productor.tipoDocumento,
     documento: productor.documento?.trim() || 'Documento pendiente',
     detalle: productor.telefono?.trim() || 'Productor registrado en sistema',
+    createdAt: productor.createdAt,
     telefono: productor.telefono ?? undefined,
   };
 }
 
-function clavePersona(nombre: string, documento: string) {
-  const documentoNormalizado = soloDigitos(documento);
+function clavePersona(
+  nombre: string,
+  documento: string,
+  tipoDocumento?: DocumentType | null,
+) {
+  const documentoNormalizado = normalizarDocumentoClave(documento);
   return documentoNormalizado
-    ? `documento:${documentoNormalizado}`
+    ? `documento:${tipoDocumento ?? 'CC'}:${documentoNormalizado}`
     : `nombre:${normalizeSearchText(nombre.trim())}`;
 }
 
@@ -258,7 +605,11 @@ function dedupeProductorOptions(productores: ProductorOption[]) {
   const vistos = new Set<string>();
 
   return productores.filter((productor) => {
-    const key = clavePersona(productor.nombre, productor.documento);
+    const key = clavePersona(
+      productor.nombre,
+      productor.documento,
+      productor.tipoDocumento,
+    );
 
     if (vistos.has(key)) {
       return false;
@@ -273,11 +624,53 @@ function findProductorExistente(
   productores: ProductorOption[],
   nombre: string,
   documento: string,
+  tipoDocumento: DocumentType,
+  productorIdActual?: string | null,
 ) {
-  const key = clavePersona(nombre, documento);
+  const key = clavePersona(nombre, documento, tipoDocumento);
   return productores.find(
-    (productor) => clavePersona(productor.nombre, productor.documento) === key,
+    (productor) =>
+      productor.id !== productorIdActual &&
+      clavePersona(productor.nombre, productor.documento, productor.tipoDocumento) ===
+      key,
   );
+}
+
+function filtrarProductoresPorBusqueda(
+  productores: ProductorOption[],
+  busqueda: string,
+) {
+  const termino = normalizeSearchText(busqueda.trim());
+
+  if (!termino) {
+    return productores;
+  }
+
+  return productores.filter((productor) =>
+    [productor.nombre, productor.documento, productor.detalle].some((valor) =>
+      normalizeSearchText(valor).includes(termino),
+    ),
+  );
+}
+
+function ordenarProductores(
+  productores: ProductorOption[],
+  orden: ProductorOrden,
+) {
+  const items = [...productores];
+
+  if (orden === 'az') {
+    return items.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  return items.sort((a, b) => {
+    const fechaA = Date.parse(a.createdAt || '');
+    const fechaB = Date.parse(b.createdAt || '');
+    const safeA = Number.isFinite(fechaA) ? fechaA : 0;
+    const safeB = Number.isFinite(fechaB) ? fechaB : 0;
+
+    return orden === 'antiguos' ? safeA - safeB : safeB - safeA;
+  });
 }
 
 function clave(nombre: string) {
@@ -409,9 +802,9 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   ) {
     return createGuidedError(
       message,
-      'Revisa la identificación.',
-      'Usa solo números, máximo 10 dígitos, y evita números repetidos.',
-      'Corrige la cédula o NIT para continuar.',
+      'Revisa el documento.',
+      'Para cédula usa solo números. Para NIT puedes usar números y guion.',
+      'Corrige el número de documento para continuar.',
     );
   }
 
@@ -463,18 +856,18 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('tipo de cafe')) {
     return createGuidedError(
       message,
-      'Falta seleccionar el tipo de café.',
-      'Debes elegir una opción para poder pagar.',
-      'Toca "Tipo de Café" y elige uno.',
+      'Selecciona el tipo de café.',
+      'Necesitamos clasificar el café antes de registrar la compra.',
+      'Elige una opción en Tipo de café.',
     );
   }
 
   if (message.includes('calidad')) {
     return createGuidedError(
       message,
-      'Falta la calidad.',
-      'Saber la calidad ayuda a validar el precio.',
-      'Toca las caritas para seleccionar la calidad.',
+      'Selecciona la calidad del café.',
+      'La calidad ayuda a registrar bien el inventario.',
+      'Elige Bueno, Regular o Malo.',
     );
   }
 
@@ -511,9 +904,9 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
 
   return createGuidedError(
     message,
-    'Ups, no se pudo guardar.',
-    'Revisa los campos señalados.',
-    'Vuelve a intentar.',
+    'Revisa los campos marcados.',
+    'Hay un dato pendiente o fuera de rango.',
+    'Corrige el dato e inténtalo nuevamente.',
   );
 }
 
@@ -536,12 +929,30 @@ export default function Compras() {
     useState<ProductorSelectionMode>(null);
   const [productores, setProductores] = useState<ProductorOption[]>([]);
   const [busquedaProductor, setBusquedaProductor] = useState('');
+  const [mostrarModalSelectorProductor, setMostrarModalSelectorProductor] =
+    useState(false);
+  const [busquedaSelectorProductor, setBusquedaSelectorProductor] =
+    useState('');
+  const [ordenSelectorProductor, setOrdenSelectorProductor] =
+    useState<ProductorOrden>('recientes');
+  const [limiteSelectorProductor, setLimiteSelectorProductor] = useState(
+    LIMITE_PRODUCTORES_MODAL,
+  );
+  const [productoresSelector, setProductoresSelector] = useState<
+    ProductorOption[]
+  >([]);
+  const [cargandoProductoresSelector, setCargandoProductoresSelector] =
+    useState(false);
+  const [hayMasProductoresSelector, setHayMasProductoresSelector] =
+    useState(false);
   const [mostrarModalProductor, setMostrarModalProductor] = useState(false);
-  const [productorForm, setProductorForm] = useState<ProductorForm>({
-    nombre: '',
-    telefono: '',
-    documento: '',
-  });
+  const [productorForm, setProductorForm] = useState<ProductorForm>(
+    PRODUCTOR_FORM_INICIAL,
+  );
+  const [productorEditando, setProductorEditando] =
+    useState<ProductorOption | null>(null);
+  const [productorPendienteEditar, setProductorPendienteEditar] =
+    useState<ProductorOption | null>(null);
   const [productorFormErrors, setProductorFormErrors] =
     useState<ProductorFormErrors>({});
   const [productorFormError, setProductorFormError] = useState<string | null>(
@@ -554,6 +965,8 @@ export default function Compras() {
   const [mostrarErrorFormulario, setMostrarErrorFormulario] = useState(false);
   const [capacidadPrevia, setCapacidadPrevia] =
     useState<EstadoCapacidadCompra | null>(null);
+  const [validandoCapacidadEnVivo, setValidandoCapacidadEnVivo] =
+    useState(false);
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
   const [mostrarModalCapacidad, setMostrarModalCapacidad] = useState(false);
@@ -579,8 +992,8 @@ export default function Compras() {
     nuevoTotal: number;
     porcentaje: number;
   } | null>(null);
-  const [maxPesoKg, setMaxPesoKg] = useState(99999);
-  const [maxPrecioKg, setMaxPrecioKg] = useState(100000);
+  const [maxPesoKg, setMaxPesoKg] = useState(MAX_PESO_OPERATIVO_DEFAULT_KG);
+  const [maxPrecioKg, setMaxPrecioKg] = useState(PRECIO_MAXIMO_KG);
 
   const [step, setStep] = useState<Step>(1);
   const [compraGuardada, setCompraGuardada] =
@@ -597,7 +1010,10 @@ export default function Compras() {
     try {
       const [catalogosData, productoresData, bodegaConfig] = await Promise.all([
         obtenerCatalogosCompra(),
-        listarProductores(),
+        listarProductores({
+          limit: LIMITE_PRODUCTORES_RECIENTES,
+          orden: 'recientes',
+        }),
         obtenerConfiguracionBodega().catch(() => null),
       ]);
       setCatalogos(catalogosData);
@@ -605,8 +1021,15 @@ export default function Compras() {
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
       );
       if (bodegaConfig) {
-        setMaxPesoKg(bodegaConfig.maxPesoKg || 99999);
-        setMaxPrecioKg(bodegaConfig.maxPrecioKg || 100000);
+        const pesoMaximoConfig = Number(bodegaConfig.maxPesoKg);
+        const maximoConfigurado =
+          Number.isFinite(pesoMaximoConfig) &&
+          pesoMaximoConfig > 0 &&
+          pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
+            ? pesoMaximoConfig
+            : MAX_PESO_OPERATIVO_DEFAULT_KG;
+        setMaxPesoKg(maximoConfigurado);
+        setMaxPrecioKg(bodegaConfig.maxPrecioKg || PRECIO_MAXIMO_KG);
       }
     } catch (err) {
       console.warn('No se pudo cargar toda la informacion de compras:', err);
@@ -676,12 +1099,14 @@ export default function Compras() {
         Boolean(sublote.tipoCafeId) &&
         Boolean(sublote.calidadId) &&
         Number.isFinite(peso) &&
-        peso > 0 &&
+        peso >= PESO_MINIMO_KG &&
+        peso <= maxPesoKg &&
         Number.isFinite(precio) &&
-        precio >= PRECIO_MINIMO_KG
+        precio >= PRECIO_MINIMO_KG &&
+        precio <= maxPrecioKg
       );
     });
-  }, [fechaCompraValidacion.isValid, sublotes]);
+  }, [fechaCompraValidacion.isValid, maxPesoKg, maxPrecioKg, sublotes]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -691,30 +1116,102 @@ export default function Compras() {
     !saving &&
     !checkingConfirmacion &&
     !loading;
+  const estadoBodegaCompra = useMemo(() => {
+    if (!capacidadPrevia?.validada) return null;
+
+    const capacidadKg = capacidadPrevia.capacidadBodegaKg ?? 0;
+    const inventarioActual = capacidadPrevia.inventarioActualKg ?? 0;
+
+    if (capacidadKg <= 0) return null;
+
+    const libreActual = Math.max(0, capacidadKg - inventarioActual);
+    const libreDespues = Math.max(
+      0,
+      capacidadPrevia.capacidadRestanteKg ?? libreActual - resumen.totalKg,
+    );
+    const porcentajeProyectado = Math.min(
+      100,
+      Math.max(0, capacidadPrevia.porcentajeOcupacion ?? 0),
+    );
+    const superaEspacio = resumen.totalKg > libreActual;
+    const bodegaYaLlena = libreActual <= 0;
+    const bodegaLlena = !superaEspacio && libreDespues <= 0;
+
+    if (!superaEspacio && porcentajeProyectado < 80) return null;
+
+    const nivel =
+      superaEspacio || bodegaLlena || capacidadPrevia.nivel === 'exceso'
+        ? 'critico'
+        : porcentajeProyectado >= 90
+          ? 'alto'
+          : 'alerta';
+    const kgReferencia = superaEspacio ? libreActual : libreDespues;
+
+    return {
+      kgReferencia,
+      porcentajeProyectado,
+      nivel,
+      borde:
+        nivel === 'critico'
+          ? 'border-rose-200'
+          : nivel === 'alto'
+            ? 'border-orange-200'
+            : 'border-amber-200',
+      fondo:
+        nivel === 'critico'
+          ? 'bg-rose-50'
+          : nivel === 'alto'
+            ? 'bg-orange-50'
+            : 'bg-amber-50',
+      barra:
+        nivel === 'critico'
+          ? 'bg-rose-500'
+          : nivel === 'alto'
+            ? 'bg-orange-500'
+            : 'bg-amber-500',
+      texto:
+        nivel === 'critico'
+          ? 'text-rose-700'
+          : nivel === 'alto'
+            ? 'text-orange-700'
+            : 'text-amber-700',
+      mensaje: superaEspacio
+        ? bodegaYaLlena
+          ? 'Bodega llena. Vende cafe para seguir comprando.'
+          : `La compra supera el espacio disponible. Hay ${formatoKg(libreActual)} libres.`
+        : bodegaLlena
+          ? 'La bodega quedaria llena. Vende cafe para seguir comprando.'
+          : nivel === 'alto'
+            ? 'La bodega quedaria muy cerca del limite.'
+            : 'La bodega quedaria cerca del limite.',
+    };
+  }, [capacidadPrevia, resumen.totalKg]);
   const productoresFiltrados = useMemo(() => {
-    const base = dedupeProductorOptions([...productores]);
-    const termino = normalizeSearchText(busquedaProductor.trim());
+    const base = ordenarProductores(
+      dedupeProductorOptions([...productores]),
+      'recientes',
+    );
 
-    if (!termino) {
-      return base.slice(0, LIMITE_PRODUCTORES_RECIENTES);
-    }
-
-    return base.filter((productor) =>
-      [productor.nombre, productor.documento, productor.detalle].some((valor) =>
-        normalizeSearchText(valor).includes(termino),
-      ),
+    return filtrarProductoresPorBusqueda(base, busquedaProductor).slice(
+      0,
+      LIMITE_PRODUCTORES_RECIENTES,
     );
   }, [busquedaProductor, productores]);
-  const busquedaProductorActiva = busquedaProductor.trim().length > 0;
-  const mostrarResultadosProductores =
-    productorSelectionMode === 'buscar' &&
-    (!productorSeleccionado || busquedaProductorActiva);
+  const productoresSelectorFiltrados = useMemo(() => {
+    return productoresSelector;
+  }, [productoresSelector]);
+  const productoresSelectorVisibles = productoresSelectorFiltrados;
+  const quedanProductoresPorCargar = hayMasProductoresSelector;
+  const busquedaSelectorActiva = busquedaSelectorProductor.trim().length > 0;
   const sinProductoresRegistrados = productores.length === 0;
   const subloteActual =
     sublotes.find((sublote) => sublote.id === subloteActivoId) ??
     sublotes[sublotes.length - 1] ??
     null;
   const sublotesVisibles = sublotes;
+  const sublotesAgregados = sublotesVisibles.filter(
+    (sublote) => sublote.id !== subloteActual?.id,
+  );
   const sublotesGuardados = Math.max(0, sublotes.length - 1);
   const pasoActual = datosPaso(step);
 
@@ -758,7 +1255,7 @@ export default function Compras() {
       !actual.tipoCafeId ||
       !actual.calidadId ||
       !Number.isFinite(Number(actual.pesoInicial)) ||
-      Number(actual.pesoInicial) <= 0 ||
+      Number(actual.pesoInicial) < PESO_MINIMO_KG ||
       !Number.isFinite(Number(actual.precioKg)) ||
       Number(actual.precioKg) < PRECIO_MINIMO_KG
     ) {
@@ -779,28 +1276,85 @@ export default function Compras() {
     setError(null);
     setProductorFormError(null);
     setProductorFormErrors({});
-    setProductorForm({ nombre: '', telefono: '', documento: '' });
+    setProductorEditando(null);
+    setProductorForm(PRODUCTOR_FORM_INICIAL);
     setMostrarModalProductor(true);
   };
 
   const cerrarModalProductor = () => {
     setMostrarModalProductor(false);
-    setProductorForm({ nombre: '', telefono: '', documento: '' });
+    setProductorEditando(null);
+    setProductorForm(PRODUCTOR_FORM_INICIAL);
     setProductorFormError(null);
     setProductorFormErrors({});
+  };
+
+  const pedirConfirmacionEditarProductor = (productor: ProductorOption) => {
+    setProductorPendienteEditar(productor);
+  };
+
+  const cancelarEditarProductor = () => {
+    setProductorPendienteEditar(null);
+  };
+
+  const confirmarEditarProductor = () => {
+    if (!productorPendienteEditar) {
+      return;
+    }
+
+    abrirEditarProductor(productorPendienteEditar);
+    setProductorPendienteEditar(null);
+  };
+
+  const abrirSelectorProductor = () => {
+    setProductorSelectionMode('buscar');
+    setProductorSeleccionado(null);
+    setBusquedaSelectorProductor(busquedaProductor);
+    setOrdenSelectorProductor('recientes');
+    setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
+    setProductoresSelector([]);
+    setHayMasProductoresSelector(false);
+    setMostrarModalSelectorProductor(true);
+  };
+
+  const cerrarSelectorProductor = () => {
+    setMostrarModalSelectorProductor(false);
+    setBusquedaSelectorProductor('');
+    setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
+    setProductoresSelector([]);
+    setHayMasProductoresSelector(false);
+    setProductorPendienteEditar(null);
+  };
+
+  const abrirEditarProductor = (productor: ProductorOption) => {
+    const tipoDocumento = productor.tipoDocumento ?? 'CC';
+    setProductorEditando(productor);
+    setProductorForm({
+      nombre: productor.nombre,
+      tipoDocumento,
+      documento: productor.documento === 'Documento pendiente' ? '' : productor.documento,
+      telefono: productor.telefono ?? '',
+    });
+    setProductorFormError(null);
+    setProductorFormErrors({});
+    setMostrarModalProductor(true);
   };
 
   const seleccionarProductor = (productor: ProductorOption) => {
     setProductorSeleccionado(productor);
     setProductorSelectionMode(productor.rapido ? 'generico' : 'buscar');
     setBusquedaProductor('');
+    setMostrarModalSelectorProductor(false);
     setError(null);
     setMostrarErrorFormulario(false);
   };
 
   const refrescarProductores = async () => {
     try {
-      const productoresData = await listarProductores();
+      const productoresData = await listarProductores({
+        limit: LIMITE_PRODUCTORES_RECIENTES,
+        orden: 'recientes',
+      });
       setProductores(
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
       );
@@ -809,11 +1363,75 @@ export default function Compras() {
     }
   };
 
+  const cargarProductoresSelector = async (reset = false) => {
+    const offset = reset ? 0 : productoresSelector.length;
+    setCargandoProductoresSelector(true);
+
+    try {
+      const productoresData = await listarProductores({
+        q: busquedaSelectorProductor,
+        limit: LIMITE_PRODUCTORES_MODAL + 1,
+        offset,
+        orden: ordenSelectorProductor,
+      });
+      const mapped = productoresData.map(mapProductorToOption);
+      const nextItems = mapped.slice(0, LIMITE_PRODUCTORES_MODAL);
+
+      setProductoresSelector((actual) =>
+        dedupeProductorOptions(reset ? nextItems : [...actual, ...nextItems]),
+      );
+      setHayMasProductoresSelector(mapped.length > LIMITE_PRODUCTORES_MODAL);
+      setProductores((actual) =>
+        dedupeProductorOptions([...nextItems, ...actual]).slice(
+          0,
+          LIMITE_PRODUCTORES_RECIENTES,
+        ),
+      );
+    } catch {
+      setHayMasProductoresSelector(false);
+    } finally {
+      setCargandoProductoresSelector(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!mostrarModalSelectorProductor) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void cargarProductoresSelector(true);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    busquedaSelectorProductor,
+    mostrarModalSelectorProductor,
+    ordenSelectorProductor,
+  ]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const productoresData = await listarProductores({
+          q: busquedaProductor,
+          limit: LIMITE_PRODUCTORES_RECIENTES,
+          orden: 'recientes',
+        });
+        setProductores(
+          dedupeProductorOptions(productoresData.map(mapProductorToOption)),
+        );
+      } catch {
+        // La busqueda rapida no debe bloquear la compra.
+      }
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [busquedaProductor]);
+
   const seleccionarBusqueda = () => {
     setProductorSelectionMode('buscar');
-    if (productorSeleccionado?.id === PRODUCTOR_GENERAL.id) {
-      setProductorSeleccionado(null);
-    }
+    setProductorSeleccionado(null);
     void refrescarProductores();
     setError(null);
     setMostrarErrorFormulario(false);
@@ -828,13 +1446,14 @@ export default function Compras() {
 
   const validarProductorForm = () => {
     const errores: ProductorFormErrors = {};
-    const nombre = validatePersonName(
+    const nombre = validateProducerName(
       productorForm.nombre,
-      'El nombre del productor',
+      productorForm.tipoDocumento,
     );
     const documento = validateDocumentNumber(
       productorForm.documento,
-      'La cédula o NIT',
+      'El documento',
+      { documentType: productorForm.tipoDocumento },
     );
     const telefono = validatePhoneNumber(
       productorForm.telefono,
@@ -852,9 +1471,16 @@ export default function Compras() {
   };
 
   const guardarProductorLocal = async () => {
+    if (botonGuardarProductorPresionado) {
+      return;
+    }
+
     const nombre = productorForm.nombre.trim();
-    const documento = sanitizePersonDigits(productorForm.documento);
-    const telefono = sanitizePersonDigits(productorForm.telefono);
+    const documento = normalizeDocumentValue(
+      productorForm.documento,
+      productorForm.tipoDocumento,
+    );
+    const telefono = sanitizePersonDigits(productorForm.telefono, 15);
     const errores = validarProductorForm();
 
     setProductorFormErrors(errores);
@@ -868,27 +1494,39 @@ export default function Compras() {
       productores,
       nombre,
       documento,
+      productorForm.tipoDocumento,
+      productorEditando?.id,
     );
     if (productorExistente) {
-      setProductorSeleccionado(productorExistente);
-      setProductorSelectionMode('buscar');
-      setBusquedaProductor('');
-      setMostrarModalProductor(false);
-      setProductorForm({ nombre: '', telefono: '', documento: '' });
-      setProductorFormErrors({});
-      setError(null);
-      setMostrarErrorFormulario(false);
+      const mensajeDuplicado =
+        productorForm.tipoDocumento === 'NIT'
+          ? 'Esta empresa ya está registrada.'
+          : 'Este productor ya está registrado.';
+      const accionDuplicado =
+        productorForm.tipoDocumento === 'NIT'
+          ? 'Puedes seleccionarla desde la lista de productores.'
+          : 'Puedes seleccionarlo desde la lista de productores.';
+
+      setProductorFormErrors((actual) => ({
+        ...actual,
+        documento: `${mensajeDuplicado} ${accionDuplicado}`,
+      }));
+      setProductorFormError(null);
       return;
     }
 
     setBotonGuardarProductorPresionado(true);
 
     try {
-      const productorGuardado = await crearProductor({
+      const payload = {
         nombre,
         documento,
+        tipoDocumento: productorForm.tipoDocumento,
         telefono: telefono || undefined,
-      });
+      };
+      const productorGuardado = productorEditando
+        ? await actualizarProductor(productorEditando.id, payload)
+        : await crearProductor(payload);
 
       const productorBase = mapProductorToOption(productorGuardado);
 
@@ -898,17 +1536,41 @@ export default function Compras() {
           ...actual.filter((productor) => productor.id !== productorBase.id),
         ]),
       );
+      setProductoresSelector((actual) =>
+        dedupeProductorOptions([
+          productorBase,
+          ...actual.filter((productor) => productor.id !== productorBase.id),
+        ]),
+      );
       setProductorSeleccionado(productorBase);
       setProductorSelectionMode('buscar');
       setBusquedaProductor('');
       setMostrarModalProductor(false);
-      setProductorForm({ nombre: '', telefono: '', documento: '' });
+      if (!productorEditando) {
+        setMostrarModalSelectorProductor(false);
+      }
+      setProductorEditando(null);
+      setProductorForm(PRODUCTOR_FORM_INICIAL);
       setProductorFormErrors({});
       setProductorFormError(null);
-      setProductorCreadoToast(productorBase);
+      if (!productorEditando) {
+        setProductorCreadoToast(productorBase);
+      }
       setError(null);
       setMostrarErrorFormulario(false);
     } catch (err) {
+      if (
+        err instanceof ApiRequestError &&
+        err.code === 'PRODUCTOR_DOCUMENTO_DUPLICADO'
+      ) {
+        setProductorFormErrors((actual) => ({
+          ...actual,
+          documento: [err.message, err.action].filter(Boolean).join(' '),
+        }));
+        setProductorFormError(null);
+        return;
+      }
+
       setProductorFormError(
         err instanceof Error ? err.message : 'No se pudo guardar el productor.',
       );
@@ -926,6 +1588,12 @@ export default function Compras() {
     setProductorSeleccionado(null);
     setProductorSelectionMode(null);
     setBusquedaProductor('');
+    setMostrarModalSelectorProductor(false);
+    setBusquedaSelectorProductor('');
+    setOrdenSelectorProductor('recientes');
+    setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
+    setProductorEditando(null);
+    setProductorPendienteEditar(null);
     setProductorFormError(null);
     setProductorFormErrors({});
     setProductorCreadoToast(null);
@@ -982,23 +1650,20 @@ export default function Compras() {
     }
 
     for (const [index, sublote] of sublotes.entries()) {
-      if (!sublote.tipoCafeId)
-        return `Selecciona el tipo de café del sublote ${index + 1}.`;
-      if (!sublote.calidadId)
-        return `Selecciona la calidad del sublote ${index + 1}.`;
-      if (
-        !Number.isFinite(Number(sublote.pesoInicial)) ||
-        Number(sublote.pesoInicial) <= 0
-      ) {
-        return `Ingresa un peso valido para el sublote ${index + 1}.`;
+      const errors = getSubloteFieldErrors(sublote, maxPesoKg, maxPrecioKg);
+      const errorCount = countSubloteErrors(errors);
+
+      if (errorCount === 1) {
+        return getSingleSubloteErrorMessage(errors);
       }
-      if (
-        !Number.isFinite(Number(sublote.precioKg)) ||
-        Number(sublote.precioKg) < PRECIO_MINIMO_KG
-      ) {
-        return `El precio por kilo debe ser mínimo $1,000 para el sublote ${index + 1}.`;
+
+      if (errorCount > 1) {
+        return sublotes.length > 1
+          ? `Completa los datos del café ${index + 1} para continuar.`
+          : 'Completa los datos del café para continuar.';
       }
     }
+
     return null;
   };
 
@@ -1060,6 +1725,40 @@ export default function Compras() {
     return payload;
   };
 
+  useEffect(() => {
+    if ((step !== 2 && step !== 3) || !paso2Completo || resumen.totalKg <= 0) {
+      setValidandoCapacidadEnVivo(false);
+      return;
+    }
+
+    let cancelado = false;
+    setValidandoCapacidadEnVivo(true);
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const payload = await construirPayloadCompra();
+        const capacidad = await validarCapacidadCompra(payload);
+
+        if (!cancelado) {
+          setCapacidadPrevia(capacidad);
+        }
+      } catch {
+        if (!cancelado) {
+          setCapacidadPrevia(null);
+        }
+      } finally {
+        if (!cancelado) {
+          setValidandoCapacidadEnVivo(false);
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelado = true;
+      window.clearTimeout(timer);
+    };
+  }, [fecha, paso2Completo, resumen.totalKg, step, sublotes]);
+
   const validarCapacidadBodega = async (): Promise<boolean> => {
     try {
       const payload = await construirPayloadCompra();
@@ -1077,28 +1776,16 @@ export default function Compras() {
 
       const capacidadKg = capacidad.capacidadBodegaKg ?? 0;
       const inventarioActual = capacidad.inventarioActualKg ?? 0;
-      const nuevoTotal =
-        capacidad.capacidadUsadaKg ?? inventarioActual + resumen.totalKg;
 
       if (capacidad.nivel === 'exceso') {
-        setDatosCapacidad({
-          capacidadKg,
-          inventarioActual,
-          nuevoTotal,
-        });
-        setMostrarModalCapacidad(true);
-        return false;
-      }
-
-      if (capacidad.nivel === 'alerta' && !alerta80Mostrada) {
-        setDatosAlerta80({
-          capacidadKg,
-          inventarioActual,
-          nuevoTotal,
-          porcentaje: Math.round(capacidad.porcentajeOcupacion ?? 0),
-        });
-        setMostrarModalAlerta80(true);
-        setAlerta80Mostrada(true);
+        const disponibleActual = Math.max(0, capacidadKg - inventarioActual);
+        setError(
+          disponibleActual <= 0
+            ? 'Bodega llena. Vende cafe para seguir comprando.'
+            : `La compra supera el espacio disponible. Hay ${formatoKg(disponibleActual)} libres. Reduce kilos o vende cafe para continuar.`,
+        );
+        setMostrarErrorFormulario(true);
+        setMostrarModalCapacidad(false);
         return false;
       }
 
@@ -1130,6 +1817,11 @@ export default function Compras() {
   const guardarCapacidadDesdeCompra = async () => {
     const nombreBodega = nombreBodegaNueva.trim();
     const capacidad = Number(capacidadNuevaKg);
+    const inventarioActualKg = Math.max(
+      capacidadPrevia?.inventarioActualKg ?? 0,
+      datosCapacidad?.inventarioActual ?? 0,
+      datosAlerta80?.inventarioActual ?? 0,
+    );
     setCapacidadNuevaError(null);
 
     if (!nombreBodega) {
@@ -1137,8 +1829,17 @@ export default function Compras() {
       return;
     }
 
-    if (!Number.isFinite(capacidad) || capacidad <= 0) {
-      setCapacidadNuevaError('Ingresa la capacidad total de la bodega en kg.');
+    if (
+      !Number.isFinite(capacidad) ||
+      capacidad <= 0 ||
+      capacidad > CAPACIDAD_BODEGA_MAX_KG
+    ) {
+      setCapacidadNuevaError(CAPACIDAD_BODEGA_INVALIDA);
+      return;
+    }
+
+    if (capacidad < inventarioActualKg) {
+      setCapacidadNuevaError(CAPACIDAD_BODEGA_MENOR_INVENTARIO);
       return;
     }
 
@@ -1275,7 +1976,7 @@ export default function Compras() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#19b881] text-white">
                   <Check size={30} strokeWidth={3} />
                 </div>
-              </div>
+                  </div>
               <h1 className="mt-6 text-[2rem] font-semibold text-[#1f3f97]">
                 Compra registrada
               </h1>
@@ -1410,17 +2111,19 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarBusqueda}
-              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${productorSelectionMode === 'buscar'
-                  ? 'border-[#1f3fa7] bg-[#f4f7ff]'
-                  : 'border-[#e3e7f3] bg-white'
-                }`}
+              className={`w-full rounded-[20px] border bg-white px-4 py-3.5 text-left transition ${
+                productorSelectionMode === 'buscar'
+                  ? 'border-[#1f3fa7]'
+                  : 'border-[#e3e7f3]'
+              }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${productorSelectionMode === 'buscar'
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                    productorSelectionMode === 'buscar'
                       ? 'bg-[#1f3fa7] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
-                    }`}
+                  }`}
                 >
                   <Search size={20} />
                 </span>
@@ -1429,14 +2132,15 @@ export default function Compras() {
                     Buscar productor
                   </p>
                   <p className="mt-1 text-[0.95rem] text-slate-500">
-                    Selecciona un productor registrado
+                    Selecciona un productor registrado.
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${productorSelectionMode === 'buscar'
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+                    productorSelectionMode === 'buscar'
                       ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
-                    }`}
+                  }`}
                 >
                   <Check size={14} />
                 </span>
@@ -1444,25 +2148,12 @@ export default function Compras() {
             </button>
 
             {productorSelectionMode === 'buscar' ? (
-              <div className="space-y-3 rounded-[18px] border border-[#e4e9f5] bg-white p-3">
-                <div className="relative">
-                  <Search
-                    size={18}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                  <input
-                    type="text"
-                    value={busquedaProductor}
-                    onChange={(event) =>
-                      setBusquedaProductor(event.target.value)
-                    }
-                    placeholder="Nombre o identificación..."
-                    className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-11 py-3 text-[0.98rem] text-slate-900 outline-none transition focus:border-[#1f3fa7]"
-                  />
-                </div>
+              <div className="-mt-1 space-y-2 px-1">
+                <p className="px-1 text-xs font-black uppercase tracking-[0.08em] text-slate-400">
+                  Recientes
+                </p>
 
-                {mostrarResultadosProductores ? (
-                  <div className="max-h-[230px] space-y-2 overflow-y-auto pr-1">
+                <div className="space-y-2">
                     {productoresFiltrados.map((productor) => {
                       const activo = productorSeleccionado?.id === productor.id;
 
@@ -1471,21 +2162,21 @@ export default function Compras() {
                           key={productor.id}
                           type="button"
                           onClick={() => seleccionarProductor(productor)}
-                          className={`flex w-full items-start justify-between gap-3 rounded-[14px] border px-3 py-3 text-left transition ${activo
+                          className={`flex w-full items-center justify-between gap-3 rounded-[14px] border px-3 py-2.5 text-left transition ${activo
                               ? 'border-[#1f3fa7] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
                             }`}
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-[0.98rem] font-medium text-slate-900">
+                            <p className="truncate text-[0.98rem] font-semibold text-slate-900">
                               {productor.nombre}
                             </p>
-                            <p className="mt-0.5 text-[0.86rem] text-slate-500">
+                            <p className="mt-0.5 text-[0.82rem] text-slate-500">
                               {productor.documento}
                             </p>
                           </div>
                           <span
-                            className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border ${activo
+                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${activo
                                 ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
                                 : 'border-[#cad2e2] bg-white text-transparent'
                               }`}
@@ -1500,28 +2191,25 @@ export default function Compras() {
                       sinProductoresRegistrados ? (
                       <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
                         <p className="font-semibold text-slate-700">
-                          Aun no hay productores registrados
+                          Aún no tienes productores registrados.
                         </p>
-                        <p className="mt-1">Registra uno para comenzar.</p>
+                        <p className="mt-1">
+                          Registra uno para iniciar la compra.
+                        </p>
                       </div>
                     ) : null}
 
-                    {productoresFiltrados.length === 0 &&
-                      !sinProductoresRegistrados &&
-                      busquedaProductorActiva ? (
-                      <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-6 text-center text-sm text-slate-500">
-                        <p className="font-semibold text-slate-700">
-                          No se encontraron resultados
-                        </p>
-                        <p className="mt-1">
-                          Intenta con otro nombre o identificacion.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={abrirSelectorProductor}
+                  className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white px-4 text-sm font-black text-[#1f3fa7]"
+                >
+                  Ver más productores
+                </button>
               </div>
-            ) : null}
+              ) : null}
 
             <button
               type="button"
@@ -1644,10 +2332,104 @@ export default function Compras() {
               ) : null}
             </div>
 
+            {sublotesAgregados.length > 0 ? (
+              <section className="rounded-[20px] border border-[#dce4f5] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.1em] text-[#6a7c98]">
+                    Cafés agregados
+                  </p>
+                  <p className="shrink-0 text-[0.7rem] font-semibold text-slate-400">
+                    {sublotesAgregados.length} guardados
+                  </p>
+                </div>
+                <div className="max-h-[168px] space-y-1.5 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                  {sublotesAgregados.map((sublote) => {
+                    const index = sublotes.findIndex(
+                      (item) => item.id === sublote.id,
+                    );
+                    const tipoCafe =
+                      nombreTipoCafePorId.get(sublote.tipoCafeId) ??
+                      'Café por definir';
+                    const calidad =
+                      nombreCalidadPorId.get(sublote.calidadId) ??
+                      'Calidad por definir';
+                    const peso = Number(sublote.pesoInicial || 0);
+                    const totalItem = peso * Number(sublote.precioKg || 0);
+                    const visual = iconoTipoCafe(tipoCafe);
+
+                    return (
+                      <article
+                        key={sublote.id}
+                        onClick={() => {
+                          setSubloteActivoId(sublote.id);
+                          setError(null);
+                          setMostrarErrorFormulario(false);
+                        }}
+                        className="cursor-pointer rounded-[14px] border border-[#e6e8f3] bg-white px-3 py-2 shadow-sm transition hover:border-[#173ea6]"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex items-start gap-2">
+                            <div className={`shrink-0 rounded-xl p-2 ${visual.fondo}`}>
+                              {visual.icono}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-[#6a7c98]">
+                                Café {index + 1}
+                              </p>
+                              <p className="mt-0.5 truncate text-[0.84rem] font-semibold leading-tight text-slate-900">
+                                {tipoCafe} · {calidad}
+                              </p>
+                              <p className="mt-0.5 truncate text-[0.72rem] font-semibold text-slate-700">
+                                Peso: {formatoKg(peso)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end justify-between self-stretch">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  editarSubloteDesdeRevision(sublote.id);
+                                }}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#eef3ff] text-[#1f3fa7] shadow-sm transition hover:bg-[#dfe8ff]"
+                                title="Editar café"
+                                aria-label={`Editar café ${index + 1}`}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              {sublotes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  eliminarSubloteDesdeRevision(sublote.id);
+                                }}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] shadow-sm transition hover:bg-[#ffe0e4]"
+                                title="Eliminar café"
+                                aria-label={`Eliminar café ${index + 1}`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                              )}
+                            </div>
+                            <p className="mt-2 whitespace-nowrap text-right text-[0.68rem] font-bold leading-tight text-[#173ea6]">
+                              {formatoMoneda(totalItem)}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
             {sublotesVisibles.map((sublote, index) => {
               const isActivo = subloteActual?.id === sublote.id;
               
               if (!isActivo) {
+                 return null;
                  const tipoCafe = nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café por definir';
                  const calidad = nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad por definir';
                  const peso = Number(sublote.pesoInicial || 0);
@@ -1711,24 +2493,37 @@ export default function Compras() {
 
               const mostrarErroresSublote =
                 mostrarErrorFormulario && step === 2;
-              const peso = Number(sublote.pesoInicial);
-              const precio = Number(sublote.precioKg);
+              const subloteErrors = getSubloteFieldErrors(
+                sublote,
+                maxPesoKg,
+                maxPrecioKg,
+              );
+              const subloteErrorCount = countSubloteErrors(subloteErrors);
               const tipoCafeError =
-                mostrarErroresSublote && !sublote.tipoCafeId
-                  ? 'Falta el tipo'
+                mostrarErroresSublote && subloteErrors.tipoCafe
+                  ? subloteErrorCount === 1
+                    ? 'Selecciona el tipo de café para continuar.'
+                    : subloteErrors.tipoCafe
                   : null;
               const calidadError =
-                mostrarErroresSublote && !sublote.calidadId
-                  ? 'Falta la calidad'
+                mostrarErroresSublote && subloteErrors.calidad
+                  ? subloteErrorCount === 1
+                    ? 'Selecciona la calidad del café para continuar.'
+                    : subloteErrors.calidad
                   : null;
               const pesoError =
-                mostrarErroresSublote && (!Number.isFinite(peso) || peso <= 0)
-                  ? 'Requerido'
+                mostrarErroresSublote && subloteErrors.peso
+                  ? subloteErrorCount === 1 &&
+                    subloteErrors.peso === 'Ingresa el peso.'
+                    ? 'Ingresa el peso para continuar.'
+                    : subloteErrors.peso
                   : null;
               const precioError =
-                mostrarErroresSublote &&
-                  (!Number.isFinite(precio) || precio < PRECIO_MINIMO_KG)
-                  ? 'Mínimo $1,000'
+                mostrarErroresSublote && subloteErrors.precio
+                  ? subloteErrorCount === 1 &&
+                    subloteErrors.precio === 'Ingresa el precio por kilo.'
+                    ? 'Ingresa el precio por kilo para continuar.'
+                    : subloteErrors.precio
                   : null;
 
               return (
@@ -1848,11 +2643,19 @@ export default function Compras() {
                         <input
                           type="text"
                           inputMode="decimal"
+                          maxLength={8}
                           value={sublote.pesoInicial}
                           onChange={(event) => {
                             const raw = event.target.value.replace(/[^0-9.,]/g, '');
+                            if (raw.length > 8) {
+                              return;
+                            }
                             const numeric = Number(raw.replace(',', '.'));
-                            if (raw !== '' && Number.isFinite(numeric) && numeric > maxPesoKg) {
+                            if (
+                              raw !== '' &&
+                              Number.isFinite(numeric) &&
+                              numeric > maxPesoKg
+                            ) {
                               return;
                             }
                             actualizarSublote(
@@ -1861,11 +2664,15 @@ export default function Compras() {
                               raw,
                             );
                           }}
-                          className="mt-2.5 w-full rounded-[18px] border border-[#e4e8f3] bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none focus:border-[#102d92] placeholder:text-slate-300"
+                          className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${
+                            pesoError
+                              ? 'border-rose-400 focus:border-rose-500'
+                              : 'border-[#e4e8f3] focus:border-[#102d92]'
+                          }`}
                           placeholder="ej. 25"
                         />
                         <p className="mt-1 text-[0.62rem] font-semibold text-slate-400">
-                          Máx. {new Intl.NumberFormat('es-CO').format(maxPesoKg)} kg
+                          Max. por entrada: {formatoKg(maxPesoKg)}
                         </p>
                         {pesoError ? (
                           <p className="mt-1 text-[0.8rem] font-semibold text-rose-500">
@@ -1886,11 +2693,16 @@ export default function Compras() {
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
+                            maxLength={6}
                             value={sublote.precioKg}
                             onChange={(event) => {
                               const digits = soloDigitos(event.target.value);
                               const numeric = Number(digits);
-                              if (digits !== '' && Number.isFinite(numeric) && numeric > maxPrecioKg) {
+                              if (
+                                digits !== '' &&
+                                Number.isFinite(numeric) &&
+                                numeric > maxPrecioKg
+                              ) {
                                 return;
                               }
                               actualizarSublote(
@@ -1927,38 +2739,70 @@ export default function Compras() {
               Agregar más café
             </button>
 
-            <article className="rounded-[24px] border border-[#d6e2ff] bg-[#eef3ff] p-5 text-[#102d92] shadow-sm">
-              <p className="text-sm font-black text-[#5b6f9d]">
-                Resumen de peso
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[#d6e2ff] pt-5">
-                <div>
-                  <p className="text-sm font-black text-[#5b6f9d]">Total kg:</p>
-                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">
-                    {resumen.totalKg.toLocaleString('es-CO', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    kg
+            {estadoBodegaCompra ? (
+              <article className={`rounded-[20px] border ${estadoBodegaCompra.borde} ${estadoBodegaCompra.fondo} p-4 shadow-sm`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[0.78rem] font-black uppercase tracking-[0.12em] text-slate-500">
+                      Espacio en bodega
+                    </p>
+                    <p className={`mt-1 text-[1.35rem] font-black leading-tight ${estadoBodegaCompra.texto}`}>
+                      {formatoKg(estadoBodegaCompra.kgReferencia)} libres
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xs font-black text-slate-400">
+                    {Math.round(estadoBodegaCompra.porcentajeProyectado)}% ocupado
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-black text-[#5b6f9d]">
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/80">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-300 ${estadoBodegaCompra.barra}`}
+                    style={{
+                      width: `${Math.min(100, estadoBodegaCompra.porcentajeProyectado)}%`,
+                    }}
+                  />
+                </div>
+                <p className={`mt-2 text-[0.78rem] font-semibold ${estadoBodegaCompra.texto}`}>
+                  {estadoBodegaCompra.mensaje}
+                </p>
+              </article>
+            ) : null}
+
+            <article className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92] shadow-sm">
+              <p className="text-[0.72rem] font-black text-[#5b6f9d]">
+                Resumen de peso
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[#d6e2ff] pt-3">
+                <div className="min-w-0 rounded-[14px] bg-white/40 px-2 py-2 sm:bg-transparent sm:px-0 sm:py-0">
+                  <p className="text-[0.68rem] font-black text-[#5b6f9d]">Total kg:</p>
+                  <p
+                    className={`mt-1 max-w-full overflow-hidden whitespace-nowrap font-black leading-[1.1] tracking-normal text-[#102d92] ${claseValorResumen(
+                      formatoKg(resumen.totalKg),
+                    )}`}
+                  >
+                    {formatoKg(resumen.totalKg)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-[14px] bg-white/40 px-2 py-2 text-right sm:bg-transparent sm:px-0 sm:py-0">
+                  <p className="text-[0.68rem] font-black text-[#5b6f9d]">
                     Total estimado:
                   </p>
-                  <p className="mt-2 text-[1.9rem] font-black leading-none text-[#102d92]">
+                  <p
+                    className={`mt-1 max-w-full overflow-hidden whitespace-nowrap font-black leading-[1.1] tracking-normal text-[#102d92] ${claseValorResumen(
+                      formatoMoneda(resumen.totalCompra),
+                    )}`}
+                  >
                     {formatoMoneda(resumen.totalCompra)}
                   </p>
                 </div>
               </div>
             </article>
 
-
             <div className="grid gap-3">
               <button
                 type="button"
                 onClick={irSiguientePaso}
-                className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)]"
+                className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition active:scale-[0.99]"
               >
                 Siguiente Paso
                 <ArrowRight size={22} />
@@ -2010,7 +2854,7 @@ export default function Compras() {
                 Si necesitas editar la información de un sublote, regresa al
                 paso anterior
               </p>
-              <div className="mt-3 space-y-3">
+              <div className="mt-3 max-h-[330px] space-y-2 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                 {sublotes.map((sublote) => {
                   const tipoCafe =
                     nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
@@ -2023,21 +2867,21 @@ export default function Compras() {
                   return (
                     <article
                       key={sublote.id}
-                      className="rounded-[22px] border border-[#e6e8f3] bg-white px-4 py-4 shadow-sm"
+                      className="rounded-[18px] border border-[#e6e8f3] bg-white px-3 py-3 shadow-sm"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-4">
-                          <div className={`rounded-2xl p-3 ${visual.fondo}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex items-start gap-3">
+                          <div className={`shrink-0 rounded-xl p-2.5 ${visual.fondo}`}>
                             {visual.icono}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-black uppercase tracking-[0.08em] text-[#173ea6]">
                               {tipoCafe}
                             </p>
-                            <p className="mt-1 text-[1.2rem] font-semibold leading-tight text-slate-900">
+                            <p className="mt-1 truncate text-[1rem] font-semibold leading-tight text-slate-900">
                               Calidad: {calidad}
                             </p>
-                            <p className="mt-1 text-base font-semibold text-slate-700">
+                            <p className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-700">
                               Peso:{' '}
                               {peso.toLocaleString('es-CO', {
                                 minimumFractionDigits: 0,
@@ -2045,22 +2889,22 @@ export default function Compras() {
                               })}{' '}
                               kg
                             </p>
-                            <p className="mt-1 text-base font-semibold text-slate-700">
+                            <p className="mt-1 overflow-hidden whitespace-nowrap text-sm font-semibold text-slate-700">
                               Total: {formatoMoneda(totalItem)}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() =>
                               editarSubloteDesdeRevision(sublote.id)
                             }
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
                             title="Editar producto"
                             aria-label={`Editar ${tipoCafe}`}
                           >
-                            <Pencil size={16} />
+                            <Pencil size={14} />
                           </button>
                           {sublotes.length > 1 && (
                             <button
@@ -2068,11 +2912,11 @@ export default function Compras() {
                               onClick={() =>
                                 eliminarSubloteDesdeRevision(sublote.id)
                               }
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
                               title="Eliminar producto"
                               aria-label={`Eliminar ${tipoCafe}`}
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </button>
                           )}
                         </div>
@@ -2219,17 +3063,23 @@ export default function Compras() {
                   Capacidad total (kg)
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
                   value={capacidadNuevaKg}
                   onChange={(event) => {
-                    setCapacidadNuevaKg(event.target.value);
+                    setCapacidadNuevaKg(
+                      sanitizeCapacidadBodegaInput(event.target.value),
+                    );
                     setCapacidadNuevaError(null);
                   }}
                   className="mt-2 w-full rounded-[16px] border border-[#dde4f1] bg-[#f8faff] px-4 py-4 text-[1.2rem] font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
                   placeholder="Ej. 6000"
                 />
+                <p className="mt-1 text-[0.72rem] font-semibold text-slate-400">
+                  Máx. {CAPACIDAD_BODEGA_MAX_LABEL} kg
+                </p>
               </div>
 
               {capacidadNuevaError ? (
@@ -2480,38 +3330,282 @@ export default function Compras() {
         </div>
       ) : null}
 
-      {mostrarModalProductor ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
-            <div className="px-5 pb-5 pt-3">
+      {mostrarModalSelectorProductor ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 px-4 pb-4 pt-8 backdrop-blur-sm sm:items-center">
+          <div className="flex h-[75vh] max-h-[75vh] w-full max-w-[430px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="shrink-0 border-b border-[#eef2f7] px-5 pb-4 pt-3">
               <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
-                    Registrar Productor
-                  </h2>
-                </div>
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
+                  Seleccionar productor
+                </h2>
                 <button
                   type="button"
-                  onClick={cerrarModalProductor}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  onClick={cerrarSelectorProductor}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar selector de productores"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="mt-5 space-y-4">
+              <div className="relative mt-4">
+                <Search
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={busquedaSelectorProductor}
+                  onChange={(event) => {
+                    setBusquedaSelectorProductor(event.target.value);
+                    setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
+                    setProductoresSelector([]);
+                  }}
+                  placeholder="Buscar por nombre o documento..."
+                  className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-11 py-3 text-[0.98rem] text-slate-900 outline-none transition focus:border-[#1f3fa7]"
+                />
+              </div>
+
+              <div className="mt-3 rounded-[14px] bg-[#f4f7fb] p-1">
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { value: 'recientes', label: 'Recientes' },
+                    { value: 'antiguos', label: 'Antiguos' },
+                    { value: 'az', label: 'A-Z' },
+                  ].map((orden) => {
+                    const activo = ordenSelectorProductor === orden.value;
+
+                    return (
+                      <button
+                        key={orden.value}
+                        type="button"
+                        onClick={() => {
+                          setOrdenSelectorProductor(orden.value as ProductorOrden);
+                          setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
+                          setProductoresSelector([]);
+                        }}
+                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${
+                          activo
+                            ? 'bg-white text-[#1f3fa7] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {orden.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div
+              className="min-h-0 flex-1 overflow-y-scroll px-5 py-4 pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]"
+              onScroll={(event) => {
+                const target = event.currentTarget;
+                const cercaDelFinal =
+                  target.scrollTop + target.clientHeight >=
+                  target.scrollHeight - 80;
+
+                if (
+                  cercaDelFinal &&
+                  quedanProductoresPorCargar &&
+                  !cargandoProductoresSelector
+                ) {
+                  void cargarProductoresSelector(false);
+                }
+              }}
+            >
+              {cargandoProductoresSelector &&
+              productoresSelectorVisibles.length === 0 ? (
+                <div className="rounded-[16px] border border-[#e6ebf5] bg-[#fafbff] px-4 py-8 text-center">
+                  <LoaderCircle
+                    size={24}
+                    className="mx-auto animate-spin text-[#1f3fa7]"
+                  />
+                  <p className="mt-3 text-sm font-black text-slate-700">
+                    Cargando productores...
+                  </p>
+                </div>
+              ) : productoresSelectorFiltrados.length === 0 &&
+                !busquedaSelectorActiva ? (
+                <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center">
+                  <p className="text-[1rem] font-black text-slate-800">
+                    Aún no tienes productores registrados.
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                    Registra uno para iniciar la compra.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={abrirModalProductor}
+                    className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-black text-white"
+                  >
+                    Registrar productor
+                  </button>
+                </div>
+              ) : productoresSelectorFiltrados.length === 0 &&
+                busquedaSelectorActiva ? (
+                <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center">
+                  <p className="text-[1rem] font-black text-slate-800">
+                    No se encontraron resultados
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                    Intenta con otro nombre o documento.
+                  </p>
+                </div>
+              ) : (
                 <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Nombre completo
+                  <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                    <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-400">
+                      {busquedaSelectorActiva
+                        ? 'Resultados encontrados'
+                        : 'Recientes'}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-400">
+                      {productoresSelectorVisibles.length} resultados
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {productoresSelectorVisibles.map((productor) => {
+                    const activo = productorSeleccionado?.id === productor.id;
+
+                    return (
+                      <div
+                        key={productor.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => seleccionarProductor(productor)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            seleccionarProductor(productor);
+                          }
+                        }}
+                        className={`flex cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 transition ${
+                          activo
+                            ? 'border-[#1f3fa7] bg-[#f4f7ff]'
+                            : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                            activo
+                              ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+                              : 'border-[#aebbd1] bg-white text-transparent'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {activo ? (
+                              <Check size={11} strokeWidth={3} />
+                          ) : null}
+                        </span>
+                        <div className="min-w-0 flex-1 text-left">
+                          <p className="truncate text-[0.98rem] font-black text-slate-900">
+                            {productor.nombre}
+                          </p>
+                          <p className="mt-0.5 truncate text-[0.84rem] font-semibold text-slate-500">
+                            {productor.documento}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            pedirConfirmacionEditarProductor(productor);
+                          }}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-slate-600"
+                          aria-label={`Editar ${productor.nombre}`}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalProductor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[78vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
+            <div className="shrink-0 px-4 pb-3 pt-3">
+              <div className="mx-auto h-1 w-9 rounded-full bg-[#cfd8e6]" />
+              <div className="mt-3 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[1.05rem] font-semibold leading-tight text-[#111827]">
+                    {productorEditando ? 'Editar productor' : 'Registrar productor'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={cerrarModalProductor}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    Tipo de documento
+                  </label>
+                  <select
+                    value={productorForm.tipoDocumento}
+                    translate="no"
+                    onChange={(event) => {
+                      const tipoDocumento =
+                        event.target.value === 'NIT' ? 'NIT' : 'CC';
+                      setProductorForm((actual) => ({
+                        ...actual,
+                        tipoDocumento,
+                        nombre: sanitizeProducerNameInput(
+                          actual.nombre,
+                          tipoDocumento,
+                        ),
+                        documento: sanitizeDocumentInput(
+                          actual.documento,
+                          tipoDocumento,
+                        ),
+                      }));
+                      setProductorFormErrors((actual) => ({
+                        ...actual,
+                        nombre: undefined,
+                        documento: undefined,
+                      }));
+                      setProductorFormError(null);
+                    }}
+                    className={productorFieldClass(false)}
+                  >
+                    {TIPOS_DOCUMENTO_PRODUCTOR.map((tipo) => (
+                      <option key={tipo.value} value={tipo.value} translate="no">
+                        {tipo.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    {getProducerNameLabel(productorForm.tipoDocumento)}
                   </label>
                   <input
                     type="text"
                     value={productorForm.nombre}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        nombre: sanitizeNameInput(event.target.value),
+                        nombre: sanitizeProducerNameInput(
+                          event.target.value,
+                          actual.tipoDocumento,
+                        ).slice(0, PERSON_NAME_MAX_LENGTH),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -2519,29 +3613,38 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. Juan Pérez Rodríguez"
-                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]"
+                    placeholder={getProducerNamePlaceholder(
+                      productorForm.tipoDocumento,
+                    )}
+                    className={productorFieldClass(
+                      Boolean(productorFormErrors.nombre),
+                    )}
                   />
                   {productorFormErrors.nombre ? (
-                    <InlineGuidedError
-                      message={getComprasGuidance(productorFormErrors.nombre)}
-                      className="mt-2"
-                    />
+                    <ProducerFieldError message={productorFormErrors.nombre} />
                   ) : null}
                 </div>
                 <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Cédula o NIT
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    Número de documento
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    maxLength={10}
+                    inputMode={
+                      productorForm.tipoDocumento === 'CC' ||
+                        productorForm.tipoDocumento === 'NIT'
+                        ? 'numeric'
+                        : 'text'
+                    }
+                    maxLength={40}
                     value={productorForm.documento}
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        documento: sanitizePersonDigits(event.target.value),
+                        documento: sanitizeDocumentInput(
+                          event.target.value,
+                          actual.tipoDocumento,
+                        ),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -2549,31 +3652,34 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. 123456789 o 900123456"
-                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]"
+                    placeholder={
+                      productorForm.tipoDocumento === 'NIT'
+                        ? 'Ej. 900123456-7'
+                        : 'Ej. 123456789'
+                    }
+                    className={productorFieldClass(
+                      Boolean(productorFormErrors.documento),
+                    )}
                   />
                   {productorFormErrors.documento ? (
-                    <InlineGuidedError
-                      message={getComprasGuidance(
-                        productorFormErrors.documento,
-                      )}
-                      className="mt-2"
+                    <ProducerFieldError
+                      message={productorFormErrors.documento}
                     />
                   ) : null}
                 </div>
                 <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
                     Teléfono (opcional)
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    maxLength={10}
+                    inputMode="tel"
+                    maxLength={20}
                     value={productorForm.telefono}
                     onChange={(event) => {
                       setProductorForm((actual) => ({
                         ...actual,
-                        telefono: sanitizePersonDigits(event.target.value),
+                        telefono: sanitizePersonDigits(event.target.value, 15),
                       }));
                       setProductorFormErrors((actual) => ({
                         ...actual,
@@ -2581,14 +3687,13 @@ export default function Compras() {
                       }));
                       setProductorFormError(null);
                     }}
-                    placeholder="Ej. 3001234567"
-                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none focus:border-[#173ea6]"
+                    placeholder="Ej. +57 300 123 4567"
+                    className={productorFieldClass(
+                      Boolean(productorFormErrors.telefono),
+                    )}
                   />
                   {productorFormErrors.telefono ? (
-                    <InlineGuidedError
-                      message={getComprasGuidance(productorFormErrors.telefono)}
-                      className="mt-2"
-                    />
+                    <ProducerFieldError message={productorFormErrors.telefono} />
                   ) : null}
                 </div>
 
@@ -2600,21 +3705,68 @@ export default function Compras() {
               </div>
             </div>
 
-            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
+            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-4 py-3">
               <button
                 type="button"
                 onClick={guardarProductorLocal}
                 disabled={botonGuardarProductorPresionado}
-                className="inline-flex w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center rounded-[12px] bg-[#102d92] px-4 py-3 text-[0.82rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {botonGuardarProductorPresionado
                   ? 'Guardando productor...'
-                  : 'Guardar Productor'}
+                  : productorEditando
+                    ? 'Guardar cambios'
+                    : 'Guardar productor'}
               </button>
               <button
                 type="button"
                 onClick={cerrarModalProductor}
-                className="mt-3 inline-flex w-full items-center justify-center px-5 py-2 text-[0.9rem] font-semibold text-slate-500"
+                className="mt-2 inline-flex w-full items-center justify-center px-4 py-1.5 text-[0.78rem] font-semibold text-slate-500"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {productorPendienteEditar ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 px-5 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-[400px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef3ff] text-[#1f3fa7]">
+                <Pencil size={22} />
+              </div>
+              <h2 className="mt-4 text-[1.35rem] font-black leading-tight text-slate-900">
+                ¿Modificar productor?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Vas a editar los datos de este productor.
+              </p>
+            </div>
+
+            <div className="mt-5 rounded-[16px] border border-[#e4e9f5] bg-[#f8faff] p-4">
+              <p className="truncate text-[1rem] font-black text-slate-900">
+                {productorPendienteEditar.nombre}
+              </p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-500">
+                Documento: {productorPendienteEditar.documento}
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-2">
+              <button
+                type="button"
+                onClick={confirmarEditarProductor}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-4 text-sm font-black text-white"
+              >
+                Sí, modificar
+              </button>
+              <button
+                type="button"
+                onClick={cancelarEditarProductor}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] px-4 text-sm font-black text-slate-500"
               >
                 Cancelar
               </button>
@@ -2650,7 +3802,9 @@ export default function Compras() {
         </div>
       ) : null}
 
-      <AppBottomNav hidden={mostrarModalProductor || step >= 1} />
+      <AppBottomNav
+        hidden={mostrarModalSelectorProductor || mostrarModalProductor || step >= 1}
+      />
     </div>
   );
 }

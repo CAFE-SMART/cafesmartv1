@@ -40,4 +40,19 @@ describe('ActualizarBodegaDto', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rechaza capacidades mayores a 999999 kg', async () => {
+    await expect(
+      pipe.transform(
+        {
+          nombreBodega: 'Bodega principal',
+          capacidadKg: 1000000,
+        },
+        {
+          type: 'body',
+          metatype: ActualizarBodegaDto,
+        },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

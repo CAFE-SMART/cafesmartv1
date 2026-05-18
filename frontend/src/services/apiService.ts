@@ -8,6 +8,7 @@ type ApiRequestErrorOptions = {
   status: number;
   code?: string | null;
   field?: string | null;
+  action?: string | null;
   details?: ApiErrorDetails | null;
 };
 
@@ -15,6 +16,7 @@ export class ApiRequestError extends Error {
   status: number;
   code: string | null;
   field: string | null;
+  action: string | null;
   details: ApiErrorDetails | null;
 
   constructor(message: string, options: ApiRequestErrorOptions) {
@@ -23,6 +25,7 @@ export class ApiRequestError extends Error {
     this.status = options.status;
     this.code = options.code ?? null;
     this.field = options.field ?? null;
+    this.action = options.action ?? null;
     this.details = options.details ?? null;
   }
 }
@@ -39,23 +42,23 @@ function traducirMensajeError(message: unknown, status: number) {
   const texto = normalizarMensaje(message);
 
   if (status >= 500) {
-    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+    return 'No pudimos completar la acción. Revisa tu conexión e inténtalo nuevamente.';
   }
 
   if (!texto) {
     if (status === 401) {
-      return 'Tu sesion expiro. Ingresa de nuevo.';
+      return 'Tu sesión expiró. Inicia sesión nuevamente.';
     }
 
     if (status === 403) {
-      return 'No tienes permiso para esta accion.';
+      return 'No tienes permiso para realizar esta acción.';
     }
 
     if (status === 404) {
-      return 'No encontramos la información solicitada. Verifica e intenta nuevamente.';
+      return 'No encontramos esa información. Verifica los datos e inténtalo nuevamente.';
     }
 
-    return 'No pudimos procesarlo. Intenta de nuevo.';
+    return 'No pudimos procesarlo. Revisa los datos e inténtalo nuevamente.';
   }
 
   if (
@@ -63,22 +66,22 @@ function traducirMensajeError(message: unknown, status: number) {
       texto,
     )
   ) {
-    return 'No pudimos completar la acción. Vuelve a intentarlo.';
+    return 'No pudimos completar la acción. Revisa tu conexión e inténtalo nuevamente.';
   }
 
   if (/^Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+/i.test(texto)) {
-    return 'Esta opcion aun no esta disponible.';
+    return 'Esta opción aún no está disponible.';
   }
 
   const mapa: Record<string, string> = {
     'Internal server error':
-      'No pudimos completar la acción. Vuelve a intentarlo.',
-    Unauthorized: 'Tu sesion expiro. Ingresa de nuevo.',
-    Forbidden: 'No tienes permiso para esta accion.',
-    'Forbidden resource': 'No tienes permiso para esta opcion.',
-    'Not Found': 'No encontramos esa informacion.',
-    'Bad Request': 'Revisa los datos e intenta de nuevo.',
-    'Failed to fetch': 'Revisa la conexión a internet y vuelve a intentarlo.',
+      'No pudimos completar la acción. Revisa tu conexión e inténtalo nuevamente.',
+    Unauthorized: 'Tu sesión expiró. Inicia sesión nuevamente.',
+    Forbidden: 'No tienes permiso para realizar esta acción.',
+    'Forbidden resource': 'No tienes permiso para esta opción.',
+    'Not Found': 'No encontramos esa información. Verifica los datos e inténtalo nuevamente.',
+    'Bad Request': 'Revisa los datos e inténtalo nuevamente.',
+    'Failed to fetch': 'Revisa la conexión a internet e inténtalo nuevamente.',
   };
 
   return mapa[texto] || texto;
@@ -153,6 +156,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
           status: response.status,
           code: typeof data?.code === 'string' ? data.code : null,
           field: typeof data?.field === 'string' ? data.field : null,
+          action: typeof data?.action === 'string' ? data.action : null,
           details:
             data?.details && typeof data.details === 'object'
               ? (data.details as ApiErrorDetails)

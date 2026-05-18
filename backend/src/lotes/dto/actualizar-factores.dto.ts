@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsUUID,
+  Max,
   Min,
   ValidateIf,
   ValidateNested,
@@ -19,6 +20,7 @@ export class ActualizarFactorSubloteDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'El factor debe ser un numero' })
   @Min(0, { message: 'El factor no puede ser negativo' })
+  @Max(9999, { message: 'El factor no puede superar 4 digitos' })
   factor?: number | null;
 }
 

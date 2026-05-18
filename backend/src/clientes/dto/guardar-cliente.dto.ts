@@ -1,6 +1,18 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class GuardarClienteDto {
+  @IsOptional()
+  @IsIn(['CC', 'CE', 'NIT', 'OTRO'], {
+    message: 'Selecciona un tipo de documento valido',
+  })
+  tipoDocumento?: 'CC' | 'CE' | 'NIT' | 'OTRO';
+
   @IsString({ message: 'El nombre del cliente debe ser texto' })
   @IsNotEmpty({ message: 'El nombre del cliente es obligatorio' })
   @MaxLength(120, {

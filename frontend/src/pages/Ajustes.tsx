@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
@@ -39,6 +39,16 @@ import {
 } from '../services/bodegaApi';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import {
+  BUSINESS_NAME_ERROR,
+  sanitizeBusinessNameInput,
+  validateBusinessName,
+} from '../utils/registerValidators';
+import {
+  PESO_MAXIMO_ENTRADA_KG,
+  PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
+  PESO_MINIMO_KG,
+} from '../utils/businessRules';
 
 type ProfileSettings = {
   nombre: string;
@@ -54,10 +64,23 @@ type CompanySettings = {
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
 
+const CAPACIDAD_BODEGA_MAX_KG = 999999;
+const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
+const PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL = '99.999';
+const CAPACIDAD_BODEGA_INVALIDA = 'Ingresa una capacidad de bodega válida.';
+const CAPACIDAD_BODEGA_MENOR_INVENTARIO =
+  'La capacidad no puede ser menor al café almacenado actualmente.';
+const CAPACIDAD_BODEGA_MENOR_INVENTARIO_ANTERIOR =
+  'La capacidad no puede ser menor al inventario actual almacenado.';
+
 function formatKg(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function sanitizeCapacidadBodegaInput(value: string) {
+  return value.replace(/\D/g, '').slice(0, 6);
 }
 
 function formatDate(value: string) {
@@ -79,11 +102,9 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
   }
 
   if (
-    message === 'Escribe el nombre de la empresa.' ||
+    message === BUSINESS_NAME_ERROR ||
     message === 'Selecciona el tipo de empresa.' ||
-    message === 'El nombre solo puede contener letras, números y espacios.' ||
     message === 'El nombre de la empresa no puede exceder los 30 caracteres.' ||
-    message === 'El nombre de la empresa no puede contener más de 5 números.' ||
     message === 'La descripción de la empresa no puede exceder los 50 caracteres.'
   ) {
     return 'company';
@@ -92,8 +113,9 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
   if (
     message === 'Escribe un nombre para la bodega.' ||
     message === 'La capacidad debe ser mayor que 0.' ||
-    message ===
-      'La capacidad no puede ser menor al inventario actual almacenado.'
+    message === CAPACIDAD_BODEGA_INVALIDA ||
+    message === CAPACIDAD_BODEGA_MENOR_INVENTARIO ||
+    message === CAPACIDAD_BODEGA_MENOR_INVENTARIO_ANTERIOR
   ) {
     return 'bodega';
   }
@@ -129,21 +151,12 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'Escribe el nombre de la empresa.') {
+  if (message === BUSINESS_NAME_ERROR) {
     return createGuidedError(
       message,
-      'Falta nombre de empresa.',
-      'Tu negocio debe tener un nombre.',
-      'Escribe el nombre de tu empresa.',
-    );
-  }
-
-  if (message === 'El nombre solo puede contener letras, números y espacios.') {
-    return createGuidedError(
-      message,
-      'Caracteres no permitidos.',
-      'El nombre solo acepta letras, números y espacios.',
-      'Elimina los símbolos especiales.',
+      'Revisa el nombre.',
+      'Puede incluir letras, números, espacios y signos comerciales comunes.',
+      'Escribe el nombre del negocio.',
     );
   }
 
@@ -153,15 +166,6 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
       'Nombre muy largo.',
       'Máximo 30 caracteres permitidos.',
       'Acorta el nombre de la empresa.',
-    );
-  }
-
-  if (message === 'El nombre de la empresa no puede contener más de 5 números.') {
-    return createGuidedError(
-      message,
-      'Demasiados números.',
-      'El nombre puede tener máximo 5 dígitos en total.',
-      'Reduce la cantidad de números en el nombre.',
     );
   }
 
@@ -192,21 +196,24 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'La capacidad debe ser mayor que 0.') {
+  if (
+    message === 'La capacidad debe ser mayor que 0.' ||
+    message === CAPACIDAD_BODEGA_INVALIDA
+  ) {
     return createGuidedError(
-      message,
-      'Capacidad en cero.',
-      'La bodega debe tener espacio.',
-      'Ingresa una capacidad mayor a 0.',
+      CAPACIDAD_BODEGA_INVALIDA,
+      'Capacidad inválida.',
+      `Debe estar entre 1 y ${CAPACIDAD_BODEGA_MAX_LABEL} kg.`,
+      'Corrige la capacidad para continuar.',
     );
   }
 
   if (
-    message ===
-    'La capacidad no puede ser menor al inventario actual almacenado.'
+    message === CAPACIDAD_BODEGA_MENOR_INVENTARIO ||
+    message === CAPACIDAD_BODEGA_MENOR_INVENTARIO_ANTERIOR
   ) {
     return createGuidedError(
-      message,
+      CAPACIDAD_BODEGA_MENOR_INVENTARIO,
       'Capacidad muy pequeña.',
       'Ya tienes mas cafe guardado que ese limite.',
       'Aumenta la Capacidad de bodega.',
@@ -223,6 +230,10 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 
 export default function Ajustes() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state ?? null) as {
+    focusSetting?: string;
+  } | null;
   const { user, logout } = useUser();
 
   const initialConfig = useMemo(
@@ -266,6 +277,7 @@ export default function Ajustes() {
   const [limitMaxPrecioKg, setLimitMaxPrecioKg] = useState('');
   const [limitMaxPrecioVentaKg, setLimitMaxPrecioVentaKg] = useState('');
   const [guardandoLimites, setGuardandoLimites] = useState(false);
+  const [focusSettingApplied, setFocusSettingApplied] = useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
 
   useEffect(() => {
@@ -286,6 +298,7 @@ export default function Ajustes() {
     setIsEditingBodega(true);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
+    setIsEditingLimites(false);
   };
 
   const cerrarEditorBodega = () => {
@@ -349,7 +362,9 @@ export default function Ajustes() {
       setNombreBodega(config.nombreBodega);
       setCapacidadKg(config.capacidadKg ? String(config.capacidadKg) : '');
       setUpdatedAt(config.updatedAt);
-      setLimitMaxPesoKg(String(config.maxPesoKg || 99999));
+      setLimitMaxPesoKg(
+        String(config.maxPesoKg || PESO_MAXIMO_OPERATIVO_DEFAULT_KG),
+      );
       setLimitMaxPrecioKg(String(config.maxPrecioKg || 100000));
       setLimitMaxPrecioVentaKg(String(config.maxPrecioVentaKg || 100000));
     } catch {
@@ -362,6 +377,19 @@ export default function Ajustes() {
   useEffect(() => {
     void cargarConfiguracionBodega();
   }, [cargarConfiguracionBodega]);
+
+  useEffect(() => {
+    if (
+      focusSettingApplied ||
+      locationState?.focusSetting !== 'capacidad-bodega'
+    ) {
+      return;
+    }
+
+    abrirEditorBodega();
+    setFocusSettingApplied(true);
+    navigate('/ajustes', { replace: true, state: null });
+  }, [focusSettingApplied, locationState?.focusSetting, navigate]);
 
   const cerrarEditorLimites = () => {
     setIsEditingLimites(false);
@@ -399,8 +427,14 @@ export default function Ajustes() {
     const precioVentaMax = Number(limitMaxPrecioVentaKg);
     clearFeedback();
 
-    if (!Number.isFinite(pesoMax) || pesoMax <= 0) {
-      setError('El peso máximo debe ser mayor que 0.');
+    if (
+      !Number.isFinite(pesoMax) ||
+      pesoMax < PESO_MINIMO_KG ||
+      pesoMax > PESO_MAXIMO_ENTRADA_KG
+    ) {
+      setError(
+        `El peso maximo debe estar entre ${PESO_MINIMO_KG} y ${formatKg(PESO_MAXIMO_ENTRADA_KG)} kg.`,
+      );
       return;
     }
 
@@ -470,28 +504,16 @@ export default function Ajustes() {
   const guardarEmpresa = () => {
     clearFeedback();
     const nombre = company.nombreEmpresa.trim();
+    const businessNameValidation = validateBusinessName(nombre);
 
-    if (!nombre) {
-      const message = 'Escribe el nombre de la empresa.';
-      setError(message);
-      return;
-    }
-
-    if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]+$/.test(nombre)) {
-      const message = 'El nombre solo puede contener letras, números y espacios.';
+    if (!businessNameValidation.isValid) {
+      const message = businessNameValidation.message ?? BUSINESS_NAME_ERROR;
       setError(message);
       return;
     }
 
     if (nombre.length > 30) {
       const message = 'El nombre de la empresa no puede exceder los 30 caracteres.';
-      setError(message);
-      return;
-    }
-
-    const digitCount = (nombre.match(/\d/g) ?? []).length;
-    if (digitCount > 5) {
-      const message = 'El nombre de la empresa no puede contener más de 5 números.';
       setError(message);
       return;
     }
@@ -517,16 +539,17 @@ export default function Ajustes() {
       return;
     }
 
-    if (!Number.isFinite(capacidad) || capacidad <= 0) {
-      const message = 'La capacidad debe ser mayor que 0.';
-      setError(message);
+    if (
+      !Number.isFinite(capacidad) ||
+      capacidad <= 0 ||
+      capacidad > CAPACIDAD_BODEGA_MAX_KG
+    ) {
+      setError(CAPACIDAD_BODEGA_INVALIDA);
       return;
     }
 
     if (capacidad < inventarioActualKg) {
-      const message =
-        'La capacidad no puede ser menor al inventario actual almacenado.';
-      setError(message);
+      setError(CAPACIDAD_BODEGA_MENOR_INVENTARIO);
       return;
     }
 
@@ -896,13 +919,7 @@ export default function Ajustes() {
                   maxLength={30}
                   onChange={(event) => {
                     const raw = event.target.value;
-                    // Solo letras, números y espacios; máx 30 chars
-                    const filtered = raw.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]/g, '').slice(0, 30);
-                    
-                    const digitCount = (filtered.match(/\d/g) ?? []).length;
-                    if (digitCount > 5) {
-                      return; // Evita que se ingresen más de 5 números
-                    }
+                    const filtered = sanitizeBusinessNameInput(raw).slice(0, 30);
                     
                     setCompany((prev) => ({
                       ...prev,
@@ -918,7 +935,7 @@ export default function Ajustes() {
                   placeholder="Nombre de la empresa"
                 />
                 <p className="mt-1 text-right text-[0.68rem] text-slate-400">
-                  {company.nombreEmpresa.length}/30 · {(company.nombreEmpresa.match(/\d/g) ?? []).length}/5 números
+                  {company.nombreEmpresa.length}/30
                 </p>
                 {error && activeErrorSection === 'company' ? (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1121,17 +1138,23 @@ export default function Ajustes() {
                   Capacidad max. (kg)
                 </p>
                 <input
-                  type="number"
-                  min="1"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
                   value={capacidadKg}
                   onChange={(event) => {
-                    setCapacidadKg(event.target.value);
+                    setCapacidadKg(
+                      sanitizeCapacidadBodegaInput(event.target.value),
+                    );
                     clearFeedback();
                   }}
                   className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
                   placeholder="6000"
                 />
+                <p className="mt-1 text-[0.68rem] font-semibold text-slate-400">
+                  Máx. {CAPACIDAD_BODEGA_MAX_LABEL} kg
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -1215,7 +1238,7 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${error && error.includes('peso') ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-900'}`}
-                  placeholder="99999"
+                  placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
                 />
                 {error && error.includes('peso') ? (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">

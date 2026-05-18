@@ -26,6 +26,7 @@ build/
 *.pfx
 *.jks
 *.keystore
+/y
 
 # Logs
 npm-debug.log*

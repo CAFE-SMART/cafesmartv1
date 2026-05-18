@@ -3,7 +3,6 @@ import {
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -40,16 +39,11 @@ function flattenValidationErrors(
  */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  const port = Number(configService.get('PORT') ?? 3000);
-  const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
-  const corsOrigins = (configService.get<string>('CORS_ORIGINS') ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const port = process.env.PORT || 3000;
 
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : nodeEnv !== 'production',
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true,
   });
   app.useGlobalFilters(new HttpExceptionFilter());
 
@@ -85,7 +79,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(port, '0.0.0.0');
+  await app.listen(port);
   console.log(`Backend Cafe Smart corriendo en el puerto ${port}`);
 }
 

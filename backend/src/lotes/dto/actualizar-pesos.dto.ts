@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -17,10 +19,12 @@ export class ActualizarPesoSubloteDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'El peso debe ser un número' })
   @Min(0, { message: 'El peso no puede ser negativo' })
+  @Max(99999, { message: 'El peso no puede superar los 99.999 kg' })
   pesoActual!: number;
 
   @IsOptional()
   @IsString({ message: 'El motivo debe ser texto' })
+  @MaxLength(40, { message: 'El motivo no puede superar 40 caracteres' })
   motivo?: string;
 }
 

@@ -1,4 +1,5 @@
 import { apiFetch } from './apiService';
+import type { DocumentType } from '../utils/personValidation';
 
 export type ClienteItem = {
   id: string;
@@ -10,6 +11,7 @@ export type ClienteItem = {
 
 export type GuardarClientePayload = {
   nombre: string;
+  tipoDocumento?: DocumentType;
   documento?: string;
   telefono?: string;
 };

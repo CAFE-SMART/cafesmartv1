@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   TrendingUp,
   Wallet,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,6 +23,8 @@ import {
 } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import { ApiRequestError } from '../services/apiService';
+
+type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 
 function formatCurrency(value: number) {
   return `$ ${new Intl.NumberFormat('es-CO', {
@@ -168,6 +171,8 @@ export default function ResumenFinanciero() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<PeriodoFinanciero>('DIARIO');
+  const [historialAbierto, setHistorialAbierto] = useState(false);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -226,40 +231,93 @@ export default function ResumenFinanciero() {
         (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
       );
   }, [summary?.movimientosRecientes]);
-  const movimientosRecientes = useMemo(
-    () => movimientos.slice(0, 8),
-    [movimientos],
-  );
-
-  const ventasTotal = summary?.totalVentasHoy ?? 0;
-  const gastosTotal = summary?.totalGastosHoy ?? 0;
-  const comprasTotal = summary?.totalComprasHoy ?? 0;
-  const balanceDia = ventasTotal - comprasTotal - gastosTotal;
   const mermaTotalKg = summary?.mermaTotalKg ?? 0;
-  const hasData =
-    ventasTotal > 0 ||
-    comprasTotal > 0 ||
-    gastosTotal > 0 ||
-    mermaTotalKg > 0 ||
-    movimientos.length > 0;
   const periodoActual = new Date().toLocaleDateString('es-CO', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
-  const balanceTone =
-    balanceDia > 0
-      ? 'text-emerald-700'
-      : balanceDia < 0
-        ? 'text-rose-700'
-        : 'text-slate-700';
+  const periodoLabel =
+    periodo === 'DIARIO' ? 'del día' : 'de los últimos 7 días';
+  const movimientosDelPeriodo = useMemo(() => {
+    const ahora = new Date();
+    const inicio = new Date(ahora);
+    inicio.setHours(0, 0, 0, 0);
+
+    if (periodo === 'SEMANAL') {
+      inicio.setDate(inicio.getDate() - 6);
+    }
+
+    const fin = new Date(inicio);
+    fin.setDate(fin.getDate() + (periodo === 'DIARIO' ? 1 : 7));
+
+    return movimientos.filter((item) => {
+      const fecha = new Date(item.fecha);
+      return fecha >= inicio && fecha < fin;
+    });
+  }, [movimientos, periodo]);
+  const totalesMovimientosPeriodo = useMemo(
+    () =>
+      movimientosDelPeriodo.reduce(
+        (totales, item) => {
+          if (item.tipo === 'VENTA') {
+            totales.ventas += item.valor;
+          } else if (item.tipo === 'COMPRA') {
+            totales.compras += item.valor;
+          } else {
+            totales.gastos += item.valor;
+          }
+
+          return totales;
+        },
+        { ventas: 0, compras: 0, gastos: 0 },
+      ),
+    [movimientosDelPeriodo],
+  );
+  const totalConRespaldo = (apiValue: number | undefined, fallback: number) =>
+    apiValue && apiValue > 0 ? apiValue : fallback;
+  const ventasTotal =
+    periodo === 'DIARIO'
+      ? totalConRespaldo(summary?.totalVentasHoy, totalesMovimientosPeriodo.ventas)
+      : totalConRespaldo(
+          summary?.totalVentasSemana,
+          totalesMovimientosPeriodo.ventas,
+        );
+  const gastosTotal =
+    periodo === 'DIARIO'
+      ? totalConRespaldo(summary?.totalGastosHoy, totalesMovimientosPeriodo.gastos)
+      : totalConRespaldo(
+          summary?.totalGastosSemana,
+          totalesMovimientosPeriodo.gastos,
+        );
+  const comprasTotal =
+    periodo === 'DIARIO'
+      ? totalConRespaldo(
+          summary?.totalComprasHoy,
+          totalesMovimientosPeriodo.compras,
+        )
+      : totalConRespaldo(
+          summary?.totalComprasSemana,
+          totalesMovimientosPeriodo.compras,
+        );
+  const utilidadEstimada = ventasTotal - comprasTotal - gastosTotal;
+  const hasData =
+    ventasTotal > 0 ||
+    comprasTotal > 0 ||
+    gastosTotal > 0 ||
+    mermaTotalKg > 0 ||
+    movimientosDelPeriodo.length > 0;
+  const movimientosRecientes = useMemo(
+    () => movimientosDelPeriodo.slice(0, 4),
+    [movimientosDelPeriodo],
+  );
   const trend = useMemo(() => {
     const byDay = new Map<
       string,
       { key: string; label: string; time: number; value: number }
     >();
 
-    for (const item of movimientos) {
+    for (const item of movimientosDelPeriodo) {
       const date = new Date(item.fecha);
       if (Number.isNaN(date.getTime())) continue;
 
@@ -285,7 +343,7 @@ export default function ResumenFinanciero() {
           key: now.toISOString().slice(0, 10),
           label: formatDayShort(now),
           time: now.getTime(),
-          value: balanceDia,
+          value: utilidadEstimada,
         },
       ];
     }
@@ -297,7 +355,7 @@ export default function ResumenFinanciero() {
     const min = rawMin - padding;
     const max = rawMax + padding;
     const range = Math.max(1, max - min);
-    const chart = { left: 72, top: 30, width: 292, height: 148 };
+    const chart = { left: 96, top: 42, width: 248, height: 122 };
     const points = buckets.map((bucket, index) => {
       const x =
         buckets.length === 1
@@ -326,32 +384,39 @@ export default function ResumenFinanciero() {
           value,
           label: formatCurrencyShort(value),
           y: chart.top + chart.height - ((value - min) / range) * chart.height,
-        })),
+        }))
+        .filter((tick, index, list) => {
+          if (tick.value !== 0) return true;
+          return list.every(
+            (other, otherIndex) =>
+              otherIndex === index || Math.abs(other.y - tick.y) > 18,
+          );
+        }),
       xAxisTitle: 'Días con movimiento',
-      yAxisTitle: 'Dinero (COP)',
+      yAxisTitle: 'Dinero',
     };
-  }, [balanceDia, movimientos]);
+  }, [movimientosDelPeriodo, utilidadEstimada]);
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
-      <main className="mx-auto w-full max-w-[430px] py-2">
-        <header className="grid min-h-[54px] grid-cols-[44px_1fr_44px] items-center">
+    <div className="min-h-screen bg-[#f7f9fc] px-4 py-3 pb-20 text-slate-900">
+      <main className="mx-auto w-full max-w-[430px] py-1">
+        <header className="grid min-h-[42px] grid-cols-[36px_1fr_36px] items-center">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-900 transition hover:bg-white"
             aria-label="Volver"
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 className="text-center text-[1.05rem] font-black text-[#111827]">
+          <h1 className="text-center text-[0.9rem] font-black text-[#111827]">
             Resultado financiero
           </h1>
           {authorized ? (
             <button
               type="button"
               onClick={() => void cargar(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white"
               aria-label="Recargar resumen"
             >
               <RefreshCcw
@@ -447,97 +512,115 @@ export default function ResumenFinanciero() {
           </section>
         ) : (
           <>
-            <div className="mt-4 flex items-end justify-between gap-3">
+            <div className="mt-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#64748b]">
-                  Dashboard
+                <p className="text-[0.64rem] font-black uppercase tracking-[0.12em] text-[#64748b]">
+                  Resumen financiero
                 </p>
-                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-[#071126]">
+                <h2 className="mt-0.5 text-[1.45rem] font-black leading-none text-[#071126]">
                   Finanzas
                 </h2>
               </div>
-              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold text-[#111827] shadow-sm">
-                <CalendarDays size={15} className="text-[#102d92]" />
+              <div className="inline-flex min-h-[34px] items-center gap-1.5 rounded-[10px] border border-[#dfe6f2] bg-white px-2.5 text-[0.68rem] font-bold text-[#111827] shadow-sm">
+                <CalendarDays size={13} className="text-[#102d92]" />
                 {periodoActual}
               </div>
             </div>
 
-            <section className="mt-5 overflow-hidden rounded-[16px] bg-[#0959d8] px-4 py-5 text-white shadow-[0_16px_34px_rgba(9,89,216,0.24)]">
+            <div className="mt-3 grid grid-cols-2 rounded-[10px] bg-[#eef3fa] p-1">
+              {(['DIARIO', 'SEMANAL'] as PeriodoFinanciero[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setPeriodo(item)}
+                  className={`min-h-[34px] rounded-[8px] text-[0.68rem] font-black transition ${
+                    periodo === item
+                      ? 'bg-white text-[#102d92] shadow-sm'
+                      : 'text-[#64748b]'
+                  }`}
+                >
+                  {item === 'DIARIO' ? 'Diario' : 'Semanal'}
+                </button>
+              ))}
+            </div>
+
+            <section className="mt-3 overflow-hidden rounded-[14px] bg-[#0959d8] px-3.5 py-4 text-white shadow-[0_12px_26px_rgba(9,89,216,0.2)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">
-                    Balance del día
+                  <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-white/80">
+                    Utilidad estimada {periodoLabel}
                   </p>
-                  <p className="mt-3 text-[2.15rem] font-black leading-none tracking-normal">
-                    {loading ? '...' : formatCurrency(balanceDia)}
+                  <p className="mt-2 text-[1.7rem] font-black leading-none tracking-normal">
+                    {loading ? '...' : formatCurrency(utilidadEstimada)}
                   </p>
                 </div>
-                <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/18">
-                  <TrendingUp size={30} />
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/18">
+                  <TrendingUp size={24} />
                 </span>
               </div>
               {hasData ? (
-                <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
-                  Ventas de hoy menos compras y gastos de hoy.
+                <p className="mt-2 text-[0.6rem] font-semibold leading-4 text-white/75">
+                  Ventas menos compras y gastos {periodoLabel}.
                 </p>
               ) : (
-                <div className="mt-3 space-y-1 text-white/75">
-                  <p className="text-[0.64rem] font-black leading-4">
+                <div className="mt-2 space-y-1 text-white/75">
+                  <p className="text-[0.62rem] font-black leading-4">
                     Aún no tienes movimientos registrados
                   </p>
-                  <p className="text-[0.62rem] font-semibold leading-4">
+                  <p className="text-[0.6rem] font-semibold leading-4">
                     Registra compras, ventas o gastos para ver tu balance
                   </p>
                 </div>
               )}
-              <p className="mt-5 inline-flex items-center gap-2 text-[0.68rem] font-bold text-white/75">
-                <Clock size={14} />
+              <p className="mt-3 inline-flex items-center gap-1.5 text-[0.62rem] font-bold text-white/75">
+                <Clock size={12} />
                 Actualizado: hoy
               </p>
             </section>
 
-            <section className="mt-4 grid grid-cols-3 gap-3">
-              <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                  <ShoppingCart size={18} />
+            <section className="mt-3 grid grid-cols-3 gap-2">
+              <article className="rounded-[12px] border border-emerald-100 bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+                <span className="mx-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <ShoppingCart size={15} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-emerald-700">
-                  Ventas hoy
+                <p className="mt-2 text-[0.55rem] font-black uppercase tracking-[0.06em] text-emerald-700">
+                  Ventas
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-1 text-[0.78rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(ventasTotal)}
                 </p>
               </article>
-              <article className="rounded-[14px] border border-blue-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#0f58bd]">
-                  <PackageCheck size={18} />
+              <article className="rounded-[12px] border border-blue-100 bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+                <span className="mx-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-[#0f58bd]">
+                  <PackageCheck size={15} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#0f58bd]">
-                  Compras hoy
+                <p className="mt-2 text-[0.55rem] font-black uppercase tracking-[0.06em] text-[#0f58bd]">
+                  Compras
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-1 text-[0.78rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(comprasTotal)}
                 </p>
               </article>
-              <article className="rounded-[14px] border border-rose-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-                  <Wallet size={18} />
+              <article className="rounded-[12px] border border-rose-100 bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+                <span className="mx-auto inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                  <Wallet size={15} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-rose-600">
-                  Gastos hoy
+                <p className="mt-2 text-[0.55rem] font-black uppercase tracking-[0.06em] text-rose-600">
+                  Gastos
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-1 text-[0.78rem] font-black text-[#111827]">
                   {loading ? '...' : formatCurrency(gastosTotal)}
                 </p>
               </article>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            {periodo === 'SEMANAL' ? (
+            <section className="mt-3 rounded-[14px] border border-[#e5eaf3] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <LineChart size={15} className="text-[#102d92]" />
                   <div>
-                    <p className="text-[0.82rem] font-black text-[#111827]">
+                    <p className="text-[0.78rem] font-black text-[#111827]">
                       Tendencia del balance
                     </p>
                     <p className="text-[0.62rem] font-semibold text-slate-500">
@@ -550,28 +633,38 @@ export default function ResumenFinanciero() {
                 </p>
               </div>
 
-              <div className="mt-4 h-[245px]">
+              {movimientosDelPeriodo.length === 0 ? (
+                <div className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3">
+                  <p className="text-[0.7rem] font-black text-[#111827]">
+                    Aún no hay movimientos para este periodo.
+                  </p>
+                  <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-slate-500">
+                    Registra compras, ventas o gastos para ver el resumen financiero.
+                  </p>
+                </div>
+              ) : (
+              <div className="mt-3 h-[206px]">
                 <svg
                   viewBox="0 0 390 230"
-                  className="h-[220px] w-full overflow-visible"
+                  className="h-[196px] w-full overflow-visible"
                   role="img"
                   aria-label="Tendencia del balance"
                 >
                   <text
-                    x="0"
+                    x="4"
                     y="14"
                     fill="#0f172a"
-                    fontSize="11"
+                    fontSize="10"
                     fontWeight="800"
                   >
                     {trend.yAxisTitle}
                   </text>
                   <text
-                    x="364"
-                    y="228"
+                    x="350"
+                    y="226"
                     textAnchor="end"
                     fill="#0f172a"
-                    fontSize="11"
+                    fontSize="10"
                     fontWeight="800"
                   >
                     Fecha
@@ -579,18 +672,18 @@ export default function ResumenFinanciero() {
                   {trend.yLabels.map((tick) => (
                     <g key={tick.label}>
                       <text
-                        x="0"
+                        x="4"
                         y={tick.y + 4}
                         fill="#475569"
-                        fontSize="11"
+                        fontSize="9"
                         fontWeight="700"
                       >
                         {tick.label}
                       </text>
                       <line
-                        x1="72"
+                        x1="96"
                         y1={tick.y}
-                        x2="364"
+                        x2="344"
                         y2={tick.y}
                         stroke="#e6ecf4"
                         strokeDasharray="5 5"
@@ -598,9 +691,9 @@ export default function ResumenFinanciero() {
                     </g>
                   ))}
                   <line
-                    x1="72"
+                    x1="96"
                     y1={trend.zeroY}
-                    x2="364"
+                    x2="344"
                     y2={trend.zeroY}
                     stroke="#cbd5e1"
                     strokeWidth="1.5"
@@ -615,16 +708,6 @@ export default function ResumenFinanciero() {
                   />
                   {trend.points.map((point) => (
                     <g key={point.key}>
-                      <text
-                        x={point.x}
-                        y={Math.max(14, point.y - 12)}
-                        textAnchor="middle"
-                        fill="#111827"
-                        fontSize="11"
-                        fontWeight="800"
-                      >
-                        {formatCurrencyShort(point.value)}
-                      </text>
                       <circle
                         cx={point.x}
                         cy={point.y}
@@ -635,10 +718,10 @@ export default function ResumenFinanciero() {
                       />
                       <text
                         x={point.x}
-                        y="212"
+                        y="208"
                         textAnchor="middle"
                         fill="#475569"
-                        fontSize="11"
+                        fontSize="9"
                         fontWeight="700"
                       >
                         {point.label}
@@ -647,22 +730,24 @@ export default function ResumenFinanciero() {
                   ))}
                 </svg>
               </div>
+              )}
             </section>
+            ) : null}
 
-            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-3 rounded-[14px] border border-amber-100 bg-[#fff8e7] px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                    <Scale size={22} />
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <Scale size={18} />
                   </span>
                   <div className="min-w-0">
                     <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
                       Merma total
                     </p>
-                    <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
+                    <p className="mt-0.5 text-[1.15rem] font-black text-[#8a4b00]">
                       {loading ? '...' : formatKg(mermaTotalKg)}
                     </p>
-                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
+                    <p className="mt-0.5 text-[0.58rem] font-semibold leading-4 text-amber-800/75">
                       Diferencia entre peso comprado y peso final.
                     </p>
                   </div>
@@ -673,81 +758,55 @@ export default function ResumenFinanciero() {
               </div>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between gap-3">
+            <section className="mt-3 rounded-[14px] border border-[#e5eaf3] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-[0.82rem] font-black text-[#111827]">
-                    Balance del día
+                    Movimientos recientes
                   </p>
-                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500">
-                    Ventas menos compras y gastos de hoy.
+                  <p className="text-[0.58rem] font-semibold text-slate-500">
+                    {periodo === 'DIARIO' ? 'Hoy' : 'Últimos 7 días'}
                   </p>
                 </div>
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#0f58bd]">
-                  <TrendingUp size={18} />
-                </span>
-              </div>
-
-              <div className="mt-4 rounded-[12px] bg-[#f8fafc] px-3 py-3">
-                <div className="flex items-center justify-between gap-3 text-[0.68rem] font-bold text-slate-500">
-                  <span>Ventas de hoy</span>
-                  <span className="text-emerald-700">
-                    {formatCurrency(ventasTotal)}
+                {movimientosDelPeriodo.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setHistorialAbierto(true)}
+                    className="rounded-full bg-[#f1f5fb] px-2.5 py-1.5 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#102d92]"
+                  >
+                    Ver historial
+                  </button>
+                ) : (
+                  <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
+                    {movimientosRecientes.length}
                   </span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-slate-500">
-                  <span>Compras y gastos de hoy</span>
-                  <span className="text-rose-700">
-                    {formatCurrency(comprasTotal + gastosTotal)}
-                  </span>
-                </div>
-                <div className="mt-3 border-t border-[#e5eaf3] pt-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[0.72rem] font-black text-[#111827]">
-                      Balance
-                    </span>
-                    <span className={`text-[1rem] font-black ${balanceTone}`}>
-                      {formatCurrency(balanceDia)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[0.82rem] font-black text-[#111827]">
-                  Movimientos recientes
-                </p>
-                <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
-                  {movimientosRecientes.length}
-                </span>
+                )}
               </div>
 
               {movimientosRecientes.length === 0 ? (
-                <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
+                <p className="mt-2 rounded-[10px] bg-[#f8fafc] px-3 py-2.5 text-[0.62rem] font-semibold text-slate-500">
                   Aún no tienes movimientos
                 </p>
               ) : (
-                <div className="mt-3 space-y-2">
+                <div className="mt-2 space-y-1">
                   {movimientosRecientes.map((item) => {
                     const copy = getMovimientoCopy(item);
                     const Icon = copy.icon;
                     return (
                       <article
                         key={`${item.tipo}-${item.id}`}
-                        className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0"
+                        className="flex items-center gap-2.5 border-b border-[#eef2f7] px-1 py-2.5 last:border-b-0"
                       >
                         <span
-                          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
+                          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
                         >
-                          <Icon size={18} />
+                          <Icon size={15} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[0.82rem] font-black text-[#111827]">
+                          <p className="truncate text-[0.76rem] font-black text-[#111827]">
                             {copy.title}
                           </p>
-                          <p className="truncate text-[0.68rem] font-semibold text-slate-500">
+                          <p className="truncate text-[0.62rem] font-semibold text-slate-500">
                             {copy.detail}
                           </p>
                         </div>
@@ -756,7 +815,7 @@ export default function ResumenFinanciero() {
                             {formatDate(item.fecha)}
                           </p>
                           <p
-                            className={`mt-1 text-[0.74rem] font-black ${copy.amountTone}`}
+                            className={`mt-0.5 text-[0.68rem] font-black ${copy.amountTone}`}
                           >
                             {copy.sign ? `${copy.sign} ` : ''}
                             {formatCurrency(item.valor)}
@@ -769,11 +828,11 @@ export default function ResumenFinanciero() {
               )}
             </section>
 
-            <section className="mt-4 grid grid-cols-3 gap-2">
+            <section className="mt-3 grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/ventas')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#e9f7ef] px-2 text-center text-[0.58rem] font-black text-[#118444]"
+                className="inline-flex min-h-[46px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#e9f7ef] px-2 text-center text-[0.56rem] font-black text-[#118444]"
               >
                 <ShoppingCart size={15} />
                 Venta
@@ -781,7 +840,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => navigate('/compras')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#eef4ff] px-2 text-center text-[0.58rem] font-black text-[#0f58bd]"
+                className="inline-flex min-h-[46px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#eef4ff] px-2 text-center text-[0.56rem] font-black text-[#0f58bd]"
               >
                 <PackageCheck size={15} />
                 Compra
@@ -789,12 +848,74 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => navigate('/gastos/registro')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#fff1f2] px-2 text-center text-[0.58rem] font-black text-[#be123c]"
+                className="inline-flex min-h-[46px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#fff1f2] px-2 text-center text-[0.56rem] font-black text-[#be123c]"
               >
                 <Plus size={15} />
                 Gasto
               </button>
             </section>
+
+            {historialAbierto ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-5 py-8 backdrop-blur-sm">
+                <section className="flex max-h-[72vh] w-full max-w-[350px] flex-col overflow-hidden rounded-[14px] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.24)]">
+                  <div className="flex shrink-0 items-center justify-between border-b border-[#eef2f7] px-3.5 py-2.5">
+                    <div>
+                      <p className="text-[0.88rem] font-black text-[#111827]">
+                        Historial
+                      </p>
+                      <p className="text-[0.6rem] font-semibold text-slate-500">
+                        {periodo === 'DIARIO' ? 'Movimientos de hoy' : 'Movimientos de los últimos 7 días'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHistorialAbierto(false)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f1f5fb] text-slate-500"
+                      aria-label="Cerrar historial"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  <div className="min-h-0 max-h-[360px] flex-1 overflow-y-scroll px-3.5 py-1.5 pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                    {movimientosDelPeriodo.map((item) => {
+                      const copy = getMovimientoCopy(item);
+                      const Icon = copy.icon;
+                      return (
+                        <article
+                          key={`historial-${item.tipo}-${item.id}`}
+                          className="flex items-center gap-2 border-b border-[#eef2f7] py-2 last:border-b-0"
+                        >
+                          <span
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
+                          >
+                            <Icon size={14} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[0.72rem] font-black text-[#111827]">
+                              {copy.title}
+                            </p>
+                            <p className="truncate text-[0.6rem] font-semibold text-slate-500">
+                              {copy.detail}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-[0.58rem] font-semibold text-slate-500">
+                              {formatDate(item.fecha)}
+                            </p>
+                            <p
+                              className={`mt-0.5 text-[0.64rem] font-black ${copy.amountTone}`}
+                            >
+                              {copy.sign ? `${copy.sign} ` : ''}
+                              {formatCurrency(item.valor)}
+                            </p>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </>
         )}
       </main>

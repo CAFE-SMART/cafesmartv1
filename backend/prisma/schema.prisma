@@ -125,6 +125,7 @@ model Cliente {
 model Productor {
   id         String    @id @default(uuid()) @map("id_productor")
   nombre     String    @map("nombre")
+  tipoDocumento String? @map("tipo_documento")
   documento  String?   @map("documento")
   telefono   String?   @map("telefono")
   createdAt  DateTime  @default(now()) @map("created_at")

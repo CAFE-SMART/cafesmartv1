@@ -5,6 +5,7 @@ export class SecadoResultsDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'La salida buena debe ser un numero' })
   @Min(0, { message: 'La salida buena no puede ser negativa' })
+  @Max(99999, { message: 'La salida buena no puede superar los 99.999 kg' })
   outputBuenoKg!: number;
 
   @IsOptional()
@@ -17,6 +18,7 @@ export class SecadoResultsDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'La salida regular debe ser un numero' })
   @Min(0, { message: 'La salida regular no puede ser negativa' })
+  @Max(99999, { message: 'La salida regular no puede superar los 99.999 kg' })
   outputRegularKg!: number;
 
   @IsOptional()

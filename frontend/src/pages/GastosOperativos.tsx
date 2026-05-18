@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   Archive,
@@ -54,6 +54,12 @@ type GuidanceMessage = {
 type FormErrors = Partial<Record<FieldKey, GuidanceMessage>>;
 
 const FIELD_ORDER: FieldKey[] = ['concepto', 'monto', 'fecha', 'sublotes'];
+const MONTO_MAXIMO_GASTO = 99999999;
+const CONCEPTO_MAX_LENGTH = 60;
+const DESCRIPCION_MAX_LENGTH = 200;
+const CONCEPTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
+const CONCEPTO_TIENE_LETRA_REGEX = /\p{L}/u;
+const CONCEPTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 
 const BACKEND_FIELD_MAP: Record<string, FieldKey> = {
   conceptoGasto: 'concepto',
@@ -91,20 +97,22 @@ function getFieldGuidance(
   const { whatOverride, hasAvailableSublotes = true } = options;
 
   if (field === 'concepto') {
+    const message = whatOverride ?? 'Agrega un nombre para identificar el gasto.';
     return {
-      what: whatOverride ?? 'Falta el concepto del gasto.',
-      why: 'Es obligatorio para identificar el gasto.',
-      how: 'Escribe un concepto corto. Ejemplo: "Transporte de secado".',
-      action: 'Completa el concepto del gasto.',
+      what: message,
+      why: message,
+      how: '',
+      action: '',
     };
   }
 
   if (field === 'monto') {
+    const message = whatOverride ?? 'Revisa el monto.';
     return {
-      what: whatOverride ?? 'El monto del gasto no es valido.',
-      why: 'Solo se permiten valores mayores a cero.',
-      how: 'Ingresa solo numeros y un monto mayor a 0.',
-      action: 'Escribe un monto mayor a $0.',
+      what: message,
+      why: message,
+      how: '',
+      action: '',
     };
   }
 
@@ -150,6 +158,15 @@ function getFirstErrorField(errors: FormErrors) {
 
 export default function GastosOperativos() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const locationState = (location.state ?? null) as {
+    fromSecado?: boolean;
+    returnTo?: string;
+  } | null;
+  const secadoReturnTo = locationState?.fromSecado
+    ? locationState.returnTo
+    : null;
 
   const [concepto, setConcepto] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -185,6 +202,20 @@ export default function GastosOperativos() {
   const montoInputRef = useRef<HTMLInputElement | null>(null);
   const fechaInputRef = useRef<HTMLInputElement | null>(null);
   const sublotesButtonRef = useRef<HTMLButtonElement | null>(null);
+  const preseleccionRutaAplicadaRef = useRef(false);
+
+  const subloteIdsDesdeRuta = useMemo(() => {
+    const multiple = searchParams.get('subloteIds');
+    const single = searchParams.get('subloteId');
+    const raw = multiple ?? single ?? '';
+
+    return raw
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+  }, [searchParams]);
+
+  const vieneDeSecado = searchParams.get('origen') === 'secado';
 
   useEffect(() => {
     void (async () => {
@@ -218,6 +249,24 @@ export default function GastosOperativos() {
       setShowSublotesSelector(false);
     }
   }, [aplicaA]);
+
+  useEffect(() => {
+    if (
+      preseleccionRutaAplicadaRef.current ||
+      subloteIdsDesdeRuta.length === 0
+    ) {
+      return;
+    }
+
+    preseleccionRutaAplicadaRef.current = true;
+    setAplicaA('SUBLOTES');
+    setSublotesSeleccionados(subloteIdsDesdeRuta);
+
+    if (vieneDeSecado) {
+      setTipoGasto('SECADO');
+      setConcepto((current) => current || 'Gasto de secado');
+    }
+  }, [subloteIdsDesdeRuta, vieneDeSecado]);
 
   const limpiarErrorCampo = (field: FieldKey) => {
     setFieldErrors((prev) => {
@@ -287,12 +336,38 @@ export default function GastosOperativos() {
     const errors: FormErrors = {};
     const fechaValidacion = validateBusinessDateRange(fecha);
 
-    if (!concepto.trim()) {
-      errors.concepto = getFieldGuidance('concepto');
+    const conceptoNormalizado = concepto.trim();
+
+    if (!conceptoNormalizado) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'Escribe el concepto del gasto.',
+      });
+    } else if (CONCEPTO_SOLO_NUMEROS_REGEX.test(conceptoNormalizado)) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'Describe el gasto con al menos una palabra.',
+      });
+    } else if (!CONCEPTO_VALIDO_REGEX.test(conceptoNormalizado)) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'El concepto contiene caracteres no válidos.',
+      });
+    } else if (!CONCEPTO_TIENE_LETRA_REGEX.test(conceptoNormalizado)) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'El concepto contiene caracteres no válidos.',
+      });
     }
 
-    if (!montoStr || Number(montoStr) <= 0) {
-      errors.monto = getFieldGuidance('monto');
+    if (!montoStr) {
+      errors.monto = getFieldGuidance('monto', {
+        whatOverride: 'Ingresa el monto del gasto.',
+      });
+    } else if (Number(montoStr) <= 0) {
+      errors.monto = getFieldGuidance('monto', {
+        whatOverride: 'El monto debe ser mayor a $0.',
+      });
+    } else if (Number(montoStr) > MONTO_MAXIMO_GASTO) {
+      errors.monto = getFieldGuidance('monto', {
+        whatOverride: 'El monto supera el máximo permitido.',
+      });
     }
 
     if (!fechaValidacion.isValid) {
@@ -311,9 +386,33 @@ export default function GastosOperativos() {
   };
 
   const handleMontoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const crudo = event.target.value.replace(/\D/g, '');
+    const valor = event.target.value;
+    const tieneCaracterInvalido = /[^\d.,\s]/u.test(valor);
+
+    if (tieneCaracterInvalido) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        monto: getFieldGuidance('monto', {
+          whatOverride: 'Ingresa solo números.',
+        }),
+      }));
+    }
+
+    const crudo = valor.replace(/\D/g, '');
+    if (crudo && Number(crudo) > MONTO_MAXIMO_GASTO) {
+      setMontoStr(String(MONTO_MAXIMO_GASTO));
+      setFieldErrors((prev) => ({
+        ...prev,
+        monto: getFieldGuidance('monto', {
+          whatOverride: 'El monto supera el máximo permitido.',
+        }),
+      }));
+      return;
+    }
     setMontoStr(crudo);
-    limpiarErrorCampo('monto');
+    if (!tieneCaracterInvalido) {
+      limpiarErrorCampo('monto');
+    }
   };
 
   const resetForm = () => {
@@ -400,6 +499,13 @@ export default function GastosOperativos() {
 
       await crearGasto(payload);
       setFieldErrors({});
+      if (secadoReturnTo) {
+        navigate(secadoReturnTo, {
+          replace: true,
+          state: { gastoSecadoRegistrado: true },
+        });
+        return;
+      }
       setShowSuccessModal(true);
     } catch (error) {
       console.error(error);
@@ -471,6 +577,7 @@ export default function GastosOperativos() {
               ref={conceptoInputRef}
               type="text"
               placeholder="Ej. Pago de jornaleros - Cosecha Oct"
+              maxLength={CONCEPTO_MAX_LENGTH}
               className={getInputClassName(
                 Boolean(fieldErrors.concepto),
                 'h-10 px-3 text-sm font-semibold',
@@ -479,7 +586,7 @@ export default function GastosOperativos() {
               aria-invalid={Boolean(fieldErrors.concepto)}
               aria-describedby={undefined}
               onChange={(event) => {
-                setConcepto(event.target.value);
+                setConcepto(event.target.value.slice(0, CONCEPTO_MAX_LENGTH));
                 limpiarErrorCampo('concepto');
               }}
             />
@@ -488,7 +595,11 @@ export default function GastosOperativos() {
                 message={fieldErrors.concepto}
                 className="mt-2"
               />
-            ) : null}
+            ) : (
+              <p className="ml-1 text-right text-[0.62rem] font-semibold text-slate-400">
+                {concepto.length}/{CONCEPTO_MAX_LENGTH}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -498,13 +609,21 @@ export default function GastosOperativos() {
             <textarea
               placeholder="Detalles adicionales..."
               rows={2}
+              maxLength={DESCRIPCION_MAX_LENGTH}
               className={getInputClassName(
                 false,
                 'min-h-[68px] resize-none px-3 py-3 text-sm font-semibold',
               )}
               value={descripcion}
-              onChange={(event) => setDescripcion(event.target.value)}
+              onChange={(event) =>
+                setDescripcion(
+                  event.target.value.slice(0, DESCRIPCION_MAX_LENGTH),
+                )
+              }
             />
+            <p className="ml-1 text-right text-[0.62rem] font-semibold text-slate-400">
+              {descripcion.length}/{DESCRIPCION_MAX_LENGTH}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -535,7 +654,11 @@ export default function GastosOperativos() {
                   message={fieldErrors.monto}
                   className="mt-2"
                 />
-              ) : null}
+              ) : (
+                <p className="ml-1 text-[0.62rem] font-semibold text-slate-400">
+                  Max. $99.999.999
+                </p>
+              )}
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">

@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -13,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
+import { ActualizarEstadoGastoDto } from './dto/actualizar-estado-gasto.dto';
 import { GastosService } from './gastos.service';
 
 @Controller('gastos')
@@ -54,5 +56,19 @@ export class GastosController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.gastosService.obtenerGasto(id, req.user.sub);
+  }
+
+  @Patch(':id/estado')
+  @UseGuards(JwtAuthGuard)
+  async actualizarEstado(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: ActualizarEstadoGastoDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.gastosService.actualizarEstadoGasto(
+      id,
+      req.user.sub,
+      dto.estadoPago,
+    );
   }
 }

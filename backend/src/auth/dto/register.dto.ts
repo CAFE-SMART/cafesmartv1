@@ -20,19 +20,29 @@ import {
   IsNotEmpty,
   IsString,
   Matches,
+  MaxLength,
   MinLength,
   ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
 
+const BUSINESS_NAME_PATTERN = /^(?=.*\p{L})[\p{L}0-9 &.'/-]+$/u;
+const BUSINESS_NAME_MESSAGE = 'Ingresa un nombre de negocio válido.';
+const BUSINESS_NAME_MAX_LENGTH_MESSAGE =
+  'El nombre del negocio no puede superar 30 caracteres.';
+
+function normalizeBusinessName(value: unknown) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value;
+}
+
 export class RegisterDto {
-  @Transform(({ value }) => String(value).trim().replace(/\s+/g, ' '))
-  @IsString({ message: 'El nombre de la organizacion debe ser texto.' })
-  @IsNotEmpty({ message: 'El nombre de la organizacion es obligatorio.' })
-  @MinLength(2, {
-    message: 'El nombre de la organizacion debe tener al menos 2 caracteres.',
-  })
+  @Transform(({ value }) => normalizeBusinessName(value))
+  @IsString({ message: BUSINESS_NAME_MESSAGE })
+  @IsNotEmpty({ message: BUSINESS_NAME_MESSAGE })
+  @MaxLength(30, { message: BUSINESS_NAME_MAX_LENGTH_MESSAGE })
+  @Matches(/\p{L}/u, { message: BUSINESS_NAME_MESSAGE })
+  @Matches(BUSINESS_NAME_PATTERN, { message: BUSINESS_NAME_MESSAGE })
   nombreOrganizacion: string;
 
   @IsEnum(TipoOrganizacion, {

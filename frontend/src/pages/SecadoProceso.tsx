@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   useLocation,
   useNavigate,
@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import type { LoteDetalle } from '../services/lotesService';
+import { listarGastosPorSublote, type GastoItem } from '../services/gastosService';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -39,11 +40,44 @@ function kg(value: number) {
   }).format(value)} kg`;
 }
 
+const MAX_SECADO_OUTPUT_KG = 99999;
+
+function sanitizeDecimalInput(value: string, maxDigits: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integer = '', ...decimalParts] = normalized.split('.');
+  const digits = `${integer}${decimalParts.join('')}`.slice(0, maxDigits);
+
+  if (!digits) return '';
+  if (!normalized.includes('.')) return digits;
+
+  const integerLength = Math.min(integer.length, digits.length);
+  const nextInteger = digits.slice(0, integerLength) || '0';
+  const nextDecimal = digits.slice(integerLength);
+
+  return nextDecimal ? `${nextInteger}.${nextDecimal}` : `${nextInteger}.`;
+}
+
+function clampDecimalInput(value: string, maxDigits: number, maxValue: number) {
+  const next = sanitizeDecimalInput(value, maxDigits);
+  if (!next || next.endsWith('.')) return next;
+
+  const parsed = Number(next);
+  if (!Number.isFinite(parsed)) return '';
+
+  return parsed > maxValue ? String(maxValue) : next;
+}
+
 function dateInput(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
     return getTodayLocalDateValue();
   return date.toISOString().slice(0, 10);
+}
+
+function money(value: number) {
+  return `$ ${new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  }).format(value)}`;
 }
 
 function keyOf(value: string) {
@@ -70,7 +104,7 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
       message,
       'Revisa la fecha del secado.',
       'Solo puedes registrar fechas desde 2026 hasta hoy.',
-      'Elige una fecha valida para continuar.',
+      'Elige una fecha válida para continuar.',
     );
   }
 
@@ -78,7 +112,7 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'La salida supera la entrada.',
-      'El peso seco no puede ser mayor que el cafe que entro al secado.',
+      'El peso seco no puede ser mayor que el café que entró al secado.',
       'Ajusta los kilos de salida.',
     );
   }
@@ -87,7 +121,7 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Falta registrar la salida.',
-      'Necesitamos saber cuantos kilos secos quedaron.',
+      'Necesitamos saber cuántos kilos secos quedaron.',
       'Ingresa al menos un peso de salida.',
     );
   }
@@ -95,7 +129,7 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
   return createGuidedError(
     message,
     'Revisa el resultado del secado.',
-    'Hay un dato que no podemos guardar asi.',
+    'Hay un dato que no podemos guardar así.',
     'Ajusta el peso y vuelve a finalizar.',
   );
 }
@@ -139,6 +173,9 @@ export default function SecadoProceso() {
     session?.outputMaloKg ? String(session.outputMaloKg) : '',
   );
   const [withExpense, setWithExpense] = useState(false);
+  const [secadoExpenses, setSecadoExpenses] = useState<GastoItem[]>([]);
+  const [loadingSecadoExpenses, setLoadingSecadoExpenses] = useState(false);
+  const [showExpenseWarning, setShowExpenseWarning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
     useState(false);
@@ -197,6 +234,57 @@ export default function SecadoProceso() {
       setter: setMaloKg,
     },
   ].filter((field) => outputQualities.includes(field.quality));
+
+  useEffect(() => {
+    if (!session || session.sublotes.length === 0) {
+      setSecadoExpenses([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const cargarGastosSecado = async () => {
+      setLoadingSecadoExpenses(true);
+
+      try {
+        const resultados = await Promise.all(
+          session.sublotes.map((sublote) => listarGastosPorSublote(sublote.id)),
+        );
+
+        if (cancelled) return;
+
+        const gastosUnicos = new Map<string, GastoItem>();
+        resultados.flat().forEach((gasto) => {
+          if (gasto.tipoGasto === 'SECADO') {
+            gastosUnicos.set(gasto.id, gasto);
+          }
+        });
+
+        setSecadoExpenses([...gastosUnicos.values()]);
+      } catch {
+        if (!cancelled) {
+          setSecadoExpenses([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSecadoExpenses(false);
+        }
+      }
+    };
+
+    void cargarGastosSecado();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.id]);
+
+  const totalGastoSecado = useMemo(
+    () => secadoExpenses.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
+    [secadoExpenses],
+  );
+
+  const tieneGastoSecado = secadoExpenses.length > 0;
 
   const confirmarInicioSecado = () => {
     if (!pendingData) return;
@@ -280,6 +368,36 @@ export default function SecadoProceso() {
     }
 
     guardarResultadoSecado();
+  };
+
+  const registrarGastoSecado = () => {
+    if (!session) return;
+
+    const subloteIds = session.sublotes
+      .map((sublote) => sublote.id)
+      .filter(Boolean);
+
+    const query = new URLSearchParams();
+    if (subloteIds.length > 0) {
+      query.set('subloteIds', subloteIds.join(','));
+    }
+    query.set('origen', 'secado');
+
+    navigate(`/gastos/registro?${query.toString()}`, {
+      state: {
+        fromSecado: true,
+        returnTo: `/inventario/secado/${session.id}/finalizar?step=finish`,
+      },
+    });
+  };
+
+  const handleExpenseYes = () => {
+    if (tieneGastoSecado) {
+      setShowExpenseWarning(true);
+      return;
+    }
+
+    registrarGastoSecado();
   };
 
   const handleBack = () => {
@@ -502,18 +620,27 @@ export default function SecadoProceso() {
                     {field.label}
                   </span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
+                    maxLength={8}
                     value={field.value}
                     onChange={(event) => {
-                      field.setter(event.target.value);
+                      field.setter(
+                        clampDecimalInput(
+                          event.target.value,
+                          7,
+                          MAX_SECADO_OUTPUT_KG,
+                        ),
+                      );
                       setError(null);
                       setMostrarConfirmacionMermaCero(false);
                     }}
                     className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
                     placeholder="0"
                   />
+                  <span className="mt-1 block text-right text-[0.62rem] font-semibold text-slate-400">
+                    Máx. 99.999 kg
+                  </span>
                 </label>
               ))}
               {resultadoSecadoError ? (
@@ -563,10 +690,14 @@ export default function SecadoProceso() {
                 </span>
                 <div>
                   <p className="text-sm font-black">
-                    Hubo gastos en el secado?
+                    ¿Hubo gastos en el secado?
                   </p>
                   <p className="text-[0.68rem] text-slate-500">
-                    Mano de obra, combustible, etc.
+                    {loadingSecadoExpenses
+                      ? 'Revisando gastos registrados...'
+                      : tieneGastoSecado
+                        ? `Gasto de secado registrado: ${money(totalGastoSecado)}`
+                        : 'Registra mano de obra, combustible u otros costos del secado.'}
                   </p>
                 </div>
               </div>
@@ -580,7 +711,7 @@ export default function SecadoProceso() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWithExpense(true)}
+                  onClick={handleExpenseYes}
                   className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
                 >
                   Sí
@@ -600,6 +731,45 @@ export default function SecadoProceso() {
         ) : null}
       </div>
 
+      {showExpenseWarning ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-6 backdrop-blur-sm">
+          <section className="w-full max-w-[320px] rounded-[20px] bg-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <AlertTriangle size={20} strokeWidth={2.4} />
+            </div>
+            <h2 className="mt-3 text-[1rem] font-black text-slate-950">
+              Ya hay gasto de secado
+            </h2>
+            <p className="mt-2 text-[0.76rem] font-semibold leading-5 text-slate-600">
+              Este lote ya tiene agregado un costo de secado por{' '}
+              <span className="font-black text-slate-900">
+                {money(totalGastoSecado)}
+              </span>
+              . Si agregas otro, se sumará al costo del lote.
+            </p>
+            <div className="mt-5 grid gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExpenseWarning(false);
+                  registrarGastoSecado();
+                }}
+                className="h-10 rounded-[12px] bg-[#102d92] text-[0.72rem] font-black text-white"
+              >
+                Agregar otro gasto
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowExpenseWarning(false)}
+                className="h-10 rounded-[12px] bg-slate-100 text-[0.72rem] font-black text-slate-600"
+              >
+                Mantener el gasto actual
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {mostrarConfirmacionMermaCero ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-6 backdrop-blur-sm">
           <section className="w-full max-w-[430px] rounded-[24px] bg-white p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
@@ -610,12 +780,12 @@ export default function SecadoProceso() {
               El peso de salida es igual al de entrada
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Normalmente el cafe pierde peso durante el secado. Estas
+              Normalmente el café pierde peso durante el secado. Estás
               registrando {kg(totalSalida)} como peso final, igual a los{' '}
               {kg(totalEntrada)} de entrada.
             </p>
             <p className="mt-2 text-sm font-semibold leading-5 text-slate-700">
-              Estas seguro de que ese es el nuevo peso despues del secado?
+              ¿Estás seguro de que ese es el nuevo peso después del secado?
             </p>
             <div className="mt-6 grid gap-3">
               <button
@@ -623,7 +793,7 @@ export default function SecadoProceso() {
                 onClick={guardarResultadoSecado}
                 className="flex min-h-[52px] w-full items-center justify-center rounded-[16px] bg-[#102d92] px-5 text-sm font-black text-white"
               >
-                Si, registrar asi
+                Sí, registrar así
               </button>
               <button
                 type="button"

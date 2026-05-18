@@ -71,6 +71,37 @@ type MovimientoInventario = {
 const TIPOS_CAFE_BASE = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const CALIDADES_BASE = ['BUENO', 'REGULAR', 'MALO'];
 
+function claveCatalogo(nombre: string) {
+  return nombre
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+function dedupeCatalogoItems(items: CatalogoItem[], ordenBase: string[]) {
+  const prioridad = new Map(ordenBase.map((nombre, index) => [nombre, index]));
+  const ordenados = [...items].sort((a, b) => {
+    const claveA = claveCatalogo(a.nombre);
+    const claveB = claveCatalogo(b.nombre);
+    const indexA = prioridad.get(claveA) ?? Number.MAX_SAFE_INTEGER;
+    const indexB = prioridad.get(claveB) ?? Number.MAX_SAFE_INTEGER;
+
+    if (indexA !== indexB) return indexA - indexB;
+    if (a.nombre === claveA && b.nombre !== claveB) return -1;
+    if (b.nombre === claveB && a.nombre !== claveA) return 1;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+  const vistos = new Set<string>();
+
+  return ordenados.filter((item) => {
+    const clave = claveCatalogo(item.nombre);
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
+}
+
 @Injectable()
 export class ComprasService {
   private readonly logger = new Logger(ComprasService.name);
@@ -141,14 +172,8 @@ export class ComprasService {
     await this.asegurarCatalogosBase(this.prisma);
 
     const tipoOrganizacion = await this.obtenerTipoOrganizacionUsuario(userId);
-    const whereTiposCafe =
-      tipoOrganizacion === TipoOrganizacion.COMPRAVENTA
-        ? { nombre: { not: 'TRILLADO' } }
-        : {};
-
     const [tiposCafe, calidades] = await Promise.all([
       this.prisma.tipoCafe.findMany({
-        where: whereTiposCafe,
         select: { id: true, nombre: true },
         orderBy: { nombre: 'asc' },
       }),
@@ -158,7 +183,19 @@ export class ComprasService {
       }),
     ]);
 
-    return { tiposCafe, calidades };
+    const tiposCafeUnicos = dedupeCatalogoItems(
+      tiposCafe,
+      TIPOS_CAFE_BASE,
+    ).filter(
+      (tipoCafe) =>
+        tipoOrganizacion !== TipoOrganizacion.COMPRAVENTA ||
+        claveCatalogo(tipoCafe.nombre) !== 'TRILLADO',
+    );
+
+    return {
+      tiposCafe: tiposCafeUnicos,
+      calidades: dedupeCatalogoItems(calidades, CALIDADES_BASE),
+    };
   }
 
   async crearCompra(
@@ -218,6 +255,20 @@ export class ComprasService {
           );
 
           const compraProcesada = procesarCompra(input, contextoCapacidad);
+
+          if (compraProcesada.capacidad.nivel === 'exceso') {
+            throw new BadRequestException(
+              apiError(
+                'COMPRA_CAPACIDAD_EXCEDIDA',
+                compraProcesada.capacidad.mensaje,
+                {
+                  details: {
+                    capacidad: compraProcesada.capacidad,
+                  },
+                },
+              ),
+            );
+          }
 
           const lotesCompra = await this.asegurarLotesCompra(
             tx,
@@ -635,28 +686,6 @@ export class ComprasService {
     tx: Prisma.TransactionClient | PrismaService,
     organizacionId: string,
   ): Promise<number> {
-    try {
-      const inventarioActual = await tx.inventario.aggregate({
-        _sum: { pesoTotal: true },
-        where: { organizacionId },
-      });
-      const pesoTotal = Number(inventarioActual._sum.pesoTotal ?? 0);
-
-      if (!Number.isFinite(pesoTotal)) {
-        throw new Error('El snapshot de inventario devolvio un valor invalido');
-      }
-
-      return pesoTotal;
-    } catch (error) {
-      this.logger.warn(
-        JSON.stringify({
-          event: 'inventario_snapshot_no_disponible',
-          organizacionId,
-          error: error instanceof Error ? error.message : 'Error desconocido',
-        }),
-      );
-    }
-
     const sublotesActuales = await tx.sublote.aggregate({
       _sum: { pesoActual: true },
       where: {

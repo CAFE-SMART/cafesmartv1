@@ -17,6 +17,12 @@ export type DashboardSummary = {
   totalComprasHoy: number;
   totalVentasHoy: number;
   totalGastosHoy: number;
+  totalComprasSemana?: number;
+  totalVentasSemana?: number;
+  totalGastosSemana?: number;
+  totalComprasAcumulado?: number;
+  totalVentasAcumulado?: number;
+  totalGastosAcumulado?: number;
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number | null;

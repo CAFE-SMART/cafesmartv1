@@ -2,6 +2,18 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ParametrosService } from '../parametros/parametros.service';
 import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
+import {
+  PESO_MAXIMO_ENTRADA_KG,
+  PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
+  PESO_MINIMO_KG,
+} from '../common/business-rules';
+
+const CAPACIDAD_BODEGA_MAX_KG = 999999;
+const MAX_PESO_ENTRADA_KG = PESO_MAXIMO_ENTRADA_KG;
+const MAX_PESO_OPERATIVO_DEFAULT_KG = PESO_MAXIMO_OPERATIVO_DEFAULT_KG;
+const CAPACIDAD_BODEGA_INVALIDA = 'Ingresa una capacidad de bodega válida.';
+const CAPACIDAD_BODEGA_MENOR_INVENTARIO =
+  'La capacidad no puede ser menor al café almacenado actualmente.';
 
 export type ConfiguracionBodega = {
   nombreBodega: string;
@@ -53,10 +65,13 @@ export class BodegaService {
     const capacidadKg =
       capacidadKgStr && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 
-    const defaultMaxPeso = capacidadKg ? capacidadKg * 2 : 99999;
+    const defaultMaxPeso = MAX_PESO_OPERATIVO_DEFAULT_KG;
     const parsedMaxPeso = Number(maxPesoKgStr);
     const maxPesoKg =
-      maxPesoKgStr && Number.isFinite(parsedMaxPeso) && parsedMaxPeso > 0
+      maxPesoKgStr &&
+      Number.isFinite(parsedMaxPeso) &&
+      parsedMaxPeso > 0 &&
+      parsedMaxPeso <= MAX_PESO_ENTRADA_KG
         ? parsedMaxPeso
         : defaultMaxPeso;
 
@@ -94,8 +109,19 @@ export class BodegaService {
       throw new BadRequestException('El nombre de la bodega es requerido');
     }
 
-    if (!Number.isFinite(dto.capacidadKg) || dto.capacidadKg <= 0) {
-      throw new BadRequestException('La capacidad debe ser un número positivo');
+    if (
+      !Number.isFinite(dto.capacidadKg) ||
+      dto.capacidadKg <= 0 ||
+      dto.capacidadKg > CAPACIDAD_BODEGA_MAX_KG
+    ) {
+      throw new BadRequestException(CAPACIDAD_BODEGA_INVALIDA);
+    }
+
+    const inventarioActualKg =
+      await this.obtenerInventarioActualKg(organizacionId);
+
+    if (dto.capacidadKg < inventarioActualKg) {
+      throw new BadRequestException(CAPACIDAD_BODEGA_MENOR_INVENTARIO);
     }
 
     // Guardar en base de datos
@@ -115,11 +141,29 @@ export class BodegaService {
     return {
       nombreBodega: dto.nombreBodega.trim(),
       capacidadKg: dto.capacidadKg,
-      maxPesoKg: dto.capacidadKg * 2,
+      maxPesoKg: MAX_PESO_OPERATIVO_DEFAULT_KG,
       maxPrecioKg: 100000,
       maxPrecioVentaKg: 100000,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  private async obtenerInventarioActualKg(
+    organizacionId: string,
+  ): Promise<number> {
+    const inventario = await this.prisma.sublote.aggregate({
+      where: {
+        deletedAt: null,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      _sum: { pesoActual: true },
+    });
+
+    const pesoTotal = Number(inventario._sum.pesoActual ?? 0);
+    return Number.isFinite(pesoTotal) ? pesoTotal : 0;
   }
 
   /**
@@ -131,8 +175,14 @@ export class BodegaService {
     maxPrecioKg: number,
     maxPrecioVentaKg: number,
   ): Promise<{ maxPesoKg: number; maxPrecioKg: number; maxPrecioVentaKg: number }> {
-    if (!Number.isFinite(maxPesoKg) || maxPesoKg <= 0) {
-      throw new BadRequestException('El peso máximo debe ser un número positivo');
+    if (
+      !Number.isFinite(maxPesoKg) ||
+      maxPesoKg < PESO_MINIMO_KG ||
+      maxPesoKg > MAX_PESO_ENTRADA_KG
+    ) {
+      throw new BadRequestException(
+        `El peso maximo debe estar entre ${PESO_MINIMO_KG} y 99.999 kg`,
+      );
     }
 
     if (!Number.isFinite(maxPrecioKg) || maxPrecioKg <= 0) {

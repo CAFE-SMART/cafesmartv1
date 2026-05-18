@@ -6,6 +6,7 @@ import {
   getPasswordChecks,
   hasAtLeastOneSurname,
   isValidPhone,
+  validateBusinessName,
   type RegisterLocationState,
   type StepOneErrors,
   type StepTwoErrors,
@@ -94,7 +95,7 @@ export function useRegisterForm({
       const exists = await authService.checkEmailExists(
         correoValue.trim().toLowerCase(),
       );
-      return exists ? 'Este correo ya esta registrado.' : null;
+      return exists ? 'Este correo ya está registrado.' : null;
     } catch {
       return null;
     } finally {
@@ -102,12 +103,23 @@ export function useRegisterForm({
     }
   };
 
+  useEffect(() => {
+    if (step !== 1 || !error) {
+      return;
+    }
+
+    if (validateBusinessName(nombreOrganizacion).isValid && tipoOrganizacion) {
+      setError(null);
+    }
+  }, [error, nombreOrganizacion, step, tipoOrganizacion]);
+
   const goToStep2 = () => {
     setError(null);
     const nextErrors: StepOneErrors = {};
+    const businessNameValidation = validateBusinessName(nombreOrganizacion);
 
-    if (!nombreOrganizacion.trim()) {
-      nextErrors.nombreOrganizacion = 'Escribe el nombre del negocio.';
+    if (!businessNameValidation.isValid) {
+      nextErrors.nombreOrganizacion = businessNameValidation.message;
     }
 
     if (!tipoOrganizacion) {
@@ -121,6 +133,7 @@ export function useRegisterForm({
     }
 
     setStepOneErrors({});
+    setNombreOrganizacion(businessNameValidation.value);
     setStep(2);
   };
 
@@ -133,11 +146,12 @@ export function useRegisterForm({
     e.preventDefault();
     setError(null);
     const nextErrors: StepTwoErrors = {};
+    const businessNameValidation = validateBusinessName(nombreOrganizacion);
 
-    if (!nombreOrganizacion.trim()) {
-      setError('Falta el nombre del negocio.');
+    if (!businessNameValidation.isValid) {
+      setError(businessNameValidation.message ?? 'Revisa el nombre del negocio.');
       setStepOneErrors({
-        nombreOrganizacion: 'Escribe el nombre del negocio.',
+        nombreOrganizacion: businessNameValidation.message,
       });
       setStep(1);
       return;
@@ -161,15 +175,15 @@ export function useRegisterForm({
     }
 
     if (!telefono.trim()) {
-      nextErrors.telefono = 'Escribe el telefono.';
+      nextErrors.telefono = 'Escribe el teléfono.';
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Telefono invalido.';
+      nextErrors.telefono = 'Teléfono inválido.';
     }
 
     if (!correo.trim()) {
       nextErrors.correo = 'Escribe el correo.';
     } else if (!EMAIL_REGEX.test(correo.trim())) {
-      nextErrors.correo = 'Correo invalido.';
+      nextErrors.correo = 'Correo inválido.';
     } else {
       const emailExistsError = await validateEmailAvailability(correo);
       if (emailExistsError) {
@@ -178,12 +192,18 @@ export function useRegisterForm({
     }
 
     const checks = getPasswordChecks(password);
-    if (!checks.minLength || !checks.hasLower || !checks.hasUpper) {
-      nextErrors.password = 'Minimo 6 caracteres, minuscula y mayuscula.';
+    if (
+      !checks.minLength ||
+      !checks.hasLower ||
+      !checks.hasUpper ||
+      !checks.hasNumber
+    ) {
+      nextErrors.password =
+        'Mínimo 6 caracteres, minúscula, mayúscula y número.';
     }
 
     if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma tu contrasena.';
+      nextErrors.confirmPassword = 'Confirma tu contraseña.';
     } else if (confirmPassword !== password) {
       nextErrors.confirmPassword = 'No coinciden.';
     }
@@ -205,7 +225,7 @@ export function useRegisterForm({
       state: {
         hasGoogleFlow,
         googleToken: routeState.googleToken,
-        nombreOrganizacion,
+        nombreOrganizacion: businessNameValidation.value,
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
         otroTipoDetalle:
           tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()

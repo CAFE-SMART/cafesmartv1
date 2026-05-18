@@ -38,7 +38,10 @@ function getSecadoPersistErrorMessage(error: unknown) {
     }
   }
 
-  if (error.message.includes('Esta opcion aun no esta disponible')) {
+  if (
+    error.message.includes('Esta opcion aun no esta disponible') ||
+    error.message.includes('Esta opción aún no está disponible')
+  ) {
     return 'No se pudo actualizar el inventario del secado. Vuelve a intentarlo.';
   }
 

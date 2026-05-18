@@ -13,18 +13,18 @@ describe('ComprasService - validacion de capacidad fail-safe', () => {
     };
   }
 
-  it('usa el snapshot de inventario como fuente primaria de ocupacion', async () => {
+  it('calcula ocupacion desde sublotes activos para evitar snapshots viejos', async () => {
     const prisma = {
       parametroOrganizacion: {
         findUnique: jest.fn().mockResolvedValue({ valor: '3000' }),
       },
       inventario: {
-        aggregate: jest.fn().mockResolvedValue({
-          _sum: { pesoTotal: 850 },
-        }),
+        aggregate: jest.fn(),
       },
       sublote: {
-        aggregate: jest.fn(),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { pesoActual: 850 },
+        }),
       },
     };
     const service = crearServiceConPrisma(prisma);
@@ -35,31 +35,7 @@ describe('ComprasService - validacion de capacidad fail-safe', () => {
       capacidadBodegaKg: 3000,
       inventarioActualKg: 850,
     });
-    expect(prisma.sublote.aggregate).not.toHaveBeenCalled();
-  });
-
-  it('si el snapshot falla, calcula ocupacion desde sublotes activos', async () => {
-    const prisma = {
-      parametroOrganizacion: {
-        findUnique: jest.fn().mockResolvedValue({ valor: '3000' }),
-      },
-      inventario: {
-        aggregate: jest.fn().mockRejectedValue(new Error('timeout inventario')),
-      },
-      sublote: {
-        aggregate: jest.fn().mockResolvedValue({
-          _sum: { pesoActual: 420 },
-        }),
-      },
-    };
-    const service = crearServiceConPrisma(prisma);
-
-    await expect(
-      service.obtenerContextoCapacidad(prisma, 'org-1'),
-    ).resolves.toEqual({
-      capacidadBodegaKg: 3000,
-      inventarioActualKg: 420,
-    });
+    expect(prisma.inventario.aggregate).not.toHaveBeenCalled();
     expect(prisma.sublote.aggregate).toHaveBeenCalledWith({
       _sum: { pesoActual: true },
       where: {
@@ -70,5 +46,26 @@ describe('ComprasService - validacion de capacidad fail-safe', () => {
         },
       },
     });
+  });
+
+  it('propaga errores si no puede calcular los sublotes activos', async () => {
+    const prisma = {
+      parametroOrganizacion: {
+        findUnique: jest.fn().mockResolvedValue({ valor: '3000' }),
+      },
+      inventario: {
+        aggregate: jest.fn(),
+      },
+      sublote: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { pesoActual: Number.NaN },
+        }),
+      },
+    };
+    const service = crearServiceConPrisma(prisma);
+
+    await expect(
+      service.obtenerContextoCapacidad(prisma, 'org-1'),
+    ).rejects.toThrow('El fallback de sublotes devolvio un valor invalido');
   });
 });

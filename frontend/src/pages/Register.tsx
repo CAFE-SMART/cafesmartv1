@@ -19,7 +19,10 @@ import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
+  BUSINESS_NAME_MAX_LENGTH,
+  getPasswordChecks,
   getPasswordStrength,
+  sanitizeBusinessNameInput,
   type RegisterLocationState,
   type TipoOrg,
 } from '../utils/registerValidators';
@@ -69,6 +72,7 @@ export default function Register() {
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
     null,
   );
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const initialRouteState = useMemo(
     () => (location.state ?? null) as RegisterLocationState | null,
     [location.state],
@@ -122,7 +126,9 @@ export default function Register() {
   });
 
   const progressPercent = step === 1 ? 50 : 100;
+  const passwordChecks = getPasswordChecks(password);
   const passwordStrength = getPasswordStrength(password);
+  const showPasswordRequirements = passwordFocused || password.length > 0;
   const hasStartedConfirming = confirmPassword.length > 0;
   const passwordsMatch = password.length > 0 && confirmPassword === password;
 
@@ -195,7 +201,7 @@ export default function Register() {
                   label="NOMBRE DEL NEGOCIO"
                   value={nombreOrganizacion}
                   onChange={(value) => {
-                    setNombreOrganizacion(value);
+                    setNombreOrganizacion(sanitizeBusinessNameInput(value));
                     setStepOneErrors((prev) => ({
                       ...prev,
                       nombreOrganizacion: undefined,
@@ -203,8 +209,12 @@ export default function Register() {
                   }}
                   placeholder="Ej: Cafe Los Alpes"
                   autoComplete="organization"
+                  maxLength={BUSINESS_NAME_MAX_LENGTH}
                   error={stepOneErrors.nombreOrganizacion}
                 />
+                <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
+                  {nombreOrganizacion.length}/{BUSINESS_NAME_MAX_LENGTH}
+                </p>
               </div>
 
               <div className="mt-6">
@@ -285,13 +295,13 @@ export default function Register() {
                   <Info size={14} />
                 </span>
                 <p className="text-sm font-semibold leading-5 text-[#355070]">
-                  Este usuario sera el administrador del sistema.
+                  Este usuario será el administrador del sistema.
                 </p>
               </div>
 
               {hasGoogleFlow ? (
                 <p className="mb-5 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3 text-sm font-semibold text-[#355070]">
-                  Google completo tus datos. Revisalos y termina el registro.
+                  Google completó tus datos. Revísalos y termina el registro.
                 </p>
               ) : null}
 
@@ -332,9 +342,9 @@ export default function Register() {
                   />
                 </div>
 
-                <TextInput
-                  id="register-admin-phone"
-                  label="Telefono"
+                  <TextInput
+                    id="register-admin-phone"
+                    label="Teléfono"
                   value={telefono}
                   onChange={(value) => {
                     setTelefono(value);
@@ -352,7 +362,7 @@ export default function Register() {
                 <div>
                   <TextInput
                     id="register-admin-email"
-                    label="Correo electronico"
+                    label="Correo electrónico"
                     value={correo}
                     onChange={(value) => {
                       setCorreo(value);
@@ -409,6 +419,8 @@ export default function Register() {
                           password: undefined,
                         }));
                       }}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
                       placeholder="********"
                       autoComplete="new-password"
                       className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
@@ -421,8 +433,8 @@ export default function Register() {
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={
                         showPassword
-                          ? 'Ocultar contrasena'
-                          : 'Mostrar contrasena'
+                          ? 'Ocultar contraseña'
+                          : 'Mostrar contraseña'
                       }
                     >
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -431,33 +443,17 @@ export default function Register() {
                   {stepTwoErrors.password ? (
                     <FieldError message={stepTwoErrors.password} />
                   ) : null}
-                  <div className="mt-2">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[#e6ebf3]">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          passwordStrength.score <= 1
-                            ? 'bg-rose-500'
-                            : passwordStrength.score === 2
-                              ? 'bg-amber-500'
-                              : passwordStrength.score === 3
-                                ? 'bg-sky-500'
-                                : 'bg-emerald-500'
-                        }`}
-                        style={{
-                          width: `${(passwordStrength.score / 4) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] font-medium text-[#73829a]">
-                      Minimo 6 caracteres, una minuscula, una mayuscula y un
-                      numero.
-                    </p>
-                  </div>
+                  {showPasswordRequirements ? (
+                    <PasswordRequirements
+                      checks={passwordChecks}
+                      score={passwordStrength.score}
+                    />
+                  ) : null}
                 </div>
 
                 <TextInput
                   id="register-admin-password-confirm"
-                  label="Confirma tu contrasena"
+                  label="Confirma tu contraseña"
                   value={confirmPassword}
                   onChange={(value) => {
                     setConfirmPassword(value);
@@ -466,7 +462,7 @@ export default function Register() {
                       confirmPassword: undefined,
                     }));
                   }}
-                  placeholder="Vuelve a escribir tu contrasena"
+                  placeholder="Vuelve a escribir tu contraseña"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   error={stepTwoErrors.confirmPassword}
@@ -480,8 +476,8 @@ export default function Register() {
                     }`}
                   >
                     {passwordsMatch
-                      ? 'Las contrasenas coinciden.'
-                      : 'Las contrasenas no coinciden.'}
+                      ? 'Las contraseñas coinciden.'
+                      : 'Las contraseñas no coinciden.'}
                   </p>
                 ) : null}
 
@@ -637,6 +633,7 @@ function TextInput({
   autoComplete,
   error,
   compactLabel = false,
+  maxLength,
 }: {
   id: string;
   label: string;
@@ -648,6 +645,7 @@ function TextInput({
   autoComplete?: string;
   error?: string;
   compactLabel?: boolean;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -668,6 +666,7 @@ function TextInput({
         onBlur={() => void onBlur?.()}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         aria-invalid={Boolean(error)}
         className={`block min-h-[50px] w-full rounded-[10px] border px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-[#a8b4c5] ${
           error
@@ -799,7 +798,7 @@ function SupportModal({
               id="register-support-title"
               className="mt-1 text-lg font-black text-[#111827]"
             >
-              {type === 'help' ? 'Ayuda basica' : 'Contacto'}
+              {type === 'help' ? 'Ayuda básica' : 'Contacto'}
             </h2>
           </div>
           <button
@@ -815,13 +814,13 @@ function SupportModal({
         {type === 'help' ? (
           <div className="space-y-2 text-sm leading-6 text-[#536178]">
             <p>1. Escribe el nombre real del negocio.</p>
-            <p>2. Elige el tipo de operacion cafetera.</p>
-            <p>3. Completa los datos del administrador.</p>
+            <p>2. Elige el tipo de operación cafetera.</p>
+            <p>3. Pulsa Siguiente paso.</p>
           </div>
         ) : (
           <div className="space-y-2 text-sm leading-6 text-[#536178]">
             <p>Correo: soporte@cafesmart.com</p>
-            <p>Telefono: +57 300 000 0000</p>
+            <p>Teléfono: +57 300 000 0000</p>
           </div>
         )}
 
@@ -833,6 +832,65 @@ function SupportModal({
           Entendido
         </button>
       </div>
+    </div>
+  );
+}
+
+function PasswordRequirements({
+  checks,
+  score,
+}: {
+  checks: ReturnType<typeof getPasswordChecks>;
+  score: number;
+}) {
+  const requirements = [
+    { label: '6 caracteres', done: checks.minLength },
+    { label: 'Una minúscula', done: checks.hasLower },
+    { label: 'Una mayúscula', done: checks.hasUpper },
+    { label: 'Un número', done: checks.hasNumber },
+  ];
+
+  return (
+    <div className="mt-2">
+      <div className="h-1 overflow-hidden rounded-full bg-[#e7edf6]">
+        <div
+          className={`h-full rounded-full transition-all ${
+            score <= 1
+              ? 'bg-rose-400'
+              : score === 2
+                ? 'bg-amber-400'
+                : score === 3
+                  ? 'bg-sky-400'
+                  : 'bg-emerald-500'
+          }`}
+          style={{ width: `${(score / 4) * 100}%` }}
+        />
+      </div>
+      <ul
+        className="mt-2 space-y-1 pl-1"
+        aria-label="Requisitos de contraseña"
+      >
+        {requirements.map((item) => (
+          <li
+            key={item.label}
+            className={`flex items-center gap-2 text-[11px] font-semibold leading-4 transition-colors ${
+              item.done ? 'text-emerald-600' : 'text-[#7c899c]'
+            }`}
+          >
+            <span
+              className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                item.done
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                  : 'border-[#cbd5e1] text-transparent'
+              }`}
+              aria-hidden="true"
+            >
+              <Check size={10} strokeWidth={3} />
+            </span>
+            {item.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

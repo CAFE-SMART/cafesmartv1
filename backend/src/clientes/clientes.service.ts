@@ -58,8 +58,10 @@ export class ClientesService {
     const cliente = await this.prisma.cliente.create({
       data: {
         organizacionId,
-        nombre: this.normalizarNombre(dto.nombre),
-        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        nombre: this.normalizarNombre(dto.nombre, dto.tipoDocumento),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente', {
+          tipoDocumento: dto.tipoDocumento,
+        }),
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
@@ -102,8 +104,10 @@ export class ClientesService {
     const cliente = await this.prisma.cliente.update({
       where: { id: clienteId },
       data: {
-        nombre: this.normalizarNombre(dto.nombre),
-        documento: normalizarDocumentoPersona(dto.documento, 'cliente'),
+        nombre: this.normalizarNombre(dto.nombre, dto.tipoDocumento),
+        documento: normalizarDocumentoPersona(dto.documento, 'cliente', {
+          tipoDocumento: dto.tipoDocumento,
+        }),
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
@@ -143,7 +147,10 @@ export class ClientesService {
     return usuario.organizacionId;
   }
 
-  private normalizarNombre(valor: string): string {
-    return normalizarNombrePersona(valor, 'cliente');
+  private normalizarNombre(
+    valor: string,
+    tipoDocumento?: GuardarClienteDto['tipoDocumento'],
+  ): string {
+    return normalizarNombrePersona(valor, 'cliente', { tipoDocumento });
   }
 }

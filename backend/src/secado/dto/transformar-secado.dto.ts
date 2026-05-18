@@ -21,6 +21,7 @@ export class TransformarSecadoFuenteDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'El peso de entrada debe ser un numero' })
   @Min(0.01, { message: 'El peso de entrada debe ser mayor a 0' })
+  @Max(99999, { message: 'El peso de entrada no puede superar los 99.999 kg' })
   pesoKg: number;
 }
 
@@ -33,6 +34,7 @@ export class TransformarSecadoSalidaDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'El peso de salida debe ser un numero' })
   @Min(0.01, { message: 'El peso de salida debe ser mayor a 0' })
+  @Max(99999, { message: 'El peso de salida no puede superar los 99.999 kg' })
   pesoKg: number;
 
   @IsOptional()

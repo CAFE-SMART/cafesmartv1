@@ -86,6 +86,16 @@ export async function obtenerGasto(id: string) {
   return apiFetch(`/gastos/${id}`) as Promise<GastoItem>;
 }
 
+export async function actualizarEstadoGasto(
+  id: string,
+  estadoPago: GastoEstadoPago,
+) {
+  return apiFetch(`/gastos/${id}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ estadoPago }),
+  }) as Promise<GastoItem>;
+}
+
 export async function listarGastosPorSublote(subloteId: string) {
   return apiFetch(`/gastos/sublote/${subloteId}`) as Promise<GastoItem[]>;
 }

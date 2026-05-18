@@ -153,7 +153,7 @@ export default function Login() {
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No pudimos iniciar sesion.';
+      const message = authError.message || 'Verifica tu conexión e inténtalo nuevamente.';
       const details = authError.details ?? {};
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
@@ -512,24 +512,13 @@ function FieldError({ message }: { message: string }) {
 
 function AlertBanner({ message }: { message: string }) {
   const isGoogleError = message.toLowerCase().includes('google');
-  const isConnectionError =
-    message.toLowerCase().includes('problema interno') ||
-    message.toLowerCase().includes('conexion') ||
-    message.toLowerCase().includes('conectar') ||
-    message.toLowerCase().includes('disponible');
   const title = isGoogleError
     ? 'No pudimos entrar con Google'
-    : isConnectionError
-      ? 'Ups, no pudimos conectar'
-      : 'No pudimos iniciar sesión';
+    : 'No se pudo iniciar sesión';
 
   return (
     <div
-      className={`mt-5 flex gap-3 rounded-[12px] border px-4 py-3 text-sm ${
-        isConnectionError
-          ? 'border-amber-200 bg-amber-50 text-amber-900'
-          : 'border-rose-200 bg-rose-50 text-rose-800'
-      }`}
+      className="mt-5 flex gap-3 rounded-[8px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
       role="alert"
     >
       <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />

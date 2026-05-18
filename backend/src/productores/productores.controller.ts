@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -20,8 +21,19 @@ export class ProductoresController {
   constructor(private readonly productoresService: ProductoresService) {}
 
   @Get()
-  listar(@Req() req: { user: { sub: string } }) {
-    return this.productoresService.listar(req.user.sub);
+  listar(
+    @Req() req: { user: { sub: string } },
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('orden') orden?: 'recientes' | 'antiguos' | 'az',
+  ) {
+    return this.productoresService.listar(req.user.sub, {
+      q,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      orden,
+    });
   }
 
   @Post()

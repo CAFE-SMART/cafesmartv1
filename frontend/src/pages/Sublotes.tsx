@@ -38,6 +38,34 @@ type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
 type EditField = 'humedad' | 'factor';
 
+const MAX_AJUSTE_PESO_KG = 99999;
+const MAX_MOTIVO_AJUSTE_LENGTH = 40;
+
+function sanitizeDecimalInput(value: string, maxDigits: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integer = '', ...decimalParts] = normalized.split('.');
+  const digits = `${integer}${decimalParts.join('')}`.slice(0, maxDigits);
+
+  if (!digits) return '';
+  if (!normalized.includes('.')) return digits;
+
+  const integerLength = Math.min(integer.length, digits.length);
+  const nextInteger = digits.slice(0, integerLength) || '0';
+  const nextDecimal = digits.slice(integerLength);
+
+  return nextDecimal ? `${nextInteger}.${nextDecimal}` : `${nextInteger}.`;
+}
+
+function clampDecimalInput(value: string, maxDigits: number, maxValue: number) {
+  const next = sanitizeDecimalInput(value, maxDigits);
+  if (!next || next.endsWith('.')) return next;
+
+  const parsed = Number(next);
+  if (!Number.isFinite(parsed)) return '';
+
+  return parsed > maxValue ? String(maxValue) : next;
+}
+
 type PendingHumidityEdit = {
   tipoCafeId: string;
   calidadId: string;
@@ -663,12 +691,17 @@ export default function Sublotes() {
     }
 
     const nextWeight = Number(parsed.toFixed(2));
+    if (nextWeight > MAX_AJUSTE_PESO_KG) {
+      setError('El peso no puede superar los 99.999 kg.');
+      return;
+    }
+
     if (nextWeight > subloteActivo.pesoInicial) {
       setError('El peso no puede superar el peso inicial del sublote.');
       return;
     }
 
-    const reason = weightModal.reason.trim();
+    const reason = weightModal.reason.trim().slice(0, MAX_MOTIVO_AJUSTE_LENGTH);
     setError(null);
     setWeightModal(null);
 
@@ -813,8 +846,11 @@ export default function Sublotes() {
       return;
     }
 
-    if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) {
-      setError('El factor no es valido. No puede ser negativo.');
+    if (
+      parsed !== null &&
+      (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_AJUSTE_PESO_KG)
+    ) {
+      setError('El factor no es valido.');
       return;
     }
 
@@ -1229,15 +1265,21 @@ export default function Sublotes() {
                 : 'Editar factor'}
             </p>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step={editModal.field === 'humedad' ? '0.1' : '0.01'}
-              min="0"
-              max={editModal.field === 'humedad' ? '100' : undefined}
+              maxLength={editModal.field === 'humedad' ? 5 : 5}
               value={editModal.value}
               onChange={(event) =>
                 setEditModal((current) =>
-                  current ? { ...current, value: event.target.value } : current,
+                  current
+                    ? {
+                        ...current,
+                        value:
+                          current.field === 'humedad'
+                            ? clampDecimalInput(event.target.value, 4, 100)
+                            : sanitizeDecimalInput(event.target.value, 4),
+                      }
+                    : current,
                 )
               }
               className="mt-3 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-2.5 text-[18px] font-semibold text-[#1f1f1f] outline-none focus:border-[#2f4aa4]"
@@ -1299,15 +1341,24 @@ export default function Sublotes() {
               </label>
               <div className="flex items-center rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  min="0"
-                  step="0.01"
+                  maxLength={8}
                   value={weightModal.value}
                   onChange={(event) =>
                     setWeightModal((current) =>
                       current
-                        ? { ...current, value: event.target.value }
+                        ? {
+                            ...current,
+                            value: clampDecimalInput(
+                              event.target.value,
+                              7,
+                              Math.min(
+                                MAX_AJUSTE_PESO_KG,
+                                subloteActivo.pesoInicial,
+                              ),
+                            ),
+                          }
                         : current,
                     )
                   }
@@ -1325,17 +1376,27 @@ export default function Sublotes() {
                 Motivo (opcional)
               </label>
               <textarea
+                maxLength={MAX_MOTIVO_AJUSTE_LENGTH}
                 value={weightModal.reason}
                 onChange={(event) =>
                   setWeightModal((current) =>
                     current
-                      ? { ...current, reason: event.target.value }
+                      ? {
+                          ...current,
+                          reason: event.target.value.slice(
+                            0,
+                            MAX_MOTIVO_AJUSTE_LENGTH,
+                          ),
+                        }
                       : current,
                   )
                 }
                 placeholder="Ej: secado, evaporacion, ajuste manual"
                 className="min-h-[64px] w-full resize-none rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2 text-[0.72rem] font-semibold text-[#111827] outline-none placeholder:text-[#b8b8b8]"
               />
+              <p className="mt-1 text-right text-[0.6rem] font-semibold text-slate-400">
+                {weightModal.reason.length}/{MAX_MOTIVO_AJUSTE_LENGTH}
+              </p>
             </div>
 
             <button

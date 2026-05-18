@@ -7,13 +7,13 @@ type RawApiError = {
 };
 
 export const AUTH_MESSAGES = {
-  invalidEmail: 'Correo incorrecto.',
-  invalidPassword: 'Contrasena incorrecta.',
+  invalidEmail: 'Verifica el correo e inténtalo nuevamente.',
+  invalidPassword: 'Verifica la contraseña e inténtalo nuevamente.',
   googleGeneric:
     'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
   googleNeedsRegister:
     'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
-  offline: 'Revisa tu conexión e intenta de nuevo.',
+  offline: 'Verifica tu conexión e inténtalo nuevamente.',
 } as const;
 
 export function normalizeMessage(

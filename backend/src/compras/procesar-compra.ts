@@ -1,5 +1,9 @@
 import type { CreateCompraDto } from './dto/crear-compra.dto';
-import { PRECIO_MINIMO_KG } from '../common/business-rules';
+import {
+  PESO_MINIMO_KG,
+  PRECIO_MAXIMO_KG,
+  PRECIO_MINIMO_KG,
+} from '../common/business-rules';
 
 export type ContextoCapacidadCompra = {
   capacidadBodegaKg: number;
@@ -139,17 +143,21 @@ export function validarCompraCritica(input: CreateCompraDto): void {
       );
     }
 
-    if (!Number.isFinite(sublote.pesoInicial) || sublote.pesoInicial <= 0) {
+    if (
+      !Number.isFinite(sublote.pesoInicial) ||
+      sublote.pesoInicial < PESO_MINIMO_KG
+    ) {
       throw new CompraValidacionCriticaError(
         'COMPRA_CANTIDAD_INVALIDA',
-        'La cantidad de la compra debe ser mayor a 0.',
+        `La cantidad de la compra debe ser minimo ${PESO_MINIMO_KG} kg.`,
         { index },
       );
     }
 
     if (
       !Number.isFinite(sublote.precioKg) ||
-      sublote.precioKg < PRECIO_MINIMO_KG
+      sublote.precioKg < PRECIO_MINIMO_KG ||
+      sublote.precioKg > PRECIO_MAXIMO_KG
     ) {
       throw new CompraValidacionCriticaError(
         'COMPRA_PRECIO_INVALIDO',

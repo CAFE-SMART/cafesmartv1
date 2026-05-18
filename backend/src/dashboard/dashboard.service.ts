@@ -24,6 +24,12 @@ type DashboardSummaryResponse = {
   totalComprasHoy: number;
   totalVentasHoy: number;
   totalGastosHoy: number;
+  totalComprasSemana: number;
+  totalVentasSemana: number;
+  totalGastosSemana: number;
+  totalComprasAcumulado: number;
+  totalVentasAcumulado: number;
+  totalGastosAcumulado: number;
   totalProductores: number;
   kgActual: number;
   kgCapacidad: number | null;
@@ -37,7 +43,7 @@ type DashboardSummaryResponse = {
   movimientosRecientes: DashboardMovimiento[];
 };
 
-const LIMITE_MOVIMIENTOS_RECIENTES = 3;
+const LIMITE_MOVIMIENTOS_RECIENTES = 50;
 
 @Injectable()
 export class DashboardService {
@@ -49,6 +55,7 @@ export class DashboardService {
   async obtenerResumen(userId: string): Promise<DashboardSummaryResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
     const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
+    const { inicioSemana, finSemana } = this.obtenerRangoSemanaBogota();
 
     const [
       comprasHoy,
@@ -58,6 +65,12 @@ export class DashboardService {
       totalComprasHoy,
       totalVentasHoy,
       totalGastosHoy,
+      totalComprasSemana,
+      totalVentasSemana,
+      totalGastosSemana,
+      totalComprasAcumulado,
+      totalVentasAcumulado,
+      totalGastosAcumulado,
       totalProductores,
       comprasRecientes,
       ventasRecientes,
@@ -138,6 +151,60 @@ export class DashboardService {
             gte: inicioDia,
             lt: finDia,
           },
+        },
+      }),
+      this.prisma.compra.aggregate({
+        _sum: { totalCompra: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioSemana,
+            lt: finSemana,
+          },
+        },
+      }),
+      this.prisma.venta.aggregate({
+        _sum: { totalVenta: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: {
+            gte: inicioSemana,
+            lt: finSemana,
+          },
+        },
+      }),
+      this.prisma.gastoOperativo.aggregate({
+        _sum: { montoGasto: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: {
+            gte: inicioSemana,
+            lt: finSemana,
+          },
+        },
+      }),
+      this.prisma.compra.aggregate({
+        _sum: { totalCompra: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.venta.aggregate({
+        _sum: { totalVenta: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.gastoOperativo.aggregate({
+        _sum: { montoGasto: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
         },
       }),
       this.prisma.productor.count({
@@ -280,6 +347,16 @@ export class DashboardService {
       totalComprasHoy: Number(totalComprasHoy._sum.totalCompra ?? 0),
       totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
       totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
+      totalComprasSemana: Number(totalComprasSemana._sum.totalCompra ?? 0),
+      totalVentasSemana: Number(totalVentasSemana._sum.totalVenta ?? 0),
+      totalGastosSemana: Number(totalGastosSemana._sum.montoGasto ?? 0),
+      totalComprasAcumulado: Number(
+        totalComprasAcumulado._sum.totalCompra ?? 0,
+      ),
+      totalVentasAcumulado: Number(totalVentasAcumulado._sum.totalVenta ?? 0),
+      totalGastosAcumulado: Number(
+        totalGastosAcumulado._sum.montoGasto ?? 0,
+      ),
       totalProductores,
       kgActual: resumenFinanciero.kgActual,
       kgCapacidad,
@@ -550,5 +627,20 @@ export class DashboardService {
     const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
 
     return { inicioDia, finDia };
+  }
+
+  private obtenerRangoSemanaBogota(): {
+    inicioSemana: Date;
+    finSemana: Date;
+  } {
+    const { inicioDia } = this.obtenerRangoHoyBogota();
+    const inicioSemana = new Date(
+      inicioDia.getTime() - 6 * 24 * 60 * 60 * 1000,
+    );
+    const finSemana = new Date(
+      inicioDia.getTime() + 24 * 60 * 60 * 1000,
+    );
+
+    return { inicioSemana, finSemana };
   }
 }

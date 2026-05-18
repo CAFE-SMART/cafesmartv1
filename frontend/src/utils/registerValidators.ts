@@ -1,3 +1,9 @@
+import {
+  COMPANY_NAME_MAX_LENGTH,
+  sanitizeCompanyNameInput,
+  validateProducerName,
+} from './personValidation';
+
 export type RegisterLocationState = {
   googleToken?: string;
   googlePrefill?: {
@@ -35,6 +41,50 @@ export type StepTwoErrors = {
 };
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const BUSINESS_NAME_MAX_LENGTH = COMPANY_NAME_MAX_LENGTH;
+const BUSINESS_NAME_REGEX = /^(?=.*[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±])[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9 &.'-]+$/;
+export const BUSINESS_NAME_ERROR = 'Ingresa un nombre de negocio válido.';
+
+export function validateBusinessName(value: string) {
+  const name = value.trim();
+  const companyValidation = validateProducerName(name, 'NIT');
+
+  if (!name) {
+    return {
+      isValid: false,
+      value: name,
+      message: BUSINESS_NAME_ERROR,
+    };
+  }
+
+  if (!companyValidation.isValid) {
+    return {
+      isValid: false,
+      value: name,
+      message:
+        name.length > BUSINESS_NAME_MAX_LENGTH
+          ? `Máximo ${BUSINESS_NAME_MAX_LENGTH} caracteres.`
+          : BUSINESS_NAME_ERROR,
+    };
+  }
+
+  if (name.length > BUSINESS_NAME_MAX_LENGTH) {
+    return {
+      isValid: false,
+      value: name,
+      message: `Máximo ${BUSINESS_NAME_MAX_LENGTH} caracteres.`,
+    };
+  }
+
+  return {
+    isValid: true,
+    value: name,
+  };
+}
+
+export function sanitizeBusinessNameInput(value: string) {
+  return sanitizeCompanyNameInput(value);
+}
 
 export function hasAtLeastOneSurname(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
@@ -67,11 +117,11 @@ export function getPasswordStrength(value: string) {
   }
 
   if (score <= 1) {
-    return { score, label: 'Muy débil' };
+    return { score, label: 'Muy dÃ©bil' };
   }
 
   if (score === 2) {
-    return { score, label: 'Débil' };
+    return { score, label: 'DÃ©bil' };
   }
 
   if (score === 3) {

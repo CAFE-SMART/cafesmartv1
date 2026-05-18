@@ -2,6 +2,7 @@ export type ApiErrorBody = {
   code: string;
   message: string;
   field?: string | null;
+  action?: string | null;
   details?: unknown;
   error?: string;
 };

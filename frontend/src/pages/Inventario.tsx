@@ -8,12 +8,17 @@ import {
   Leaf,
   Package2,
   RefreshCcw,
+  Save,
   ShoppingCart,
   SunMedium,
+  X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { obtenerConfiguracionBodega } from '../services/bodegaApi';
+import {
+  guardarConfiguracionBodega,
+  obtenerConfiguracionBodega,
+} from '../services/bodegaApi';
 import {
   applySecadoToLots,
   getActiveSecadoSession,
@@ -35,12 +40,6 @@ const TYPE_ORDER = [
   'PASILLA',
 ] as const;
 const BULTO_KG = 40.7;
-const QUALITY_SECTIONS = [
-  { key: 'BUENO', title: 'Bueno', dot: 'bg-[#74e3dd]' },
-  { key: 'REGULAR', title: 'Regular', dot: 'bg-[#f6b81a]' },
-  { key: 'MALO', title: 'Malo', dot: 'bg-[#d82433]' },
-] as const;
-
 function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
@@ -49,6 +48,75 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function sanitizeCapacidadInput(value: string) {
+  return value.replace(/\D/g, '').slice(0, 6);
+}
+
+function sanitizeNombreBodegaInput(value: string) {
+  return value.replace(/[^\p{L}0-9\s&.'/-]/gu, '').slice(0, 50);
+}
+
+function compareLotByAge(
+  a: LoteResumen,
+  b: LoteResumen,
+  sortKey: 'OLDEST' | 'NEWEST',
+) {
+  const daysA = getLotDays(a);
+  const daysB = getLotDays(b);
+
+  if (sortKey === 'OLDEST') {
+    if (daysB.max !== daysA.max) return daysB.max - daysA.max;
+    return b.pesoActual - a.pesoActual;
+  }
+
+  if (daysA.max !== daysB.max) return daysA.max - daysB.max;
+  return a.pesoActual - b.pesoActual;
+}
+
+function getCapacityTone(percentage: number) {
+  if (percentage > 100) {
+    return {
+      label: 'Capacidad superada',
+      message: 'Vende café o ajusta la bodega.',
+      color: '#d92d20',
+      text: 'text-[#b42318]',
+      softText: 'text-[#b42318]',
+      chip: 'bg-[#fee2e2] text-[#b42318]',
+    };
+  }
+
+  if (percentage >= 85) {
+    return {
+      label: 'Critica',
+      message: 'La bodega está cerca del límite.',
+      color: '#d92d20',
+      text: 'text-[#b42318]',
+      softText: 'text-[#b42318]',
+      chip: 'bg-[#fee2e2] text-[#b42318]',
+    };
+  }
+
+  if (percentage >= 60) {
+    return {
+      label: 'Alta',
+      message: 'La bodega está cerca de su capacidad máxima.',
+      color: '#d29309',
+      text: 'text-[#b77900]',
+      softText: 'text-[#946200]',
+      chip: 'bg-[#fff7df] text-[#946200]',
+    };
+  }
+
+  return {
+      label: 'Normal',
+    message: 'Espacio disponible estable.',
+    color: '#0d7b67',
+    text: 'text-[#0d7b67]',
+    softText: 'text-slate-600',
+    chip: 'bg-[#e9fbf4] text-[#0d7b67]',
+  };
 }
 
 function formatSacks(valueKg: number) {
@@ -128,6 +196,35 @@ function coffeeVisual(name: string) {
   };
 }
 
+function qualityIconTone(tipoCafe: string, calidad: string) {
+  const tipo = keyOf(tipoCafe);
+  const quality = keyOf(calidad);
+
+  if (quality === 'BUENO') {
+    return tipo === 'SECO'
+      ? 'bg-[#fff7df] text-[#d29309]'
+      : 'bg-[#e9fbf4] text-[#0d7b67]';
+  }
+
+  if (quality === 'REGULAR') {
+    return tipo === 'SECO'
+      ? 'bg-[#fff1da] text-[#c4670e]'
+      : 'bg-[#fff7d6] text-[#b77905]';
+  }
+
+  return 'bg-[#ffe7e8] text-[#c92c32]';
+}
+
+function inventoryListClass(itemCount: number, spacing = 'space-y-3') {
+  const base = `min-h-0 ${spacing} pr-1`;
+
+  if (itemCount > 3) {
+    return `${base} max-h-[320px] overflow-y-auto pb-24 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`;
+  }
+
+  return `${base} overflow-visible pb-2`;
+}
+
 function isSecadoProcessLot(lot: LoteResumen) {
   return keyOf(lot.tipoCafe) === 'EN SECADO';
 }
@@ -143,9 +240,11 @@ function secadoStatusLabel(estado: string) {
 function CapacityRing({
   totalKg,
   capacityKg,
+  onAdjust,
 }: {
   totalKg: number;
   capacityKg: number | null;
+  onAdjust: () => void;
 }) {
   if (!capacityKg) {
     return (
@@ -168,13 +267,20 @@ function CapacityRing({
               className="mt-1 text-sm font-semibold text-slate-600"
               style={{ fontWeight: 700 }}
             >
-              Capacidad de bodega sin configurar
+              Configura la capacidad para calcular la ocupación.
             </p>
           </div>
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
             <Coffee size={18} />
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onAdjust}
+          className="mt-3 text-[0.72rem] font-black text-[#102d92]"
+        >
+          Ajustar bodega
+        </button>
       </section>
     );
   }
@@ -189,48 +295,42 @@ function CapacityRing({
         : rawPercentage.toFixed(0);
   const ringPercentage =
     totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
-  const isCapacityExceeded = rawPercentage > 100;
-  const accentColor = isCapacityExceeded ? '#d92d20' : '#102d92';
-  const accentTextClass = isCapacityExceeded
-    ? 'text-[#b42318]'
-    : 'text-[#102d92]';
+  const tone = getCapacityTone(rawPercentage);
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
   return (
     <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-      <p
-        className="text-[0.95rem] font-extrabold text-black"
-        style={{ fontWeight: 900 }}
-      >
-        Resumen de Inventario
-      </p>
-      <div className="mt-2 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-end gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p
+            className="text-[0.9rem] font-extrabold text-black"
+            style={{ fontWeight: 900 }}
+          >
+            Resumen de Inventario
+          </p>
+          <div className="mt-3 flex min-w-0 items-baseline gap-1.5">
             <p
-              className={`text-[2.1rem] font-extrabold leading-none ${accentTextClass}`}
+              className={`text-[1.35rem] font-extrabold leading-none ${tone.text}`}
               style={{ fontWeight: 900 }}
             >
               {formatNumber(totalKg)}
             </p>
             <span
-              className="pb-0.5 text-[1.2rem] font-bold text-slate-400"
+              className={`text-[1.35rem] font-extrabold leading-none ${tone.text}`}
               style={{ fontWeight: 900 }}
             >
-              / {formatNumber(safeCapacity)} kg
+              kg
+            </span>
+            <span className="text-[0.9rem] font-black leading-none text-slate-400">
+              / {formatNumber(safeCapacity)}
             </span>
           </div>
-          <p
-            className={`mt-1 text-sm font-semibold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`}
-            style={{ fontWeight: 700 }}
-          >
-            Capacidad usada: {displayPercentage}%
-          </p>
         </div>
 
-        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center self-start">
-          <svg viewBox="0 0 140 140" className="h-24 w-24 -rotate-90">
+        <div className="-mt-1 flex shrink-0 flex-col items-center gap-1 self-start">
+          <div className="relative flex h-[58px] w-[58px] items-center justify-center">
+          <svg viewBox="0 0 140 140" className="h-[58px] w-[58px] -rotate-90">
             <circle
               cx="70"
               cy="70"
@@ -243,7 +343,7 @@ function CapacityRing({
               cx="70"
               cy="70"
               r="58"
-              stroke={accentColor}
+              stroke={tone.color}
               strokeWidth="12"
               fill="none"
               strokeLinecap="round"
@@ -252,11 +352,27 @@ function CapacityRing({
             />
           </svg>
           <div
-            className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${accentTextClass}`}
+            className={`absolute flex h-7 w-7 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${tone.text}`}
           >
-            <Coffee size={16} />
+            <Coffee size={11} />
           </div>
+          </div>
+          <span className={`rounded-full px-2 py-0.5 text-[0.56rem] font-black ${tone.chip}`}>
+            {tone.label}
+          </span>
         </div>
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3 border-t border-[#eef2f8] pt-2">
+        <p className={`text-[0.72rem] font-black ${tone.softText}`}>
+          Capacidad usada: {displayPercentage}%
+        </p>
+        <button
+          type="button"
+          onClick={onAdjust}
+          className="text-right text-[0.68rem] font-black text-slate-400 transition hover:text-[#102d92]"
+        >
+          Ajustar bodega
+        </button>
       </div>
     </section>
   );
@@ -288,7 +404,7 @@ function TypeSummaryCard({
             {visual.icon}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">
+            <p className="truncate text-[1.3rem] font-semibold leading-tight text-slate-900">
               {displayCoffeeName(lot.tipoCafe)}
             </p>
             <p className="mt-0.5 text-sm text-slate-500">
@@ -300,7 +416,7 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-[12px] px-4 py-2 text-sm font-semibold ${
+            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${
               isProcess
                 ? 'bg-[#fff2cc] text-[#946200]'
                 : 'bg-[#f2f3f7] text-slate-700'
@@ -325,40 +441,51 @@ function QualityLotCard({
   const lotDays = getLotDays(lot).max;
   const sublotesLabel = pluralLabel(lot.sublotes, 'sublote', 'sublotes');
   const humidity = classifyHumidity(lot.humedadPromedio);
+  const visual = coffeeVisual(lot.tipoCafe);
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm"
+      className="w-full rounded-[18px] border border-[#e8ebf4] bg-white px-3 py-3 text-left shadow-sm"
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-slate-900">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${qualityIconTone(
+              lot.tipoCafe,
+              lot.calidad,
+            )}`}
+          >
+            {visual.icon}
+          </span>
+          <div className="min-w-0">
+          <p className="truncate text-[1rem] font-black text-slate-900">
             {isSecadoProcessLot(lot)
-              ? 'En proceso de secado'
-              : 'Sublotes disponibles'}
+              ? 'En secado'
+              : formatDisplayLabel(lot.calidad)}
           </p>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-[0.72rem] font-semibold text-slate-500">
             {formatNumber(lot.pesoActual)} kg
           </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-slate-400" />
+          <p className="mt-1 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-slate-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
             {lotDays} días
           </p>
           {lot.humedadPromedio !== null ? (
             <p
-              className={`mt-2 inline-flex rounded-[10px] px-2 py-1 text-[0.68rem] font-black ${humidity.toneClass}`}
+              className={`mt-1 inline-flex rounded-[10px] px-2 py-1 text-[0.62rem] font-black ${humidity.toneClass}`}
             >
               {formatHumidityWithClassification(lot.humedadPromedio)}
             </p>
           ) : null}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-[12px] bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="whitespace-nowrap rounded-[11px] bg-[#f2f3f7] px-2.5 py-2 text-[0.68rem] font-semibold text-slate-700">
             {sublotesLabel}
           </span>
-          <ArrowRight size={18} className="text-slate-400" />
+          <ArrowRight size={16} className="text-slate-400" />
         </div>
       </div>
     </button>
@@ -447,6 +574,11 @@ export default function Inventario() {
     nombreBodega: 'Bodega principal',
     capacidadKg: null,
   });
+  const [modalBodegaAbierto, setModalBodegaAbierto] = useState(false);
+  const [nombreBodegaForm, setNombreBodegaForm] = useState('Bodega principal');
+  const [capacidadBodegaForm, setCapacidadBodegaForm] = useState('');
+  const [guardandoBodega, setGuardandoBodega] = useState(false);
+  const [errorBodega, setErrorBodega] = useState<string | null>(null);
 
   const loadLots = async () => {
     setLoading(true);
@@ -463,6 +595,10 @@ export default function Inventario() {
         nombreBodega: config.nombreBodega,
         capacidadKg: config.capacidadKg,
       });
+      setNombreBodegaForm(
+        sanitizeNombreBodegaInput(config.nombreBodega || 'Bodega principal'),
+      );
+      setCapacidadBodegaForm(config.capacidadKg ? String(config.capacidadKg) : '');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'No se pudo cargar el inventario.',
@@ -476,6 +612,58 @@ export default function Inventario() {
   useEffect(() => {
     void loadLots();
   }, []);
+
+  const abrirModalBodega = () => {
+    setNombreBodegaForm(
+      sanitizeNombreBodegaInput(
+        bodegaConfig.nombreBodega || 'Bodega principal',
+      ),
+    );
+    setCapacidadBodegaForm(
+      bodegaConfig.capacidadKg ? String(bodegaConfig.capacidadKg) : '',
+    );
+    setErrorBodega(null);
+    setModalBodegaAbierto(true);
+  };
+
+  const guardarBodegaLocal = async () => {
+    const capacidad = Number(capacidadBodegaForm);
+
+    if (!nombreBodegaForm.trim()) {
+      setErrorBodega('Escribe un nombre para la bodega.');
+      return;
+    }
+
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      setErrorBodega('Ingresa una capacidad válida.');
+      return;
+    }
+
+    if (capacidad < totalKg) {
+      setErrorBodega('La capacidad no puede ser menor al café almacenado.');
+      return;
+    }
+
+    setGuardandoBodega(true);
+    setErrorBodega(null);
+
+    try {
+      const config = await guardarConfiguracionBodega({
+        nombreBodega: sanitizeNombreBodegaInput(nombreBodegaForm).trim(),
+        capacidadKg: capacidad,
+      });
+      setBodegaConfig({
+        nombreBodega: config.nombreBodega,
+        capacidadKg: config.capacidadKg,
+      });
+      setModalBodegaAbierto(false);
+      void loadLots();
+    } catch {
+      setErrorBodega('No se pudo guardar la capacidad de bodega.');
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
 
   const availableTypes = useMemo(() => {
     const map = new Map<string, { key: string; name: string }>();
@@ -544,18 +732,7 @@ export default function Inventario() {
 
   const orderedLots = useMemo(() => {
     const copy = [...visibleLots];
-    copy.sort((a, b) => {
-      const daysA = getLotDays(a);
-      const daysB = getLotDays(b);
-
-      if (sortKey === 'OLDEST') {
-        if (daysB.max !== daysA.max) return daysB.max - daysA.max;
-        return b.pesoActual - a.pesoActual;
-      }
-
-      if (daysA.min !== daysB.min) return daysA.min - daysB.min;
-      return a.pesoActual - b.pesoActual;
-    });
+    copy.sort((a, b) => compareLotByAge(a, b, sortKey));
     return copy;
   }, [visibleLots, sortKey]);
 
@@ -577,7 +754,7 @@ export default function Inventario() {
       grouped.set(key, current);
     }
 
-    return TYPE_ORDER.flatMap((type) => {
+    const summaries = TYPE_ORDER.flatMap((type) => {
       const current = grouped.get(type);
       if (!current) return [];
       const totalKg = current.lots.reduce(
@@ -589,20 +766,21 @@ export default function Inventario() {
           key: current.key,
           name: current.name,
           totalKg,
-          lots: current.lots,
+          lots: [...current.lots].sort((a, b) =>
+            compareLotByAge(a, b, sortKey),
+          ),
         },
       ];
     });
-  }, [lots]);
 
-  const qualitySections = useMemo(
-    () =>
-      QUALITY_SECTIONS.map((section) => ({
-        ...section,
-        lots: orderedLots.filter((lot) => keyOf(lot.calidad) === section.key),
-      })),
-    [orderedLots],
-  );
+    return summaries.sort((a, b) => {
+      const mainA = a.lots[0];
+      const mainB = b.lots[0];
+      const byAge = mainA && mainB ? compareLotByAge(mainA, mainB, sortKey) : 0;
+      if (byAge !== 0) return byAge;
+      return a.totalKg - b.totalKg;
+    });
+  }, [lots, sortKey]);
 
   const totalKg = useMemo(
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
@@ -648,6 +826,7 @@ export default function Inventario() {
           <CapacityRing
             totalKg={totalKg}
             capacityKg={bodegaConfig.capacidadKg}
+            onAdjust={abrirModalBodega}
           />
         ) : null}
 
@@ -733,7 +912,7 @@ export default function Inventario() {
         ) : null}
 
         {typeKey === '' && !showGlobalEmptyState ? (
-          <section className="space-y-3">
+          <section className={inventoryListClass(typeSummaries.length, 'space-y-2.5')}>
             <div className="grid gap-3">
               {typeSummaries.map((group) => (
                 <TypeSummaryCard
@@ -781,6 +960,7 @@ export default function Inventario() {
                 `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
               )
             }
+            translate="no"
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
           >
             <SunMedium size={17} />
@@ -789,7 +969,7 @@ export default function Inventario() {
         ) : null}
 
         {typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
-          <section className="space-y-3">
+          <section className={inventoryListClass(activeSecadoSessions.length)}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[#f6b81a]" />
@@ -863,55 +1043,103 @@ export default function Inventario() {
         typeKey !== '' &&
         typeKey !== 'EN SECADO' &&
         orderedLots.length > 0 ? (
-          <section className="space-y-4">
-            {qualitySections
-              .filter((section) => section.lots.length > 0)
-              .map((section) => (
-                <section key={section.key} className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${section.dot}`}
-                      />
-                      <p className="text-sm font-black text-[#1d2436]">
-                        {section.title}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-500">
-                      {pluralLabel(
-                        section.lots.reduce(
-                          (sum, lot) => sum + lot.sublotes,
-                          0,
-                        ),
-                        'sublote',
-                        'sublotes',
-                      )}
-                    </p>
-                  </div>
+          <section className={inventoryListClass(orderedLots.length)}>
+            {orderedLots.map((lot) => (
+              <QualityLotCard
+                key={lot.id}
+                lot={lot}
+                onOpen={() => {
+                  if (isSecadoProcessLot(lot)) {
+                    navigate('/inventario/secados');
+                    return;
+                  }
 
-                  <div className="space-y-3">
-                    {section.lots.map((lot) => (
-                      <QualityLotCard
-                        key={lot.id}
-                        lot={lot}
-                        onOpen={() => {
-                          if (isSecadoProcessLot(lot)) {
-                            navigate('/inventario/secados');
-                            return;
-                          }
-
-                          navigate(
-                            `/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`,
-                          );
-                        }}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
+                  navigate(
+                    `/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`,
+                  );
+                }}
+              />
+            ))}
           </section>
         ) : null}
       </main>
+
+      {modalBodegaAbierto ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-5 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[1.1rem] font-black text-slate-900">
+                Capacidad de bodega
+              </h2>
+              <button
+                type="button"
+                onClick={() => setModalBodegaAbierto(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1.5 block text-[0.76rem] font-black text-slate-600">
+                  Nombre
+                </label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={nombreBodegaForm}
+                  onChange={(event) => {
+                    setNombreBodegaForm(
+                      sanitizeNombreBodegaInput(event.target.value),
+                    );
+                    setErrorBodega(null);
+                  }}
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[0.76rem] font-black text-slate-600">
+                  Capacidad max. (kg)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={capacidadBodegaForm}
+                  onChange={(event) => {
+                    setCapacidadBodegaForm(
+                      sanitizeCapacidadInput(event.target.value),
+                    );
+                    setErrorBodega(null);
+                  }}
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                  placeholder="600000"
+                />
+                <p className="mt-1 text-[0.66rem] font-semibold text-slate-400">
+                  Máx. 999.999 kg · En bodega: {formatNumber(totalKg)} kg
+                </p>
+              </div>
+
+              {errorBodega ? (
+                <p className="rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.76rem] font-semibold text-rose-600">
+                  {errorBodega}
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => void guardarBodegaLocal()}
+                disabled={guardandoBodega}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-[0.9rem] font-black text-white disabled:opacity-60"
+              >
+                <Save size={15} />
+                {guardandoBodega ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AppBottomNav />
     </div>

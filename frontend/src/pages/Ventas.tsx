@@ -5,9 +5,7 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
-  IdCard,
   Pencil,
-  Phone,
   Plus,
   ReceiptText,
   RefreshCw,
@@ -45,7 +43,12 @@ import {
   applySecadoToLots,
   getActiveSecadoSessions,
 } from '../utils/secadoFlow';
-import { PRECIO_MINIMO_KG } from '../utils/businessRules';
+import {
+  PESO_MAXIMO_ENTRADA_KG,
+  PESO_MINIMO_KG,
+  PRECIO_MAXIMO_KG,
+  PRECIO_MINIMO_KG,
+} from '../utils/businessRules';
 import {
   BUSINESS_MIN_DATE_VALUE,
   formatDateLabel,
@@ -55,10 +58,13 @@ import {
 } from '../utils/date';
 import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 import {
+  type DocumentType,
+  PERSON_NAME_MAX_LENGTH,
+  sanitizeDocumentInput,
   sanitizeDigits as sanitizePersonDigits,
-  sanitizeNameInput,
+  sanitizeProducerNameInput,
   validateDocumentNumber,
-  validatePersonName,
+  validateProducerName,
   validatePhoneNumber,
 } from '../utils/personValidation';
 
@@ -74,7 +80,12 @@ type ClienteOption = {
   rapido?: boolean;
 };
 
-type ClienteForm = { nombre: string; telefono: string; documento: string };
+type ClienteForm = {
+  nombre: string;
+  tipoDocumento: DocumentType;
+  telefono: string;
+  documento: string;
+};
 type ClienteFormErrors = Partial<Record<keyof ClienteForm, string>>;
 type LoteVenta = {
   id: string;
@@ -105,6 +116,7 @@ type VentaGuardadaResumen = {
 };
 
 const LIMITE = 6;
+const PESO_MAXIMO_VENTA_KG = PESO_MAXIMO_ENTRADA_KG;
 
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
@@ -113,6 +125,19 @@ const CLIENTE_GENERAL: ClienteOption = {
   detalle:
     'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
   rapido: true,
+};
+const TIPOS_DOCUMENTO_CLIENTE: Array<{
+  value: DocumentType;
+  label: string;
+}> = [
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
+const CLIENTE_FORM_INICIAL: ClienteForm = {
+  nombre: '',
+  tipoDocumento: 'CC',
+  telefono: '',
+  documento: '',
 };
 
 const kg = (v: number) =>
@@ -130,6 +155,32 @@ const norm = (v: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 const keyOf = (v: string) => v.trim().toUpperCase();
+
+function personFieldClass(hasError?: boolean) {
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${
+    hasError
+      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+      : 'border-[#dde4f1] focus:border-[#173ea6]'
+  }`;
+}
+
+function PersonFieldError({ message }: { message: string }) {
+  return (
+    <p className="mt-1.5 text-[0.78rem] font-semibold leading-5 text-rose-600">
+      {message}
+    </p>
+  );
+}
+
+function getPersonNameLabel(type: DocumentType, role: 'cliente' | 'productor') {
+  if (type === 'NIT') return 'Nombre de la empresa';
+  return role === 'cliente' ? 'Nombre del cliente' : 'Nombre completo';
+}
+
+function getPersonNamePlaceholder(type: DocumentType, role: 'cliente' | 'productor') {
+  if (type === 'NIT') return 'Ej: Café Los Alpes';
+  return role === 'cliente' ? 'Ej: Juan Pérez Rodríguez' : 'Ej: Juan Pérez Rodríguez';
+}
 
 function isSecadoProcessLot(lote: LoteResumen | LoteVenta) {
   return keyOf(lote.tipoCafe) === 'EN SECADO';
@@ -229,6 +280,38 @@ function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function sanitizeDecimalVentaInput(value: string, maxValue: number) {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integerRaw = '', ...decimalParts] = normalized.split('.');
+  const integer = integerRaw.slice(0, 5);
+  const decimal = decimalParts.join('').slice(0, 2);
+  const next = normalized.includes('.')
+    ? `${integer || '0'}${decimal.length > 0 ? `.${decimal}` : '.'}`
+    : integer;
+
+  if (!next || next === '.') return '';
+  if (next.endsWith('.')) return next;
+
+  const parsed = Number(next);
+  if (!Number.isFinite(parsed)) return '';
+
+  return parsed > maxValue ? String(maxValue) : next;
+}
+
+function sanitizeIntegerVentaInput(
+  value: string,
+  maxValue: number,
+  fallbackValue = '',
+) {
+  const digits = soloDigitos(value).slice(0, String(maxValue).length);
+  if (!digits) return '';
+
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) return '';
+
+  return parsed > maxValue ? fallbackValue : digits;
+}
+
 function getPesoVerificado(lote: LoteVenta) {
   if (!lote.pesoVerificadoKg.trim()) return null;
   return round2(toNum(lote.pesoVerificadoKg));
@@ -245,6 +328,10 @@ function pesoVerificadoInvalido(lote: LoteVenta) {
   return (
     verificado !== null && (verificado < 0 || verificado > lote.disponibleKg)
   );
+}
+
+function esPesoRegistradoCompleto(lote: LoteVenta, cantidad: number) {
+  return Math.abs(cantidad - lote.disponibleKg) < 0.01;
 }
 
 function distribuirPesoVerificado(
@@ -312,9 +399,9 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('cédula') || message.includes('documento')) {
     return createGuidedError(
       message,
-      'Revisa la identificación.',
-      'Usa solo números, máximo 10 dígitos, y evita números repetidos.',
-      'Corrige la cédula o NIT para continuar.',
+      'Revisa el documento.',
+      'Para cédula usa solo números. Para NIT puedes usar números y guion.',
+      'Corrige el número de documento para continuar.',
     );
   }
 
@@ -323,7 +410,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
       message,
       'Revisa la fecha de venta.',
       'Solo puedes registrar ventas desde 2026 hasta hoy.',
-      'Elige una fecha valida para continuar.',
+      'Elige una fecha válida para continuar.',
     );
   }
 
@@ -375,12 +462,16 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message.includes('precio por kg')) {
+  if (
+    message.includes('precio por kg') ||
+    message.includes('precio mínimo') ||
+    message.includes('precio no puede')
+  ) {
     return createGuidedError(
       message,
-      'Precio fuera de rango.',
-      'El precio debe estar entre $1,000 y el límite configurado.',
-      'Ajusta el valor para continuar.',
+      'Precio por kg inválido.',
+      `Debe estar entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${PRECIO_MAXIMO_KG.toLocaleString('es-CO')}/kg.`,
+      'Revisa el precio marcado.',
     );
   }
 
@@ -388,7 +479,7 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Cantidad excedida',
-      'Estas intentando vender mas de lo disponible.',
+      'Estás intentando vender más de lo disponible.',
       'Reduce la cantidad o revisa el inventario.',
     );
   }
@@ -396,17 +487,17 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('cantidad')) {
     return createGuidedError(
       message,
-      'Cantidad invalida',
-      'Ingresa una cantidad mayor a 0.',
+      'Cantidad inválida',
+      `Ingresa una cantidad mínima de ${PESO_MINIMO_KG} kg.`,
       'Revisa el campo de cantidad.',
     );
   }
 
   return createGuidedError(
     message,
-    'No se pudo guardar la venta.',
-    'Revisa los campos señalados.',
-    'Revisa el dato marcado y vuelve a intentarlo.',
+    'Revisa los datos de la venta.',
+    'Hay un valor incompleto o fuera del rango permitido.',
+    'Corrige los campos marcados e intenta nuevamente.',
   );
 }
 
@@ -428,7 +519,7 @@ function getVentaSubmitMessage(error: unknown) {
     }
 
     if (error.code === 'VENTA_CANTIDAD_INVALIDA') {
-      return 'La cantidad a vender debe ser mayor a 0.';
+      return `La cantidad mínima de venta es ${PESO_MINIMO_KG} kg.`;
     }
 
     if (error.code === 'VENTA_PRECIO_INVALIDO') {
@@ -436,7 +527,7 @@ function getVentaSubmitMessage(error: unknown) {
     }
 
     if (error.code === 'VENTA_SUBLOTE_INVALIDO') {
-      return 'El sublote seleccionado no esta disponible para la venta.';
+      return 'El sublote seleccionado no está disponible para la venta.';
     }
   }
 
@@ -480,11 +571,20 @@ function getCantidadLoteGuidance(
     );
   }
 
+  if (cantidad > PESO_MAXIMO_VENTA_KG) {
+    return createGuidedError(
+      'El peso no puede superar 99.999 kg.',
+      'Peso fuera de rango.',
+      'Una venta no puede superar ese máximo por operación.',
+      'Reduce los kilos para continuar.',
+    );
+  }
+
   return createGuidedError(
-    `La cantidad debe ser mayor a 0 en ${lote.codigo}.`,
-    'Cantidad invalida',
-    'Ingresa una cantidad mayor a 0.',
-    `Disponible: ${kg(disponible)}.`,
+    `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${lote.codigo}.`,
+    'Cantidad inválida',
+    `Ingresa mínimo ${PESO_MINIMO_KG} kg.`,
+    `Ingresa mínimo ${PESO_MINIMO_KG} kg.`,
   );
 }
 
@@ -529,17 +629,19 @@ export default function Ventas() {
   const [mostrarModalConfirmar, setMostrarModalConfirmar] =
     React.useState(false);
   const [mostrarModalCancelar, setMostrarModalCancelar] = React.useState(false);
-  const [clienteForm, setClienteForm] = React.useState<ClienteForm>({
-    nombre: '',
-    telefono: '',
-    documento: '',
-  });
+  const [clienteForm, setClienteForm] =
+    React.useState<ClienteForm>(CLIENTE_FORM_INICIAL);
   const [clienteFormErrors, setClienteFormErrors] =
     React.useState<ClienteFormErrors>({});
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(
     null,
   );
-  const [maxPrecioVentaKg, setMaxPrecioVentaKg] = React.useState(100000);
+  const [maxPrecioVentaKg, setMaxPrecioVentaKg] =
+    React.useState(PRECIO_MAXIMO_KG);
+  const precioMaximoVentaPermitido = Math.min(
+    maxPrecioVentaKg,
+    PRECIO_MAXIMO_KG,
+  );
   const ventaLocalIdRef = React.useRef(uid());
 
   const cargarLotes = React.useCallback(async () => {
@@ -552,7 +654,7 @@ export default function Ventas() {
         obtenerConfiguracionBodega().catch(() => null),
       ]);
       if (bodegaConfig) {
-        setMaxPrecioVentaKg(bodegaConfig.maxPrecioVentaKg || 100000);
+        setMaxPrecioVentaKg(bodegaConfig.maxPrecioVentaKg || PRECIO_MAXIMO_KG);
       }
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
@@ -673,14 +775,14 @@ export default function Ventas() {
       const precioVentaItem = toNum(preciosVentaTotal[item.tipoCafeId] ?? '');
       if (
         precioVentaItem < PRECIO_MINIMO_KG ||
-        precioVentaItem > maxPrecioVentaKg
+        precioVentaItem > precioMaximoVentaPermitido
       ) {
         invalidos.add(item.tipoCafeId);
       }
     }
 
     return invalidos;
-  }, [preciosVentaTotal, resumenDisponiblePorTipo]);
+  }, [precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
   const fechaVentaValidacion = React.useMemo(
     () => validateBusinessDateRange(fechaVenta),
     [fechaVenta],
@@ -708,11 +810,18 @@ export default function Ventas() {
     for (const l of lotesConCantidad) {
       if (pesoVerificadoInvalido(l))
         return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
+      if (l.cantidad < PESO_MINIMO_KG)
+        return `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${l.codigo}.`;
+      if (
+        l.cantidad > PESO_MAXIMO_VENTA_KG &&
+        !esPesoRegistradoCompleto(l, l.cantidad)
+      )
+        return 'El peso no puede superar 99.999 kg.';
       if (l.cantidad > getDisponibleVenta(l))
         return `La cantidad supera el disponible en ${l.codigo}.`;
       if (
         l.precio < PRECIO_MINIMO_KG ||
-        l.precio > maxPrecioVentaKg
+        l.precio > precioMaximoVentaPermitido
       )
         return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
@@ -723,6 +832,7 @@ export default function Ventas() {
     lotesVenta.length,
     modoVenta,
     preciosVentaTotalInvalidos,
+    precioMaximoVentaPermitido,
     resumenDisponiblePorTipo,
     lotesConCantidad,
   ]);
@@ -738,14 +848,16 @@ export default function Ventas() {
       if (!cantidadIngresada) return false;
       const cantidad = toNum(lote.cantidadKg);
       return (
-        cantidad <= 0 ||
+        cantidad < PESO_MINIMO_KG ||
+        (cantidad > PESO_MAXIMO_VENTA_KG &&
+          !esPesoRegistradoCompleto(lote, cantidad)) ||
         cantidad > getDisponibleVenta(lote) ||
         toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
-        toNum(lote.precioKg) > maxPrecioVentaKg ||
+        toNum(lote.precioKg) > precioMaximoVentaPermitido ||
         pesoVerificadoInvalido(lote)
       );
     });
-  }, [lotesVenta, modoVenta]);
+  }, [lotesVenta, modoVenta, precioMaximoVentaPermitido]);
   const puedeAvanzarPaso2 =
     !fechaVentaValidacion.isValid || modoVenta === null
       ? false
@@ -1003,17 +1115,37 @@ export default function Ventas() {
     campo: 'cantidadKg' | 'precioKg' | 'pesoVerificadoKg',
     valor: string,
   ) => {
-    if (campo === 'precioKg') {
-      const numericValor = toNum(valor);
-      if (valor !== '' && Number.isFinite(numericValor) && numericValor > maxPrecioVentaKg) {
-        return;
-      }
-    }
     setLotesVenta((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? { ...l, [campo]: campo === 'precioKg' ? soloDigitos(valor) : valor }
-          : l,
+      prev.map((l) => {
+        if (l.id !== id) return l;
+
+        const normalizado =
+          campo === 'precioKg'
+            ? sanitizeIntegerVentaInput(
+                valor,
+                precioMaximoVentaPermitido,
+                l.precioKg,
+              )
+            : sanitizeDecimalVentaInput(valor, PESO_MAXIMO_VENTA_KG);
+
+        return { ...l, [campo]: normalizado };
+      }),
+    );
+  };
+
+  const usarPesoRegistrado = (lote: LoteVenta) => {
+    setLotesVenta((prev) =>
+      prev.map((item) =>
+        item.id === lote.id
+          ? {
+              ...item,
+              pesoVerificadoKg: '',
+              cantidadKg:
+                modoVenta === 'PARCIAL'
+                  ? String(round2(lote.disponibleKg))
+                  : item.cantidadKg,
+            }
+          : item,
       ),
     );
   };
@@ -1061,9 +1193,9 @@ export default function Ventas() {
 
   const validarClienteForm = React.useCallback(() => {
     const errores: ClienteFormErrors = {};
-    const nombre = validatePersonName(
+    const nombre = validateProducerName(
       clienteForm.nombre,
-      'El nombre del cliente',
+      clienteForm.tipoDocumento,
     );
     const telefono = validatePhoneNumber(clienteForm.telefono, 'El teléfono', {
       optional: true,
@@ -1073,6 +1205,7 @@ export default function Ventas() {
       'La cédula o NIT',
       {
         optional: true,
+        documentType: clienteForm.tipoDocumento,
       },
     );
 
@@ -1081,12 +1214,20 @@ export default function Ventas() {
     if (!documento.isValid) errores.documento = documento.message;
 
     return errores;
-  }, [clienteForm.documento, clienteForm.nombre, clienteForm.telefono]);
+  }, [
+    clienteForm.documento,
+    clienteForm.nombre,
+    clienteForm.telefono,
+    clienteForm.tipoDocumento,
+  ]);
 
   const guardarCliente = async () => {
     const nombre = clienteForm.nombre.trim();
-    const telefono = sanitizePersonDigits(clienteForm.telefono);
-    const documento = sanitizePersonDigits(clienteForm.documento);
+    const telefono = sanitizePersonDigits(clienteForm.telefono, 15);
+    const documento = sanitizeDocumentInput(
+      clienteForm.documento,
+      clienteForm.tipoDocumento,
+    );
     const errores = validarClienteForm();
 
     setClienteFormErrors(errores);
@@ -1103,7 +1244,7 @@ export default function Ventas() {
       setBusquedaCliente('');
       setBusquedaAplicada('');
       setMostrarModal(false);
-      setClienteForm({ nombre: '', telefono: '', documento: '' });
+      setClienteForm(CLIENTE_FORM_INICIAL);
       setClienteFormErrors({});
       setIntentoPaso1(false);
       setSubmitError(null);
@@ -1113,6 +1254,7 @@ export default function Ventas() {
     try {
       const clienteGuardado = await crearCliente({
         nombre,
+        tipoDocumento: clienteForm.tipoDocumento,
         documento: documento || undefined,
         telefono: telefono || undefined,
       });
@@ -1129,7 +1271,7 @@ export default function Ventas() {
       setBusquedaAplicada('');
       setMostrarModal(false);
       setClienteMetodo('BUSCAR');
-      setClienteForm({ nombre: '', telefono: '', documento: '' });
+      setClienteForm(CLIENTE_FORM_INICIAL);
       setClienteFormErrors({});
       setClienteFormError(null);
       setSubmitError(null);
@@ -1482,7 +1624,7 @@ export default function Ventas() {
                       <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-500">
                         Resumen por tipo
                       </p>
-                      <div className="mt-4 divide-y divide-slate-100">
+                      <div className="mt-4 max-h-[180px] divide-y divide-slate-100 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                         {resumenDisponiblePorTipo.map((item) => (
                           <div
                             key={item.tipoCafeId}
@@ -1514,14 +1656,15 @@ export default function Ventas() {
                       <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-500">
                         Precio por kg por tipo
                       </p>
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-3 max-h-[260px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                         {resumenDisponiblePorTipo.map((item) => {
                           const precioTipo =
                             preciosVentaTotal[item.tipoCafeId] ?? '';
                           const precioTipoInvalido =
                             modoVenta === 'TOTAL' &&
                             (intentoPaso2 || precioTipo.trim() !== '') &&
-                            (toNum(precioTipo) < PRECIO_MINIMO_KG || toNum(precioTipo) > maxPrecioVentaKg);
+                            (toNum(precioTipo) < PRECIO_MINIMO_KG ||
+                              toNum(precioTipo) > precioMaximoVentaPermitido);
 
                           return (
                             <div key={item.tipoCafeId}>
@@ -1549,11 +1692,11 @@ export default function Ventas() {
                                   pattern="[0-9]*"
                                   value={precioTipo}
                                   onChange={(event) => {
-                                    const raw = soloDigitos(event.target.value);
-                                    const numeric = toNum(raw);
-                                    if (raw !== '' && Number.isFinite(numeric) && numeric > maxPrecioVentaKg) {
-                                      return;
-                                    }
+                                    const raw = sanitizeIntegerVentaInput(
+                                      event.target.value,
+                                      precioMaximoVentaPermitido,
+                                      precioTipo,
+                                    );
                                     setPreciosVentaTotal((actual) => ({
                                       ...actual,
                                       [item.tipoCafeId]: raw,
@@ -1563,10 +1706,15 @@ export default function Ventas() {
                                   className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
                                 />
                               </label>
+                              <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
+                                Máx. $100.000/kg
+                              </p>
                               {precioTipoInvalido ? (
                                 <InlineGuidedError
                                   message={getVentasGuidance(
-                                    `Ingresa un precio por kg válido para café ${formatCoffeeLabel(item.tipoCafe)}.`,
+                                    toNum(precioTipo) < PRECIO_MINIMO_KG
+                                      ? 'El precio mínimo es $1.000/kg.'
+                                      : 'El precio no puede superar $100.000/kg.',
                                   )}
                                   className="mt-2"
                                 />
@@ -1586,11 +1734,15 @@ export default function Ventas() {
                 ) : null}
 
                 {modoVenta === 'PARCIAL' ? (
-                  <div className="mt-5 space-y-3">
+                  <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                     {lotesVenta.map((lote) => {
                       const cantidad = toNum(lote.cantidadKg);
                       const cantidadIngresada = lote.cantidadKg.trim() !== '';
+                      const precioIngresado = lote.precioKg.trim() !== '';
                       const disponibleVenta = getDisponibleVenta(lote);
+                      const cantidadSuperaMaximo =
+                        cantidad > PESO_MAXIMO_VENTA_KG &&
+                        !esPesoRegistradoCompleto(lote, cantidad);
                       const ajustePesoKg = round2(
                         lote.disponibleKg - disponibleVenta,
                       );
@@ -1599,11 +1751,28 @@ export default function Ventas() {
                       const cantidadInvalida =
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
-                        (cantidad <= 0 || cantidad > disponibleVenta);
+                        (cantidad < PESO_MINIMO_KG ||
+                          cantidadSuperaMaximo ||
+                          cantidad > disponibleVenta);
                       const precioInvalido =
                         modoVenta === 'PARCIAL' &&
-                        cantidadIngresada &&
-                        (toNum(lote.precioKg) < PRECIO_MINIMO_KG || toNum(lote.precioKg) > maxPrecioVentaKg);
+                        (cantidadIngresada || precioIngresado) &&
+                        (toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
+                          toNum(lote.precioKg) > precioMaximoVentaPermitido);
+                      const cantidadErrorTexto =
+                        cantidadInvalida && cantidad < PESO_MINIMO_KG
+                          ? `Mínimo ${PESO_MINIMO_KG} kg.`
+                          : cantidadInvalida && cantidadSuperaMaximo
+                            ? 'Máximo 99.999 kg.'
+                            : cantidadInvalida
+                              ? `Disponible: ${kg(disponibleVenta)}.`
+                              : '';
+                      const precioErrorTexto =
+                        precioInvalido && toNum(lote.precioKg) < PRECIO_MINIMO_KG
+                          ? 'Mínimo $1.000/kg.'
+                          : precioInvalido
+                            ? 'Máximo $100.000/kg.'
+                            : '';
 
                       return (
                         <article
@@ -1654,13 +1823,7 @@ export default function Ventas() {
                                   </label>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      updateLote(
-                                        lote.id,
-                                        'pesoVerificadoKg',
-                                        '',
-                                      )
-                                    }
+                                    onClick={() => usarPesoRegistrado(lote)}
                                     className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#102d92] shadow-sm"
                                   >
                                     Usar registrado
@@ -1670,9 +1833,15 @@ export default function Ventas() {
                                   id={`peso-${lote.id}`}
                                   type="range"
                                   min={0}
-                                  max={lote.disponibleKg}
+                                  max={Math.min(
+                                    lote.disponibleKg,
+                                    PESO_MAXIMO_VENTA_KG,
+                                  )}
                                   step="0.1"
-                                  value={disponibleVenta}
+                                  value={Math.min(
+                                    disponibleVenta,
+                                    PESO_MAXIMO_VENTA_KG,
+                                  )}
                                   onChange={(event) =>
                                     updateLote(
                                       lote.id,
@@ -1688,10 +1857,8 @@ export default function Ventas() {
                                     className="shrink-0 text-[#102d92]"
                                   />
                                   <input
-                                    type="number"
+                                    type="text"
                                     inputMode="decimal"
-                                    min={0}
-                                    max={lote.disponibleKg}
                                     value={lote.pesoVerificadoKg}
                                     onChange={(event) =>
                                       updateLote(
@@ -1730,10 +1897,8 @@ export default function Ventas() {
                             <>
                               <div className="mt-3 grid grid-cols-2 gap-2">
                                 <input
-                                  type="number"
+                                  type="text"
                                   inputMode="decimal"
-                                  min={0}
-                                  max={disponibleVenta}
                                   value={lote.cantidadKg}
                                   onChange={(event) =>
                                     updateLote(
@@ -1769,7 +1934,17 @@ export default function Ventas() {
                                   }`}
                                 />
                               </div>
-                              {cantidadInvalida ? (
+                              {cantidadInvalida || precioInvalido ? (
+                                <div className="mt-1 grid grid-cols-2 gap-2 text-[0.62rem] font-semibold text-[#b42318]">
+                                  <p className="min-h-[16px] pl-1">
+                                    {cantidadErrorTexto}
+                                  </p>
+                                  <p className="min-h-[16px] pr-1 text-right">
+                                    {precioErrorTexto}
+                                  </p>
+                                </div>
+                              ) : null}
+                              {false && cantidadInvalida ? (
                                 <InlineGuidedError
                                   message={getCantidadLoteGuidance(
                                     lote,
@@ -1778,14 +1953,22 @@ export default function Ventas() {
                                   className="mt-2"
                                 />
                               ) : null}
-                              {precioInvalido ? (
+                              {false && precioInvalido ? (
                                 <InlineGuidedError
                                   message={getVentasGuidance(
-                                    `El precio por kg debe estar entre $1,000 y $${maxPrecioVentaKg.toLocaleString('es-CO')}.`,
+                                    toNum(lote.precioKg) < PRECIO_MINIMO_KG
+                                      ? 'El precio mínimo es $1.000/kg.'
+                                      : 'El precio no puede superar $100.000/kg.',
                                   )}
                                   className="mt-2"
                                 />
                               ) : null}
+                              <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
+                                <p className="pl-1">Máx. 99.999 kg</p>
+                                <p className="pr-1 text-right">
+                                  Máx. $100.000/kg
+                                </p>
+                              </div>
                             </>
                           ) : (
                             <p className="mt-3 text-sm text-slate-600">
@@ -2009,7 +2192,7 @@ export default function Ventas() {
                   type="button"
                   onClick={() => {
                     setClienteMetodo('REGISTRAR');
-                    setClienteForm({ nombre: '', telefono: '', documento: '' });
+                    setClienteForm(CLIENTE_FORM_INICIAL);
                     setClienteFormErrors({});
                     setClienteFormError(null);
                     setMostrarModal(true);
@@ -2120,7 +2303,7 @@ export default function Ventas() {
                     {formatDateLabel(fechaVenta)}
                   </p>
                 </div>
-                <div className="mt-4 space-y-2">
+                <div className="mt-4 max-h-[260px] space-y-2 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                   {lotesConCantidad.map((lote) => (
                     <div
                       key={lote.id}
@@ -2175,15 +2358,7 @@ export default function Ventas() {
                   </div>
                 </article>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={anterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
-                  >
-                    <ArrowLeft size={16} />
-                    Regresar
-                  </button>
+                <div className="mt-4 grid gap-2">
                   <button
                     type="button"
                     onClick={() => setMostrarModalConfirmar(true)}
@@ -2298,120 +2473,163 @@ export default function Ventas() {
 
       {mostrarModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
-            <div className="px-5 pb-5 pt-3">
-              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-4 flex items-start justify-between gap-4">
-                <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
+          <div className="flex max-h-[78vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
+            <div className="shrink-0 px-4 pb-3 pt-3">
+              <div className="mx-auto h-1 w-9 rounded-full bg-[#cfd8e6]" />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <h2 className="text-[1.05rem] font-semibold leading-tight text-[#111827]">
                   Registrar cliente
                 </h2>
                 <button
                   type="button"
                   onClick={() => setMostrarModal(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
-                  <X size={20} />
+                  <X size={17} />
                 </button>
               </div>
 
-              <div className="mt-5 space-y-4">
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="space-y-3">
                 <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Nombre del cliente
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    Tipo de documento
                   </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
-                    <User size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={clienteForm.nombre}
-                      onChange={(event) => {
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          nombre: sanitizeNameInput(event.target.value),
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          nombre: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder="Ej. Juan Perez Rodriguez"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
-                    />
+                  <select
+                    value={clienteForm.tipoDocumento}
+                    translate="no"
+                    onChange={(event) => {
+                      const tipoDocumento =
+                        event.target.value === 'NIT' ? 'NIT' : 'CC';
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        tipoDocumento,
+                        nombre: sanitizeProducerNameInput(
+                          actual.nombre,
+                          tipoDocumento,
+                        ),
+                        documento: sanitizeDocumentInput(
+                          actual.documento,
+                          tipoDocumento,
+                        ),
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        nombre: undefined,
+                        documento: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    className={personFieldClass(false)}
+                  >
+                    {TIPOS_DOCUMENTO_CLIENTE.map((tipo) => (
+                      <option key={tipo.value} value={tipo.value} translate="no">
+                        {tipo.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    {getPersonNameLabel(clienteForm.tipoDocumento, 'cliente')}
                   </label>
+                  <input
+                    type="text"
+                    value={clienteForm.nombre}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    onChange={(event) => {
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        nombre: sanitizeProducerNameInput(
+                          event.target.value,
+                          actual.tipoDocumento,
+                        ).slice(0, PERSON_NAME_MAX_LENGTH),
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        nombre: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    placeholder={getPersonNamePlaceholder(
+                      clienteForm.tipoDocumento,
+                      'cliente',
+                    )}
+                    className={personFieldClass(
+                      Boolean(clienteFormErrors.nombre),
+                    )}
+                  />
                   {clienteFormErrors.nombre ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.nombre)}
-                      className="mt-2"
-                    />
+                    <PersonFieldError message={clienteFormErrors.nombre} />
                   ) : null}
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Telefono (opcional)
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    Número de documento
                   </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
-                    <Phone size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={clienteForm.telefono}
-                      onChange={(event) => {
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          telefono: sanitizePersonDigits(event.target.value),
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          telefono: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder="3001234567"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
-                    />
-                  </label>
-                  {clienteFormErrors.telefono ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.telefono)}
-                      className="mt-2"
-                    />
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                    Documento o NIT
-                  </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
-                    <IdCard size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={clienteForm.documento}
-                      onChange={(event) => {
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          documento: sanitizePersonDigits(event.target.value),
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          documento: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder="1029384756"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
-                    />
-                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={40}
+                    value={clienteForm.documento}
+                    onChange={(event) => {
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        documento: sanitizeDocumentInput(
+                          event.target.value,
+                          actual.tipoDocumento,
+                        ),
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        documento: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    placeholder={
+                      clienteForm.tipoDocumento === 'NIT'
+                        ? 'Ej. 900123456-7'
+                        : 'Ej. 123456789'
+                    }
+                    className={personFieldClass(
+                      Boolean(clienteFormErrors.documento),
+                    )}
+                  />
                   {clienteFormErrors.documento ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.documento)}
-                      className="mt-2"
-                    />
+                    <PersonFieldError message={clienteFormErrors.documento} />
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
+                    Teléfono (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    maxLength={20}
+                    value={clienteForm.telefono}
+                    onChange={(event) => {
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        telefono: sanitizePersonDigits(event.target.value, 15),
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        telefono: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    placeholder="Ej. +57 300 123 4567"
+                    className={personFieldClass(
+                      Boolean(clienteFormErrors.telefono),
+                    )}
+                  />
+                  {clienteFormErrors.telefono ? (
+                    <PersonFieldError message={clienteFormErrors.telefono} />
                   ) : null}
                 </div>
 
@@ -2423,18 +2641,18 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
+            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-4 py-3">
               <button
                 type="button"
                 onClick={guardarCliente}
-                className="inline-flex w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.95rem] font-semibold text-white"
+                className="inline-flex w-full items-center justify-center rounded-[12px] bg-[#102d92] px-4 py-3 text-[0.82rem] font-semibold text-white"
               >
                 Guardar cliente
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarModal(false)}
-                className="mt-3 inline-flex w-full items-center justify-center px-5 py-2 text-[0.9rem] font-semibold text-slate-500"
+                className="mt-2 inline-flex w-full items-center justify-center px-4 py-1.5 text-[0.78rem] font-semibold text-slate-500"
               >
                 Cancelar
               </button>

@@ -91,12 +91,24 @@ describe('DashboardService', () => {
       .mockResolvedValueOnce({ _sum: { pesoInicial: 120 } });
     prisma.compra.aggregate
       .mockResolvedValueOnce({ _sum: { totalCompra: null } })
+      .mockResolvedValueOnce({ _sum: { totalCompra: null } })
+      .mockResolvedValueOnce({ _sum: { totalCompra: null } })
+      .mockResolvedValueOnce({ _sum: { totalCompra: 600000 } })
+      .mockResolvedValueOnce({ _sum: { totalCompra: 600000 } })
       .mockResolvedValueOnce({ _sum: { totalCompra: 600000 } });
     prisma.gastoOperativo.aggregate
       .mockResolvedValueOnce({ _sum: { montoGasto: null } })
+      .mockResolvedValueOnce({ _sum: { montoGasto: null } })
+      .mockResolvedValueOnce({ _sum: { montoGasto: null } })
+      .mockResolvedValueOnce({ _sum: { montoGasto: 45000 } })
+      .mockResolvedValueOnce({ _sum: { montoGasto: 45000 } })
       .mockResolvedValueOnce({ _sum: { montoGasto: 45000 } });
     prisma.venta.aggregate
       .mockResolvedValueOnce({ _sum: { totalVenta: null } })
+      .mockResolvedValueOnce({ _sum: { totalVenta: null } })
+      .mockResolvedValueOnce({ _sum: { totalVenta: null } })
+      .mockResolvedValueOnce({ _sum: { totalVenta: 700000 } })
+      .mockResolvedValueOnce({ _sum: { totalVenta: 700000 } })
       .mockResolvedValueOnce({ _sum: { totalVenta: 700000 } });
     prisma.productor.count.mockResolvedValue(1);
     prisma.inventario.aggregate
@@ -136,6 +148,12 @@ describe('DashboardService', () => {
       kgCompradosHoy: 0,
       totalComprasHoy: 0,
       totalGastosHoy: 0,
+      totalComprasSemana: 0,
+      totalVentasSemana: 0,
+      totalGastosSemana: 0,
+      totalComprasAcumulado: 0,
+      totalVentasAcumulado: 0,
+      totalGastosAcumulado: 0,
       kgActual: 0,
       movimientosRecientes: [],
     });
@@ -148,6 +166,12 @@ describe('DashboardService', () => {
       totalComprasHoy: 600000,
       totalVentasHoy: 700000,
       totalGastosHoy: 45000,
+      totalComprasSemana: 600000,
+      totalVentasSemana: 700000,
+      totalGastosSemana: 45000,
+      totalComprasAcumulado: 600000,
+      totalVentasAcumulado: 700000,
+      totalGastosAcumulado: 45000,
       kgActual: 85,
     });
     expect(actualizado.inventarioPorTipo).toEqual([
