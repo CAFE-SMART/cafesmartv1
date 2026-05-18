@@ -1,0 +1,80 @@
+import type { AuthError } from '../services/authService';
+
+type RawApiError = {
+  message?: string | string[];
+  field?: string;
+  action?: string;
+};
+
+export const AUTH_MESSAGES = {
+  invalidEmail: 'Verifica el correo e inténtalo nuevamente.',
+  invalidPassword: 'Verifica la contraseña e inténtalo nuevamente.',
+  googleGeneric:
+    'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
+  googleNeedsRegister:
+    'Ese correo aún no tiene cuenta. Regístrate primero para continuar.',
+  offline: 'Verifica tu conexión e inténtalo nuevamente.',
+} as const;
+
+export function normalizeMessage(
+  message: string | string[] | undefined,
+  fallback: string,
+) {
+  if (Array.isArray(message)) {
+    return message.filter(Boolean).join(', ');
+  }
+
+  return message || fallback;
+}
+
+export function mapFriendlyAuthMessage(
+  endpoint: string,
+  data: RawApiError,
+  fallbackError: string,
+): string {
+  const field = (data.field ?? '').toLowerCase();
+
+  if (endpoint === '/login') {
+    if (field === 'email' || field === 'correo') {
+      return AUTH_MESSAGES.invalidEmail;
+    }
+
+    if (field === 'password' || field === 'contrasena') {
+      return AUTH_MESSAGES.invalidPassword;
+    }
+  }
+
+  if (endpoint === '/login/google' || endpoint === '/register/google') {
+    if (data.action === 'register') {
+      return AUTH_MESSAGES.googleNeedsRegister;
+    }
+
+    const rawMessage = normalizeMessage(
+      data.message,
+      AUTH_MESSAGES.googleGeneric,
+    );
+    const lowerMessage = rawMessage.toLowerCase();
+
+    if (
+      lowerMessage.includes('internal server error') ||
+      lowerMessage.includes('server error') ||
+      lowerMessage.includes('fetch failed') ||
+      lowerMessage.includes('google')
+    ) {
+      return AUTH_MESSAGES.googleGeneric;
+    }
+
+    return rawMessage;
+  }
+
+  return normalizeMessage(data.message, fallbackError);
+}
+
+export function buildOfflineAuthError(): AuthError {
+  return {
+    message: AUTH_MESSAGES.offline,
+    field: null,
+    action: null,
+    code: 'OFFLINE',
+  };
+}

@@ -3,7 +3,7 @@
  * 🏁 ARCHIVO: app.controller.ts (El Controlador Raíz - Solo de Prueba)
  * ========================================================
  * ¿Para qué sirve?: Es el controlador principal que viene por defecto con NestJS.
- * Tiene una ruta GET / que responde "Hello World!" para confirmar que el 
+ * Tiene una ruta GET / que responde "Hello World!" para confirmar que el
  * servidor está encendido y funcionando correctamente.
  *
  * ¿Debo editarlo?: ⛔ NO. Este archivo se usa solo para probar que el
@@ -22,4 +22,3 @@ export class AppController {
     return this.appService.getHello();
   }
 }
-

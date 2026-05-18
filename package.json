@@ -1,5 +1,47 @@
 {
-  "dependencies": {
-    "pdf.js-extract": "^0.2.1"
+  "name": "cafe-smart-root",
+  "private": true,
+  "scripts": {
+    "install:all": "pnpm install -r",
+    "check:local": "node scripts/check-local-env.mjs",
+    "dev": "pnpm check:local && pnpm --parallel --filter cafe-smart-backend --filter cafe-smart-frontend dev",
+    "dev:backend": "pnpm --filter cafe-smart-backend start:dev",
+    "dev:frontend": "pnpm --filter cafe-smart-frontend dev",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "seed": "pnpm --filter cafe-smart-backend prisma db seed",
+    "build": "pnpm --filter cafe-smart-backend build && pnpm --filter cafe-smart-frontend build",
+    "build:backend": "pnpm --filter cafe-smart-backend build",
+    "build:frontend": "pnpm --filter cafe-smart-frontend build",
+    "start": "pnpm --filter cafe-smart-backend start",
+    "test": "pnpm --filter cafe-smart-backend test && pnpm --filter cafe-smart-frontend test",
+    "test:backend": "pnpm --filter cafe-smart-backend test",
+    "test:frontend": "pnpm --filter cafe-smart-frontend test",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@babel/core": "^7.0.0",
+    "@babel/runtime": "^7.0.0",
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.0.0",
+    "@swc/core": "^1.5.15",
+    "@swc/jest": "^0.2.20",
+    "@types/jest": "^29.5.0",
+    "@types/supertest": "^2.0.11",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "jest": "^29.5.0",
+    "prettier": "^3.8.3",
+    "source-map-support": "^0.5.21",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.4.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.3"
   }
 }

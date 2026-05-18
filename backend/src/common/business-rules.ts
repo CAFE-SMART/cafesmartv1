@@ -1,0 +1,5 @@
+export const PESO_MINIMO_KG = 5;
+export const PESO_MAXIMO_OPERATIVO_DEFAULT_KG = 99999;
+export const PESO_MAXIMO_ENTRADA_KG = 99999;
+export const PRECIO_MINIMO_KG = 1000;
+export const PRECIO_MAXIMO_KG = 100000;

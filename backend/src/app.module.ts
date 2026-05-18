@@ -1,19 +1,40 @@
-/*
- * ========================================================
- * 🧩 ARCHIVO: app.module.ts (El Tablero Eléctrico del Backend)
- * ========================================================
- * ¿Para qué sirve?: En NestJS, todo funciona por "Módulos". Este archivo es el más
- * grande de todos. Aquí es donde conectas todos los cablecitos de tu proyecto.
- * 
- * ¿Debo editarlo?: ✅ SÍ. Cada vez que creen un Módulo nuevo (ej: el módulo
- * de Usuarios o Ventas), tienen que venir aquí e importarlo en el arreglo de "imports: []".
- */
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaModule } from './prisma/prisma.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ComprasModule } from './compras/compras.module';
+import { ParametrosModule } from './parametros/parametros.module';
+import { LotesModule } from './lotes/lotes.module';
+import { VentasModule } from './ventas/ventas.module';
+import { GastosModule } from './gastos/gastos.module';
+import { BodegaModule } from './bodega/bodega.module';
+import { ClientesModule } from './clientes/clientes.module';
+import { ProductoresModule } from './productores/productores.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { SupportModule } from './support/support.module';
+import { SecadoModule } from './secado/secado.module';
 
 @Module({
-  imports: [],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    UsersModule,
+    AuthModule,
+    ComprasModule,
+    ParametrosModule,
+    LotesModule,
+    VentasModule,
+    GastosModule,
+    BodegaModule,
+    ClientesModule,
+    ProductoresModule,
+    DashboardModule,
+    SupportModule,
+    SecadoModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
