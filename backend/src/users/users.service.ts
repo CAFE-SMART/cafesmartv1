@@ -37,8 +37,15 @@ export class UsersService {
    * Busca un usuario por correo normalizando mayusculas y espacios.
    */
   async findByEmail(correo: string) {
-    return this.prisma.user.findUnique({
-      where: { correo: correo.trim().toLowerCase() },
+    const normalizedEmail = correo.trim().toLowerCase();
+
+    return this.prisma.user.findFirst({
+      where: {
+        correo: {
+          equals: normalizedEmail,
+          mode: 'insensitive',
+        },
+      },
       include: {
         organizacion: {
           select: {
@@ -81,6 +88,25 @@ export class UsersService {
         password: true,
       },
     });
+  }
+
+  async updatePassword(userId: string, hashedPassword: string) {
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+        select: { id: true },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -160,6 +186,60 @@ export class UsersService {
         googleId: true,
       },
     });
+  }
+
+  async updateProfile(
+    userId: string,
+    input: {
+      nombre: string;
+      correo: string;
+      telefono?: string | null;
+    },
+  ) {
+    const nombre = input.nombre.trim();
+    const correo = input.correo.trim().toLowerCase();
+    const telefono = input.telefono?.trim() ?? '';
+
+    if (!nombre) {
+      throw new BadRequestException(
+        apiError('USUARIO_NOMBRE_REQUERIDO', 'Escribe tu nombre.'),
+      );
+    }
+
+    if (!correo) {
+      throw new BadRequestException(
+        apiError('USUARIO_CORREO_REQUERIDO', 'Escribe un correo electrónico.'),
+      );
+    }
+
+    try {
+      return this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          nombre,
+          correo,
+          telefono,
+        },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          organizacionId: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          apiError('USUARIO_CORREO_DUPLICADO', 'El correo ya está en uso.'),
+        );
+      }
+
+      throw error;
+    }
   }
 
   async updateOrganizationSettings(

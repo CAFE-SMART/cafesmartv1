@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
-  CalendarDays,
   Check,
   ChevronRight,
   Scale,
@@ -85,6 +84,34 @@ function sanitizeSecadoWeightInput(value: string, max: number) {
   return next;
 }
 
+function buildDefaultSelectedWeights(
+  sublotes: SubloteDetalle[],
+  sessions: SecadoSession[],
+) {
+  const activeWeights = new Map<string, number>();
+  for (const session of sessions) {
+    for (const sublote of session.sublotes) {
+      activeWeights.set(
+        sublote.id,
+        (activeWeights.get(sublote.id) ?? 0) + sublote.pesoActual,
+      );
+    }
+  }
+
+  return sublotes.reduce<Record<string, number>>((weights, sublote) => {
+    const available = Math.max(
+      0,
+      Number(
+        (sublote.pesoActual - (activeWeights.get(sublote.id) ?? 0)).toFixed(1),
+      ),
+    );
+    if (available > 0) {
+      weights[sublote.id] = available;
+    }
+    return weights;
+  }, {});
+}
+
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -130,6 +157,7 @@ export default function SecadoSeleccion() {
             'No se encontraron sublotes disponibles para este lote.',
           );
 
+        const sessions = getActiveSecadoSessions();
         setDetalle(visual);
         const draftRaw = window.localStorage.getItem(
           getSecadoDraftKey(tipoCafeId, calidadId),
@@ -143,9 +171,9 @@ export default function SecadoSeleccion() {
             setShowDraftModal(true);
           }
         } else {
-          setSelectedWeights({});
+          setSelectedWeights(buildDefaultSelectedWeights(visual.sublotes, sessions));
         }
-        setActiveSessions(getActiveSecadoSessions());
+        setActiveSessions(sessions);
       } catch (err) {
         setError('No pudimos abrir el proceso de secado. Intenta nuevamente.');
       } finally {
@@ -187,7 +215,6 @@ export default function SecadoSeleccion() {
     () => selectedIds.reduce((sum, id) => sum + (selectedWeights[id] ?? 0), 0),
     [selectedIds, selectedWeights],
   );
-
   const activeWeightBySubloteId = useMemo(() => {
     const weights = new Map<string, number>();
     for (const session of activeSessions) {
@@ -218,6 +245,13 @@ export default function SecadoSeleccion() {
         }))
         .filter((sublote) => sublote.pesoActual > 0),
     [activeWeightBySubloteId, detalle?.sublotes],
+  );
+
+  const todosSeleccionados = useMemo(
+    () =>
+      availableSublotes.length > 0 &&
+      availableSublotes.every((sublote) => (selectedWeights[sublote.id] ?? 0) > 0),
+    [availableSublotes, selectedWeights],
   );
 
   const currentLotActiveSessions = useMemo(() => {
@@ -308,6 +342,36 @@ export default function SecadoSeleccion() {
     }
   };
 
+  const seleccionarTodo = () => {
+    setSelectedWeights((current) => {
+      const next = { ...current };
+      availableSublotes.forEach((sublote) => {
+        next[sublote.id] =
+          current[sublote.id] && current[sublote.id] > 0
+            ? current[sublote.id]
+            : sublote.pesoActual;
+      });
+      return next;
+    });
+  };
+
+  const limpiarSeleccion = () => {
+    setSelectedWeights({});
+  };
+
+  const updateSubloteWeight = (sublote: SubloteDetalle, rawValue: string) => {
+    const next = sanitizeSecadoWeightInput(rawValue, sublote.pesoActual);
+    const value = Number(next);
+    setSelectedWeights((current) => {
+      if (!Number.isFinite(value) || value <= 0) {
+        const updated = { ...current };
+        delete updated[sublote.id];
+        return updated;
+      }
+      return { ...current, [sublote.id]: value };
+    });
+  };
+
   const updateDraftWeight = (rawValue: string) => {
     if (!editing) return;
     const next = sanitizeSecadoWeightInput(rawValue, editing.pesoActual);
@@ -369,9 +433,29 @@ export default function SecadoSeleccion() {
               Selecciona los sublotes de café verde
             </h2>
             <p className="mt-2 text-[0.72rem] leading-5 text-slate-500">
-              Selecciona los sublotes que vas a secar. Puedes enviar todo el
-              peso o tocar Ajustar cantidad para secar solo una parte.
+              Todos los sublotes disponibles inician seleccionados. Ajusta el
+              peso directamente si vas a secar solo una parte.
             </p>
+            {!loading && availableSublotes.length > 0 ? (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={seleccionarTodo}
+                  disabled={todosSeleccionados}
+                  className="inline-flex min-h-[38px] items-center justify-center rounded-[12px] border border-[#cfd8ea] bg-white px-3 text-[0.68rem] font-black text-[#1747d4] shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  {todosSeleccionados ? 'Todos seleccionados' : 'Seleccionar todo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={limpiarSeleccion}
+                  disabled={selectedIds.length === 0}
+                  className="inline-flex min-h-[38px] items-center justify-center rounded-[12px] border border-[#cfd8ea] bg-white px-3 text-[0.68rem] font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            ) : null}
           </section>
 
           {latestActiveSession ? (
@@ -428,50 +512,80 @@ export default function SecadoSeleccion() {
                       return (
                         <article
                           key={sublote.id}
-                          className={`rounded-[18px] border bg-white p-3 shadow-sm ${
+                          className={`rounded-[14px] border px-3 py-3 ${
                             selected
-                              ? 'border-[#1455ff] ring-1 ring-[#1455ff]'
-                              : 'border-slate-100'
+                              ? 'border-slate-300 bg-slate-50'
+                              : 'border-slate-200 bg-white'
                           }`}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-center gap-3">
                             <button
                               type="button"
                               onClick={() => toggleSublote(sublote)}
-                              className={`mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-transparent ${
                                 selected
-                                  ? 'border-[#1455ff] bg-[#1455ff] text-white'
-                                  : 'border-slate-300 bg-white text-transparent'
+                                  ? 'border-emerald-400 bg-emerald-400 text-white'
+                                  : 'border-slate-300 bg-white'
                               }`}
                               aria-label="Seleccionar sublote"
                             >
-                              <Check size={13} strokeWidth={3} />
+                              <Check size={14} strokeWidth={3} />
                             </button>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-black">
+                                <p className="truncate text-sm font-black text-slate-900">
                                   {sublote.etiqueta}
                                 </p>
-                                <span className="inline-flex items-center gap-1 text-[0.65rem] font-semibold text-slate-500">
-                                  <CalendarDays size={11} />
+                                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
                                   {formatDaysLabel(sublote.fechaIngreso)}
                                 </span>
                               </div>
-                              <p className="mt-1 text-[0.72rem] font-bold text-slate-500">
-                                {kg(selected ? selectedKg : sublote.pesoActual)}
-                                {selected && selectedKg < sublote.pesoActual
-                                  ? ' seleccionados'
-                                  : ''}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => openAdjust(sublote)}
-                                className="mt-2 inline-flex h-8 items-center rounded-[10px] bg-[#eef4ff] px-3 text-[0.68rem] font-black text-[#1f4fd8]"
-                              >
-                                Ajustar cantidad
-                              </button>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[0.72rem] text-slate-600">
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                  {kg(sublote.pesoActual)}
+                                </span>
+                                {sublote.humedad != null ? (
+                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                    Humedad {sublote.humedad.toFixed(1)}%
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
+
+                          <div className="mt-3 flex items-center gap-2">
+                            <label className="flex-1 rounded-[14px] border border-slate-200 bg-white px-2 py-2 text-right text-sm font-black text-slate-900 focus-within:border-slate-400">
+                              <input
+                                type="number"
+                                min="0"
+                                max={sublote.pesoActual}
+                                step="0.1"
+                                value={selected ? selectedKg : ''}
+                                onChange={(event) =>
+                                  updateSubloteWeight(sublote, event.target.value)
+                                }
+                                onClick={(event) => event.stopPropagation()}
+                                onFocus={() => {
+                                  if (!selected) {
+                                    setSelectedWeights((current) => ({
+                                      ...current,
+                                      [sublote.id]: sublote.pesoActual,
+                                    }));
+                                  }
+                                }}
+                                className="w-full bg-transparent text-right text-sm font-black text-slate-900 outline-none"
+                                aria-label={`Kilos a secar de ${sublote.etiqueta}`}
+                                placeholder="0"
+                              />
+                              <span className="shrink-0 text-slate-500">kg</span>
+                            </label>
+                          </div>
+
+                          {selected && selectedKg < sublote.pesoActual ? (
+                            <p className="mt-2 text-[0.7rem] text-slate-500">
+                              Disponible: {kg(sublote.pesoActual)}
+                            </p>
+                          ) : null}
                         </article>
                       );
                     })}
@@ -485,7 +599,8 @@ export default function SecadoSeleccion() {
         <footer className="sticky bottom-0 z-20 mx-auto w-full max-w-[430px] bg-[#fbfbfb] px-4 pb-4 pt-2 shadow-[0_-10px_24px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between rounded-t-[2px] bg-[#0647d6] px-4 py-2 text-white">
             <span className="text-[0.62rem] font-black uppercase tracking-[0.12em]">
-              Total seleccionado
+              Total seleccionado · {selectedIds.length} sublote
+              {selectedIds.length === 1 ? '' : 's'}
             </span>
             <span className="inline-flex items-center gap-2 text-sm font-black">
               {kg(totalSeleccionado)}
@@ -590,7 +705,9 @@ export default function SecadoSeleccion() {
                   window.localStorage.removeItem(
                     getSecadoDraftKey(tipoCafeId, calidadId),
                   );
-                  setSelectedWeights({});
+                  setSelectedWeights(
+                    buildDefaultSelectedWeights(availableSublotes, activeSessions),
+                  );
                   setShowDraftModal(false);
                 }}
                 className="min-h-[44px] rounded-[14px] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600"

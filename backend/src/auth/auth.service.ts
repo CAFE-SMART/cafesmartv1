@@ -1,7 +1,11 @@
 ﻿import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,8 +16,16 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 
+type PasswordResetTokenPayload = {
+  sub?: unknown;
+  email?: unknown;
+  purpose?: unknown;
+};
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -177,6 +189,263 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(user, 'Login exitoso');
+  }
+
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+
+    if (!user) {
+      throw new NotFoundException({
+        code: 'EMAIL_NOT_FOUND',
+        message: 'El correo ingresado no se encuentra registrado en el sistema.',
+        field: 'email',
+      });
+    }
+
+    const resetUrl = this.buildPasswordResetUrl(
+      this.jwtService.sign(
+        {
+          sub: user.id,
+          email: user.correo,
+          purpose: 'password-reset',
+        },
+        { expiresIn: '15m' },
+      ),
+    );
+
+    if (!isProduction) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'password_reset_requested',
+          email: normalizedEmail,
+          provider: this.getEmailProviderName(),
+          resetUrl: this.redactResetUrl(resetUrl),
+        }),
+      );
+    }
+
+    try {
+      await this.sendPasswordResetEmail(normalizedEmail, resetUrl);
+    } catch (error) {
+      if (!isProduction) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'password_reset_email_failed',
+            email: normalizedEmail,
+            provider: this.getEmailProviderName(),
+            error: this.formatEmailError(error),
+          }),
+        );
+      }
+
+      throw new ServiceUnavailableException({
+        code: 'PASSWORD_RESET_EMAIL_FAILED',
+        message:
+          'No pudimos enviar el correo de recuperación. Intenta nuevamente o contacta a soporte.',
+        field: 'email',
+      });
+    }
+
+    if (!isProduction) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'password_reset_email_sent',
+          email: normalizedEmail,
+          provider: this.getEmailProviderName(),
+        }),
+      );
+    }
+
+    return {
+      message:
+        'Enlace enviado. Revisa tu bandeja de entrada o la carpeta de spam para restablecer tu contraseña.',
+    };
+  }
+
+  async resetPassword(token: string, nuevaPassword: string) {
+    let payload: PasswordResetTokenPayload;
+
+    try {
+      payload = await this.jwtService.verifyAsync<PasswordResetTokenPayload>(
+        token,
+      );
+    } catch {
+      throw this.buildInvalidResetTokenError();
+    }
+
+    if (payload.purpose !== 'password-reset' || typeof payload.sub !== 'string') {
+      throw this.buildInvalidResetTokenError();
+    }
+
+    const hashedPassword = await bcrypt.hash(nuevaPassword, 10);
+    const updatedUser = await this.usersService.updatePassword(
+      payload.sub,
+      hashedPassword,
+    );
+
+    if (!updatedUser) {
+      throw this.buildInvalidResetTokenError();
+    }
+
+    return { message: 'Contraseña actualizada con éxito.' };
+  }
+
+  private buildInvalidResetTokenError() {
+    return new BadRequestException({
+      code: 'PASSWORD_RESET_TOKEN_INVALID',
+      message: 'El enlace expiró o no es válido.',
+      field: 'token',
+    });
+  }
+
+  private buildPasswordResetUrl(token: string) {
+    const frontendUrl = (
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:5173'
+    ).replace(/\/$/, '');
+
+    return `${frontendUrl}/restablecer?token=${encodeURIComponent(token)}`;
+  }
+
+  private getEmailProviderName() {
+    if (this.configService.get<string>('RESEND_API_KEY')) return 'resend';
+    if (this.configService.get<string>('SENDGRID_API_KEY')) return 'sendgrid';
+    return 'not-configured';
+  }
+
+  private async sendPasswordResetEmail(email: string, resetUrl: string) {
+    const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+    const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
+    const from =
+      this.configService.get<string>('EMAIL_FROM') ||
+      'Cafe Smart <soporte@cafesmart.com>';
+
+    if (resendApiKey) {
+      await this.sendWithResend(resendApiKey, from, email, resetUrl);
+      return;
+    }
+
+    if (sendgridApiKey) {
+      await this.sendWithSendgrid(sendgridApiKey, from, email, resetUrl);
+      return;
+    }
+
+    throw new Error(
+      'No hay proveedor de correo configurado. Define RESEND_API_KEY o SENDGRID_API_KEY.',
+    );
+  }
+
+  private async sendWithResend(
+    apiKey: string,
+    from: string,
+    to: string,
+    resetUrl: string,
+  ) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject: 'Recupera tu contraseña de Cafe Smart',
+        html: this.buildPasswordResetEmailHtml(resetUrl),
+      }),
+    });
+
+    if (!response.ok) {
+      let details = '';
+      try {
+        const body = await response.text();
+        details = body ? `: ${body}` : '';
+      } catch {
+        details = '';
+      }
+
+      throw new Error(
+        `Resend rechazo el envio con estado ${response.status}${details}`,
+      );
+    }
+  }
+
+  private async sendWithSendgrid(
+    apiKey: string,
+    from: string,
+    to: string,
+    resetUrl: string,
+  ) {
+    const fromEmail = this.extractEmailAddress(from);
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: fromEmail },
+        subject: 'Recupera tu contraseña de Cafe Smart',
+        content: [
+          {
+            type: 'text/html',
+            value: this.buildPasswordResetEmailHtml(resetUrl),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      let details = '';
+      try {
+        const body = await response.text();
+        details = body ? `: ${body}` : '';
+      } catch {
+        details = '';
+      }
+
+      throw new Error(
+        `SendGrid rechazo el envio con estado ${response.status}${details}`,
+      );
+    }
+  }
+
+  private buildPasswordResetEmailHtml(resetUrl: string) {
+    return `
+      <p>Recibimos una solicitud para restablecer tu contraseña en Cafe Smart.</p>
+      <p>Usa este enlace durante los proximos 15 minutos:</p>
+      <p><a href="${resetUrl}">Restablecer contraseña</a></p>
+      <p>Si no solicitaste este cambio, ignora este correo.</p>
+    `;
+  }
+
+  private extractEmailAddress(value: string) {
+    const match = value.match(/<([^>]+)>/);
+    return (match?.[1] ?? value).trim();
+  }
+
+  private formatEmailError(error: unknown) {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return String(error);
+  }
+
+  private redactResetUrl(resetUrl: string) {
+    try {
+      const url = new URL(resetUrl);
+      if (url.searchParams.has('token')) {
+        url.searchParams.set('token', '[redacted]');
+      }
+      return url.toString();
+    } catch {
+      return '[redacted-reset-url]';
+    }
   }
 
   /**

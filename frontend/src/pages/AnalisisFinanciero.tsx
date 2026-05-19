@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   BarChart3,
-  RefreshCcw,
   TrendingDown,
   TrendingUp,
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { RefreshButton } from '../components/RefreshButton';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
   obtenerDashboardSummary,
@@ -149,14 +149,11 @@ export default function AnalisisFinanciero() {
                 Comportamiento financiero
               </h2>
             </div>
-            <button
-              type="button"
+            <RefreshButton
               onClick={() => void cargar()}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
               aria-label="Actualizar análisis financiero"
-            >
-              <RefreshCcw size={16} />
-            </button>
+              iconOnly
+            />
           </div>
 
           <div className="mt-6 flex h-[220px] items-end justify-between gap-4">

@@ -12,6 +12,7 @@
 import { Body, Controller, Patch, Req, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto';
 
 @Controller('users') // prefijo base: /users
 export class UsersController {
@@ -28,6 +29,15 @@ export class UsersController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.usersService.updateOrganizationSettings(req.user.sub, dto);
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  updateProfile(
+    @Body() dto: ActualizarPerfilDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.usersService.updateProfile(req.user.sub, dto);
   }
 }
 

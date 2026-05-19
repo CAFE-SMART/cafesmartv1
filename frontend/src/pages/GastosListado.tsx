@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt } from 'lucide-react';
+import { RefreshButton } from '../components/RefreshButton';
 import { listarGastos, type GastoItem } from '../services/gastosService';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -162,18 +163,18 @@ function GastosDatePicker({
           open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
         }`}
       >
-        <span>{value ? formatLongDateLabel(value) : 'Selecciona fecha'}</span>
+        <span>{value ? formatLongDateLabel(value) : 'Fechas'}</span>
         <CalendarDays size={15} className="text-[#102d92]" />
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-40 mt-2 w-[min(21.5rem,calc(100vw-2rem))] min-w-[20rem] rounded-[20px] border border-[#d5deee] bg-white p-4 shadow-[0_22px_48px_rgba(15,23,42,0.18)]">
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+        <div className="absolute left-1/2 z-40 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)]">
+          <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
               aria-label="Mes anterior"
             >
               <ArrowLeft size={17} />
@@ -185,13 +186,13 @@ function GastosDatePicker({
               type="button"
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
               aria-label="Mes siguiente"
             >
               <ArrowRight size={17} />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1.5 px-1">
+          <div className="grid grid-cols-7 gap-1 px-1">
             {WEEKDAYS_ES.map((day) => (
               <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500">
                 {day}
@@ -207,7 +208,7 @@ function GastosDatePicker({
                     onChange(day.value);
                     onClose();
                   }}
-                  className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 ${
+                  className={`h-8 rounded-full text-xs font-black disabled:text-slate-300 ${
                     day.value === value
                       ? 'bg-[#102d92] text-white'
                       : day.value === max
@@ -222,7 +223,7 @@ function GastosDatePicker({
               ),
             )}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
+          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -307,6 +308,8 @@ export default function GastosListado() {
     () => gastosFiltrados.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
     [gastosFiltrados],
   );
+  const filtrosActivos =
+    Boolean(filtroFecha) || filtroTipo !== 'TODOS' || orden !== 'recent';
 
   return (
     <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
@@ -323,19 +326,13 @@ export default function GastosListado() {
           <h1 className="text-center text-[0.82rem] font-black">
             {subloteId ? 'Gastos del sublote' : 'Gastos generales'}
           </h1>
-          <button
-            type="button"
+          <RefreshButton
             onClick={() => void cargar(true)}
-            disabled={refreshing}
-            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-full border border-[#dbe2ee] bg-white px-2.5 text-[0.68rem] font-black text-[#334155] disabled:cursor-wait disabled:opacity-70"
+            loading={refreshing}
             aria-label="Recargar gastos"
           >
-            <RefreshCcw
-              size={14}
-              className={refreshing ? 'animate-spin' : ''}
-            />
             {refreshing ? 'Recargando...' : 'Recargar'}
-          </button>
+          </RefreshButton>
         </header>
 
         <section className="mt-3 rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3">
@@ -360,24 +357,19 @@ export default function GastosListado() {
         </button>
 
         <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-[#f8faff] px-3 py-3">
-          <label className="block">
-            <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
-              Fecha
-            </span>
-            <GastosDatePicker
-              value={filtroFecha}
-              open={filtroFechaOpen}
-              onToggle={() => setFiltroFechaOpen((open) => !open)}
-              onClose={() => setFiltroFechaOpen(false)}
-              onChange={setFiltroFecha}
-            />
-          </label>
-          {filtroFecha ? (
-            <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.62rem] font-semibold leading-4 text-amber-800">
-              Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
-            </p>
-          ) : null}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
+                Fecha
+              </span>
+              <GastosDatePicker
+                value={filtroFecha}
+                open={filtroFechaOpen}
+                onToggle={() => setFiltroFechaOpen((open) => !open)}
+                onClose={() => setFiltroFechaOpen(false)}
+                onChange={setFiltroFecha}
+              />
+            </label>
             <label className="block">
               <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
                 Tipo
@@ -396,7 +388,7 @@ export default function GastosListado() {
                 <option value="OTROS">Otros</option>
               </select>
             </label>
-            <label className="block">
+            <label className="col-span-2 block min-[430px]:col-span-1">
               <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
                 Ordenar por
               </span>
@@ -410,6 +402,25 @@ export default function GastosListado() {
               </select>
             </label>
           </div>
+          {filtroFecha ? (
+            <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.62rem] font-semibold leading-4 text-amber-800">
+              Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
+            </p>
+          ) : null}
+          {filtrosActivos ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroFecha('');
+                setFiltroFechaOpen(false);
+                setFiltroTipo('TODOS');
+                setOrden('recent');
+              }}
+              className="mt-2 inline-flex min-h-[36px] w-full items-center justify-center rounded-[11px] border border-[#d5deee] bg-white px-3 text-[0.64rem] font-black text-[#334b85]"
+            >
+              Limpiar filtros
+            </button>
+          ) : null}
         </section>
 
         {error ? (
@@ -442,10 +453,14 @@ export default function GastosListado() {
                 <Receipt size={18} />
               </div>
               <p className="mt-3 text-[0.76rem] font-black text-slate-900">
-                Aun no has registrado gastos
+                {gastos.length > 0 && filtrosActivos
+                  ? 'No hay registros con esos filtros'
+                  : 'Aun no has registrado gastos'}
               </p>
               <p className="mx-auto mt-1 max-w-[230px] text-[0.64rem] font-semibold leading-5 text-slate-500">
-                Registra el primero para empezar a gestionarlos.
+                {gastos.length > 0 && filtrosActivos
+                  ? 'Limpia los filtros para volver al historial completo.'
+                  : 'Registra el primero para empezar a gestionarlos.'}
               </p>
             </div>
           ) : null}
@@ -489,3 +504,4 @@ export default function GastosListado() {
     </div>
   );
 }
+

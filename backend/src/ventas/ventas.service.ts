@@ -28,6 +28,65 @@ import {
 export class VentasService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listarVentas(
+    userId: string,
+    filtros: { fecha?: string; orden?: 'recent' | 'oldest' } = {},
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const where: Prisma.VentaWhereInput = {
+      organizacionId,
+      deletedAt: null,
+      ...(filtros.fecha ? { fecha: this.crearFiltroDia(filtros.fecha) } : {}),
+    };
+    const direccion = filtros.orden === 'oldest' ? 'asc' : 'desc';
+
+    const ventas = await this.prisma.venta.findMany({
+      where,
+      orderBy: [{ fecha: direccion }, { createdAt: direccion }],
+      include: {
+        cliente: {
+          select: {
+            nombre: true,
+            documento: true,
+          },
+        },
+        detalles: {
+          where: { deletedAt: null },
+          select: {
+            pesoVendido: true,
+            precioKg: true,
+            subtotal: true,
+          },
+        },
+      },
+    });
+
+    const totalAcumulado = ventas.reduce(
+      (total, venta) => total + Number(venta.totalVenta),
+      0,
+    );
+
+    return {
+      totalAcumulado,
+      registros: ventas.map((venta) => ({
+        id: venta.id,
+        fecha: venta.fecha.toISOString(),
+        clienteNombre: venta.cliente?.nombre ?? 'Cliente general',
+        clienteDocumento: venta.cliente?.documento ?? '',
+        totalVenta: Number(venta.totalVenta),
+        totalKg: venta.detalles.reduce(
+          (total, detalle) => total + Number(detalle.pesoVendido),
+          0,
+        ),
+        detalles: venta.detalles.map((detalle) => ({
+          pesoVendido: Number(detalle.pesoVendido),
+          precioKg: Number(detalle.precioKg),
+          subtotal: Number(detalle.subtotal),
+        })),
+      })),
+    };
+  }
+
   async crearVenta(
     input: CreateVentaDto,
     userId: string,
@@ -214,5 +273,19 @@ export class VentasService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     );
+  }
+
+  private crearFiltroDia(fecha: string): Prisma.DateTimeFilter {
+    const [year, month, day] = fecha.slice(0, 10).split('-').map(Number);
+    if (!year || !month || !day) {
+      throw new BadRequestException({
+        code: 'VENTA_FECHA_INVALIDA',
+        message: 'La fecha del historial debe tener formato YYYY-MM-DD.',
+      });
+    }
+
+    const desde = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const hasta = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+    return { gte: desde, lt: hasta };
   }
 }

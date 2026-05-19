@@ -12,7 +12,6 @@ import {
   PackageCheck,
   Plus,
   Receipt,
-  RefreshCcw,
   Scale,
   Search,
   ShoppingCart,
@@ -21,12 +20,17 @@ import {
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshButton } from '../components/RefreshButton';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   obtenerDashboardSummary,
   type DashboardMovimiento,
   type DashboardSummary,
 } from '../services/dashboardService';
+import { listarCompras } from '../services/comprasService';
+import { listarGastos } from '../services/gastosService';
+import { listarVentas } from '../services/ventasService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -71,6 +75,43 @@ function formatDate(value: string) {
   });
 }
 
+async function cargarMovimientosHistoricos(): Promise<DashboardMovimiento[]> {
+  const [compras, ventasResponse, gastos] = await Promise.all([
+    listarCompras(),
+    listarVentas(),
+    listarGastos(),
+  ]);
+
+  const comprasMovimientos = compras.map((compra): DashboardMovimiento => ({
+    id: compra.id,
+    tipo: 'COMPRA',
+    nombre: compra.productorNombre ?? 'Productor sin registrar',
+    kg: compra.sublotes.reduce((total, sublote) => total + sublote.pesoInicial, 0),
+    valor: compra.totalCompra,
+    fecha: compra.fecha,
+  }));
+
+  const ventasMovimientos = ventasResponse.registros.map((venta): DashboardMovimiento => ({
+    id: venta.id,
+    tipo: 'VENTA',
+    nombre: venta.clienteNombre || 'Cliente general',
+    kg: venta.totalKg,
+    valor: venta.totalVenta,
+    fecha: venta.fecha,
+  }));
+
+  const gastosMovimientos = gastos.map((gasto): DashboardMovimiento => ({
+    id: gasto.id,
+    tipo: 'GASTO',
+    nombre: gasto.conceptoGasto || gasto.tipoGasto,
+    kg: gasto.sublotes.reduce((total, sublote) => total + sublote.pesoActual, 0),
+    valor: gasto.montoGasto,
+    fecha: gasto.fechaGasto,
+  }));
+
+  return [...comprasMovimientos, ...ventasMovimientos, ...gastosMovimientos];
+}
+
 function formatDayShort(value: Date) {
   return value.toLocaleDateString('es-CO', {
     day: '2-digit',
@@ -103,8 +144,8 @@ const MONTHS_ES = [
   'Noviembre',
   'Diciembre',
 ];
-const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
-const MOCK_TREND_UTILITIES = [
+const TREND_STATIC_LABELS = ['10', '11', '12', '13', '14', '15', '16'];
+const TREND_STATIC_VALUES = [
   1200000,
   850000,
   1500000,
@@ -113,7 +154,16 @@ const MOCK_TREND_UTILITIES = [
   950000,
   2400000,
 ];
-
+const TREND_STATIC_NODE_LABELS = [
+  '$1.2M',
+  '$850K',
+  '$1.5M',
+  '$2.1M',
+  '$1.8M',
+  '$950K',
+  '$2.4M',
+];
+const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
 }
@@ -231,15 +281,15 @@ function HistoryDatePicker({
         <div
           role="dialog"
           aria-label="Calendario de historial financiero"
-          className="absolute left-1/2 z-[120] mt-2 w-[max-content] min-w-[280px] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded-[22px] border border-[#d5deee] bg-white p-4 shadow-[0_22px_48px_rgba(15,23,42,0.18)] sm:left-auto sm:right-0 sm:translate-x-0"
+          className="absolute left-1/2 z-[120] mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] sm:left-auto sm:right-0 sm:translate-x-0"
         >
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+          <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
               aria-label="Mes anterior"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
             >
               <ArrowLeft size={17} />
             </button>
@@ -248,7 +298,7 @@ function HistoryDatePicker({
                 type="button"
                 {...ariaPressed(calendarView === 'months')}
                 onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
-                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
               >
                 {MONTHS_ES[visibleMonth.getMonth()]}
               </button>
@@ -256,7 +306,7 @@ function HistoryDatePicker({
                 type="button"
                 {...ariaPressed(calendarView === 'years')}
                 onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
-                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
               >
                 {visibleYear}
               </button>
@@ -266,14 +316,14 @@ function HistoryDatePicker({
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
               aria-label="Mes siguiente"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
             >
               <ArrowRight size={17} />
             </button>
           </div>
 
           {calendarView === 'months' ? (
-            <div className="grid grid-cols-3 gap-2 px-1 py-1">
+            <div className="grid grid-cols-3 gap-1.5 px-1 py-1">
               {MONTHS_ES.map((month, monthIndex) => {
                 const candidate = new Date(visibleYear, monthIndex, 1);
                 const disabled =
@@ -292,7 +342,7 @@ function HistoryDatePicker({
                         setCalendarView('days');
                       }
                     }}
-                    className={`min-h-[44px] rounded-[14px] px-2 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
                   >
                     {month}
                   </button>
@@ -300,7 +350,7 @@ function HistoryDatePicker({
               })}
             </div>
           ) : calendarView === 'years' ? (
-            <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto px-1 py-1">
+            <div className="grid max-h-44 grid-cols-3 gap-1.5 overflow-y-auto px-1 py-1">
               {yearOptions.map((year) => {
                 const active = year === visibleYear;
                 return (
@@ -312,7 +362,7 @@ function HistoryDatePicker({
                       setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
                       setCalendarView('months');
                     }}
-                    className={`min-h-[44px] rounded-[14px] px-2 text-sm font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
                   >
                     {year}
                   </button>
@@ -320,7 +370,7 @@ function HistoryDatePicker({
               })}
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-1.5 px-1">
+            <div className="grid grid-cols-7 gap-1 px-1">
               {WEEKDAYS_ES.map((day) => (
                 <span key={day} className="py-1.5 text-center text-[0.72rem] font-black text-slate-500">
                   {day}
@@ -337,7 +387,7 @@ function HistoryDatePicker({
                       onChange(day.value);
                       onClose();
                     }}
-                    className={`h-11 min-w-0 rounded-full text-sm font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                    className={`h-8 min-w-0 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
                       day.value === value
                         ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
                         : day.value === max
@@ -354,7 +404,7 @@ function HistoryDatePicker({
             </div>
           )}
 
-          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
+          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -433,6 +483,9 @@ export default function ResumenFinanciero() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [historialCompleto, setHistorialCompleto] = useState<DashboardMovimiento[]>([]);
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [historialError, setHistorialError] = useState<string | null>(null);
   const [historialActivo, setHistorialActivo] = useState<
     'VENTA' | 'COMPRA' | 'GASTO' | null
   >(null);
@@ -451,25 +504,46 @@ export default function ResumenFinanciero() {
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (refreshing) return;
+    setHistorialLoading(true);
     if (isRefresh) {
       setRefreshing(true);
     } else {
       setLoading(true);
     }
     setError(null);
+    setHistorialError(null);
     if (isRefresh) setRefreshFeedback(null);
 
     try {
-      setSummary(await obtenerDashboardSummary());
-      if (isRefresh) setRefreshFeedback('Datos actualizados correctamente.');
-    } catch (err) {
-      setError('No pudimos cargar el resumen financiero. Intenta nuevamente.');
-      if (isRefresh) {
-        setRefreshFeedback('No pudimos actualizar los datos. Intenta nuevamente.');
+      const [summaryResult, historialResult] = await Promise.allSettled([
+        obtenerDashboardSummary(),
+        cargarMovimientosHistoricos(),
+      ]);
+
+      if (summaryResult.status === 'fulfilled') {
+        setSummary(summaryResult.value);
+      } else {
+        setSummary(null);
+        setError('No pudimos cargar el resumen financiero. Intenta nuevamente.');
       }
-      setSummary(null);
+
+      if (historialResult.status === 'fulfilled') {
+        setHistorialCompleto(historialResult.value);
+      } else {
+        setHistorialCompleto([]);
+        setHistorialError('No pudimos cargar el historial. Intenta nuevamente.');
+      }
+
+      if (isRefresh) {
+        setRefreshFeedback(
+          summaryResult.status === 'fulfilled' && historialResult.status === 'fulfilled'
+            ? 'Datos actualizados correctamente.'
+            : 'No pudimos actualizar todos los datos. Intenta nuevamente.',
+        );
+      }
     } finally {
       setLoading(false);
+      setHistorialLoading(false);
       setRefreshing(false);
     }
   }, [refreshing]);
@@ -495,11 +569,24 @@ export default function ResumenFinanciero() {
     }
   };
 
+  const handleRetryAccess = () => {
+    void handleUnlock();
+  };
+
+  const handleBackAccess = () => {
+    navigate(-1);
+  };
+
   const utilidad = summary?.utilidadTotalAcumulada ?? 0;
   const movimientos = useMemo(() => {
     const seen = new Set<string>();
 
-    return [...(summary?.movimientosRecientes ?? [])]
+    const base =
+      historialCompleto.length > 0
+        ? historialCompleto
+        : (summary?.movimientosRecientes ?? []);
+
+    return [...base]
       .filter((item) => {
         const key =
           item.id || `${item.tipo}-${item.fecha}-${item.valor}-${item.nombre}`;
@@ -510,9 +597,9 @@ export default function ResumenFinanciero() {
       .sort(
         (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
       );
-  }, [summary?.movimientosRecientes]);
+  }, [historialCompleto, summary?.movimientosRecientes]);
   const movimientosRecientes = useMemo(
-    () => movimientos.slice(0, 8),
+    () => movimientos.slice(0, 3),
     [movimientos],
   );
   const historialMovimientos = useMemo(() => {
@@ -557,6 +644,11 @@ export default function ResumenFinanciero() {
     [historialMovimientos, historialVisibleCount],
   );
   const historialHasMore = historialMovimientos.length > historialVisible.length;
+  const historialFiltrosActivos =
+    Boolean(historialSearch.trim()) ||
+    Boolean(historialDate) ||
+    historialTipo !== 'TODOS' ||
+    historialSort !== 'recent';
   const abrirHistorial = (tipo: 'VENTA' | 'COMPRA' | 'GASTO') => {
     setHistorialActivo(tipo);
     setHistorialSearch('');
@@ -568,6 +660,15 @@ export default function ResumenFinanciero() {
   const recargarHistorial = () => {
     setRefreshFeedback('Actualizando información...');
     void cargar(true);
+  };
+  const limpiarFiltrosHistorial = () => {
+    setHistorialSearch('');
+    setHistorialDate('');
+    setHistorialDateOpen(false);
+    setHistorialTipo('TODOS');
+    setHistorialSort('recent');
+    setHistorialVisibleCount(30);
+    setRefreshFeedback('Filtros limpiados.');
   };
   useEffect(() => {
     setHistorialVisibleCount(30);
@@ -598,37 +699,13 @@ export default function ResumenFinanciero() {
   });
 
   const trend = useMemo(() => {
-    const validMovements = movimientos
-      .filter((item) => Number.isFinite(item.valor) && item.valor > 0)
-      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-    const grouped = new Map<string, { key: string; label: string; time: number; value: number }>();
-    validMovements.forEach((item, index) => {
-      const date = new Date(item.fecha);
-      const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
-      const dayKey = safeDate.toISOString().slice(0, 10);
-      const current = grouped.get(dayKey);
-      grouped.set(dayKey, {
-        key: current?.key ?? (dayKey || `${item.tipo}-${index}`),
-        label: formatDayShort(safeDate),
-        time: safeDate.getTime(),
-        value: (current?.value ?? 0) + (item.tipo === 'VENTA' ? item.valor : -item.valor),
-      });
-    });
-    let buckets = Array.from(grouped.values()).slice(-7);
-
-    if (buckets.length < 2) {
-      const now = new Date();
-      buckets = MOCK_TREND_UTILITIES.map((value, index) => {
-        const date = new Date(now);
-        date.setDate(now.getDate() - (MOCK_TREND_UTILITIES.length - index));
-        return {
-          key: date.toISOString().slice(0, 10),
-          label: formatDayShort(date),
-          time: date.getTime(),
-          value,
-        };
-      });
-    }
+    const buckets = TREND_STATIC_LABELS.map((label, index) => ({
+      key: `mayo-${label}`,
+      label,
+      time: new Date(2026, 4, Number(label)).getTime(),
+      value: TREND_STATIC_VALUES[index],
+      displayValue: TREND_STATIC_NODE_LABELS[index],
+    }));
 
     const values = buckets.map((bucket) => bucket.value);
     const rawMin = Math.min(0, ...values);
@@ -666,11 +743,53 @@ export default function ResumenFinanciero() {
           label: formatCurrencyShort(value),
           y: chart.top + chart.height - ((value - min) / range) * chart.height,
         })),
-      yAxisTitle: 'Dinero (COP)',
-      xAxisTitle: 'Días con movimiento',
-      hasEnoughData: buckets.length > 1,
+      yAxisTitle: 'Dinero utilizado / Gastado (COP)',
+      xAxisTitle: 'Mes: Mayo',
+      hasEnoughData: true,
     };
-  }, [movimientos, utilidad]);
+  }, []);
+
+  if (loading || refreshing || historialLoading) {
+    return (
+      <CafeSmartProcessingScreen
+        title="Cargando información financiera"
+        subtitle="Estamos validando y preparando los datos."
+        helperText="Actualizando resultados, historial, utilidad y merma."
+        trustTitle="Acceso financiero seguro"
+        trustText="CaféSmart mantiene protegida tu información mientras valida y carga los datos."
+      />
+    );
+  }
+
+  if (!authorized && error) {
+    return (
+      <CafeSmartErrorState
+        title="No pudimos cargar el acceso financiero"
+        message={error}
+        primaryLabel="Volver a intentar"
+        secondaryLabel="Volver"
+        onPrimary={handleRetryAccess}
+        onSecondary={handleBackAccess}
+        primaryBusy={loading}
+        fullScreen
+      />
+    );
+  }
+
+  if (authorized && error && !historialActivo) {
+    return (
+      <CafeSmartErrorState
+        title="No pudimos cargar la información"
+        message="Verifica tu conexión o vuelve a intentarlo."
+        primaryLabel="Reintentar"
+        secondaryLabel="Volver"
+        onPrimary={() => void cargar(true)}
+        onSecondary={() => navigate(-1)}
+        primaryBusy={loading || refreshing}
+        fullScreen
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
@@ -688,19 +807,13 @@ export default function ResumenFinanciero() {
             Resultado financiero
           </h1>
           {authorized ? (
-            <button
-              type="button"
+            <RefreshButton
               onClick={() => void cargar(true)}
-              disabled={refreshing}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#dfe6f2] bg-white px-3 text-[0.72rem] font-black text-[#334155] shadow-sm transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-70"
+              loading={refreshing}
               aria-label="Recargar resumen"
             >
-              <RefreshCcw
-                size={14}
-                className={refreshing ? 'animate-spin' : ''}
-              />
               {refreshing ? 'Actualizando...' : 'Actualizar datos'}
-            </button>
+            </RefreshButton>
           ) : (
             <span />
           )}
@@ -717,19 +830,6 @@ export default function ResumenFinanciero() {
           >
             {refreshFeedback}
           </section>
-        ) : null}
-
-        {error && !historialActivo ? (
-          <CafeSmartErrorState
-            title="No pudimos cargar la información"
-            message="Verifica tu conexión o vuelve a intentarlo."
-            primaryLabel="Reintentar"
-            secondaryLabel="Volver"
-            onPrimary={() => void cargar(true)}
-            onSecondary={() => navigate(-1)}
-            primaryBusy={loading || refreshing}
-            className="mt-3 rounded-[20px] px-4 py-5"
-          />
         ) : null}
 
         {!authorized ? (
@@ -908,7 +1008,15 @@ export default function ResumenFinanciero() {
 
               {financialSectionsOpen.trend ? (
               trend.hasEnoughData ? (
-              <div className="mt-4 min-h-[270px] overflow-visible">
+              <div className="mt-4 min-h-[300px] overflow-visible">
+                <div className="mb-3">
+                  <h3 className="text-[0.86rem] font-black text-slate-950">
+                    Movimiento de registro durante la última semana
+                  </h3>
+                  <p className="mt-0.5 text-[0.66rem] font-semibold text-slate-500">
+                    Gráfico de movimiento
+                  </p>
+                </div>
                 <svg
                   viewBox="0 0 390 260"
                   className="h-[255px] w-full overflow-visible"
@@ -932,7 +1040,7 @@ export default function ResumenFinanciero() {
                     fontSize="11"
                     fontWeight="800"
                   >
-                    Fecha
+                    {trend.xAxisTitle}
                   </text>
                   {trend.yLabels.map((tick) => (
                     <g key={tick.label}>
@@ -966,7 +1074,7 @@ export default function ResumenFinanciero() {
                   <polyline
                     points={trend.polyline}
                     fill="none"
-                    stroke="#0f58bd"
+                    stroke="#1E3A8A"
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -981,13 +1089,13 @@ export default function ResumenFinanciero() {
                         fontSize="11"
                         fontWeight="800"
                       >
-                        {formatCurrencyShort(point.value)}
+                        {point.displayValue}
                       </text>
                       <circle
                         cx={point.x}
                         cy={point.y}
                         r="6"
-                        fill="#0f58bd"
+                        fill="#1E3A8A"
                         stroke="#ffffff"
                         strokeWidth="3"
                       />
@@ -1008,10 +1116,7 @@ export default function ResumenFinanciero() {
               ) : (
                 <div className="mt-4 rounded-[14px] border border-[#dbe5f7] bg-[#f8fbff] px-4 py-5 text-center">
                   <p className="text-[0.86rem] font-black text-slate-900">
-                    Aún no hay suficientes movimientos para mostrar tendencia.
-                  </p>
-                  <p className="mt-2 text-[0.72rem] font-semibold leading-5 text-slate-500">
-                    Registra más ventas, compras o gastos para comparar resultados.
+                    Aún no hay movimientos para mostrar.
                   </p>
                 </div>
               )
@@ -1159,7 +1264,7 @@ export default function ResumenFinanciero() {
               ) : null}
             </section>
 
-            <section className="mt-4 grid grid-cols-3 gap-2">
+            <section className="mt-4 grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 onClick={() => navigate('/ventas')}
@@ -1209,16 +1314,13 @@ export default function ResumenFinanciero() {
                             ? 'Historial de compras'
                             : 'Historial de gastos'}
                       </h3>
-                      <button
-                        type="button"
+                      <RefreshButton
                         onClick={recargarHistorial}
-                        disabled={refreshing}
+                        loading={refreshing}
                         aria-label="Recargar información del historial"
                         title="Recargar información"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92] transition active:scale-95 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        <RefreshCcw size={17} className={refreshing ? 'animate-spin' : ''} />
-                      </button>
+                        iconOnly
+                      />
                     </div>
                     <label className="mt-3 flex h-11 items-center gap-2 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3">
                       <Search size={15} className="text-slate-400" />
@@ -1273,7 +1375,7 @@ export default function ResumenFinanciero() {
                       </div>
                       <div className="min-w-0">
                         <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                          Orden
+                          Ordenar por
                         </label>
                       <select
                         value={historialSort}
@@ -1295,40 +1397,37 @@ export default function ResumenFinanciero() {
                         Mostrando registros del {formatDateLabel(historialDate)}. Usa “Limpiar” para ver todo.
                       </div>
                     ) : null}
+                    {historialFiltrosActivos ? (
+                      <button
+                        type="button"
+                        onClick={limpiarFiltrosHistorial}
+                        className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#334b85]"
+                      >
+                        Limpiar filtros
+                      </button>
+                    ) : null}
                     <div className="mt-3 rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
                       Total acumulado: {formatCurrency(historialTotal)}
                     </div>
                   </header>
                   <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                    {error ? (
-                      <section className="rounded-[18px] border border-[#e2e8f0] bg-white px-4 py-5 text-center shadow-sm">
-                        <p className="text-base font-black text-slate-950">
-                          No pudimos cargar el historial
-                        </p>
-                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-                          Verifica tu conexión o vuelve a intentarlo.
-                        </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={recargarHistorial}
-                            disabled={refreshing}
-                            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:opacity-60"
-                          >
-                            <RefreshCcw size={15} className={refreshing ? 'animate-spin' : ''} />
-                            Reintentar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={recargarHistorial}
-                            disabled={refreshing}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] disabled:opacity-60"
-                          >
-                            Recargar datos
-                          </button>
-                        </div>
-                      </section>
-                    ) : loading ? (
+                    {historialError ? (
+                      <div className="flex min-h-full items-center justify-center py-4">
+                        <CafeSmartErrorState
+                          title="No pudimos cargar el historial"
+                          message={historialError}
+                          primaryLabel="Reintentar"
+                          secondaryLabel="Volver"
+                          onPrimary={recargarHistorial}
+                          onSecondary={() => {
+                            setHistorialDateOpen(false);
+                            setHistorialActivo(null);
+                          }}
+                          primaryBusy={refreshing}
+                          className="rounded-[24px] px-4 py-5 shadow-none"
+                        />
+                      </div>
+                    ) : loading || historialLoading ? (
                       <div className="space-y-2">
                         {[0, 1, 2, 3].map((item) => (
                           <div
@@ -1339,7 +1438,9 @@ export default function ResumenFinanciero() {
                       </div>
                     ) : historialMovimientos.length === 0 ? (
                       <p className="rounded-[14px] bg-[#f8fafc] px-4 py-6 text-center text-sm font-bold text-slate-500">
-                        No hay registros con esos filtros.
+                        {historialFiltrosActivos
+                          ? 'No hay registros con esos filtros.'
+                          : 'Aún no hay registros históricos disponibles.'}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -1410,7 +1511,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => setShowMermaAudit(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
                   aria-label="Cerrar revisión de merma"
               >
                 <X size={16} />

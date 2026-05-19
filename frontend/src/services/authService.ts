@@ -33,6 +33,10 @@ export type AuthResponse = {
   hasCompany: boolean;
 };
 
+export type ResetPasswordResponse = {
+  message: string;
+};
+
 type RawApiError = {
   message?: string | string[];
   field?: string;
@@ -260,6 +264,18 @@ export const authService = {
         syncingMessage: 'Guardando Google...',
         successMessage: 'Cuenta guardada.',
       },
+    );
+  },
+
+  resetPassword(
+    token: string,
+    nuevaPassword: string,
+  ): Promise<ResetPasswordResponse> {
+    return postAuth<ResetPasswordResponse>(
+      '/reset-password',
+      { token, nuevaPassword },
+      'No pudimos actualizar la contraseña. Intenta solicitar un nuevo enlace.',
+      { enabled: false },
     );
   },
 };

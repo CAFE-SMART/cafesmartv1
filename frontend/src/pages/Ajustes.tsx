@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
+  CircleDashed,
   Droplets,
   Eye,
   FlaskConical,
   LifeBuoy,
   Lock,
   LogOut,
+  Package2,
   Pencil,
   ScanSearch,
   Save,
@@ -25,6 +28,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { RefreshButton } from '../components/RefreshButton';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   createGuidedError,
   FloatingGuidedNotice,
@@ -32,7 +37,13 @@ import {
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { useUser } from '../context/UserContext';
-import { obtenerLotes } from '../services/lotesService';
+import { updateRememberedAccountIfCurrent } from '../storage/authStorage';
+import {
+  obtenerDetalleLote,
+  obtenerLotes,
+  type LoteDetalle,
+  type LoteResumen,
+} from '../services/lotesService';
 import {
   obtenerConfiguracionBodega,
   guardarConfiguracionBodega,
@@ -51,8 +62,16 @@ import {
   listarProductores,
   type ProductorItem,
 } from '../services/productoresService';
-import { actualizarConfiguracionOrganizacion } from '../services/userSettingsService';
-import { applySecadoToLots } from '../utils/secadoFlow';
+import {
+  actualizarConfiguracionOrganizacion,
+  actualizarPerfilUsuario,
+} from '../services/userSettingsService';
+import {
+  applySecadoToDetalle,
+  applySecadoToLots,
+  getActiveSecadoSessions,
+  startSecadoWithWeights,
+} from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_MAX_LENGTH,
@@ -95,6 +114,9 @@ type AjustesErrorSection = 'profile' | 'company' | 'bodega';
 type ProfileErrors = Partial<Record<keyof ProfileSettings, string>>;
 type PeopleAdminMode = 'todos' | 'clientes' | 'productores' | null;
 type PeopleSortMode = 'recent' | 'oldest' | 'az' | 'za' | 'doc-asc' | 'doc-desc';
+type SecadoPanelMode = 'home' | 'start' | 'active' | null;
+type SecadoSortMode = 'recent' | 'oldest';
+type SecadoQualityFilter = 'TODOS' | 'BUENO' | 'REGULAR' | 'MALO';
 type PeopleAdminItem = {
   id: string;
   contactType: 'cliente' | 'productor';
@@ -116,7 +138,11 @@ const PROFILE_EMAIL_MAX_LENGTH = 60;
 
 function validateProfileName(value: string) {
   const result = validatePersonName(value, 'El nombre');
-  return result.isValid ? null : result.message ?? 'Corrige el nombre para continuar.';
+  if (result.isValid) return null;
+  const message = result.message ?? 'Corrige el nombre para continuar.';
+  return message.toLowerCase().includes('espacios')
+    ? 'Evita espacios innecesarios en el nombre.'
+    : message;
 }
 
 function validateProfileEmail(value: string) {
@@ -156,6 +182,17 @@ function formatKg(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function formatSecadoKg(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(value)} kg`;
+}
+
+function keyOf(value: string) {
+  return value.trim().toUpperCase();
 }
 
 function formatDate(value: string) {
@@ -365,7 +402,8 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 
 export default function Ajustes() {
   const navigate = useNavigate();
-  const { user, logout } = useUser();
+  const location = useLocation();
+  const { user, token, hasCompany, setSession, logout } = useUser();
 
   const initialConfig = useMemo(
     () => ({
@@ -381,17 +419,30 @@ export default function Ajustes() {
     correo: user?.email ?? '',
     telefono: formatPhoneNumber(user?.telefono ?? ''),
   }));
+  const profileBaselineRef = React.useRef<ProfileSettings | null>(null);
   const [company, setCompany] = useState<CompanySettings>(() => ({
     nombreEmpresa: '',
     tipoEmpresa: '',
     descripcion: '',
   }));
+  const companyBaselineRef = React.useRef<CompanySettings | null>(null);
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
   const [capacidadKg, setCapacidadKg] = useState('');
   const [updatedAt, setUpdatedAt] = useState(initialConfig.updatedAt);
   const [inventarioActualKg, setInventarioActualKg] = useState(0);
   const [loadingStock, setLoadingStock] = useState(true);
+  const [secadoPanel, setSecadoPanel] = useState<SecadoPanelMode>(null);
+  const [secadoLoading, setSecadoLoading] = useState(false);
+  const [secadoError, setSecadoError] = useState<string | null>(null);
+  const [secadoLotes, setSecadoLotes] = useState<LoteResumen[]>([]);
+  const [secadoLoteKey, setSecadoLoteKey] = useState('');
+  const [secadoDetalle, setSecadoDetalle] = useState<LoteDetalle | null>(null);
+  const [secadoWeights, setSecadoWeights] = useState<Record<string, number>>({});
+  const [secadoSessionsVersion, setSecadoSessionsVersion] = useState(0);
+  const [secadoSortMode, setSecadoSortMode] = useState<SecadoSortMode>('recent');
+  const [secadoQualityFilter, setSecadoQualityFilter] =
+    useState<SecadoQualityFilter>('TODOS');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isViewingPublicProfile, setIsViewingPublicProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
@@ -423,6 +474,14 @@ export default function Ajustes() {
     documento: '',
     telefono: '',
   });
+
+  useEffect(() => {
+    const state = location.state as { openBodega?: boolean } | null;
+    if (state?.openBodega) {
+      setIsEditingBodega(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.pathname, location.state, navigate]);
   const [peopleFormErrors, setPeopleFormErrors] = useState<
     Partial<Record<keyof PeopleAdminForm, string>>
   >({});
@@ -467,6 +526,8 @@ export default function Ajustes() {
 
   const abrirEditorPerfil = () => {
     clearFeedback();
+    profileBaselineRef.current = profile;
+    setProfileErrors({});
     setIsEditingProfile(true);
     setIsViewingPublicProfile(false);
     setIsEditingCompany(false);
@@ -475,6 +536,11 @@ export default function Ajustes() {
 
   const cerrarEditorPerfil = () => {
     clearFeedback();
+    if (profileBaselineRef.current) {
+      setProfile(profileBaselineRef.current);
+    }
+    setProfileErrors({});
+    profileBaselineRef.current = null;
     setIsEditingProfile(false);
   };
 
@@ -484,6 +550,21 @@ export default function Ajustes() {
     setIsEditingProfile(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
+  };
+
+  const abrirEditorEmpresa = () => {
+    clearFeedback();
+    companyBaselineRef.current = company;
+    setIsEditingCompany(true);
+  };
+
+  const cerrarEditorEmpresa = () => {
+    clearFeedback();
+    if (companyBaselineRef.current) {
+      setCompany(companyBaselineRef.current);
+    }
+    companyBaselineRef.current = null;
+    setIsEditingCompany(false);
   };
 
   const cerrarEditorBodega = () => {
@@ -548,9 +629,10 @@ export default function Ajustes() {
         : 'Compraventa');
 
     if (
-      nextNombre !== profile.nombre ||
-      nextCorreo !== profile.correo ||
-      nextTelefono !== profile.telefono
+      !isEditingProfile &&
+      (nextNombre !== profile.nombre ||
+        nextCorreo !== profile.correo ||
+        nextTelefono !== profile.telefono)
     ) {
       setProfile((prev) => ({
         ...prev,
@@ -561,9 +643,10 @@ export default function Ajustes() {
     }
 
     if (
-      !company.nombreEmpresa ||
-      !company.tipoEmpresa ||
-      (company.nombreEmpresa === 'Mi empresa cafetera' && nombreOrganizacionReal)
+      !isEditingCompany &&
+      (!company.nombreEmpresa ||
+        !company.tipoEmpresa ||
+        (company.nombreEmpresa === 'Mi empresa cafetera' && nombreOrganizacionReal))
     ) {
       setCompany((prev) => ({
         nombreEmpresa:
@@ -580,6 +663,8 @@ export default function Ajustes() {
     company.nombreEmpresa,
     company.tipoEmpresa,
     company.descripcion,
+    isEditingCompany,
+    isEditingProfile,
     profile.nombre,
     profile.correo,
     profile.telefono,
@@ -608,6 +693,130 @@ export default function Ajustes() {
   useEffect(() => {
     void cargarInventario();
   }, []);
+
+  const secadosActivosInline = useMemo(
+    () =>
+      getActiveSecadoSessions()
+        .filter((session) => keyOf(session.tipoCafe) === 'VERDE')
+        .filter(
+          (session) =>
+            secadoQualityFilter === 'TODOS' ||
+            keyOf(session.calidad) === secadoQualityFilter,
+        )
+        .sort(
+          (a, b) =>
+            secadoSortMode === 'oldest'
+              ? new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+              : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        ),
+    [secadoQualityFilter, secadoSessionsVersion, secadoSortMode],
+  );
+
+  const sublotesSecadoDisponibles = useMemo(
+    () => secadoDetalle?.sublotes.filter((sublote) => sublote.pesoActual > 0) ?? [],
+    [secadoDetalle],
+  );
+
+  const totalSecadoSeleccionado = useMemo(
+    () =>
+      Object.values(secadoWeights).reduce(
+        (sum, value) => sum + (Number.isFinite(value) ? value : 0),
+        0,
+      ),
+    [secadoWeights],
+  );
+
+  const cargarPanelSecadoInicio = async () => {
+    setSecadoPanel('start');
+    setSecadoLoading(true);
+    setSecadoError(null);
+    try {
+      const lotes = await obtenerLotes();
+      const visual = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes) : lotes;
+      const verdes = visual.filter(
+        (lote) => keyOf(lote.tipoCafe) === 'VERDE' && lote.pesoActual > 0,
+      );
+      setSecadoLotes(verdes);
+      const selected = verdes.find(
+        (lote) => `${lote.tipoCafeId}:${lote.calidadId}` === secadoLoteKey,
+      ) ?? verdes[0];
+
+      if (!selected) {
+        setSecadoDetalle(null);
+        setSecadoWeights({});
+        return;
+      }
+
+      const nextKey = `${selected.tipoCafeId}:${selected.calidadId}`;
+      setSecadoLoteKey(nextKey);
+      const detalleBase = await obtenerDetalleLote(
+        selected.tipoCafeId,
+        selected.calidadId,
+      );
+      const detalle =
+        ENABLE_SECADO_PROTOTYPE
+          ? applySecadoToDetalle(detalleBase, selected.tipoCafeId, selected.calidadId)
+          : detalleBase;
+      setSecadoDetalle(detalle);
+      setSecadoWeights(
+        Object.fromEntries(
+          (detalle?.sublotes ?? [])
+            .filter((sublote) => sublote.pesoActual > 0)
+            .map((sublote) => [sublote.id, sublote.pesoActual]),
+        ),
+      );
+    } catch {
+      setSecadoError('No pudimos cargar los sublotes para secado.');
+    } finally {
+      setSecadoLoading(false);
+    }
+  };
+
+  const cargarDetalleSecadoInline = async (value: string) => {
+    const lote = secadoLotes.find(
+      (item) => `${item.tipoCafeId}:${item.calidadId}` === value,
+    );
+    if (!lote) return;
+
+    setSecadoLoteKey(value);
+    setSecadoLoading(true);
+    setSecadoError(null);
+    try {
+      const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+      const detalle =
+        ENABLE_SECADO_PROTOTYPE
+          ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId)
+          : detalleBase;
+      setSecadoDetalle(detalle);
+      setSecadoWeights(
+        Object.fromEntries(
+          (detalle?.sublotes ?? [])
+            .filter((sublote) => sublote.pesoActual > 0)
+            .map((sublote) => [sublote.id, sublote.pesoActual]),
+        ),
+      );
+    } catch {
+      setSecadoError('No pudimos cargar ese lote verde.');
+    } finally {
+      setSecadoLoading(false);
+    }
+  };
+
+  const iniciarSecadoInline = () => {
+    if (!secadoDetalle || totalSecadoSeleccionado <= 0) {
+      setSecadoError('Selecciona al menos un sublote para iniciar secado.');
+      return;
+    }
+
+    try {
+      startSecadoWithWeights(secadoDetalle, secadoWeights);
+      setSecadoPanel('active');
+      setSecadoSessionsVersion((current) => current + 1);
+      setSecadoError(null);
+    } catch {
+      setSecadoError('No pudimos iniciar el secado. Revisa los pesos.');
+    }
+  };
 
   useEffect(() => {
     if (!nombreLimitNotice) {
@@ -682,7 +891,7 @@ export default function Ajustes() {
     setPeopleFormErrors({});
   };
 
-  const guardarPerfil = () => {
+  const guardarPerfil = async () => {
     clearFeedback();
     const telefono = sanitizeDigits(profile.telefono, 10);
     const nextErrors: ProfileErrors = {};
@@ -706,14 +915,60 @@ export default function Ajustes() {
       return;
     }
 
-    setProfile((prev) => ({
-      ...prev,
-      nombre: normalizeHumanName(prev.nombre),
-      correo: prev.correo.trim().slice(0, PROFILE_EMAIL_MAX_LENGTH),
+    const normalizedProfile = {
+      ...profile,
+      nombre: normalizeHumanName(profile.nombre),
+      correo: profile.correo.trim().slice(0, PROFILE_EMAIL_MAX_LENGTH),
       telefono,
-    }));
-    setProfileErrors({});
-    setSuccess('Perfil actualizado correctamente.');
+    };
+
+    try {
+      const perfilActualizado = await actualizarPerfilUsuario({
+        nombre: normalizedProfile.nombre,
+        correo: normalizedProfile.correo,
+        telefono: normalizedProfile.telefono || null,
+      });
+
+      const nextProfile = {
+        nombre: perfilActualizado.nombre,
+        correo: perfilActualizado.correo,
+        telefono: perfilActualizado.telefono ?? '',
+      };
+
+      setProfile((prev) => ({
+        ...prev,
+        ...nextProfile,
+      }));
+      profileBaselineRef.current = nextProfile;
+      setProfileErrors({});
+
+      if (user && token) {
+        await setSession({
+          token,
+          hasCompany,
+          user: {
+            ...user,
+            id: perfilActualizado.id,
+            name: nextProfile.nombre,
+            email: nextProfile.correo,
+            telefono: nextProfile.telefono,
+            organizacionId:
+              perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+          },
+        });
+        await updateRememberedAccountIfCurrent({
+          previousEmail: user.email,
+          email: nextProfile.correo,
+          name: nextProfile.nombre,
+        });
+      }
+
+      setSuccess('Perfil actualizado correctamente.');
+    } catch (error) {
+      const message = 'No pudimos actualizar tu perfil. Intenta de nuevo.';
+      setError(message);
+      setFloatingError(getAjustesGuidance(message));
+    }
   };
 
   const guardarEmpresa = async () => {
@@ -744,6 +999,11 @@ export default function Ajustes() {
         ...prev,
         nombreEmpresa,
       }));
+      companyBaselineRef.current = {
+        ...company,
+        nombreEmpresa,
+      };
+      setIsEditingCompany(false);
       setSuccess('Información de la empresa actualizada.');
     } catch {
       const message =
@@ -1197,11 +1457,13 @@ export default function Ajustes() {
     {
       id: 'secado',
       title: 'Proceso de secado',
-      description: 'Tiempo y humedad',
+      description: 'Revisa secados activos',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () =>
-        navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } }),
+      onClick: () => {
+        setSecadoError(null);
+        navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } });
+      },
     },
     {
       id: 'gastos',
@@ -1221,7 +1483,7 @@ export default function Ajustes() {
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
-      onClick: () => setIsEditingCompany(true),
+      onClick: abrirEditorEmpresa,
     },
     {
       id: 'tipos-cafe',
@@ -1288,6 +1550,18 @@ export default function Ajustes() {
       onClick: undefined,
     },
   ] as const;
+
+  if (cerrandoSesion) {
+    return (
+      <CafeSmartProcessingScreen
+        title="Cerrando sesión"
+        subtitle="Estamos cerrando tu sesión de forma segura."
+        helperText="Protegiendo tus datos antes de salir."
+        trustTitle="Sesión protegida"
+        trustText="CaféSmart está cerrando el acceso local de forma segura."
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
@@ -1401,12 +1675,42 @@ export default function Ajustes() {
               </div>
               <div className="mt-4 grid gap-2 text-sm">
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Nombre completo
+                  </span>
+                  {profile.nombre || 'Nombre no registrado'}
+                </p>
+                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Nombre de usuario
+                  </span>
+                  {user?.name || profile.nombre || 'Usuario no registrado'}
+                </p>
+                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Correo electrónico
+                  </span>
                   {profile.correo || 'Correo no registrado'}
                 </p>
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Teléfono
+                  </span>
                   {profile.telefono
                     ? formatPhoneNumber(profile.telefono)
                     : 'Teléfono no registrado'}
+                </p>
+                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Tipo de negocio
+                  </span>
+                  {company.tipoEmpresa || 'Compraventa'}
+                </p>
+                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-emerald-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-emerald-500">
+                    Estado
+                  </span>
+                  Activo
                 </p>
               </div>
               <button
@@ -1445,6 +1749,19 @@ export default function Ajustes() {
                   <X size={18} />
                 </button>
               </div>
+              {error && activeErrorSection === 'profile' ? (
+                <div className="mt-4 rounded-[16px] border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm font-black leading-5 text-rose-700">
+                  No pudimos actualizar tu perfil. Intenta de nuevo.
+                </div>
+              ) : null}
+              {success === 'Perfil actualizado correctamente.' ? (
+                <div className="mt-4 flex items-center justify-between gap-2 rounded-[16px] border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm font-black text-emerald-700">
+                  <span>Perfil actualizado correctamente.</span>
+                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
               <div>
               <label className="mb-2 block text-sm font-black text-slate-900">
                 Nombre completo
@@ -1454,9 +1771,7 @@ export default function Ajustes() {
                 value={profile.nombre}
                 maxLength={PROFILE_NAME_MAX_LENGTH}
                 onChange={(event) => {
-                  const next = event.target.value
-                    .replace(/\s{2,}/g, ' ')
-                    .slice(0, PROFILE_NAME_MAX_LENGTH);
+                  const next = event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH);
                   if (event.target.value.length >= PROFILE_NAME_MAX_LENGTH) {
                     setNombreLimitNotice(true);
                   }
@@ -1466,9 +1781,16 @@ export default function Ajustes() {
                   }));
                   setProfileErrors((prev) => ({
                     ...prev,
-                    nombre: validateProfileName(next) ?? undefined,
+                    nombre: undefined,
                   }));
                   clearFeedback();
+                }}
+                onBlur={() => {
+                  const nombreError = validateProfileName(profile.nombre);
+                  setProfileErrors((prev) => ({
+                    ...prev,
+                    nombre: nombreError ?? undefined,
+                  }));
                 }}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                 placeholder="Nombre completo"
@@ -1519,7 +1841,7 @@ export default function Ajustes() {
                 </p>
               ) : null}
               </div>
-              <div>
+              <div className="mt-5">
               <label className="mb-2 block text-sm font-black text-slate-900">
                 Número de teléfono
               </label>
@@ -1558,14 +1880,6 @@ export default function Ajustes() {
               </div>
               {error && activeErrorSection === 'profile' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
-              ) : null}
-              {success === 'Perfil actualizado correctamente.' ? (
-                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
-                  <span>Perfil actualizado correctamente.</span>
-                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                    <X size={14} />
-                  </button>
-                </div>
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -1624,7 +1938,306 @@ export default function Ajustes() {
               );
             })}
           </div>
+          {secadoPanel ? (
+            <section className="overflow-hidden rounded-[18px] border border-[#dbe5ff] bg-white shadow-sm">
+              <button
+                type="button"
+                aria-label="Cerrar panel de secado"
+                onClick={() => setSecadoPanel(null)}
+                className="hidden"
+              />
+              <div className="relative flex max-h-[min(72dvh,760px)] w-full flex-col overflow-hidden bg-white">
+                <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-[#cfd8e6]" />
+                <div className="shrink-0 px-4 pb-3 pt-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-950">
+                    Proceso de secado
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                    Revisa secados activos o inicia un nuevo proceso.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSecadoPanel(null)}
+                  aria-label="Cerrar panel de secado"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecadoError(null);
+                    setSecadoPanel('active');
+                    setSecadoSessionsVersion((current) => current + 1);
+                  }}
+                  className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
+                    secadoPanel === 'active'
+                      ? 'bg-[#102d92] text-white shadow-sm'
+                      : 'border border-[#d5deee] bg-white text-[#334b85]'
+                  }`}
+                >
+                  <CircleDashed size={15} />
+                  Ver secados activos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void cargarPanelSecadoInicio()}
+                  className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
+                    secadoPanel === 'start'
+                      ? 'bg-[#102d92] text-white shadow-sm'
+                      : 'border border-[#d5deee] bg-white text-[#334b85]'
+                  }`}
+                >
+                  <Droplets size={15} />
+                  Iniciar secado
+                </button>
+              </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+
+              {secadoLoading ? (
+                <div className="mt-3 space-y-2">
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="h-14 animate-pulse rounded-[14px] bg-[#eef2f7]" />
+                  ))}
+                </div>
+              ) : null}
+
+              {secadoError ? (
+                <div className="mt-3 rounded-[13px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  {secadoError}
+                </div>
+              ) : null}
+
+              {!secadoLoading && secadoPanel === 'home' ? (
+                <div className="mt-3 rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
+                  Elige una acción para revisar procesos activos o preparar un nuevo secado.
+                </div>
+              ) : null}
+
+              {!secadoLoading && secadoPanel === 'start' ? (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-950">
+                      Iniciar secado
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                      Selecciona los sublotes de café verde.
+                    </p>
+                  </div>
+                  {secadoLotes.length > 1 ? (
+                    <label className="block">
+                      <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        Lote verde
+                      </span>
+                      <select
+                        value={secadoLoteKey}
+                        onChange={(event) => void cargarDetalleSecadoInline(event.target.value)}
+                        className="h-10 w-full rounded-[13px] border border-[#dfe5f2] bg-[#f8faff] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
+                      >
+                        {secadoLotes.map((lote) => (
+                          <option
+                            key={`${lote.tipoCafeId}:${lote.calidadId}`}
+                            value={`${lote.tipoCafeId}:${lote.calidadId}`}
+                          >
+                            {lote.tipoCafe} {lote.calidad} - {formatSecadoKg(lote.pesoActual)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {sublotesSecadoDisponibles.length === 0 ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
+                      No hay sublotes verdes disponibles para iniciar secado.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {sublotesSecadoDisponibles.map((sublote, index) => {
+                        const checked = (secadoWeights[sublote.id] ?? 0) > 0;
+                        return (
+                          <article
+                            key={sublote.id}
+                            className={`rounded-[14px] border px-3 py-2.5 ${
+                              checked
+                                ? 'border-[#c9d7ff] bg-[#f5f8ff]'
+                                : 'border-[#e5e9f5] bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) =>
+                                  setSecadoWeights((current) => {
+                                    const next = { ...current };
+                                    if (event.target.checked) {
+                                      next[sublote.id] = sublote.pesoActual;
+                                    } else {
+                                      delete next[sublote.id];
+                                    }
+                                    return next;
+                                  })
+                                }
+                                className="h-4 w-4 accent-[#102d92]"
+                                aria-label={`Seleccionar sublote ${index + 1}`}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-black text-slate-950">
+                                  Sublote {index + 1}
+                                </p>
+                                <p className="text-[0.66rem] font-semibold text-slate-500">
+                                  {sublote.calidad} · {formatSecadoKg(sublote.pesoActual)}
+                                </p>
+                              </div>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                max={sublote.pesoActual}
+                                step="0.1"
+                                value={secadoWeights[sublote.id] ?? ''}
+                                onChange={(event) => {
+                                  const value = Number(event.target.value);
+                                  setSecadoWeights((current) => {
+                                    if (!Number.isFinite(value) || value <= 0) {
+                                      const next = { ...current };
+                                      delete next[sublote.id];
+                                      return next;
+                                    }
+                                    return {
+                                      ...current,
+                                      [sublote.id]: Math.min(value, sublote.pesoActual),
+                                    };
+                                  });
+                                }}
+                                className="h-9 w-20 rounded-[10px] border border-[#dbe2f0] bg-white px-2 text-right text-xs font-black text-slate-800"
+                              />
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                    Total seleccionado: {formatSecadoKg(totalSecadoSeleccionado)}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={totalSecadoSeleccionado <= 0}
+                    onClick={iniciarSecadoInline}
+                    className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    <CheckCircle2 size={15} />
+                    Iniciar secado
+                  </button>
+                </div>
+              ) : null}
+
+              {!secadoLoading && secadoPanel === 'active' ? (
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-950">
+                      Secados activos
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                      Café en proceso de secado.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 rounded-[14px] border border-[#e3e8f2] bg-[#f8faff] p-2">
+                    <label className="block">
+                      <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        Orden
+                      </span>
+                      <select
+                        value={secadoSortMode}
+                        onChange={(event) =>
+                          setSecadoSortMode(event.target.value as SecadoSortMode)
+                        }
+                        className="h-9 w-full rounded-[11px] border border-[#dfe5f2] bg-white px-2 text-[0.66rem] font-black text-slate-700"
+                      >
+                        <option value="recent">Más recientes</option>
+                        <option value="oldest">Más antiguos</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        Calidad
+                      </span>
+                      <select
+                        value={secadoQualityFilter}
+                        onChange={(event) =>
+                          setSecadoQualityFilter(
+                            event.target.value as SecadoQualityFilter,
+                          )
+                        }
+                        className="h-9 w-full rounded-[11px] border border-[#dfe5f2] bg-white px-2 text-[0.66rem] font-black text-slate-700"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="BUENO">Bueno</option>
+                        <option value="REGULAR">Regular</option>
+                        <option value="MALO">Malo</option>
+                      </select>
+                    </label>
+                  </div>
+                  {secadosActivosInline.length === 0 ? (
+                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center">
+                      <Package2 size={18} className="mx-auto text-slate-400" />
+                      <p className="mt-2 text-xs font-black text-slate-700">
+                        No hay secados activos
+                      </p>
+                    </div>
+                  ) : (
+                    secadosActivosInline.map((session) => (
+                      <article
+                        key={session.id}
+                        className="rounded-[14px] border border-[#cdeef1] bg-[#e7fbfd] px-3 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-[#102d92]">
+                              {session.tipoCafe} {session.calidad}
+                            </p>
+                            <p className="text-[0.66rem] font-semibold text-slate-500">
+                              {session.sublotes.length} sublotes · {formatSecadoKg(session.sublotes.reduce((sum, item) => sum + item.pesoActual, 0))}
+                            </p>
+                          </div>
+                          <CircleDashed size={17} className="shrink-0 text-[#102d92]" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/inventario/secado/${session.id}/finalizar?step=finish`, {
+                              state: { from: '/ajustes' },
+                            })
+                          }
+                          className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white"
+                        >
+                          Finalizar secado
+                        </button>
+                      </article>
+                    ))
+                  )}
+                  <RefreshButton
+                    onClick={() => setSecadoSessionsVersion((current) => current + 1)}
+                    aria-label="Actualizar lista"
+                  >
+                    Actualizar lista
+                  </RefreshButton>
+                </div>
+              ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Configuración del negocio
           </p>
@@ -1734,7 +2347,7 @@ export default function Ajustes() {
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setIsEditingCompany(false)}
+                  onClick={cerrarEditorEmpresa}
                   aria-label="Cerrar edición de empresa"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
@@ -1759,6 +2372,16 @@ export default function Ajustes() {
                     showLimitNotice('Llegaste al máximo de caracteres.');
                   }
                   clearFeedback();
+                }}
+                onBlur={() => {
+                  const validation = validateCompanyName(company.nombreEmpresa);
+                  const message = validation.isValid
+                    ? validateBusinessName(company.nombreEmpresa)
+                    : validation.message;
+                  if (message) {
+                    setError(message);
+                    setFloatingError(getAjustesGuidance(message));
+                  }
                 }}
                 maxLength={BUSINESS_NAME_MAX_LENGTH}
                 className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
@@ -1836,7 +2459,7 @@ export default function Ajustes() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsEditingCompany(false)}
+                  onClick={cerrarEditorEmpresa}
                   className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85]"
                 >
                   Cancelar
@@ -2069,7 +2692,7 @@ export default function Ajustes() {
                     onClick={() => setPeopleSortOpen((open) => !open)}
                     className="min-h-[34px] rounded-full border border-[#dbe2f0] bg-white px-3 text-xs font-black text-[#334b85]"
                   >
-                    Filtrar
+                    Ordenar por
                   </button>
                   {peopleSortOpen ? (
                     <div className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-[14px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)]">

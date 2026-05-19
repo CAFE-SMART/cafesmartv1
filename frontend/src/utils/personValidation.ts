@@ -300,17 +300,38 @@ export function validateDocumentNumber(
     return { isValid: true };
   }
 
-  if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {
+  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(documento)) {
     return {
       isValid: false,
-      message: `${label} debe tener entre 6 y 10 dígitos.`,
+      message: 'La cédula solo puede contener números.',
+    };
+  }
+
+  if (/[^\d]/.test(documento)) {
+    return {
+      isValid: false,
+      message: 'El documento contiene caracteres no permitidos.',
+    };
+  }
+
+  if (documento.length < 6) {
+    return {
+      isValid: false,
+      message: 'La cédula tiene muy pocos números.',
+    };
+  }
+
+  if (documento.length > 10) {
+    return {
+      isValid: false,
+      message: 'La cédula supera la cantidad permitida de dígitos.',
     };
   }
 
   if (isRepeatedDigits(documento)) {
     return {
       isValid: false,
-      message: `${label} no puede tener todos los dígitos iguales.`,
+      message: 'La cédula no puede repetir el mismo número.',
     };
   }
 

@@ -136,6 +136,19 @@ export default function ContactoSoporte() {
     return () => window.clearTimeout(timeout);
   }, [limitNotice]);
 
+  React.useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      nombre: user?.name ?? '',
+      correo: user?.email ?? '',
+    }));
+    setErrors((prev) => ({
+      ...prev,
+      nombre: undefined,
+      correo: undefined,
+    }));
+  }, [user?.email, user?.name]);
+
   const validateForm = () => {
     const nextErrors: SupportErrors = {};
     const nameValidation = validatePersonName(form.nombre, 'El nombre');

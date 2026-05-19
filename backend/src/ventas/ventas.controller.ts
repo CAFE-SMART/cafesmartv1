@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +16,19 @@ import { VentasService } from './ventas.service';
 @Controller('ventas')
 export class VentasController {
   constructor(private readonly ventasService: VentasService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async listar(
+    @Req() req: { user: { sub: string } },
+    @Query('fecha') fecha?: string,
+    @Query('orden') orden?: 'recent' | 'oldest',
+  ) {
+    return this.ventasService.listarVentas(req.user.sub, {
+      fecha,
+      orden,
+    });
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)

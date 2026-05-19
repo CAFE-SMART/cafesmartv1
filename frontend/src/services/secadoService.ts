@@ -43,6 +43,7 @@ export type TransformarSecadoPayload = {
     calidad: 'BUENO' | 'REGULAR' | 'MALO';
     pesoKg: number;
     humedad?: number | null;
+    factor?: number | null;
   }>;
 };
 
@@ -65,6 +66,8 @@ export type CrearSecadoPayload = {
   subloteId: string;
   pesoSalida: number;
   calidadSalida: 'BUENO' | 'REGULAR' | 'MALO';
+  humedad?: number | null;
+  factor?: number | null;
 };
 
 export async function crearSecado(

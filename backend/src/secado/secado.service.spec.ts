@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { TipoMovimientoInventario, TipoReferenciaInventario } from '@prisma/client';
+import { CrearSecadoDto } from './dto/crear-secado.dto';
 import { SecadoService } from './secado.service';
 
 describe('SecadoService', () => {
@@ -50,27 +53,57 @@ describe('SecadoService', () => {
         subloteId: '11111111-1111-4111-8111-111111111111',
         pesoSalida: 10,
         calidadSalida: 'BUENO',
+        humedad: 11,
+        factor: 100,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    tx.sublote.findFirst.mockResolvedValue({ id: 'sub-1', pesoActual: 0 });
+    tx.sublote.findFirst.mockResolvedValue({
+      id: 'sub-1',
+      pesoActual: 0,
+      tipoCafe: { nombre: 'VERDE' },
+    });
 
     await expect(
       service.crearSecado('user-1', {
         subloteId: '11111111-1111-4111-8111-111111111111',
         pesoSalida: 10,
         calidadSalida: 'BUENO',
+        humedad: 11,
+        factor: 100,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('transforma el sublote a seco, actualiza inventarios y registra trazabilidad', async () => {
+  it('rechaza cuando el peso de salida supera el peso disponible', async () => {
+    const { tx, service } = crearMocks();
+    tx.sublote.findFirst.mockResolvedValue({
+      id: 'sub-1',
+      pesoActual: 100,
+      tipoCafe: { nombre: 'VERDE' },
+    });
+
+    await expect(
+      service.crearSecado('user-1', {
+        subloteId: '11111111-1111-4111-8111-111111111111',
+        pesoSalida: 120,
+        calidadSalida: 'BUENO',
+        humedad: 11,
+        factor: 100,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(tx.sublote.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('permite secado parcial, deja peso en origen, actualiza inventarios y registra trazabilidad', async () => {
     const { tx, service } = crearMocks();
     const subloteId = '11111111-1111-4111-8111-111111111111';
 
     tx.sublote.findFirst.mockResolvedValue({
       id: subloteId,
       pesoActual: 100,
+      tipoCafe: { nombre: 'VERDE' },
     });
     tx.sublote.findMany
       .mockResolvedValueOnce([])
@@ -100,24 +133,27 @@ describe('SecadoService', () => {
       subloteId,
       pesoSalida: 80,
       calidadSalida: 'BUENO',
+      humedad: 11,
+      factor: 100,
     });
 
     expect(result).toMatchObject({
-      totalEntradaKg: 100,
+      totalEntradaKg: 80,
       totalSalidaKg: 80,
-      totalMermaKg: 20,
+      totalMermaKg: 0,
       alreadyProcessed: false,
     });
     expect(tx.sublote.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: subloteId }),
-        data: { pesoActual: { decrement: 100 } },
+        data: { pesoActual: { decrement: 80 } },
       }),
     );
+    expect(100 - 80).toBe(20);
     expect(tx.inventario.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ tipoCafeId: 'tipo-verde' }),
-        data: { pesoTotal: { decrement: 100 } },
+        data: { pesoTotal: { decrement: 80 } },
       }),
     );
     expect(tx.inventario.upsert).toHaveBeenCalledWith(
@@ -133,7 +169,7 @@ describe('SecadoService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           subloteId,
-          cantidad: -100,
+          cantidad: -80,
           tipoMovimiento: TipoMovimientoInventario.SECADO,
           referenciaTipo: TipoReferenciaInventario.SECADO,
           referenciaId: subloteId,
@@ -150,6 +186,29 @@ describe('SecadoService', () => {
           referenciaId: subloteId,
         }),
       }),
+    );
+  });
+
+  it('valida humedad, factor y peso en el DTO de creacion', async () => {
+    const dto = plainToInstance(CrearSecadoDto, {
+      subloteId: '11111111-1111-4111-8111-111111111111',
+      pesoSalida: 0.01,
+      calidadSalida: 'BUENO',
+      humedad: 16,
+      factor: 121,
+    });
+
+    const errors = await validate(dto);
+    const messages = errors.flatMap((error) =>
+      Object.values(error.constraints ?? {}),
+    );
+
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        'El peso de salida debe ser minimo 0.1 kg',
+        'La humedad no puede superar 14%',
+        'El factor no puede ser mayor a 120',
+      ]),
     );
   });
 });

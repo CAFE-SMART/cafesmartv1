@@ -5,6 +5,8 @@ import type {
 } from '../services/lotesService';
 
 let secadoSessionsMemory: SecadoSession[] = [];
+const SECADO_SESSIONS_STORAGE_KEY = 'cafe-smart:secado-sessions:v1';
+const SECADO_CANCELLATIONS_STORAGE_KEY = 'cafe-smart:secado-cancellations:v1';
 const SECADO_PROCESS_TYPE_ID = 'virtual-en-secado';
 const SECADO_PROCESS_QUALITY_ID = 'virtual-en-proceso';
 const SECADO_PROCESS_TYPE = 'EN SECADO';
@@ -97,11 +99,35 @@ function generateId() {
 }
 
 function readStorage() {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(SECADO_SESSIONS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          secadoSessionsMemory = parsed as SecadoSession[];
+        }
+      }
+    } catch {
+      return secadoSessionsMemory;
+    }
+  }
+
   return secadoSessionsMemory;
 }
 
 function writeStorage(sessions: SecadoSession[]) {
   secadoSessionsMemory = sessions;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(
+        SECADO_SESSIONS_STORAGE_KEY,
+        JSON.stringify(sessions),
+      );
+    } catch {
+      // Mantener memoria como respaldo si el navegador bloquea localStorage.
+    }
+  }
 }
 
 function daysSince(value: string) {
@@ -718,6 +744,40 @@ export function finalizeSecado(sessionId: string) {
 
 export function removeSecadoSession(sessionId: string) {
   writeStorage(readStorage().filter((session) => session.id !== sessionId));
+}
+
+export function cancelSecadoSession(sessionId: string) {
+  const session = getSecadoSession(sessionId);
+  if (!session) return null;
+
+  writeStorage(readStorage().filter((item) => item.id !== sessionId));
+
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(SECADO_CANCELLATIONS_STORAGE_KEY);
+      const current = raw ? JSON.parse(raw) : [];
+      const log = Array.isArray(current) ? current : [];
+      log.unshift({
+        sessionId,
+        loteId: session.loteId,
+        calidad: session.calidad,
+        sublotes: session.sublotes.map((sublote) => ({
+          id: sublote.id,
+          pesoKg: sublote.pesoActual,
+          calidad: session.calidad,
+        })),
+        cancelledAt: nowIso(),
+      });
+      window.localStorage.setItem(
+        SECADO_CANCELLATIONS_STORAGE_KEY,
+        JSON.stringify(log.slice(0, 50)),
+      );
+    } catch {
+      // La trazabilidad local no debe bloquear la devolución visual al inventario.
+    }
+  }
+
+  return session;
 }
 
 type SecadoVisualOptions = {

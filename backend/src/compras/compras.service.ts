@@ -45,6 +45,8 @@ type CatalogoItem = {
 type CompraListadoItem = {
   id: string;
   fecha: string;
+  productorNombre: string | null;
+  productorDocumento: string | null;
   totalCompra: number;
   totalSublotes: number;
   creadoEn: string;
@@ -104,6 +106,12 @@ export class ComprasService {
         organizacionId,
       },
       include: {
+        productor: {
+          select: {
+            nombre: true,
+            documento: true,
+          },
+        },
         sublotes: {
           where: this.obtenerWhereSubloteActivo(),
           include: {
@@ -119,6 +127,8 @@ export class ComprasService {
     return compras.map((compra) => ({
       id: compra.id,
       fecha: compra.fecha.toISOString(),
+      productorNombre: compra.productor?.nombre ?? null,
+      productorDocumento: compra.productor?.documento ?? null,
       totalCompra: Number(compra.totalCompra),
       totalSublotes: compra.sublotes.length,
       creadoEn: compra.creadoEn.toISOString(),

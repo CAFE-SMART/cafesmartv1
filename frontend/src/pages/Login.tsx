@@ -750,10 +750,7 @@ Correo electrónico
 <label className="block text-sm font-bold text-slate-700">Contraseña</label>
                 <button
                   type="button"
-                  onClick={() => {
-                    const message = 'La recuperación de contraseña aún no está disponible.';
-                    setError(message);
-                  }}
+                  onClick={() => navigate('/recuperar')}
                   className="text-sm font-semibold text-[#1e3a8a] hover:underline"
                 >
                   ¿Olvidaste tu contraseña?

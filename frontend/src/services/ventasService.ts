@@ -40,6 +40,29 @@ export type CreateVentaResponse = {
   }>;
 };
 
+export type VentaListadoItem = {
+  id: string;
+  fecha: string;
+  clienteNombre: string;
+  clienteDocumento: string;
+  totalVenta: number;
+  totalKg: number;
+  detalles: Array<{
+    pesoVendido: number;
+    precioKg: number;
+    subtotal: number;
+  }>;
+};
+
+export type VentaListadoResponse = {
+  totalAcumulado: number;
+  registros: VentaListadoItem[];
+};
+
+export async function listarVentas() {
+  return apiFetch('/ventas') as Promise<VentaListadoResponse>;
+}
+
 export async function crearVenta(payload: CreateVentaPayload) {
   return apiFetch('/ventas', {
     method: 'POST',

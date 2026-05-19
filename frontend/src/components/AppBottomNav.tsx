@@ -21,7 +21,13 @@ const items = [
   { id: 'ajustes', label: 'Ajustes', path: '/ajustes', icon: Settings },
 ];
 
-export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
+export function AppBottomNav({
+  hidden = false,
+  activePath,
+}: {
+  hidden?: boolean;
+  activePath?: string;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +41,12 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
       <div className="mx-auto w-full max-w-[430px] rounded-[24px] border border-[#e3e8f2] bg-white/95 p-1.5 shadow-[0_-4px_28px_rgba(15,23,42,0.10)] backdrop-blur-xl">
         <div className="grid grid-cols-5 gap-1">
           {items.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive =
+              activePath === item.path ||
+              (!activePath &&
+                (location.pathname === item.path ||
+                  (item.path !== '/inicio' &&
+                    location.pathname.startsWith(`${item.path}/`))));
             const Icon = item.icon;
 
             return (
@@ -45,18 +56,24 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
                 onClick={() => navigate(item.path)}
                 aria-current={isActive ? 'page' : undefined}
                 aria-label={`Ir a ${item.label}`}
-                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[0.56rem] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 ${
+                className={`relative flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[0.56rem] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'bg-[#123aa6] text-white shadow-[0_10px_22px_rgba(18,58,166,0.22)]'
-                    : 'text-[#6b7890] hover:bg-[#f4f6fb]'
+                    ? 'bg-[#eef4ff] font-black text-[#102d92] shadow-[inset_0_0_0_1px_rgba(16,45,146,0.12)]'
+                    : 'font-bold text-[#6b7890] hover:bg-[#f4f6fb]'
                 }`}
               >
+                {isActive ? (
+                  <span className="absolute top-1 h-1 w-6 rounded-full bg-[#102d92]" />
+                ) : null}
                 <Icon
                   size={18}
                   strokeWidth={isActive ? 2.5 : 2.2}
                   aria-hidden="true"
                 />
-                <span>{item.label}</span>
+                <span>
+                  {item.label}
+                  {isActive ? <span className="sr-only">, sección actual</span> : null}
+                </span>
               </button>
             );
           })}

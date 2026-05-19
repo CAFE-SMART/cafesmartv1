@@ -29,12 +29,12 @@ import {
   Coffee,
   Leaf,
   Package2,
-  RefreshCcw,
   ShoppingCart,
   SunMedium,
   WifiOff,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { RefreshButton } from '../components/RefreshButton';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
@@ -376,16 +376,43 @@ function CapacityRing({
         : rawPercentage.toFixed(0);
   const ringPercentage =
     totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
-  const isCapacityExceeded = rawPercentage > 100;
-  const accentColor = isCapacityExceeded ? '#d92d20' : '#102d92';
-  const accentTextClass = isCapacityExceeded
-    ? 'text-[#b42318]'
-    : 'text-[#102d92]';
+  const capacityLevel =
+    rawPercentage >= 90 ? 'alert' : rawPercentage >= 70 ? 'warning' : 'normal';
+  const accentColor =
+    capacityLevel === 'alert'
+      ? '#d92d20'
+      : capacityLevel === 'warning'
+        ? '#d97706'
+        : '#102d92';
+  const accentTextClass =
+    capacityLevel === 'alert'
+      ? 'text-[#b42318]'
+      : capacityLevel === 'warning'
+        ? 'text-[#b45309]'
+        : 'text-[#102d92]';
+  const capacityShellClass =
+    capacityLevel === 'alert'
+      ? 'border-[#fecaca] bg-[#fff7f7]'
+      : capacityLevel === 'warning'
+        ? 'border-[#fde68a] bg-[#fffbeb]'
+        : 'border-[#e6e8f3] bg-white';
+  const capacityBadgeClass =
+    capacityLevel === 'alert'
+      ? 'bg-[#fee2e2] text-[#b42318]'
+      : capacityLevel === 'warning'
+        ? 'bg-[#fef3c7] text-[#92400e]'
+        : 'bg-[#eef4ff] text-[#102d92]';
+  const capacityStatusLabel =
+    capacityLevel === 'alert'
+      ? 'Bodega casi llena'
+      : capacityLevel === 'warning'
+        ? 'Advertencia de capacidad'
+        : 'Estado normal';
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
   return (
-    <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
+    <section className={`rounded-[20px] border p-4 shadow-sm ${capacityShellClass}`}>
       <p
         className="text-[0.95rem] font-extrabold text-black"
         style={{ fontWeight: 900 }}
@@ -403,10 +430,15 @@ function CapacityRing({
             </span>
           </div>
           <p
-            className={`mt-1 text-sm font-bold ${isCapacityExceeded ? 'text-[#b42318]' : 'text-slate-600'}`}
+            className={`mt-1 text-sm font-bold ${
+              capacityLevel === 'normal' ? 'text-slate-600' : accentTextClass
+            }`}
           >
             Capacidad usada: {displayPercentage}%
           </p>
+          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[0.68rem] font-black ${capacityBadgeClass}`}>
+            {capacityStatusLabel}
+          </span>
         </div>
 
 
@@ -992,10 +1024,10 @@ export default function Inventario() {
             <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
                 <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                  Filtro
+                  Ordenar por
                 </span>
                 <select
-                  aria-label="Filtro"
+                  aria-label="Ordenar por"
                   value={sortKey}
                   onChange={(event) =>
                     setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
@@ -1186,14 +1218,13 @@ export default function Inventario() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
+            <RefreshButton
               onClick={() => void loadLots()}
-              className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-[0.92rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)]"
+              aria-label="Reintentar"
+              className="mt-4 w-full"
             >
-              <RefreshCcw size={16} />
               Reintentar
-            </button>
+            </RefreshButton>
           </section>
         ) : null}
 

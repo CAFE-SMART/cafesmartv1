@@ -1,0 +1,278 @@
+import React from 'react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Headset,
+  Loader,
+  Mail,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CafeSmartLogo } from '../components/CafeSmartLogo';
+import { useResetPassword } from '../hooks/useResetPassword';
+
+function RecoveryDecorations() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_48%_8%,rgba(47,99,216,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_56%,#edf5ff_100%)]" />
+      <div className="absolute -left-20 bottom-6 h-48 w-48 rounded-full bg-[#dbeafe]/80 blur-2xl" />
+      <div className="absolute -right-16 top-16 h-40 w-40 rounded-full bg-[#bfdbfe]/55 blur-2xl" />
+      <svg
+        className="absolute inset-x-0 bottom-0 h-32 w-full text-[#bfdbfe]/70"
+        viewBox="0 0 430 140"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M0 66C60 37 113 43 166 74C222 106 270 70 323 59C366 50 398 67 430 86V140H0V66Z"
+          fill="currentColor"
+        />
+        <path
+          d="M0 100C58 76 112 84 175 107C232 128 280 104 332 94C374 86 404 99 430 114V140H0V100Z"
+          fill="#dbeafe"
+          opacity="0.7"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function RecoveryErrorNotice({
+  message,
+  code,
+  onRetry,
+  onSecondary,
+}: {
+  message: string;
+  code?: string;
+  onRetry?: () => void;
+  onSecondary?: () => void;
+}) {
+  const detail =
+    code === 'NETWORK'
+      ? 'Verifica tu conexión e intenta nuevamente.'
+      : code === 'NOT_FOUND'
+        ? 'Revisa el correo o usa otra dirección.'
+        : code === 'VALIDATION'
+          ? 'Corrige el dato para continuar.'
+          : 'Intenta nuevamente en unos segundos.';
+
+  return (
+    <div
+      role="alert"
+      className="relative overflow-hidden rounded-[22px] border border-rose-200 bg-[#fff7f8] px-4 py-4 text-left shadow-[0_18px_38px_rgba(190,18,60,0.10)]"
+    >
+      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-rose-200/45 blur-2xl" />
+      <div className="relative flex items-start gap-3">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-[0_12px_26px_rgba(190,18,60,0.12)]">
+          <AlertTriangle size={22} strokeWidth={2.4} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-rose-800">{message}</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-rose-700/80">
+            {detail}
+          </p>
+          {onRetry || onSecondary ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_10px_20px_rgba(16,45,146,0.18)]"
+                >
+                  Intentar de nuevo
+                </button>
+              ) : null}
+              {onSecondary ? (
+                <button
+                  type="button"
+                  onClick={onSecondary}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#102d92]"
+                >
+                  Usar otro correo
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function RecuperarPassword() {
+  const navigate = useNavigate();
+  const {
+    email,
+    setEmail,
+    error,
+    enlaceEnviado,
+    cooldownSeconds,
+    isLoading,
+    handleSubmit,
+    reenviarEnlace,
+    usarOtroCorreo,
+  } = useResetPassword();
+
+  const header = (
+    <header className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => navigate('/login')}
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dbe7ff] bg-white text-[#102d92] shadow-sm transition hover:bg-[#f5f9ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15"
+        aria-label="Volver al login"
+      >
+        <ArrowLeft size={18} />
+      </button>
+      <h1 className="text-[1.25rem] font-black tracking-tight text-slate-950">
+        Recuperar contraseña
+      </h1>
+    </header>
+  );
+
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6 text-slate-900">
+      <RecoveryDecorations />
+      <main className="relative z-10 w-full max-w-[430px] rounded-[28px] border border-[#e6eefb] bg-white/95 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.12)] backdrop-blur sm:p-7">
+        {header}
+
+        {enlaceEnviado ? (
+          <section className="mt-7 space-y-4" aria-live="polite">
+            <div className="text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#eaf2ff] text-[#102d92] shadow-[0_18px_38px_rgba(16,45,146,0.16)] ring-1 ring-[#bfdbfe]">
+                <CheckCircle2 size={32} strokeWidth={2.5} aria-hidden="true" />
+              </div>
+              <h2 className="mt-5 text-[1.7rem] font-black leading-tight text-slate-950">
+                Revisa tu correo
+              </h2>
+              <p className="mx-auto mt-3 max-w-[330px] text-sm font-semibold leading-6 text-slate-500">
+                Te enviamos un enlace para restablecer tu contraseña. Revisa
+                también la carpeta de spam.
+              </p>
+            </div>
+
+            {error ? (
+              <RecoveryErrorNotice
+                message={error.message}
+                code={error.code}
+                onRetry={() => void reenviarEnlace()}
+                onSecondary={usarOtroCorreo}
+              />
+            ) : null}
+
+            <div className="rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-4 text-center shadow-[0_10px_24px_rgba(47,99,216,0.06)]">
+              <p className="text-sm font-black text-slate-900">
+                ¿No recibiste el correo?
+              </p>
+
+              <button
+                type="button"
+                onClick={() => void reenviarEnlace()}
+                disabled={isLoading || cooldownSeconds > 0}
+                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.2)] transition hover:bg-[#18358f] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/20 disabled:cursor-not-allowed disabled:bg-[#9fb2d9] disabled:shadow-none"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader size={17} className="animate-spin" />
+                    Reenviando...
+                  </>
+                ) : cooldownSeconds > 0 ? (
+                  `Reenviar enlace (${cooldownSeconds}s)`
+                ) : (
+                  'Reenviar enlace'
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={usarOtroCorreo}
+                className="mt-3 text-sm font-black text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10"
+              >
+                Usar otro correo
+              </button>
+            </div>
+
+            <div className="rounded-[18px] border border-[#e5ebf7] bg-white px-4 py-4 text-center">
+              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92]">
+                <Headset size={18} aria-hidden="true" />
+              </div>
+              <p className="text-sm font-bold text-slate-700">
+                ¿Sigues teniendo problemas?
+              </p>
+              <a
+                href="mailto:soporte@cafesmart.com?subject=Ayuda%20con%20recuperaci%C3%B3n%20de%20contrase%C3%B1a"
+                className="mt-3 inline-flex h-10 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#f5f9ff] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10"
+              >
+                Contactar soporte
+              </a>
+            </div>
+          </section>
+        ) : (
+          <form onSubmit={handleSubmit} noValidate className="mt-7 space-y-4">
+            <div className="flex justify-center">
+              <CafeSmartLogo size="md" compact />
+            </div>
+            <section className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#eaf2ff] text-[#102d92] shadow-[0_18px_38px_rgba(16,45,146,0.14)] ring-1 ring-[#bfdbfe]">
+                <Mail size={30} strokeWidth={2.3} aria-hidden="true" />
+              </div>
+              <p className="mx-auto max-w-[330px] text-sm font-semibold leading-6 text-slate-500">
+                Ingresa tu correo y te enviaremos un enlace para restablecer tu
+                contraseña.
+              </p>
+            </section>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">
+                Correo electrónico
+              </span>
+              <span className="relative mt-2 block">
+                <Mail
+                  size={18}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  aria-hidden="true"
+                />
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="correo@empresa.com"
+                  aria-invalid={Boolean(error)}
+                  className="h-12 w-full rounded-[14px] border border-[#dfe5f1] bg-white pl-10 pr-4 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-gray-400 focus:border-[#274ab8] focus:ring-4 focus:ring-[#274ab8]/10"
+                />
+              </span>
+            </label>
+
+            {error ? (
+              <RecoveryErrorNotice
+                message={error.message}
+                code={error.code}
+                onRetry={() => {
+                  if (email.trim()) {
+                    void reenviarEnlace();
+                  }
+                }}
+              />
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/20 disabled:cursor-wait disabled:bg-[#9fb2d9] disabled:shadow-none"
+            >
+              {isLoading ? (
+                <>
+                  <Loader size={17} className="animate-spin" />
+                  Enviando enlace...
+                </>
+              ) : (
+                'Enviar enlace'
+              )}
+            </button>
+          </form>
+        )}
+      </main>
+    </div>
+  );
+}

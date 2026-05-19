@@ -799,10 +799,9 @@ export default function SecadoProceso() {
 
         {step === 'config' ? (
           <main className="flex flex-col gap-4 px-4 py-4">
-            <section className="relative h-36 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#294730,#d7b46a)] p-4 text-white shadow-sm">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_35%,rgba(255,255,255,.22),transparent_24%),linear-gradient(135deg,rgba(6,29,19,.12),rgba(5,18,45,.55))]" />
-              <div className="relative flex h-full items-end">
-                <p className="text-lg font-black drop-shadow">
+            <section className="rounded-[18px] bg-slate-100 p-4">
+              <div className="flex h-full items-end">
+                <p className="text-lg font-black text-slate-900">
                   Configuración de secado
                 </p>
               </div>
@@ -862,7 +861,7 @@ export default function SecadoProceso() {
             <button
               type="button"
               onClick={() => setStep('active')}
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)]"
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
             >
               Iniciar proceso <Play size={15} fill="currentColor" />
             </button>
@@ -871,13 +870,12 @@ export default function SecadoProceso() {
 
         {step === 'active' ? (
           <main className="flex min-h-[calc(100vh-48px)] flex-col items-center px-5 py-8 text-center">
-            <section className="relative h-44 w-full overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#5a783e,#eccb78_52%,#71562f)] p-4 shadow-sm">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(255,255,255,.75),transparent_18%),linear-gradient(180deg,rgba(255,255,255,.08),rgba(8,24,44,.4))]" />
-              <div className="relative flex h-full items-end">
-                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white/80 px-3 py-2 text-xs font-black text-slate-700">
+            <section className="w-full overflow-hidden rounded-[20px] bg-slate-100 p-4">
+              <div className="flex h-full items-end">
+                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">
                   <SunMedium
                     size={17}
-                    className="rounded-full bg-[#0647d6] p-1 text-white"
+                    className="rounded-full bg-slate-300 p-1 text-slate-700"
                   />
                   Proceso Activo
                 </span>
@@ -898,14 +896,14 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={() => setStep('finish')}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 text-xs font-black text-white transition hover:bg-slate-800"
               >
                 Finalizar secado <CheckCircle2 size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/inicio')}
-                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#0647d6]"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-slate-700"
               >
                 <ArrowLeft size={15} /> Ir a inicio
               </button>
@@ -973,7 +971,7 @@ export default function SecadoProceso() {
                         field.setter,
                       );
                     }}
-                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-center text-base font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
+                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-center text-base font-black outline-none focus:ring-1 focus:ring-slate-400"
                     placeholder="0"
                   />
                 </label>
@@ -1026,7 +1024,7 @@ export default function SecadoProceso() {
 
             <section className="rounded-[18px] bg-white p-4 shadow-sm">
               <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8ff] text-[#0647d6]">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700">
                   <Save size={16} />
                 </span>
                 <div>
@@ -1042,14 +1040,14 @@ export default function SecadoProceso() {
                 <button
                   type="button"
                   onClick={() => setWithExpense(false)}
-                  className={`h-9 rounded-full border text-xs font-black ${!withExpense ? 'border-[#0647d6] text-[#0647d6]' : 'border-slate-200 text-slate-400'}`}
+                  className={`h-9 rounded-full border px-4 text-xs font-black transition ${!withExpense ? 'border-slate-300 bg-white text-slate-900' : 'border-slate-200 bg-slate-100 text-slate-700'}`}
                 >
                   No
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowExpenseModal(true)}
-                  className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
+                  className={`h-9 rounded-full border px-4 text-xs font-black transition ${withExpense ? 'border-slate-300 bg-slate-100 text-slate-900' : 'border-slate-200 bg-slate-100 text-slate-700'}`}
                 >
                   Sí
                 </button>

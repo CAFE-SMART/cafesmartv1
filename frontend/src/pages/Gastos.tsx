@@ -172,7 +172,7 @@ export default function Gastos() {
     }
 
     if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
-      return 'Ingresa un valor válido para continuar.';
+      return 'Revisa el valor ingresado para continuar.';
     }
 
     if (montoNumero > GASTO_MONTO_MAX) {

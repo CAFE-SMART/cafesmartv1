@@ -69,3 +69,27 @@ export async function clearRememberedAccount() {
     removeAuthStorageValue(AUTH_STORAGE_KEYS.rememberedName),
   ]);
 }
+
+export async function updateRememberedAccountIfCurrent(account: {
+  previousEmail?: string | null;
+  email: string;
+  name: string;
+}) {
+  const remembered = await getRememberedAccount();
+  const rememberedEmail = remembered.email.trim().toLowerCase();
+  const previousEmail = account.previousEmail?.trim().toLowerCase();
+  const nextEmail = account.email.trim().toLowerCase();
+
+  if (!rememberedEmail) {
+    return;
+  }
+
+  if (rememberedEmail !== previousEmail && rememberedEmail !== nextEmail) {
+    return;
+  }
+
+  await saveRememberedAccount({
+    email: account.email,
+    name: account.name,
+  });
+}

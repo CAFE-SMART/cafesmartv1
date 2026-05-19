@@ -7,11 +7,12 @@ import {
   FlaskConical,
   Info,
   Pencil,
-  RefreshCcw,
   Scale,
   Tag,
 } from 'lucide-react';
+import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   InlineGuidedError,
   type GuidedErrorMessage,
@@ -355,14 +356,71 @@ function getSublotesGuidance(message: string): GuidedErrorMessage {
   );
 }
 
-function sanitizeDecimalInput(value: string, max: number, decimals = 2) {
+function sanitizeDecimalInput(value: string, _max: number, decimals = 2) {
   const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
   const [integer = '', ...decimalParts] = normalized.split('.');
   const decimal = decimalParts.join('').slice(0, decimals);
   const next = decimalParts.length > 0 ? `${integer.slice(0, 7) || '0'}.${decimal}` : integer.slice(0, 7);
-  const numeric = Number(next);
-  if (Number.isFinite(numeric) && numeric > max) return String(max);
   return next;
+}
+
+function parseDecimalValue(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sanitizeBoundedDecimalInput({
+  rawValue,
+  currentValue,
+  maxLength,
+  decimals,
+  min,
+  max,
+  outOfRangeMessage,
+  invalidMessage,
+}: {
+  rawValue: string;
+  currentValue: string;
+  maxLength: number;
+  decimals: number;
+  min: number;
+  max: number;
+  outOfRangeMessage: string;
+  invalidMessage: string;
+}) {
+  const normalized = rawValue.replace(',', '.');
+  const decimalPattern =
+    decimals > 0
+      ? new RegExp(`^\\d{0,3}(?:\\.\\d{0,${decimals}})?$`)
+      : /^\d{0,3}$/;
+
+  if (
+    normalized.length > maxLength ||
+    !decimalPattern.test(normalized) ||
+    (normalized.match(/\./g) ?? []).length > 1
+  ) {
+    return { value: currentValue, error: invalidMessage };
+  }
+
+  if (normalized === '' || normalized === '.') {
+    return { value: normalized, error: null };
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return { value: currentValue, error: invalidMessage };
+  }
+
+  if (parsed > max) {
+    return { value: currentValue, error: outOfRangeMessage };
+  }
+
+  if (parsed < min) {
+    return { value: normalized, error: outOfRangeMessage };
+  }
+
+  return { value: normalized, error: null };
 }
 
 export default function Sublotes() {
@@ -382,10 +440,16 @@ export default function Sublotes() {
   const [editModal, setEditModal] = useState<{
     field: EditField;
     value: string;
+    error: string | null;
   } | null>(null);
   const [weightModal, setWeightModal] = useState<{
     value: string;
     reason: string;
+    error: string | null;
+  } | null>(null);
+  const [savingModal, setSavingModal] = useState<{
+    title: string;
+    message: string;
   } | null>(null);
   const [selectedSubloteId, setSelectedSubloteId] = useState<string | null>(
     null,
@@ -645,7 +709,8 @@ export default function Sublotes() {
 
     const currentValue =
       subloteActivo.humedad === null ? '' : String(subloteActivo.humedad);
-    setEditModal({ field: 'humedad', value: currentValue });
+    setError(null);
+    setEditModal({ field: 'humedad', value: currentValue, error: null });
   }, [subloteActivo]);
 
   const handleEditFactor = useCallback(() => {
@@ -655,26 +720,46 @@ export default function Sublotes() {
     setEditModal({
       field: 'factor',
       value: currentValue === null ? '' : String(currentValue),
+      error: null,
     });
+    setError(null);
   }, [subloteActivo]);
 
   const handleOpenWeightModal = useCallback(() => {
     if (!subloteActivo) return;
-    setWeightModal({ value: String(subloteActivo.pesoActual), reason: '' });
+    setError(null);
+    setWeightModal({
+      value: String(subloteActivo.pesoActual),
+      reason: '',
+      error: null,
+    });
   }, [subloteActivo]);
 
   const handleConfirmWeight = useCallback(() => {
     if (!weightModal || !subloteActivo || !tipoCafeId || !calidadId) return;
 
-    const parsed = Number(weightModal.value.replace(',', '.'));
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed > PESO_AJUSTE_MAX_KG) {
-      setError('Ingresa un valor válido para continuar.');
+    if (weightModal.error) return;
+
+    const parsed = parseDecimalValue(weightModal.value);
+    if (parsed === null || parsed <= 0) {
+      setWeightModal((current) =>
+        current
+          ? { ...current, error: 'Ingresa un valor numérico válido.' }
+          : current,
+      );
       return;
     }
 
     const nextWeight = Number(parsed.toFixed(2));
-    if (nextWeight > subloteActivo.pesoInicial) {
-      setError('El peso no puede superar el peso inicial del sublote.');
+    if (nextWeight > subloteActivo.pesoActual) {
+      setWeightModal((current) =>
+        current
+          ? {
+              ...current,
+              error: `El nuevo peso no puede superar el peso actual en bodega (${formatKg(subloteActivo.pesoActual)}). Verifica el valor.`,
+            }
+          : current,
+      );
       return;
     }
 
@@ -720,6 +805,10 @@ export default function Sublotes() {
       return;
     }
 
+    setSavingModal({
+      title: 'Ajustando peso...',
+      message: 'Estamos actualizando el lote.',
+    });
     void (async () => {
       try {
         await guardarPesosSublotes([
@@ -741,6 +830,8 @@ export default function Sublotes() {
           updatedAt: Date.now(),
         });
         setError('No pudimos guardar el ajuste de peso. Intenta nuevamente.');
+      } finally {
+        setSavingModal(null);
       }
     })();
   }, [calidadId, cargar, isOnline, subloteActivo, tipoCafeId, weightModal]);
@@ -751,15 +842,21 @@ export default function Sublotes() {
     const trimmed = editModal.value.trim();
     const parsed = trimmed === '' ? null : Number(trimmed.replace(',', '.'));
 
+    if (editModal.error) return;
+
     if (editModal.field === 'humedad') {
       if (
         parsed !== null &&
         (!Number.isFinite(parsed) || parsed < 8 || parsed > 14)
       ) {
-        setError(
-          parsed !== null && parsed > 14
-            ? 'La humedad supera 14%. No se puede guardar ese valor.'
-            : 'La humedad es menor a 8%. Revisa el dato antes de guardar.',
+        setEditModal((current) =>
+          current
+            ? {
+                ...current,
+                error:
+                  'La humedad permitida está entre 8% y 14%. Revisa el valor ingresado.',
+              }
+            : current,
         );
         return;
       }
@@ -797,6 +894,10 @@ export default function Sublotes() {
         return;
       }
 
+      setSavingModal({
+        title: 'Actualizando humedad...',
+        message: 'Estamos guardando el nuevo valor.',
+      });
       void (async () => {
         try {
           await guardarHumedadesSublotes([
@@ -813,6 +914,8 @@ export default function Sublotes() {
             updatedAt: Date.now(),
           });
           setError('No pudimos guardar la humedad. Intenta nuevamente.');
+        } finally {
+          setSavingModal(null);
         }
       })();
 
@@ -820,23 +923,20 @@ export default function Sublotes() {
     }
 
     if (parsed !== null && (!Number.isFinite(parsed) || parsed < 80 || parsed > FACTOR_MAX)) {
-      setError(
-        parsed !== null && parsed < 80
-          ? 'El factor no puede ser menor a 80.'
-          : 'El factor no puede ser mayor a 120.',
+      setEditModal((current) =>
+        current
+          ? {
+              ...current,
+              error:
+                'El factor de rendimiento permitido está entre 80 y 120. Revisa el valor ingresado.',
+            }
+          : current,
       );
       return;
     }
 
     setError(null);
     setEditModal(null);
-
-    if (parsed !== null) {
-      const factorMessage = getFactorValidationMessage(parsed);
-      if (factorMessage && factorMessage !== 'Factor base.') {
-        setFactorNotice(factorMessage);
-      }
-    }
 
     const nextFactor = parsed === null ? null : Number(parsed.toFixed(2));
 
@@ -868,6 +968,10 @@ export default function Sublotes() {
       return;
     }
 
+    setSavingModal({
+      title: 'Actualizando factor...',
+      message: 'Estamos guardando el nuevo factor.',
+    });
     void (async () => {
       try {
         await guardarFactoresSublotes([
@@ -884,6 +988,8 @@ export default function Sublotes() {
           updatedAt: Date.now(),
         });
         setError('No pudimos guardar el factor. Intenta nuevamente.');
+      } finally {
+        setSavingModal(null);
       }
     })();
   }, [calidadId, cargar, editModal, isOnline, subloteActivo, tipoCafeId]);
@@ -896,6 +1002,26 @@ export default function Sublotes() {
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);
   const financieroActivo = resultadosFinancieros ?? subloteActivo;
+  const editModalValue = editModal ? parseDecimalValue(editModal.value) : null;
+  const editModalInvalid = Boolean(
+    editModal &&
+      (editModal.error ||
+        editModal.value.trim() === '' ||
+        editModalValue === null ||
+        (editModal.field === 'humedad'
+          ? editModalValue < 8 || editModalValue > 14
+          : editModalValue < 80 || editModalValue > FACTOR_MAX)),
+  );
+  const weightModalValue = weightModal ? parseDecimalValue(weightModal.value) : null;
+  const weightModalInvalid = Boolean(
+    weightModal &&
+      subloteActivo &&
+      (weightModal.error ||
+        weightModal.value.trim() === '' ||
+        weightModalValue === null ||
+        weightModalValue <= 0 ||
+        weightModalValue > subloteActivo.pesoActual),
+  );
 
   return (
     <div className="min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
@@ -921,19 +1047,13 @@ export default function Sublotes() {
             {selectedSubloteId ? 'Detalles' : 'Sublotes'}
           </h1>
 
-          <button
-            type="button"
+          <RefreshButton
             onClick={() => void handleReload()}
+            loading={refreshing}
             aria-label="Recargar"
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-2 text-[0.62rem] font-black text-[#7f7f7f]"
           >
-            <RefreshCcw
-              size={15}
-              className={refreshing ? 'animate-spin' : ''}
-              strokeWidth={2.2}
-            />
             Recargar
-          </button>
+          </RefreshButton>
         </div>
       </header>
 
@@ -989,31 +1109,54 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3 grid gap-2">
-              {sublotesPreview.map((sublote, index) => (
-                <button
-                  key={sublote.id}
-                  type="button"
-                  onClick={() => setSelectedSubloteId(sublote.id)}
-                  className="flex min-h-[58px] w-full items-center justify-between rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-[0.74rem] font-black text-[#202020]">
-                      Sublote {index + 1}
-                    </p>
-                    <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
-                      {titleCase(sublote.tipoCafe)} {titleCase(sublote.calidad)}{' '}
-                      · {formatKg(sublote.pesoActual)}
-                    </p>
-                    <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5]">
-                      {formatDays(getDaysForSublote(sublote))} en bodega
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1 text-[0.54rem] font-black uppercase text-[#2f4aa4]">
-                    Detalles
-                    <ChevronRight size={13} strokeWidth={2.4} />
-                  </span>
-                </button>
-              ))}
+              {sublotesPreview.map((sublote, index) => {
+                const humidity = classifyHumidity(sublote.humedad);
+                const showHumidityWarning =
+                  humidity.quality === 'advertencia' ||
+                  humidity.quality === 'descuento' ||
+                  humidity.quality === 'rechazada';
+
+                return (
+                  <button
+                    key={sublote.id}
+                    type="button"
+                    onClick={() => setSelectedSubloteId(sublote.id)}
+                    className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="truncate text-[0.74rem] font-black text-[#202020]">
+                          Sublote {index + 1}
+                        </p>
+                        {showHumidityWarning ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[0.52rem] font-black uppercase ${humidity.toneClass}`}
+                          >
+                            {humidity.label}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
+                        {titleCase(sublote.tipoCafe)} {titleCase(sublote.calidad)}{' '}
+                        · {formatKg(sublote.pesoActual)}
+                      </p>
+                      {showHumidityWarning ? (
+                        <p className="mt-1 text-[0.56rem] font-black text-orange-700">
+                          {formatHumedad(sublote.humedad)}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5]">
+                          {formatDays(getDaysForSublote(sublote))} en bodega
+                        </p>
+                      )}
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[0.54rem] font-black uppercase text-[#2f4aa4]">
+                      Detalles
+                      <ChevronRight size={13} strokeWidth={2.4} />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {hiddenSublotesCount > 0 ? (
@@ -1043,6 +1186,11 @@ export default function Sublotes() {
                 <div className="mt-2 grid gap-2">
                   {detalle.sublotes.map((sublote) => {
                     const active = sublote.id === subloteActivo.id;
+                    const humidity = classifyHumidity(sublote.humedad);
+                    const showHumidityWarning =
+                      humidity.quality === 'advertencia' ||
+                      humidity.quality === 'descuento' ||
+                      humidity.quality === 'rechazada';
                     return (
                       <button
                         key={sublote.id}
@@ -1055,12 +1203,21 @@ export default function Sublotes() {
                         }`}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-[0.7rem] font-black text-[#202020]">
-                            {sublote.etiqueta}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="truncate text-[0.7rem] font-black text-[#202020]">
+                              {sublote.etiqueta}
+                            </p>
+                            {showHumidityWarning ? (
+                              <span className={`rounded-full px-1.5 py-0.5 text-[0.5rem] font-black uppercase ${humidity.toneClass}`}>
+                                {humidity.label}
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
                             {formatKg(sublote.pesoActual)} ·{' '}
-                            {formatDays(getDaysForSublote(sublote))}
+                            {showHumidityWarning
+                              ? formatHumedad(sublote.humedad)
+                              : formatDays(getDaysForSublote(sublote))}
                           </p>
                         </div>
                         <span
@@ -1240,22 +1397,28 @@ export default function Sublotes() {
                 : 'Editar factor'}
             </p>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step={editModal.field === 'humedad' ? '0.1' : '0.01'}
-              min="0"
-              max={editModal.field === 'humedad' ? '14' : String(FACTOR_MAX)}
+              maxLength={editModal.field === 'humedad' ? 4 : 5}
               value={editModal.value}
               onChange={(event) =>
                 setEditModal((current) =>
                   current
                     ? {
                         ...current,
-                        value: sanitizeDecimalInput(
-                          event.target.value,
-                          current.field === 'humedad' ? 14 : FACTOR_MAX,
-                          current.field === 'humedad' ? 1 : 2,
-                        ),
+                        ...sanitizeBoundedDecimalInput({
+                          rawValue: event.target.value,
+                          currentValue: current.value,
+                          maxLength: current.field === 'humedad' ? 4 : 5,
+                          decimals: current.field === 'humedad' ? 1 : 2,
+                          min: current.field === 'humedad' ? 8 : 80,
+                          max: current.field === 'humedad' ? 14 : FACTOR_MAX,
+                          invalidMessage: 'Ingresa un valor numérico válido.',
+                          outOfRangeMessage:
+                            current.field === 'humedad'
+                              ? 'La humedad permitida está entre 8% y 14%. Revisa el valor ingresado.'
+                              : 'El factor de rendimiento permitido está entre 80 y 120. Revisa el valor ingresado.',
+                        }),
                       }
                     : current,
                 )
@@ -1265,15 +1428,9 @@ export default function Sublotes() {
                 editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 94'
               }
             />
-            {editModal.value ? (
-              <p className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
-                {editModal.field === 'humedad'
-                  ? getHumidityValidationMessage(
-                      Number(editModal.value.replace(',', '.')),
-                    ) ?? 'Humedad aprobada.'
-                  : getFactorValidationMessage(
-                      Number(editModal.value.replace(',', '.')),
-                    ) ?? 'Factor base.'}
+            {editModal.error || error ? (
+              <p className="mt-2 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                {editModal.error ?? error}
               </p>
             ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1287,7 +1444,8 @@ export default function Sublotes() {
               <button
                 type="button"
                 onClick={handleConfirmEdit}
-                className="rounded-[10px] bg-[#2f4aa4] py-2 text-sm font-semibold text-white"
+                disabled={editModalInvalid}
+                className="rounded-[10px] bg-[#2f4aa4] py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Guardar
               </button>
@@ -1330,22 +1488,25 @@ export default function Sublotes() {
               </label>
               <div className="flex items-center rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  min="0"
-                  max={Math.min(subloteActivo.pesoInicial, PESO_AJUSTE_MAX_KG)}
-                  step="0.01"
+                  maxLength={8}
                   value={weightModal.value}
                   onChange={(event) =>
                     setWeightModal((current) =>
                       current
                         ? {
                             ...current,
-                            value: sanitizeDecimalInput(
-                              event.target.value,
-                              Math.min(subloteActivo.pesoInicial, PESO_AJUSTE_MAX_KG),
-                              2,
-                            ),
+                            ...sanitizeBoundedDecimalInput({
+                              rawValue: event.target.value,
+                              currentValue: current.value,
+                              maxLength: 8,
+                              decimals: 2,
+                              min: 0.01,
+                              max: subloteActivo.pesoActual,
+                              invalidMessage: 'Ingresa un valor numérico válido.',
+                              outOfRangeMessage: `El nuevo peso no puede superar el peso actual en bodega (${formatKg(subloteActivo.pesoActual)}). Verifica el valor.`,
+                            }),
                           }
                         : current,
                     )
@@ -1386,12 +1547,18 @@ export default function Sublotes() {
                 {weightModal.reason.length}/{PESO_MOTIVO_MAX}
               </p>
             </div>
+            {weightModal.error || error ? (
+              <p className="mt-2 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                {weightModal.error ?? error}
+              </p>
+            ) : null}
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleConfirmWeight}
-                className="inline-flex min-h-[34px] items-center justify-center rounded-[8px] bg-[#1f3fa7] px-3 text-[0.66rem] font-black text-white shadow-[0_10px_20px_rgba(31,63,167,0.18)]"
+                disabled={weightModalInvalid}
+                className="inline-flex min-h-[34px] items-center justify-center rounded-[8px] bg-[#1f3fa7] px-3 text-[0.66rem] font-black text-white shadow-[0_10px_20px_rgba(31,63,167,0.18)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 Guardar ajuste
               </button>
@@ -1424,6 +1591,18 @@ export default function Sublotes() {
               OK
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {savingModal ? (
+        <div className="fixed inset-0 z-[60] bg-white">
+          <CafeSmartProcessingScreen
+            title={savingModal.title}
+            subtitle={savingModal.message}
+            helperText="Espera mientras sincronizamos el cambio."
+            trustTitle="Tus datos siguen seguros"
+            trustText="El ajuste se está guardando en el lote seleccionado."
+          />
         </div>
       ) : null}
     </div>

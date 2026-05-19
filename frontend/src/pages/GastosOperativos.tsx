@@ -22,6 +22,8 @@ import {
 import { ApiRequestError } from '../services/apiService';
 import { AccessibleModal } from '../components/AccessibleModal';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
+import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import {
   listarCompras,
   type CompraListadoItem,
@@ -117,11 +119,10 @@ function generarId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function sanitizeMoneyInput(value: string, max = GASTO_MONTO_MAX) {
+function sanitizeMoneyInput(value: string) {
   const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
   if (!digits) return '';
-  const numeric = Number(digits);
-  return String(Math.min(max, Number.isFinite(numeric) ? numeric : max));
+  return digits;
 }
 
 function parseLocalDateValue(value: string) {
@@ -678,7 +679,8 @@ export default function GastosOperativos() {
       });
     } else if (monto > GASTO_MONTO_MAX) {
       errors.monto = getFieldGuidance('monto', {
-        whatOverride: 'El monto supera el límite permitido.',
+        whatOverride:
+          'El monto máximo permitido es $20.000.000.',
       });
     }
 
@@ -698,7 +700,25 @@ export default function GastosOperativos() {
   };
 
   const handleMontoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setMontoStr(sanitizeMoneyInput(event.target.value));
+    const next = sanitizeMoneyInput(event.target.value);
+    setMontoStr(next);
+
+    const monto = Number(next);
+    if (Number.isFinite(monto) && monto > GASTO_MONTO_MAX) {
+      const feedback = getFieldGuidance('monto', {
+        whatOverride:
+          'El monto máximo es $20.000.000. Revisa el valor ingresado.',
+      });
+      setFieldErrors((prev) => ({ ...prev, monto: feedback }));
+      setFloatingNotice({
+        ...feedback,
+        field: 'monto',
+        primaryLabel: 'Corregir',
+        primaryAction: 'focus-field',
+      });
+      return;
+    }
+
     limpiarErrorCampo('monto');
   };
 
@@ -881,6 +901,29 @@ export default function GastosOperativos() {
     { value: 'DESCARGUE', label: 'DESCARGUE', icon: ArchiveRestore },
     { value: 'OTROS', label: 'OTROS', icon: MoreHorizontal },
   ] as const;
+
+  if (showSuccessModal) {
+    return (
+      <div className="min-h-screen bg-[#eef2f6] px-4 py-6 pb-24 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[430px] items-center">
+          <CafeSmartErrorState
+            variant="success"
+            title="Gasto registrado con éxito"
+            message="El gasto fue guardado correctamente en el sistema."
+            primaryLabel="Registrar otro gasto"
+            secondaryLabel="Ver gastos"
+            onPrimary={() => {
+              setShowSuccessModal(false);
+              resetForm();
+            }}
+            onSecondary={() => navigate('/gastos')}
+            primaryBusy={saving}
+            info="El movimiento quedó disponible en tus gastos operativos."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 font-sans text-slate-900">
@@ -1233,7 +1276,7 @@ export default function GastosOperativos() {
           ) : null}
         </div>
 
-        <div className="space-y-3 pt-3">
+        <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)] gap-2 pt-3">
           <button
             type="button"
             disabled={saving || botonGuardarPresionado}
@@ -1243,7 +1286,7 @@ export default function GastosOperativos() {
             {saving || botonGuardarPresionado ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
-              'Guardar Gasto'
+              'Guardar gasto'
             )}
           </button>
 
@@ -1251,7 +1294,7 @@ export default function GastosOperativos() {
             type="button"
             disabled={saving}
             onClick={() => navigate(-1)}
-            className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-white px-4 text-[0.68rem] font-black text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
             Cancelar
           </button>
@@ -1276,12 +1319,12 @@ export default function GastosOperativos() {
                 ? `asociado a ${sublotesSeleccionados.length} sublotes.`
                 : 'como gasto general.'}
             </p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,0.85fr)] gap-2">
               <button
                 type="button"
                 disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] bg-[#2051e5] px-3 text-[0.68rem] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving || botonGuardarPresionado
                   ? 'Guardando gasto...'
@@ -1291,7 +1334,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving}
                 onClick={cerrarModalConfirmar}
-                className="w-full rounded-[8px] border border-slate-200 bg-white py-2.5 text-[0.62rem] font-bold text-slate-600 transition"
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-[0.68rem] font-black text-slate-600 transition"
               >
                 Cancelar
               </button>
@@ -1300,58 +1343,18 @@ export default function GastosOperativos() {
       ) : null}
 
       {showDraftModal && draftPending ? (
-        <AccessibleModal
-          title="Borrador guardado"
-          description="Encontramos un registro sin finalizar. Puedes continuar o empezar de nuevo."
-          onClose={empezarGastoNuevo}
-        >
-          <h2 className="text-center text-lg font-black text-slate-950">
-            Borrador guardado
-          </h2>
-          <p className="mx-auto mt-2 max-w-[300px] text-center text-sm font-semibold leading-6 text-slate-600">
-            Encontramos un registro sin finalizar. Puedes continuar o empezar de nuevo.
-          </p>
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={continuarBorradorGasto}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white"
-            >
-              Continuar
-            </button>
-            <button
-              type="button"
-              onClick={empezarGastoNuevo}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
-            >
-              Empezar de nuevo
-            </button>
-          </div>
-        </AccessibleModal>
-      ) : null}
-
-      {showSuccessModal ? (
-        <AccessibleModal
-          title="Gasto registrado con exito"
-          description="El gasto fue guardado correctamente en el sistema."
-          onClose={() => setShowSuccessModal(false)}
-          className="border-0 bg-transparent p-0 shadow-none"
-        >
-          <CafeSmartErrorState
-            variant="success"
-            title="Gasto registrado con éxito"
-            message="El gasto fue guardado correctamente en el sistema."
-            primaryLabel="Registrar otro gasto"
-            secondaryLabel="Ver gastos"
-            onPrimary={() => {
-              setShowSuccessModal(false);
-              resetForm();
-            }}
-            onSecondary={() => navigate('/gastos')}
-            primaryBusy={saving}
-            info="El movimiento quedó disponible en tus gastos operativos."
-          />
-        </AccessibleModal>
+        <DraftRecoveryModal
+          labelledById="gasto-draft-title"
+          describedById="gasto-draft-description"
+          message="Encontramos un gasto sin finalizar. Puedes continuar con la información guardada o empezar uno nuevo."
+          primaryLabel="Continuar gasto"
+          onPrimary={continuarBorradorGasto}
+          onSecondary={empezarGastoNuevo}
+          details={[
+            { label: 'Tipo de gasto', value: draftPending.tipoGasto ?? 'General' },
+            { label: 'Monto', value: draftPending.montoStr || '-' },
+          ]}
+        />
       ) : null}
 
       {showErrorModal ? (
@@ -1400,6 +1403,18 @@ export default function GastosOperativos() {
           onClose={() => setFloatingNotice(null)}
           onPrimaryAction={handleFloatingNoticeAction}
         />
+      ) : null}
+
+      {saving || botonGuardarPresionado ? (
+        <div className="fixed inset-0 z-50">
+          <CafeSmartProcessingScreen
+            title="Registrando gasto..."
+            subtitle="Estamos guardando la información."
+            helperText="Esto puede tardar unos segundos."
+            trustTitle="Registro seguro"
+            trustText="Tu gasto operativo se está procesando de forma segura."
+          />
+        </div>
       ) : null}
     </div>
   );

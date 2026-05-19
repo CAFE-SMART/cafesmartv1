@@ -12,7 +12,7 @@ El refactoring introduce un campo persistido `costoTotal` que fluye correctament
 
 ### 1. Schema — Prisma
 
-#### [MODIFY] [schema.prisma](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/backend/prisma/schema.prisma)
+#### [MODIFY] [schema.prisma](backend/prisma/schema.prisma)
 
 Agregar `costoTotal` al modelo `Sublote`:
 
@@ -26,14 +26,14 @@ Migración SQL backfill: `UPDATE sublote SET costo_total = peso_inicial * precio
 
 ### 2. Backend — Compras
 
-#### [MODIFY] [procesar-compra.ts](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/backend/src/compras/procesar-compra.ts)
+#### [MODIFY] [procesar-compra.ts](backend/src/compras/procesar-compra.ts)
 
 Agregar `costoTotal` al tipo `CompraProcesada.sublotes` y calcularlo en `procesarSublote()`:
 ```
 costoTotal = pesoInicial × precioKg  (ONLY on initial purchase)
 ```
 
-#### [MODIFY] [compras.service.ts](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/backend/src/compras/compras.service.ts)
+#### [MODIFY] [compras.service.ts](backend/src/compras/compras.service.ts)
 
 En `construirSublotesData()`, pasar `costoTotal` al `createMany`.
 
@@ -41,7 +41,7 @@ En `construirSublotesData()`, pasar `costoTotal` al `createMany`.
 
 ### 3. Backend — Lotes Service (`calcularFinancieroSublote`)
 
-#### [MODIFY] [lotes.service.ts](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/backend/src/lotes/lotes.service.ts)
+#### [MODIFY] [lotes.service.ts](backend/src/lotes/lotes.service.ts)
 
 > [!CAUTION]
 > **REGLA ABSOLUTA**: Después de la compra inicial, NUNCA recalcular el costo usando `precioKg`. Siempre usar `costoTotal` persistido.
@@ -95,11 +95,11 @@ gastoSublote = (pesoBase / Σ pesoBase de sublotes vinculados) × montoGasto
 
 ### 4. Frontend
 
-#### [MODIFY] [lotesService.ts](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/frontend/src/services/lotesService.ts)
+#### [MODIFY] [lotesService.ts](frontend/src/services/lotesService.ts)
 
 Agregar campos financieros a `SubloteDetalle`.
 
-#### [MODIFY] [Sublotes.tsx](file:///c:/Users/penal/OneDrive%20-%20Universidad%20del%20Valle/semestre%206/cafesmartv1/frontend/src/pages/Sublotes.tsx)
+#### [MODIFY] [Sublotes.tsx](frontend/src/pages/Sublotes.tsx)
 
 Sección financiera por sublote + resumen del lote en la cabecera.
 

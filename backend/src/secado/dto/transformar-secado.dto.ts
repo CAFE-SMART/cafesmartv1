@@ -41,6 +41,13 @@ export class TransformarSecadoSalidaDto {
   @Min(0, { message: 'La humedad no puede ser negativa' })
   @Max(100, { message: 'La humedad no puede superar 100%' })
   humedad?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El factor debe ser un numero' })
+  @Min(80, { message: 'El factor no puede ser menor a 80' })
+  @Max(120, { message: 'El factor no puede ser mayor a 120' })
+  factor?: number | null;
 }
 
 export class TransformarSecadoDto {

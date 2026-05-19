@@ -4,7 +4,6 @@ import {
   CalendarDays,
   LoaderCircle,
   PackageCheck,
-  RefreshCcw,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
@@ -12,6 +11,7 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import {
   obtenerDashboardSummary,
@@ -356,14 +356,13 @@ function DashboardErrorState({
         <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
           Revisa tu conexión e intenta nuevamente.
         </p>
-        <button
-          type="button"
+        <RefreshButton
           onClick={onRetry}
-          className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#173b9c] px-4 text-[0.78rem] font-black text-white"
+          aria-label="Recargar"
+          className="mt-4 w-full"
         >
-          <RefreshCcw size={14} />
           Recargar
-        </button>
+        </RefreshButton>
       </div>
     </section>
   );
@@ -517,6 +516,7 @@ export default function Inicio() {
         porcentaje: 0,
         etiqueta: loading ? '...' : '0%',
         excedida: false,
+        nivel: 'normal' as const,
       };
     }
 
@@ -526,8 +526,42 @@ export default function Inicio() {
       porcentaje: Math.min(100, porcentajeReal),
       etiqueta: `${Math.round(porcentajeReal)}%`,
       excedida: porcentajeReal > 100,
+      nivel:
+        porcentajeReal >= 90
+          ? 'alert'
+          : porcentajeReal >= 70
+            ? 'warning'
+            : 'normal',
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
+
+  const ocupacionVisual = useMemo(() => {
+    if (ocupacion.nivel === 'alert') {
+      return {
+        card: 'border-[#fecaca] bg-[#fff7f7]',
+        text: 'text-[#b42318]',
+        bar: 'bg-[#d92d20]',
+        track: 'bg-[#fee2e2]',
+        badge: 'bg-[#fee2e2] text-[#b42318]',
+      };
+    }
+    if (ocupacion.nivel === 'warning') {
+      return {
+        card: 'border-[#fde68a] bg-[#fffbeb]',
+        text: 'text-[#b45309]',
+        bar: 'bg-[#d97706]',
+        track: 'bg-[#fef3c7]',
+        badge: 'bg-[#fef3c7] text-[#92400e]',
+      };
+    }
+    return {
+      card: 'border-[#e6e8f3] bg-white',
+      text: 'text-[#102d92]',
+      bar: 'bg-[#102d92]',
+      track: 'bg-[#eef2f8]',
+      badge: 'bg-[#eef4ff] text-[#102d92]',
+    };
+  }, [ocupacion.nivel]);
 
   const alertaBodega = useMemo(() => {
     const kgActual = summary?.kgActual ?? null;
@@ -543,37 +577,23 @@ export default function Inicio() {
     }
 
     const porcentajeReal = (kgActual / kgCapacidad) * 100;
-    if (porcentajeReal >= 100) {
+    if (porcentajeReal >= 90) {
       return {
-        title: 'La bodega alcanzó su límite.',
+        title: 'La bodega está casi llena.',
         text: 'Libera espacio antes de comprar más café.',
-        className:
-          'border-[#fb7185] bg-[#fff1f2] text-[#881337] shadow-[0_10px_24px_rgba(190,18,60,0.12)]',
+        className: 'border-rose-200 bg-rose-50 text-rose-900',
         icon: '!',
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
       };
     }
-    if (porcentajeReal >= 90) {
-      return {
-        title: 'La bodega está casi llena.',
-        text: 'Libera espacio antes de comprar más café.',
-        className:
-          'border-[#f59e0b] bg-[#fff4cc] text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]',
-        icon: '⚠',
-        primary: 'Ir a ventas',
-        secondary: 'Editar bodega',
-        secondaryPath: '/ajustes',
-      };
-    }
-    if (porcentajeReal >= 80) {
+    if (porcentajeReal >= 70) {
       return {
         title: 'La bodega se está llenando.',
         text: 'Libera espacio antes de comprar más café.',
-        className:
-          'border-[#fbbf24] bg-[#fffbeb] text-[#713f12] shadow-[0_10px_24px_rgba(180,83,9,0.12)]',
-        icon: '⚠',
+        className: 'border-amber-200 bg-amber-50 text-amber-950',
+        icon: '!',
         primary: 'Ir a ventas',
         primaryPath: '/ventas',
         secondary: 'Editar bodega',
@@ -679,22 +699,13 @@ export default function Inicio() {
               ) : null}
             </div>
 
-            <button
-              type="button"
+            <RefreshButton
               onClick={() => void handleReload()}
-              disabled={refreshing}
-              className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
+              loading={refreshing}
+              aria-label="Recargar"
             >
-              {refreshing ? (
-                <LoaderCircle
-                  size={13}
-                  className="animate-spin text-[#4b5c77]"
-                />
-              ) : (
-                <RefreshCcw size={13} className="text-[#4b5c77]" />
-              )}
               Recargar
-            </button>
+            </RefreshButton>
           </div>
         </header>
 
@@ -916,26 +927,26 @@ export default function Inicio() {
             <section className="px-5 py-3">
               <p className={sectionTitleClass}>Capacidad en bodega</p>
 
-              <div className={`mt-3 ${cardClass}`}>
+              <div className={`mt-3 rounded-[18px] border p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] ${ocupacionVisual.card}`}>
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-[0.9rem] font-black text-[#1f2937]">
                     Ocupaci&oacute;n actual
                   </h2>
                   <span
-                    className={`text-[1rem] font-black ${ocupacion.excedida ? 'text-[#b42318]' : 'text-[#18479d]'}`}
+                    className={`rounded-full px-2.5 py-1 text-[1rem] font-black ${ocupacionVisual.badge}`}
                   >
                     {ocupacion.etiqueta}
                   </span>
                 </div>
 
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f8]">
+                <div className={`mt-3 h-2 overflow-hidden rounded-full ${ocupacionVisual.track}`}>
                   <div
-                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacion.excedida ? 'bg-[#d92d20]' : 'bg-[#17489c]'}`}
+                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacionVisual.bar}`}
                     style={{ width: `${ocupacion.porcentaje}%` }}
                   />
                 </div>
 
-                <div className="mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black text-[#74839a]">
+                <div className={`mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black ${ocupacionVisual.text}`}>
                   <span>
                     {formatMetric(loading, summary?.kgActual ?? null, formatKg)}{' '}
                     usados

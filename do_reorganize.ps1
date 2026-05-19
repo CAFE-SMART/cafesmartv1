@@ -1,7 +1,8 @@
-﻿$filepath = "c:\Users\fcoib\cafesmartv1\frontend\src\pages\Inicio.tsx"
+$repoRoot = $PSScriptRoot
+$filepath = Join-Path $repoRoot "frontend/src/pages/Inicio.tsx"
 $backup = "$filepath.bak"
-Copy-Item $filepath $backup -Force
-$lines = Get-Content $filepath
+Copy-Item -LiteralPath $filepath -Destination $backup -Force
+$lines = Get-Content -LiteralPath $filepath
 
 # Find section boundaries
 $idxResDia = -1; $idxCap = -1; $idxInv = -1; $idxEndInv = -1
@@ -27,9 +28,9 @@ $afterAll = $lines[($idxEndInv + 1)..($lines.Count - 1)]
 $result = @()
 $result += $beforeAll
 $result += $inventario
-$result += $capacidad  
+$result += $capacidad
 $result += $resumenDia
 $result += $afterAll
 
-$result | Set-Content $filepath -Encoding UTF8
+$result | Set-Content -LiteralPath $filepath -Encoding UTF8
 Write-Host "Reorganizado! Resumen en linea"

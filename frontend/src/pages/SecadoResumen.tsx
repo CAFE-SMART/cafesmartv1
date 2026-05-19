@@ -33,6 +33,10 @@ function getSecadoPersistErrorMessage(error: unknown) {
     if (error.status >= 500) {
       return 'Puede ser una falla temporal. Revisa tu conexión e intenta de nuevo.';
     }
+
+    if (error.message) {
+      return error.message;
+    }
   }
 
   if (error.message.includes('Esta opcion aun no esta disponible')) {
@@ -91,6 +95,7 @@ export default function SecadoResumen() {
             subloteId: finalized.sublotes[0].id,
             pesoSalida: salidas[0].pesoKg,
             calidadSalida: salidas[0].calidad,
+            humedad: salidas[0].humedad ?? null,
           });
         } else {
           await transformarSecado({

@@ -5,6 +5,8 @@ import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 const Login = lazy(() => import('../pages/Login'));
+const RecuperarPassword = lazy(() => import('../pages/RecuperarPassword'));
+const RestablecerPassword = lazy(() => import('../pages/RestablecerPassword'));
 const Register = lazy(() => import('../pages/Register'));
 const Inicio = lazy(() => import('../pages/Inicio'));
 const Compras = lazy(() => import('../pages/Compras'));
@@ -29,6 +31,9 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/recuperar" element={<RecuperarPassword />} />
+        <Route path="/recuperar-password" element={<RecuperarPassword />} />
+        <Route path="/restablecer" element={<RestablecerPassword />} />
         <Route path="/register" element={<Register />} />
         <Route path="/crear-empresa" element={<Register />} />
         <Route path="/estado-sistema" element={<SystemStatus />} />

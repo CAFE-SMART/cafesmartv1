@@ -5,6 +5,7 @@ import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { CafeSmartErrorState } from './components/CafeSmartErrorState';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
+import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -15,6 +16,17 @@ type ErrorBoundaryState = {
 };
 
 const BOOT_SPLASH_VISIBLE_MS = 2200;
+const PRIVATE_ROUTE_CURRENT_KEY = 'cafeSmart:currentPrivateRoute';
+const PRIVATE_ROUTE_PREVIOUS_KEY = 'cafeSmart:previousPrivateRoute';
+
+const isPublicRoute = (path: string) =>
+  path === '/' ||
+  path.startsWith('/login') ||
+  path.startsWith('/recuperar') ||
+  path.startsWith('/recuperar-password') ||
+  path.startsWith('/restablecer') ||
+  path.startsWith('/register') ||
+  path.startsWith('/crear-empresa');
 
 class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -37,25 +49,30 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     });
   };
 
-  private handleGoHome = () => {
+  private handleGoHome = async () => {
     const path = window.location.pathname;
-    const inAuthFlow =
-      path === '/' ||
-      path.startsWith('/login') ||
-      path.startsWith('/register') ||
-      path.startsWith('/crear-empresa');
-    window.location.assign(inAuthFlow ? '/login' : '/inicio');
+    const inAuthFlow = isPublicRoute(path);
+    const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
+
+    if (!token && inAuthFlow) {
+      window.location.assign('/login');
+      return;
+    }
+
+    if (path.startsWith('/ventas')) {
+      window.location.assign('/ventas');
+      return;
+    }
+
+    window.location.assign(token ? '/inicio' : '/login');
   };
 
   render() {
     if (this.state.hasError) {
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
       const path = typeof window !== 'undefined' ? window.location.pathname : '';
-      const inAuthFlow =
-        path === '/' ||
-        path.startsWith('/login') ||
-        path.startsWith('/register') ||
-        path.startsWith('/crear-empresa');
+      const inAuthFlow = isPublicRoute(path);
+      const inVentasFlow = path.startsWith('/ventas');
 
       return (
         <CafeSmartErrorState
@@ -73,7 +90,13 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
                 : 'Puedes ir al inicio o intentar cargar la pantalla otra vez.'
           }
           primaryLabel="Reintentar"
-          secondaryLabel={inAuthFlow ? 'Volver al login' : 'Ir al inicio'}
+          secondaryLabel={
+            inAuthFlow
+              ? 'Volver al login'
+              : inVentasFlow
+                ? 'Volver a ventas'
+                : 'Volver al inicio'
+          }
           onPrimary={this.handleRetry}
           onSecondary={this.handleGoHome}
         />
@@ -82,6 +105,25 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
 
     return this.props.children;
   }
+}
+
+function PrivateRouteHistoryTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const path = location.pathname;
+    if (isPublicRoute(path)) return;
+
+    const current = window.sessionStorage.getItem(PRIVATE_ROUTE_CURRENT_KEY);
+    if (current && current !== path) {
+      window.sessionStorage.setItem(PRIVATE_ROUTE_PREVIOUS_KEY, current);
+    }
+    window.sessionStorage.setItem(PRIVATE_ROUTE_CURRENT_KEY, path);
+  }, [location.pathname]);
+
+  return null;
 }
 
 function GlobalOfflineNotice() {
@@ -125,6 +167,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppErrorBoundary>
+        <PrivateRouteHistoryTracker />
         {showBootSplash ? (
           <AppLoadingScreen />
         ) : (

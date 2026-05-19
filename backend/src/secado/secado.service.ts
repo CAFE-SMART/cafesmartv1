@@ -101,11 +101,13 @@ export class SecadoService {
             sessionId: `secado-${dto.subloteId}-${dto.calidadSalida}-${dto.pesoSalida}`,
             deviceId: 'backend-secado',
             referenciaSubloteOrigenId: dto.subloteId,
-            fuentes: [{ id: dto.subloteId, pesoKg: pesoEntrada }],
+            fuentes: [{ id: dto.subloteId, pesoKg: dto.pesoSalida }],
             salidas: [
               {
                 calidad: dto.calidadSalida,
                 pesoKg: dto.pesoSalida,
+                humedad: dto.humedad ?? null,
+                factor: dto.factor ?? null,
               },
             ],
           } as TransformarSecadoInput,
@@ -373,6 +375,7 @@ export class SecadoService {
           precioKg: precioPromedioKg,
           costoTotal,
           humedad: salida.humedad ?? null,
+          factor: salida.factor ?? null,
           deviceId: dto.deviceId,
           localId: this.getSalidaLocalId(dto.sessionId, salida.calidad),
         },
