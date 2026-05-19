@@ -242,7 +242,9 @@ export default function RecuperarPassword() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="correo@empresa.com"
-                  aria-invalid={Boolean(error)}
+                  {...(error
+                    ? ({ 'aria-invalid': 'true' } as const)
+                    : ({ 'aria-invalid': 'false' } as const))}
                   className="h-12 w-full rounded-[14px] border border-[#dfe5f1] bg-white pl-10 pr-4 text-sm font-semibold text-slate-800 outline-none transition placeholder:text-gray-400 focus:border-[#274ab8] focus:ring-4 focus:ring-[#274ab8]/10"
                 />
               </span>

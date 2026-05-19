@@ -418,10 +418,7 @@ function CapacityRing({
 
   return (
     <section className={`rounded-[20px] border p-4 shadow-sm ${capacityShellClass}`}>
-      <p
-        className="text-[0.95rem] font-extrabold text-black"
-        style={{ fontWeight: 900 }}
-      >
+      <p className="text-[0.95rem] font-black text-black">
         Resumen de Inventario
       </p>
       <div className="mt-2 flex items-start justify-between gap-3">
@@ -1328,9 +1325,15 @@ export default function Inventario() {
 
       {showBodegaEditor ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
-          <section className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bodega-editor-title"
+            aria-describedby="bodega-editor-description"
+            className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+          >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-black text-slate-950">
+              <h2 id="bodega-editor-title" className="text-lg font-black text-slate-950">
                 Editar capacidad de bodega
               </h2>
               <button
@@ -1342,15 +1345,24 @@ export default function Inventario() {
                 ×
               </button>
             </div>
+            <p id="bodega-editor-description" className="sr-only">
+              Ajusta el nombre y la capacidad maxima de la bodega.
+            </p>
             {bodegaLimitNotice ? (
-              <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+              <div
+                id="bodega-limit-notice"
+                role="status"
+                aria-live="polite"
+                className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800"
+              >
                 {bodegaLimitNotice}
               </div>
             ) : null}
-            <label className="mt-4 block text-xs font-black text-slate-700">
+            <label htmlFor="bodega-nombre" className="mt-4 block text-xs font-black text-slate-700">
               Nombre de bodega
             </label>
             <input
+              id="bodega-nombre"
               type="text"
               value={bodegaNameDraft}
               maxLength={BODEGA_NAME_MAX_LENGTH}
@@ -1368,10 +1380,11 @@ export default function Inventario() {
             <p className="mt-1 text-right text-xs font-bold text-slate-500">
               {bodegaNameDraft.length}/{BODEGA_NAME_MAX_LENGTH}
             </p>
-            <label className="mt-3 block text-xs font-black text-slate-700">
+            <label htmlFor="bodega-capacidad" className="mt-3 block text-xs font-black text-slate-700">
               Capacidad máxima kg
             </label>
             <input
+              id="bodega-capacidad"
               type="text"
               inputMode="numeric"
               value={bodegaCapacityDraft}
@@ -1382,9 +1395,16 @@ export default function Inventario() {
               }
               className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
               placeholder="100000"
+              aria-invalid={bodegaEditorError ? 'true' : 'false'}
+              aria-describedby={bodegaEditorError ? 'bodega-editor-error' : undefined}
             />
             {bodegaEditorError ? (
-              <p className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+              <p
+                id="bodega-editor-error"
+                role="alert"
+                aria-live="assertive"
+                className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700"
+              >
                 {bodegaEditorError}
               </p>
             ) : null}

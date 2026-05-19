@@ -23,10 +23,14 @@ export class VentasController {
     @Req() req: { user: { sub: string } },
     @Query('fecha') fecha?: string,
     @Query('orden') orden?: 'recent' | 'oldest',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.ventasService.listarVentas(req.user.sub, {
       fecha,
       orden,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 

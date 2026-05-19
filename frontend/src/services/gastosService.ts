@@ -1,4 +1,4 @@
-import { apiFetch } from './apiService';
+import { apiFetch, invalidateApiCache } from './apiService';
 
 export type SubloteResumen = {
   id: string;
@@ -56,16 +56,37 @@ export type RegistrarGastoLocalPayload = {
   lotesIds?: string[];
 };
 
-export async function listarGastos(subloteId?: string) {
-  const query = subloteId ? `?subloteId=${encodeURIComponent(subloteId)}` : '';
-  return apiFetch(`/gastos${query}`) as Promise<GastoItem[]>;
+export type ListarGastosParams = {
+  subloteId?: string;
+  fecha?: string;
+  tipo?: string;
+  orden?: 'recent' | 'oldest';
+  page?: number;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
+export async function listarGastos(params?: string | ListarGastosParams) {
+  const options =
+    typeof params === 'string' ? { subloteId: params } : (params ?? {});
+  const search = new URLSearchParams();
+  if (options.subloteId) search.set('subloteId', options.subloteId);
+  if (options.fecha) search.set('fecha', options.fecha);
+  if (options.tipo && options.tipo !== 'TODOS') search.set('tipo', options.tipo);
+  if (options.orden) search.set('orden', options.orden);
+  if (options.page) search.set('page', String(options.page));
+  if (options.limit) search.set('limit', String(options.limit));
+  const query = search.toString() ? `?${search.toString()}` : '';
+  return apiFetch(`/gastos${query}`, { signal: options.signal }) as Promise<GastoItem[]>;
 }
 
 export async function crearGasto(payload: CrearGastoPayload) {
-  return apiFetch('/gastos', {
+  const response = await apiFetch('/gastos', {
     method: 'POST',
     body: JSON.stringify(payload),
-  }) as Promise<GastoItem>;
+  }) as GastoItem;
+  invalidateApiCache();
+  return response;
 }
 
 export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {

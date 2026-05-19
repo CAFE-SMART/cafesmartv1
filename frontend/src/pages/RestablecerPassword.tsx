@@ -97,7 +97,9 @@ function PasswordField({
           maxLength={PASSWORD_MAX_LENGTH}
           placeholder={placeholder}
           autoComplete="new-password"
-          aria-invalid={Boolean(error)}
+          {...(error
+            ? ({ 'aria-invalid': 'true' } as const)
+            : ({ 'aria-invalid': 'false' } as const))}
           aria-describedby={error ? `${id}-error` : undefined}
           className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
         />

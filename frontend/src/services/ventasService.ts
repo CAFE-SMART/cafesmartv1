@@ -1,4 +1,4 @@
-import { apiFetch } from './apiService';
+import { apiFetch, invalidateApiCache } from './apiService';
 
 export type VentaClientePayload = {
   nombre: string;
@@ -59,15 +59,31 @@ export type VentaListadoResponse = {
   registros: VentaListadoItem[];
 };
 
-export async function listarVentas() {
-  return apiFetch('/ventas') as Promise<VentaListadoResponse>;
+export type ListarVentasParams = {
+  fecha?: string;
+  orden?: 'recent' | 'oldest';
+  page?: number;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
+export async function listarVentas(params: ListarVentasParams = {}) {
+  const search = new URLSearchParams();
+  if (params.fecha) search.set('fecha', params.fecha);
+  if (params.orden) search.set('orden', params.orden);
+  if (params.page) search.set('page', String(params.page));
+  if (params.limit) search.set('limit', String(params.limit));
+  const query = search.toString() ? `?${search.toString()}` : '';
+  return apiFetch(`/ventas${query}`, { signal: params.signal }) as Promise<VentaListadoResponse>;
 }
 
 export async function crearVenta(payload: CreateVentaPayload) {
-  return apiFetch('/ventas', {
+  const response = await apiFetch('/ventas', {
     method: 'POST',
     body: JSON.stringify(payload),
-  }) as Promise<CreateVentaResponse>;
+  }) as CreateVentaResponse;
+  invalidateApiCache();
+  return response;
 }
 
 export function sortByFIFO(l:any[]):any[]{return[...l].sort((a,b)=>{return new Date(a.fechaIngreso||a.fecha).getTime()-new Date(b.fechaIngreso||b.fecha).getTime()})}

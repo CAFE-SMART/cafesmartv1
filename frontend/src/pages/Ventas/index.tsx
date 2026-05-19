@@ -263,7 +263,9 @@ function CompactSelect<T extends string>({
                 key={option.value}
                 type="button"
                 role="option"
-                aria-selected={active ? 'true' : 'false'}
+                {...(active
+                  ? ({ 'aria-selected': 'true' } as const)
+                  : ({ 'aria-selected': 'false' } as const))}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   onChange(option.value);

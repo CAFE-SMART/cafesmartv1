@@ -34,7 +34,12 @@ export class VentasService {
 
   async listarVentas(
     userId: string,
-    filtros: { fecha?: string; orden?: 'recent' | 'oldest' } = {},
+    filtros: {
+      fecha?: string;
+      orden?: 'recent' | 'oldest';
+      page?: number;
+      limit?: number;
+    } = {},
   ) {
     const organizacionId = await this.obtenerOrganizacionId(userId);
     const where: Prisma.VentaWhereInput = {
@@ -43,10 +48,12 @@ export class VentasService {
       ...(filtros.fecha ? { fecha: this.crearFiltroDia(filtros.fecha) } : {}),
     };
     const direccion = filtros.orden === 'oldest' ? 'asc' : 'desc';
+    const pagination = this.crearPaginacion(filtros.page, filtros.limit);
 
     const ventas = await this.prisma.venta.findMany({
       where,
       orderBy: [{ fecha: direccion }, { createdAt: direccion }],
+      ...(pagination ?? {}),
       include: {
         cliente: {
           select: {
@@ -295,5 +302,21 @@ export class VentasService {
     const desde = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const hasta = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
     return { gte: desde, lt: hasta };
+  }
+
+  private crearPaginacion(page?: number, limit?: number) {
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit as number), 1), 100)
+      : undefined;
+    if (!safeLimit) return null;
+
+    const safePage = Number.isFinite(page)
+      ? Math.max(Math.trunc(page as number), 1)
+      : 1;
+
+    return {
+      take: safeLimit,
+      skip: (safePage - 1) * safeLimit,
+    };
   }
 }

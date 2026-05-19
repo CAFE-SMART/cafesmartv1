@@ -81,6 +81,7 @@ export function SmartSelect({
       currentTarget: { value: option.value, name },
     } as React.ChangeEvent<HTMLSelectElement>);
   };
+  const listboxId = id ? `${id}-listbox` : undefined;
 
   return (
     <span ref={containerRef} className="relative inline-flex w-full">
@@ -90,12 +91,18 @@ export function SmartSelect({
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={open ? 'true' : 'false'}
+        aria-controls={listboxId}
+        aria-disabled={disabled ? 'true' : undefined}
         aria-label={ariaLabel}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') setOpen(false);
           if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(true);
+          }
+          if (event.key === 'ArrowUp') {
             event.preventDefault();
             setOpen(true);
           }
@@ -114,7 +121,9 @@ export function SmartSelect({
         aria-hidden="true"
       />
       <span
+        id={listboxId}
         role="listbox"
+        aria-label={ariaLabel}
         className={`absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 origin-top overflow-hidden rounded-[18px] border border-[#b8ccff] bg-white/95 p-1.5 shadow-[0_22px_50px_rgba(16,45,146,0.22)] backdrop-blur-xl transition duration-200 ${
           open
             ? 'scale-100 opacity-100'
@@ -128,7 +137,7 @@ export function SmartSelect({
               key={option.value}
               type="button"
               role="option"
-              aria-selected={selected}
+              aria-selected={selected ? 'true' : 'false'}
               disabled={option.disabled}
               onClick={() => selectOption(option)}
               className={`min-h-[40px] w-full rounded-[13px] px-3 text-left text-xs font-black transition ${

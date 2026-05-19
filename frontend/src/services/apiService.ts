@@ -27,7 +27,10 @@ export class ApiRequestError extends Error {
   }
 }
 
+const GET_CACHE_TTL_MS = 12_000;
+
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
+const getResponseCache = new Map<string, { expiresAt: number; data: unknown }>();
 
 function normalizarMensaje(message: unknown) {
   if (Array.isArray(message)) {
@@ -135,13 +138,21 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
   const basesApi = construirBasesApi();
   const method = (options.method ?? 'GET').toUpperCase();
-  const canDedupe = method === 'GET';
+  const canDedupe = method === 'GET' && !options.signal;
   const dedupeKey = canDedupe
     ? `${token ?? 'anonymous'}::${endpoint}`
     : null;
 
   if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
     return inFlightGetRequests.get(dedupeKey);
+  }
+
+  if (dedupeKey) {
+    const cached = getResponseCache.get(dedupeKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+    if (cached) getResponseCache.delete(dedupeKey);
   }
 
   const headers = {
@@ -175,6 +186,13 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
           });
         }
 
+        if (dedupeKey) {
+          getResponseCache.set(dedupeKey, {
+            data,
+            expiresAt: Date.now() + GET_CACHE_TTL_MS,
+          });
+        }
+
         return data;
       } catch (error) {
         ultimoError = error;
@@ -196,5 +214,18 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     );
   }
 
+  if (method !== 'GET') {
+    getResponseCache.clear();
+    requestPromise.then(
+      () => getResponseCache.clear(),
+      () => getResponseCache.clear(),
+    );
+  }
+
   return requestPromise;
 };
+
+export function invalidateApiCache() {
+  getResponseCache.clear();
+  inFlightGetRequests.clear();
+}

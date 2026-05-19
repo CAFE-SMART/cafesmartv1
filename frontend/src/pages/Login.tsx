@@ -82,7 +82,9 @@ function FieldMessage({
   return (
     <p
       id={id}
-      aria-live={isError ? 'assertive' : 'polite'}
+      {...(isError
+        ? ({ role: 'alert', 'aria-live': 'assertive' } as const)
+        : ({ role: 'status', 'aria-live': 'polite' } as const))}
       className={`mt-2 flex items-start gap-1.5 rounded-lg px-1 text-sm font-semibold leading-5 ${
         isError ? 'text-red-600' : 'text-slate-500'
       }`}

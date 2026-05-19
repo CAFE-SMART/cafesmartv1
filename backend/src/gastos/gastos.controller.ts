@@ -34,8 +34,20 @@ export class GastosController {
   async listar(
     @Req() req: { user: { sub: string } },
     @Query('subloteId') subloteId?: string,
+    @Query('fecha') fecha?: string,
+    @Query('tipo') tipo?: string,
+    @Query('orden') orden?: 'recent' | 'oldest',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.gastosService.listarGastos(req.user.sub, subloteId);
+    return this.gastosService.listarGastos(req.user.sub, {
+      subloteId,
+      fecha,
+      tipo,
+      orden,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('sublote/:subloteId')

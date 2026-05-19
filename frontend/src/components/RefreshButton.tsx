@@ -22,6 +22,8 @@ export function RefreshButton({
     <button
       type="button"
       disabled={buttonDisabled}
+      aria-disabled={buttonDisabled ? 'true' : undefined}
+      aria-busy={loading ? 'true' : undefined}
       className={`inline-flex items-center justify-center gap-2 rounded-[14px] border border-[#dbe2ee] bg-white px-3 py-2 text-[0.75rem] font-black text-[#334155] shadow-sm transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-70 ${iconOnly ? 'h-10 w-10 px-0' : 'h-10'} ${className}`.trim()}
       {...props}
     >

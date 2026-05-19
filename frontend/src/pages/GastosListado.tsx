@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
@@ -159,7 +159,9 @@ function GastosDatePicker({
       <button
         type="button"
         onClick={onToggle}
-        aria-expanded={open ? 'true' : 'false'}
+        {...(open
+          ? ({ 'aria-expanded': 'true' } as const)
+          : ({ 'aria-expanded': 'false' } as const))}
         className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] ${
           open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
         }`}
@@ -264,9 +266,13 @@ export default function GastosListado() {
   const [filtroFechaOpen, setFiltroFechaOpen] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
   const [orden, setOrden] = useState<'recent' | 'oldest'>('recent');
+  const requestRef = useRef<AbortController | null>(null);
 
   const cargar = useCallback(
     async (isRefresh = false) => {
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
       if (isRefresh) {
         setRefreshing(true);
       } else {
@@ -275,23 +281,36 @@ export default function GastosListado() {
       setError(null);
 
       try {
-        const data = await listarGastos(subloteId);
+        const data = await listarGastos({
+          subloteId,
+          fecha: filtroFecha || undefined,
+          tipo: filtroTipo,
+          orden,
+          signal: controller.signal,
+        });
         setGastos(
           subloteId ? data : data.filter((gasto) => gasto.esGastoGeneral),
         );
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
         setError('No pudimos cargar los gastos. Intenta nuevamente.');
         setGastos([]);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [subloteId],
+    [filtroFecha, filtroTipo, orden, subloteId],
   );
 
   useEffect(() => {
     void cargar();
+    return () => requestRef.current?.abort();
   }, [cargar]);
 
   const gastosFiltrados = useMemo(() => {

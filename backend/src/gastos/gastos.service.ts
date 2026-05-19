@@ -145,19 +145,40 @@ export class GastosService {
    * Lista todos los gastos activos de la organización del usuario.
    * Soporta filtro opcional por subloteId.
    */
-  async listarGastos(userId: string, subloteId?: string): Promise<GastoItem[]> {
+  async listarGastos(
+    userId: string,
+    filtros: {
+      subloteId?: string;
+      fecha?: string;
+      tipo?: string;
+      orden?: 'recent' | 'oldest';
+      page?: number;
+      limit?: number;
+    } = {},
+  ): Promise<GastoItem[]> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+    const tipoGasto =
+      filtros.tipo && Object.values(TipoGasto).includes(filtros.tipo as TipoGasto)
+        ? (filtros.tipo as TipoGasto)
+        : undefined;
 
     const where: Prisma.GastoOperativoWhereInput = {
       organizacionId,
       deletedAt: null,
-      ...(subloteId ? { sublotes: { some: { subloteId } } } : {}),
+      ...(filtros.subloteId
+        ? { sublotes: { some: { subloteId: filtros.subloteId } } }
+        : {}),
+      ...(filtros.fecha ? { fechaGasto: this.crearFiltroDia(filtros.fecha) } : {}),
+      ...(tipoGasto ? { tipoGasto } : {}),
     };
+    const direccion = filtros.orden === 'oldest' ? 'asc' : 'desc';
+    const pagination = this.crearPaginacion(filtros.page, filtros.limit);
 
     const gastos = await this.prisma.gastoOperativo.findMany({
       where,
       include: this.incluirSublotes(),
-      orderBy: [{ fechaGasto: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ fechaGasto: direccion }, { createdAt: direccion }],
+      ...(pagination ?? {}),
     });
 
     return gastos.map((g) => this.formatearGasto(g, g.sublotes.length === 0));
@@ -311,6 +332,35 @@ export class GastosService {
    */
   private incluirSublotes() {
     return INCLUDE_SUBLOTES;
+  }
+
+  private crearFiltroDia(fecha: string): Prisma.DateTimeFilter {
+    const [year, month, day] = fecha.slice(0, 10).split('-').map(Number);
+    if (!year || !month || !day) {
+      throw new BadRequestException(
+        apiError('GASTO_FECHA_INVALIDA', 'La fecha debe tener formato YYYY-MM-DD.'),
+      );
+    }
+
+    const desde = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const hasta = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+    return { gte: desde, lt: hasta };
+  }
+
+  private crearPaginacion(page?: number, limit?: number) {
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit as number), 1), 100)
+      : undefined;
+    if (!safeLimit) return null;
+
+    const safePage = Number.isFinite(page)
+      ? Math.max(Math.trunc(page as number), 1)
+      : 1;
+
+    return {
+      take: safeLimit,
+      skip: (safePage - 1) * safeLimit,
+    };
   }
 
   /**

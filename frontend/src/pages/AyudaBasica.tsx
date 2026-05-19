@@ -82,7 +82,9 @@ export default function AyudaBasica() {
                   type="button"
                   onClick={() => setOpenIndex(open ? null : index)}
                   className="flex min-h-[54px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  aria-expanded={open}
+                  {...(open
+                    ? ({ 'aria-expanded': 'true' } as const)
+                    : ({ 'aria-expanded': 'false' } as const))}
                 >
                   <span className="text-sm font-black text-slate-950">
                     {item.title}

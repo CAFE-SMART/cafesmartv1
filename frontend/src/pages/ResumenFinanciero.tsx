@@ -266,7 +266,9 @@ function HistoryDatePicker({
       <button
         type="button"
         aria-haspopup="dialog"
-        aria-expanded={open ? 'true' : 'false'}
+        {...(open
+          ? ({ 'aria-expanded': 'true' } as const)
+          : ({ 'aria-expanded': 'false' } as const))}
         onClick={onToggle}
         className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] transition hover:border-[#9fb0d4] ${
           open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
