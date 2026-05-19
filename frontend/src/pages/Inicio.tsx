@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
-  LoaderCircle,
   PackageCheck,
   ShieldCheck,
   ShoppingCart,
@@ -11,6 +10,7 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import {
@@ -324,21 +324,14 @@ function EmptyDashboardState({
 
 function DashboardLoadingState() {
   return (
-    <section className="px-5 pt-6">
-      <div className="rounded-[18px] border border-[#dbe2ee] bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
-        <div className="flex items-center gap-3">
-          <LoaderCircle size={18} className="animate-spin text-[#18479d]" />
-          <div>
-            <p className="text-[0.8rem] font-black text-[#1f2937]">
-              Cargando inicio
-            </p>
-            <p className="mt-1 text-[0.68rem] font-semibold text-[#65758f]">
-              Preparando tus indicadores e inventario.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
+    <CafeSmartProcessingScreen
+      title="Cargando inicio"
+      subtitle="Estamos preparando la información de tu negocio."
+      helperText="Actualizando dashboard, bodega, inventario y movimientos recientes."
+      trustTitle="CaféSmart está sincronizando tus datos"
+      trustText="La pantalla se cerrará automáticamente cuando todo esté listo."
+      variant="purchase"
+    />
   );
 }
 
@@ -540,8 +533,8 @@ export default function Inicio() {
       return {
         card: 'border-[#fecaca] bg-[#fff7f7]',
         text: 'text-[#b42318]',
-        bar: 'bg-[#d92d20]',
-        track: 'bg-[#fee2e2]',
+        bar: 'bg-[#ef4444]',
+        track: 'border-[#fecaca] bg-[#fff1f2]',
         badge: 'bg-[#fee2e2] text-[#b42318]',
       };
     }
@@ -549,16 +542,16 @@ export default function Inicio() {
       return {
         card: 'border-[#fde68a] bg-[#fffbeb]',
         text: 'text-[#b45309]',
-        bar: 'bg-[#d97706]',
-        track: 'bg-[#fef3c7]',
+        bar: 'bg-[#f59e0b]',
+        track: 'border-[#fcd34d] bg-[#fff7d6]',
         badge: 'bg-[#fef3c7] text-[#92400e]',
       };
     }
     return {
       card: 'border-[#e6e8f3] bg-white',
       text: 'text-[#102d92]',
-      bar: 'bg-[#102d92]',
-      track: 'bg-[#eef2f8]',
+      bar: 'bg-[#2563eb]',
+      track: 'border-[#c7d2fe] bg-[#e8efff]',
       badge: 'bg-[#eef4ff] text-[#102d92]',
     };
   }, [ocupacion.nivel]);
@@ -676,8 +669,17 @@ export default function Inicio() {
       ? 'error'
       : 'valid';
 
+  if (dashboardState === 'loading') {
+    return <DashboardLoadingState />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
+    <div className="relative min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
+      {refreshing ? (
+        <div className="fixed inset-0 z-40 bg-white/82 backdrop-blur-sm">
+          <DashboardLoadingState />
+        </div>
+      ) : null}
       <div className="mx-auto w-full max-w-[430px]">
         <header className="px-5 pb-4 pt-5">
           <div className="flex items-start justify-between gap-4">
@@ -708,8 +710,6 @@ export default function Inicio() {
             </RefreshButton>
           </div>
         </header>
-
-        {dashboardState === 'loading' ? <DashboardLoadingState /> : null}
 
         {dashboardState === 'error' ? (
           <DashboardErrorState onRetry={() => void handleReload()} />
@@ -944,12 +944,17 @@ export default function Inicio() {
                   </span>
                 </div>
 
-                <div className={`mt-3 h-2 overflow-hidden rounded-full ${ocupacionVisual.track}`}>
-                  <progress
-                    aria-label="Porcentaje de ocupación de bodega"
-                    value={ocupacion.porcentaje}
-                    max={100}
-                    className="h-full w-full overflow-hidden rounded-full border-0 bg-transparent [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[#102d92] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#102d92]"
+                <div
+                  role="progressbar"
+                  aria-label="Porcentaje de ocupación de bodega"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(ocupacion.porcentaje)}
+                  className={`mt-3 h-4 overflow-hidden rounded-full border p-0.5 shadow-inner ${ocupacionVisual.track}`}
+                >
+                  <div
+                    className={`h-full min-w-2 rounded-full shadow-[0_1px_4px_rgba(15,23,42,0.24)] transition-[width] duration-500 ${ocupacionVisual.bar}`}
+                    style={{ width: `${ocupacion.porcentaje}%` }}
                   />
                 </div>
 

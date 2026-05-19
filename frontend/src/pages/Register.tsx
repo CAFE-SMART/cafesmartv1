@@ -1432,19 +1432,19 @@ function SupportModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className={`max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-[20px] border border-[#e2e8f0] bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.20)] animate-[cafesmartFadeScale_220ms_ease-out_both] ${
-          isHelp ? 'max-w-[480px]' : 'max-w-[480px] sm:max-w-[760px]'
+        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[20px] border border-[#e2e8f0] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.20)] animate-[cafesmartFadeScale_220ms_ease-out_both] sm:p-6 ${
+          isHelp ? 'max-w-[480px]' : 'max-w-[480px] sm:max-w-[540px]'
         }`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-6 flex items-start justify-between gap-4">
+        <div className={`flex items-start justify-between gap-4 ${isHelp ? 'mb-6' : 'mb-4'}`}>
           <div>
             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#2563eb]">
               Soporte
             </p>
             <h2
               id="register-support-title"
-              className="mt-3 text-3xl font-black leading-tight text-[#0f172a]"
+              className={`${isHelp ? 'mt-3 text-3xl' : 'mt-2 text-2xl'} font-black leading-tight text-[#0f172a]`}
             >
               {isHelp ? 'Ayuda básica' : 'Contacto'}
             </h2>
@@ -1459,16 +1459,18 @@ function SupportModal({
           </button>
         </div>
 
-        {isHelp ? (
-          <HelpModalContent />
-        ) : (
-          <ContactModalContent />
-        )}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {isHelp ? (
+            <HelpModalContent />
+          ) : (
+            <ContactModalContent />
+          )}
+        </div>
 
         <button
           type="button"
           onClick={onClose}
-          className="mt-7 min-h-[54px] w-full rounded-[12px] bg-[#2563eb] px-4 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition-all hover:bg-[#1d4ed8] active:scale-[0.985]"
+          className={`${isHelp ? 'mt-7 min-h-[54px]' : 'mt-4 min-h-[48px]'} shrink-0 w-full rounded-[12px] bg-[#2563eb] px-4 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition-all hover:bg-[#1d4ed8] active:scale-[0.985]`}
         >
           Entendido
         </button>
@@ -1568,42 +1570,56 @@ function ContactModalContent() {
 
   return (
     <div>
-      <div className="mb-7 flex items-start gap-4">
-        <span className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
-          <Headset size={34} />
+      <div className="mb-4 flex items-start gap-3">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
+          <Headset size={24} />
         </span>
-        <p className="pt-1 text-base font-medium leading-7 text-[#475569]">
+        <p className="pt-0.5 text-sm font-medium leading-6 text-[#475569]">
           Si tienes problemas con el registro, puedes comunicarte con nuestro
           equipo de soporte.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {contactItems.map((item) => (
-          <div
-            key={item.title}
-            className="flex min-h-[158px] min-w-0 flex-col items-center justify-start rounded-[12px] border border-[#e2e8f0] bg-white p-4 text-center shadow-sm"
-          >
-            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
-              {item.icon}
-            </span>
-            <p className="text-sm font-black text-[#0f172a]">{item.title}</p>
-            <p className="mt-2 max-w-full whitespace-pre-line text-sm font-semibold leading-6 text-[#2563eb] break-words">
-              {item.text}
-            </p>
+      <div className="rounded-[12px] border border-[#e2e8f0] bg-white px-4 shadow-sm">
+        {contactItems.map((item, index) => (
+          <div key={item.title}>
+            <div className="grid grid-cols-[2.25rem_1fr] items-start gap-3 py-3">
+              <span
+                className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]"
+                aria-hidden="true"
+              >
+                {item.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-black leading-5 text-[#0f172a]">
+                  {item.title}
+                </span>
+                <span className="mt-0.5 block max-w-full whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#2563eb]">
+                  {item.text}
+                </span>
+              </span>
+            </div>
+            {index < contactItems.length - 1 ? (
+              <div className="grid grid-cols-[2.25rem_1fr] gap-3">
+                <div />
+                <div className="h-px bg-[#e2e8f0]" />
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
 
-      <InfoNotice text="Te responderemos a la brevedad posible. Gracias por tu paciencia." />
+      <InfoNotice text="Te responderemos a la brevedad posible. Gracias por tu paciencia." compact />
     </div>
   );
 }
 
-function InfoNotice({ text }: { text: string }) {
+function InfoNotice({ text, compact = false }: { text: string; compact?: boolean }) {
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-[12px] bg-[#f1f5ff] px-4 py-4 text-sm font-medium leading-6 text-[#475569]">
-              <Info size={24} className="shrink-0 text-[#1d4ed8]" />
+    <div
+      className={`${compact ? 'mt-4 gap-2.5 px-3 py-3 text-xs leading-5' : 'mt-6 gap-3 px-4 py-4 text-sm leading-6'} flex items-center rounded-[12px] bg-[#f1f5ff] font-medium text-[#475569]`}
+    >
+      <Info size={compact ? 18 : 24} className="shrink-0 text-[#1d4ed8]" />
       <span>{text}</span>
     </div>
   );

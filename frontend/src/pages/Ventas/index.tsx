@@ -46,6 +46,7 @@ import { ModalConfirmacionVenta } from './components/ModalConfirmacionVenta';
 import { CafeSmartErrorState } from '../../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
+import { fuzzySearch } from '../../utils/fuzzySearch';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -1467,15 +1468,15 @@ export default function Ventas() {
   const {
     cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso,
     botonConfirmarPresionado, intentoPaso1, intentoPaso2, clienteMetodo, clienteSeleccionado,
-    busquedaCliente, clientes, clientesRecientes, clienteForm, clienteFormErrors, clienteFormError,
+    busquedaCliente, clientes, clientesRecientes, clientesRecientesUsaSimilares, clienteForm, clienteFormErrors, clienteFormError,
     clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal,
-    clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
+    busquedaClientesModalDebounced, clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
     mostrarModal, mostrarModalClientes, mostrarModalConfirmar, mostrarModalCancelar,
     mostrarModalBorradorVenta, mostrarHistorialLotesVenta, mostrarDesgloseSublotesVenta,
     mostrarHistorialVentas, modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion,
     lotesVenta, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta,
     tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen,
-    mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles,
+    mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares,
     preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId,
     ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, puedeAvanzarPaso2,
     ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente,
@@ -2164,6 +2165,12 @@ export default function Ventas() {
                       </div>
                     </div>
 
+                    {lotesVentaParcialUsaSimilares ? (
+                      <p className="rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
+                        Mostrando resultados similares
+                      </p>
+                    ) : null}
+
                     {lotesVentaParcialVisibles.map((lote) => {
                       const cantidad = toNum(lote.cantidadKg);
                       const cantidadIngresada = lote.cantidadKg.trim() !== '';
@@ -2542,16 +2549,23 @@ export default function Ventas() {
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2">
-                        {clientesRecientes.slice(0, 2).map((cliente) => (
-                          <ClienteCard
-                            key={cliente.id}
-                            cliente={cliente}
-                            active={clienteSeleccionado?.id === cliente.id}
-                            onSelect={() => seleccionarCliente(cliente)}
-                          />
-                        ))}
-                      </div>
+                      <>
+                        {clientesRecientesUsaSimilares ? (
+                          <p className="rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
+                            Mostrando resultados similares
+                          </p>
+                        ) : null}
+                        <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2">
+                          {clientesRecientes.slice(0, 2).map((cliente) => (
+                            <ClienteCard
+                              key={cliente.id}
+                              cliente={cliente}
+                              active={clienteSeleccionado?.id === cliente.id}
+                              onSelect={() => seleccionarCliente(cliente)}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
 
                     {!sinClientesRegistrados ? (
@@ -3227,16 +3241,13 @@ export default function Ventas() {
                 </div>
               ) : (
                 (() => {
-                  const termino = norm(busquedaClientesModal.trim());
                   const base = dedupeClientesOptions([...clientes]);
-
-                  const filtrados = termino
-                    ? base.filter((c) =>
-                        [c.nombre, c.documento, c.detalle, c.telefono ?? ''].some(
-                          (v) => norm(v).includes(termino),
-                        ),
-                      )
-                    : base;
+                  const resultadoBusquedaClientes = fuzzySearch(
+                    base,
+                    busquedaClientesModalDebounced,
+                    (c) => [c.nombre, c.documento, c.detalle, c.telefono ?? ''],
+                  );
+                  const filtrados = resultadoBusquedaClientes.items;
 
                   const ordenados = (() => {
                     const arr = [...filtrados];
@@ -3279,30 +3290,37 @@ export default function Ventas() {
                     );
                   }
 
-                  return <div className="space-y-2 pb-4">{ordenados.map((c) => (
-                    <ClienteCard
-                      key={c.id}
-                      cliente={c}
-                      active={clienteSeleccionado?.id === c.id}
-                      onSelect={() => {
-                        seleccionarCliente(c);
-                        setMostrarModalClientes(false);
-                      }}
-                      onDetail={() => setClienteDetalle(c)}
-                      onEdit={() => {
-                        setClienteEditando(c);
-                        setClienteForm({
-                          nombre: c.nombre,
-                          telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
-                          documento: c.documento === 'Documento pendiente' ? '' : c.documento,
-                          tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
-                        });
-                        setClienteFormErrors({});
-                        setClienteFormError(null);
-                        setMostrarModal(true);
-                      }}
-                    />
-                  ))}</div>;
+                  return <div className="space-y-2 pb-4">
+                    {resultadoBusquedaClientes.isSimilar ? (
+                      <p className="rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
+                        Mostrando resultados similares
+                      </p>
+                    ) : null}
+                    {ordenados.map((c) => (
+                      <ClienteCard
+                        key={c.id}
+                        cliente={c}
+                        active={clienteSeleccionado?.id === c.id}
+                        onSelect={() => {
+                          seleccionarCliente(c);
+                          setMostrarModalClientes(false);
+                        }}
+                        onDetail={() => setClienteDetalle(c)}
+                        onEdit={() => {
+                          setClienteEditando(c);
+                          setClienteForm({
+                            nombre: c.nombre,
+                            telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
+                            documento: c.documento === 'Documento pendiente' ? '' : c.documento,
+                            tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
+                          });
+                          setClienteFormErrors({});
+                          setClienteFormError(null);
+                          setMostrarModal(true);
+                        }}
+                      />
+                    ))}
+                  </div>;
                 })()
               )}
             </div>

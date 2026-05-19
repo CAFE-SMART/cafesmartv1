@@ -13,6 +13,7 @@ import { dedupeClientesOptions, esErrorGeneralGuardadoVenta, findClienteExistent
 import { ENABLE_SECADO_PROTOTYPE } from '../../../config/features';
 import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFlow';
 import { sanitizeSearchInput } from '../../../utils/inputLimits';
+import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
 import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, sanitizeDigits as sanitizePersonDigits, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber } from '../../../utils/personValidation';
 
 async function readVentaDraft() {
@@ -160,12 +161,21 @@ export function useVentas() {
     return () => window.clearTimeout(timer);
   }, [cargando, borradorVentaPendiente, clienteMetodo, clienteSeleccionado, fechaVenta, lotesVenta, mostrarModalBorradorVenta, modoVenta, paso, preciosVentaTotal, registroErrorMensaje, ventaGuardada, ajustesVentaParcialConfirmados]);
 
-  const clientesRecientes = React.useMemo(() => {
+  const busquedaAplicadaDebounced = useDebouncedValue(busquedaAplicada);
+  const busquedaCafeVentaDebounced = useDebouncedValue(busquedaCafeVenta);
+  const busquedaClientesModalDebounced = useDebouncedValue(busquedaClientesModal);
+
+  const clientesSearchResult = React.useMemo(() => {
     const base = dedupeClientesOptions([...clientes]);
-    const term = norm(busquedaAplicada.trim());
-    if (!term) return base;
-    return base.filter((c) => [c.nombre, c.documento, c.detalle].some((v) => norm(v).includes(term)));
-  }, [busquedaAplicada, clientes]);
+    return fuzzySearch(base, busquedaAplicadaDebounced, (c) => [
+      c.nombre,
+      c.documento,
+      c.detalle,
+      c.telefono ?? '',
+    ]);
+  }, [busquedaAplicadaDebounced, clientes]);
+  const clientesRecientes = clientesSearchResult.items;
+  const clientesRecientesUsaSimilares = clientesSearchResult.isSimilar;
 
   const sinClientesRegistrados = clientes.length === 0;
 
@@ -297,15 +307,30 @@ export function useVentas() {
   }, [lotesVenta]);
 
   const lotesVentaParcialFiltrados = React.useMemo(() => {
-    const termino = norm(busquedaCafeVenta.trim());
-    return lotesVenta.filter((lote) => {
-      const texto = norm(`${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`);
-      const coincideBusqueda = !termino || texto.includes(termino);
+    const resultado = fuzzySearch(lotesVenta, busquedaCafeVentaDebounced, (lote) => [
+      lote.tipoCafe,
+      lote.calidad,
+      lote.codigo,
+      `${lote.tipoCafe} ${lote.calidad}`,
+      `${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`,
+    ]);
+    return resultado.items.filter((lote) => {
       const coincideTipo = tipoCafeFiltroVenta === VENTA_FILTRO_TODOS || norm(lote.tipoCafe) === norm(tipoCafeFiltroVenta);
       const coincideCalidad = calidadFiltroVenta === VENTA_FILTRO_TODOS || norm(lote.calidad) === norm(calidadFiltroVenta);
-      return coincideBusqueda && coincideTipo && coincideCalidad;
+      return coincideTipo && coincideCalidad;
     });
-  }, [busquedaCafeVenta, calidadFiltroVenta, lotesVenta, tipoCafeFiltroVenta]);
+  }, [busquedaCafeVentaDebounced, calidadFiltroVenta, lotesVenta, tipoCafeFiltroVenta]);
+  const lotesVentaParcialUsaSimilares = React.useMemo(
+    () =>
+      fuzzySearch(lotesVenta, busquedaCafeVentaDebounced, (lote) => [
+        lote.tipoCafe,
+        lote.calidad,
+        lote.codigo,
+        `${lote.tipoCafe} ${lote.calidad}`,
+        `${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`,
+      ]).isSimilar,
+    [busquedaCafeVentaDebounced, lotesVenta],
+  );
 
   const lotesVentaParcialVisibles = mostrarTodosCafeVenta ? lotesVentaParcialFiltrados : lotesVentaParcialFiltrados.slice(0, 3);
 
@@ -780,9 +805,9 @@ export function useVentas() {
 
   return {
     cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso, botonConfirmarPresionado, intentoPaso1, intentoPaso2,
-    clienteMetodo, clienteSeleccionado, busquedaCliente, busquedaAplicada, clientes, clientesRecientes, clienteForm, clienteFormErrors, clienteFormError, clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal, clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
+    clienteMetodo, clienteSeleccionado, busquedaCliente, busquedaAplicada, clientes, clientesRecientes, clientesRecientesUsaSimilares, clienteForm, clienteFormErrors, clienteFormError, clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal, busquedaClientesModalDebounced, clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
     mostrarModal, mostrarModalClientes, mostrarModalConfirmar, mostrarModalCancelar, mostrarModalBorradorVenta, mostrarHistorialLotesVenta, mostrarDesgloseSublotesVenta, mostrarHistorialVentas,
-    modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion, lotesVenta, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta, tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen, mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId, ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, hayCantidadParcial, puedeAvanzarPaso2, ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente, historialVentaOrden, ventasRealizadas, ventasHistorialFiltradas, historialVentaClientes, borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida, precioTotalInvalido, sinInventario, parcialSinCantidad, parcialSinSeleccion,
+    modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion, lotesVenta, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta, tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen, mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares, preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId, ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, hayCantidadParcial, puedeAvanzarPaso2, ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente, historialVentaOrden, ventasRealizadas, ventasHistorialFiltradas, historialVentaClientes, borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida, precioTotalInvalido, sinInventario, parcialSinCantidad, parcialSinSeleccion,
     siguiente, anterior, confirmar, reiniciar, cargarLotes, seleccionarCliente, buscarCliente, validarClienteForm, guardarCliente, updateLote, confirmarAjusteParcial, setModoVenta, setFechaVenta, setPaso, setClienteSeleccionado, setClienteMetodo, setBusquedaCliente, setBusquedaAplicada, setLotesVenta, setPreciosVentaTotal, setMostrarModal, setMostrarModalClientes, setMostrarModalConfirmar, setClienteForm, setClienteFormErrors, setClienteFormError, setClienteEditando, setClienteDetalle, setMostrarModalBorradorVenta, setBorradorVentaPendiente, continuarBorradorVenta, empezarVentaNuevaDesdeBorrador, mostrarAlertaVentaParcial, getVentaParcialCardAlert, mostrarAlertaTarjetaVentaParcial, mostrarAlertaRevision, editarLoteDesdeRevision, eliminarLoteDesdeRevision, setVentaParcialOpenId, confirmarCancelarVenta, setBusquedaCafeVenta, setTipoCafeFiltroVenta, setCalidadFiltroVenta, setTipoCafeFiltroOpen, setCalidadFiltroOpen, setMostrarTodosCafeVenta, setVentaParcialAlert, setVentaParcialCardAlerts, setAjustesVentaParcialConfirmados, setVentaFifoBreakdown, setBusquedaClientesModal, setClientesSortMode, setClientesSortDropdownOpen, setClienteDocumentoDropdownOpen, setSubmitError, setRegistroErrorMensaje, setGuardandoVenta, setBotonConfirmarPresionado, setFechaVentaPickerOpen, setIntentoPaso1, setIntentoPaso2, setVentaGuardada, setCargando, setLoadError, setMostrarHistorialVentas, setHistorialVentaFecha, setHistorialVentaFechaPickerOpen, setHistorialVentaCliente, setHistorialVentaOrden, setMostrarHistorialLotesVenta, setVentasRealizadas, setMostrarDesgloseSublotesVenta, setMostrarModalCancelar, setNombreMaxToast, revisionDeleteAlert, setRevisionDeleteAlert,
   };
 }

@@ -103,6 +103,7 @@ import {
   validateDocumentNumber,
   validatePersonName,
 } from '../utils/personValidation';
+import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 
 type ProfileSettings = {
   nombre: string;
@@ -865,15 +866,17 @@ export default function Ajustes() {
       : peopleMode === 'productores'
         ? productoresAdmin
         : [...clientesAdmin, ...productoresAdmin];
-  const peopleFiltered = peopleItems
-    .filter((item) => {
-    const term = peopleSearch.trim().toLowerCase();
-    if (!term) return true;
-    return [item.nombre, item.documento, item.telefono]
-      .join(' ')
-      .toLowerCase()
-      .includes(term);
-    })
+  const debouncedPeopleSearch = useDebouncedValue(peopleSearch);
+  const peopleSearchResult = useMemo(
+    () =>
+      fuzzySearch(peopleItems, debouncedPeopleSearch, (item) => [
+        item.nombre,
+        item.documento,
+        item.telefono,
+      ]),
+    [debouncedPeopleSearch, peopleItems],
+  );
+  const peopleFiltered = peopleSearchResult.items
     .sort((a, b) => {
       if (peopleSortMode === 'oldest') {
         return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
@@ -1142,14 +1145,16 @@ export default function Ajustes() {
         : 'Gestión de contactos';
   const activePeopleSingular =
     peopleEditing?.contactType === 'productor' ? 'productor' : 'cliente';
-  const filteredPeopleItems = activePeopleItems.filter((item) => {
-    const term = peopleSearch.trim().toLowerCase();
-    if (!term) return true;
-    return [item.nombre, item.documento, item.telefono]
-      .join(' ')
-      .toLowerCase()
-      .includes(term);
-  });
+  const activePeopleSearchResult = useMemo(
+    () =>
+      fuzzySearch(activePeopleItems, debouncedPeopleSearch, (item) => [
+        item.nombre,
+        item.documento,
+        item.telefono,
+      ]),
+    [activePeopleItems, debouncedPeopleSearch],
+  );
+  const filteredPeopleItems = activePeopleSearchResult.items;
   const recentPeopleItems = filteredPeopleItems.slice(0, 4);
 
   const cargarPersonas = async (mode: Exclude<PeopleAdminMode, null>) => {
@@ -2743,6 +2748,11 @@ export default function Ajustes() {
               <p className="mt-3 text-xs font-black text-slate-500">
                 {peopleFiltered.length} contacto{peopleFiltered.length === 1 ? '' : 's'}
               </p>
+              {peopleSearchResult.isSimilar ? (
+                <p className="mt-2 rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
+                  Mostrando resultados similares
+                </p>
+              ) : null}
               {success && success.includes('Contacto') ? (
                 <div className="mt-3 flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-opacity duration-300">
                   <span>{success}</span>

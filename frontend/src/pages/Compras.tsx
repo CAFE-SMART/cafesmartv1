@@ -69,6 +69,7 @@ import {
   type ProductorItem,
 } from '../services/productoresService';
 import { PRECIO_MINIMO_KG } from '../utils/businessRules';
+import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import {
   formatPhoneNumber,
   normalizeCompanyName,
@@ -2683,21 +2684,38 @@ export default function Compras() {
     () => productoresOrdenadosRecientes.slice(0, LIMITE_PRODUCTORES_RECIENTES),
     [productoresOrdenadosRecientes],
   );
+  const busquedaProductorModalDebounced = useDebouncedValue(busquedaProductorModal);
   const productoresModalFiltrados = useMemo(() => {
-    const termino = normalizeSearchText(busquedaProductorModal.trim());
-    const base = termino
-      ? productores.filter((productor) =>
-          [
-            productor.nombre,
-            productor.documento,
-            productor.detalle,
-            productor.telefono ?? '',
-          ].some((valor) => normalizeSearchText(valor).includes(termino)),
-        )
-      : productores;
+    const resultado = fuzzySearch(
+      productores,
+      busquedaProductorModalDebounced,
+      (productor) => [
+        productor.nombre,
+        productor.documento,
+        productor.detalle,
+        productor.telefono ?? '',
+      ],
+    );
 
-    return sortProductores(dedupeProductorOptions([...base]), productorSortMode);
-  }, [busquedaProductorModal, productorSortMode, productores]);
+    return sortProductores(
+      dedupeProductorOptions([...resultado.items]),
+      productorSortMode,
+    );
+  }, [busquedaProductorModalDebounced, productorSortMode, productores]);
+  const productoresModalUsaSimilares = useMemo(
+    () =>
+      fuzzySearch(
+        productores,
+        busquedaProductorModalDebounced,
+        (productor) => [
+          productor.nombre,
+          productor.documento,
+          productor.detalle,
+          productor.telefono ?? '',
+        ],
+      ).isSimilar,
+    [busquedaProductorModalDebounced, productores],
+  );
   const historialCompraProductores = useMemo(() => {
     const options = new Map<string, string>();
     options.set('TODOS', 'Todos');
@@ -5550,6 +5568,11 @@ export default function Compras() {
                 </div>
               ) : (
                 <div className="space-y-2 pb-4">
+                  {productoresModalUsaSimilares ? (
+                    <p className="rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
+                      Mostrando resultados similares
+                    </p>
+                  ) : null}
                   {productoresModalFiltrados.map((productor) => (
                     <ProductorCard
                       key={productor.id}
