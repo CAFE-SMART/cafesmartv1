@@ -21,6 +21,22 @@ const items = [
   { id: 'ajustes', label: 'Ajustes', path: '/ajustes', icon: Settings },
 ];
 
+function isActiveItemPath(pathname: string, itemPath: string) {
+  if (itemPath === '/ajustes') {
+    return (
+      pathname === '/ajustes' ||
+      pathname.startsWith('/ajustes/') ||
+      pathname === '/soporte' ||
+      pathname.startsWith('/soporte/')
+    );
+  }
+
+  return (
+    pathname === itemPath ||
+    (itemPath !== '/inicio' && pathname.startsWith(`${itemPath}/`))
+  );
+}
+
 export function AppBottomNav({
   hidden = false,
   activePath,
@@ -43,10 +59,7 @@ export function AppBottomNav({
           {items.map((item) => {
             const isActive =
               activePath === item.path ||
-              (!activePath &&
-                (location.pathname === item.path ||
-                  (item.path !== '/inicio' &&
-                    location.pathname.startsWith(`${item.path}/`))));
+              (!activePath && isActiveItemPath(location.pathname, item.path));
             const Icon = item.icon;
 
             return (

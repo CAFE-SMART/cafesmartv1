@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -10,6 +11,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 import { CrearSecadoDto } from './dto/crear-secado.dto';
@@ -29,6 +34,8 @@ type SecadoDbClient = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class SecadoService {
+  private readonly logger = new Logger(SecadoService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async crearSecado(userId: string, dto: CrearSecadoDto) {
@@ -295,20 +302,21 @@ export class SecadoService {
 
     for (const fuenteInput of dto.fuentes) {
       const fuente = fuentesPorId.get(fuenteInput.id)!;
+      const pesoOriginal = this.redondear(Number(fuente.pesoActual));
+      const pesoSecar = this.redondear(fuenteInput.pesoKg);
+      const pesoRestante = this.redondear(Math.max(0, pesoOriginal - pesoSecar));
       const updated = await tx.sublote.updateMany({
         where: {
           id: fuente.id,
           deletedAt: null,
-          pesoActual: { gte: fuenteInput.pesoKg },
+          pesoActual: { gte: pesoSecar },
           compra: {
             organizacionId,
             deletedAt: null,
           },
         },
         data: {
-          pesoActual: {
-            decrement: fuenteInput.pesoKg,
-          },
+          pesoActual: pesoRestante,
         },
       });
 
@@ -326,7 +334,7 @@ export class SecadoService {
         organizacionId,
         fuente.tipoCafeId,
         fuente.calidadId,
-        -fuenteInput.pesoKg,
+        -pesoSecar,
       );
 
       await tx.inventarioMovimiento.create({
@@ -336,12 +344,25 @@ export class SecadoService {
           tipoCafeId: fuente.tipoCafeId,
           calidadId: fuente.calidadId,
           subloteId: fuente.id,
-          cantidad: -fuenteInput.pesoKg,
+          cantidad: -pesoSecar,
           tipoMovimiento: TipoMovimientoInventario.SECADO,
           referenciaTipo: TipoReferenciaInventario.SECADO,
           referenciaId: referenciaSecadoId,
         },
       });
+
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.log(
+          JSON.stringify({
+            event: 'secado_parcial_debug',
+            subloteId: fuente.id,
+            pesoOriginal,
+            pesoEnviado: pesoSecar,
+            pesoRestante,
+            movimientoRegistrado: -pesoSecar,
+          }),
+        );
+      }
     }
 
     for (const salida of dto.salidas) {
@@ -469,6 +490,9 @@ export class SecadoService {
     userId: string,
     client: SecadoDbClient = this.prisma,
   ): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached) return cached;
+
     const user = await client.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -480,6 +504,7 @@ export class SecadoService {
       );
     }
 
+    setCachedOrganizationId(userId, user.organizacionId);
     return user.organizacionId;
   }
 

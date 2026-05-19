@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { RefreshButton } from '../components/RefreshButton';
+import { SmartSelect } from '../components/SmartSelect';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
@@ -55,6 +56,10 @@ import {
   sanitizeLimitedText,
   sanitizePositiveIntegerInput,
 } from '../utils/inputLimits';
+import {
+  formatCoffeeFullName,
+  getCoffeeCodePrefix,
+} from '../utils/coffeeCodes';
 
 const TYPE_ORDER = [
   'VERDE',
@@ -538,11 +543,14 @@ function QualityLotCard({
   const lotDays = getLotDays(lot).max;
   const sublotesLabel = pluralLabel(lot.sublotes, 'sublote', 'sublotes');
   const humidity = classifyHumidity(lot.humedadPromedio);
+  const coffeeCode = getCoffeeCodePrefix(lot);
+  const fullName = formatCoffeeFullName(lot);
 
   return (
     <button
       type="button"
       onClick={onOpen}
+      title={`${coffeeCode} · ${fullName}`}
       className="w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm"
     >
       <div className="flex items-center justify-between gap-3">
@@ -552,6 +560,16 @@ function QualityLotCard({
               ? 'En proceso de secado'
               : 'Sublotes disponibles'}
           </p>
+          {!isSecadoProcessLot(lot) ? (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-[9px] border border-[#dbe5ff] bg-[#f7f9ff] px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+                {coffeeCode}
+              </span>
+              <span className="truncate text-xs font-black text-[#5570a8]">
+                {fullName}
+              </span>
+            </div>
+          ) : null}
           <p className="mt-0.5 text-sm text-slate-500">
             {formatNumber(lot.pesoActual)} kg
           </p>
@@ -591,6 +609,8 @@ function SecadoProcessCard({
   );
   const progress = secadoProgress(session.estado);
   const progressWidthClass = `w-[${progress}%]`;
+  const coffeeCode = getCoffeeCodePrefix(session);
+  const fullName = formatCoffeeFullName(session);
 
   const startedAt = new Date(session.startedAt);
   const fecha = Number.isNaN(startedAt.getTime())
@@ -605,32 +625,38 @@ function SecadoProcessCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[18px] border border-amber-200 bg-[#fff8e7] p-4 text-left shadow-sm"
+      title={`${coffeeCode} · ${fullName}`}
+      className="w-full rounded-[18px] border border-[#c7d8ff] bg-[#f4f8ff] p-4 text-left shadow-sm"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-amber-700">
+          <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-[#5570a8]">
             {secadoStatusLabel(session.estado)}
           </p>
-          <p className="mt-1 truncate text-[1.05rem] font-black text-slate-900">
-            {session.tipoCafe} - {session.calidad}
-          </p>
+          <div className="mt-1 flex min-w-0 items-center gap-2">
+            <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+              {coffeeCode}
+            </span>
+            <p className="truncate text-[1.05rem] font-black text-slate-900">
+              {fullName}
+            </p>
+          </div>
           <p className="mt-1 text-sm font-semibold text-slate-600">
             {formatNumber(totalKg)} kg - desde {fecha}
           </p>
         </div>
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-amber-700">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#102d92]">
           <CircleDashed size={17} />
         </span>
       </div>
 
       <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white">
         <div
-          className="h-full rounded-full bg-[#f6b81a] transition-all duration-300"
+          className="h-full rounded-full bg-[#102d92] transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>
-      <div className="mt-2 flex items-center justify-between text-[0.58rem] font-black uppercase tracking-[0.08em] text-amber-800/70">
+      <div className="mt-2 flex items-center justify-between text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#5570a8]">
         <span>Inicio</span>
         <span>{progress}%</span>
         <span>Resultado</span>
@@ -1026,34 +1052,32 @@ export default function Inventario() {
                 <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
                   Ordenar por
                 </span>
-                <select
+                <SmartSelect
                   aria-label="Ordenar por"
                   value={sortKey}
                   onChange={(event) =>
                     setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
                   }
-                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
                 >
                   <option value="NEWEST">Más reciente</option>
                   <option value="OLDEST">Más antiguo</option>
-                </select>
+                </SmartSelect>
               </label>
               <label className="min-w-0">
                 <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
                   Tipo de café
                 </span>
-                <select
+                <SmartSelect
                   aria-label="Tipo de café"
                   value={coffeeFilterValue}
                   onChange={(event) => handleCoffeeFilterChange(event.target.value)}
-                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
                 >
                   <option value="TODOS">Todos</option>
                   <option value="VERDE_BUENO">Verde Bueno</option>
                   <option value="VERDE_REGULAR">Verde Regular</option>
                   <option value="EN_SECADO">En secado</option>
                   <option value="SECO">Secado terminado</option>
-                </select>
+                </SmartSelect>
               </label>
             </div>
           </section>

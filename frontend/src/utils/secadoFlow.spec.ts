@@ -8,8 +8,10 @@ import {
   applySecadoToDetalle,
   applySecadoToLots,
   clearSecadoSessions,
+  createSecadoDraftWithWeights,
   finalizeSecado,
   saveSecadoResults,
+  startSecadoProcess,
   startSecadoWithWeights,
 } from './secadoFlow';
 
@@ -103,6 +105,48 @@ function detalleVerdeDosSublotes(): LoteDetalle {
         costoTotal: 1200000,
       }),
     ],
+  };
+}
+
+function detalleVerdeCuatroSublotes(): LoteDetalle {
+  const sublotes = [
+    sublote({
+      id: 'sub-verde-1',
+      etiqueta: 'SUB-VERDE-1',
+      pesoInicial: 32,
+      pesoActual: 32,
+      costoTotal: 384000,
+    }),
+    sublote({
+      id: 'sub-verde-2',
+      etiqueta: 'SUB-VERDE-2',
+      pesoInicial: 35,
+      pesoActual: 35,
+      costoTotal: 420000,
+    }),
+    sublote({
+      id: 'sub-verde-3',
+      etiqueta: 'SUB-VERDE-3',
+      pesoInicial: 50,
+      pesoActual: 50,
+      costoTotal: 600000,
+    }),
+    sublote({
+      id: 'sub-verde-4',
+      etiqueta: 'SUB-VERDE-4',
+      pesoInicial: 10,
+      pesoActual: 10,
+      costoTotal: 120000,
+    }),
+  ];
+
+  return {
+    lote: lote({
+      sublotes: sublotes.length,
+      pesoInicial: 127,
+      pesoActual: 127,
+    }),
+    sublotes,
   };
 }
 
@@ -260,5 +304,75 @@ describe('secadoFlow', () => {
     expect(enSecado?.pesoActual).toBe(200);
     expect(detalle?.sublotes).toHaveLength(1);
     expect(detalle?.sublotes[0].pesoActual).toBe(100);
+  });
+
+  it('al secar parcialmente un sublote solo descuenta los kilos seleccionados y conserva los demas', () => {
+    const detalle = detalleVerdeCuatroSublotes();
+
+    const session = startSecadoWithWeights(detalle, { 'sub-verde-1': 10 });
+    const lotes = applySecadoToLots([detalle.lote]);
+    const verde = lotes.find((item) => item.id === 'lote-verde-bueno');
+    const enSecado = lotes.find((item) => item.tipoCafe === 'EN SECADO');
+    const detalleActualizado = applySecadoToDetalle(
+      detalle,
+      'tipo-verde',
+      'calidad-bueno',
+    );
+
+    expect(session.sublotes).toHaveLength(1);
+    expect(session.sublotes[0]).toMatchObject({
+      id: 'sub-verde-1',
+      pesoActual: 10,
+      pesoDisponible: 32,
+    });
+    expect(verde?.pesoActual).toBe(117);
+    expect(verde?.sublotes).toBe(4);
+    expect(enSecado?.pesoActual).toBe(10);
+    expect(enSecado?.sublotes).toBe(1);
+    expect(detalleActualizado?.sublotes.map((item) => [item.id, item.pesoActual])).toEqual([
+      ['sub-verde-1', 22],
+      ['sub-verde-2', 35],
+      ['sub-verde-3', 50],
+      ['sub-verde-4', 10],
+    ]);
+  });
+
+  it('mantiene los borradores fuera del inventario hasta iniciar el proceso', () => {
+    const detalle = detalleVerdeCuatroSublotes();
+
+    const draft = createSecadoDraftWithWeights(detalle, { 'sub-verde-1': 10 });
+    const lotesConBorrador = applySecadoToLots([detalle.lote]);
+    const detalleConBorrador = applySecadoToDetalle(
+      detalle,
+      'tipo-verde',
+      'calidad-bueno',
+    );
+
+    expect(draft.estado).toBe('DRAFT');
+    expect(lotesConBorrador.find((item) => item.id === 'lote-verde-bueno')?.pesoActual).toBe(127);
+    expect(lotesConBorrador.some((item) => item.tipoCafe === 'EN SECADO')).toBe(false);
+    expect(detalleConBorrador?.sublotes.map((item) => [item.id, item.pesoActual])).toEqual([
+      ['sub-verde-1', 32],
+      ['sub-verde-2', 35],
+      ['sub-verde-3', 50],
+      ['sub-verde-4', 10],
+    ]);
+
+    startSecadoProcess(draft.id, FECHA);
+    const lotesIniciados = applySecadoToLots([detalle.lote]);
+    const detalleIniciado = applySecadoToDetalle(
+      detalle,
+      'tipo-verde',
+      'calidad-bueno',
+    );
+
+    expect(lotesIniciados.find((item) => item.id === 'lote-verde-bueno')?.pesoActual).toBe(117);
+    expect(lotesIniciados.find((item) => item.tipoCafe === 'EN SECADO')?.pesoActual).toBe(10);
+    expect(detalleIniciado?.sublotes.map((item) => [item.id, item.pesoActual])).toEqual([
+      ['sub-verde-1', 22],
+      ['sub-verde-2', 35],
+      ['sub-verde-3', 50],
+      ['sub-verde-4', 10],
+    ]);
   });
 });

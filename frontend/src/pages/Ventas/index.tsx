@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../../components/AppBottomNav';
+import { SmartSelect } from '../../components/SmartSelect';
 import {
   createGuidedError,
   InlineGuidedError,
@@ -1693,26 +1694,26 @@ export default function Ventas() {
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className="mb-1 block text-xs font-black text-slate-700">Cliente</span>
-                      <select
+                      <SmartSelect
                         value={historialVentaCliente}
                         onChange={(event) => setHistorialVentaCliente(event.target.value)}
-                        className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                        className="h-[42px]"
                       >
                         {historialVentaClientes.map(([value, label]) => (
                           <option key={value} value={value}>{label}</option>
                         ))}
-                      </select>
+                      </SmartSelect>
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
-                      <select
+                      <SmartSelect
                         value={historialVentaOrden}
                         onChange={(event) => setHistorialVentaOrden(event.target.value as 'recent' | 'oldest')}
-                        className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                        className="h-[42px]"
                       >
                         <option value="recent">Más recientes</option>
                         <option value="oldest">Más antiguos</option>
-                      </select>
+                      </SmartSelect>
                     </label>
                   </div>
                   {(historialVentaFecha ||

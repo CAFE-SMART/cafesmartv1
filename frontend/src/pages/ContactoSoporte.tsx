@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Bug,
-  ChevronDown,
   ChevronRight,
   Headset,
   HelpCircle,
@@ -15,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { SmartSelect } from '../components/SmartSelect';
 import { useUser } from '../context/UserContext';
 import API_URL from '../config/api';
 import { validatePersonName } from '../utils/personValidation';
@@ -250,7 +250,13 @@ export default function ContactoSoporte() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveModal(item.id)}
+                onClick={() => {
+                  if (item.id === 'faq') {
+                    navigate('/soporte/ayuda');
+                    return;
+                  }
+                  setActiveModal(item.id);
+                }}
                 className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[15px] border border-[#dfe6f4] bg-white px-3 py-2.5 text-left shadow-sm transition active:scale-[0.99]"
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-[#edf3ff] text-[#2448bd]">
@@ -276,7 +282,6 @@ export default function ContactoSoporte() {
           title={getModalTitle(activeModal)}
           onClose={() => setActiveModal(null)}
         >
-          {activeModal === 'faq' ? <FaqContent /> : null}
           {activeModal === 'antes' ? <BeforeContactContent /> : null}
           {activeModal === 'contacto' ? <ContactContent /> : null}
           {activeModal === 'reporte' ? (
@@ -301,9 +306,9 @@ export default function ContactoSoporte() {
 }
 
 function getModalTitle(modal: Exclude<SupportModal, null>) {
-  if (modal === 'faq') return 'Ayuda básica';
   if (modal === 'reporte') return 'Reportar problema';
   if (modal === 'antes') return 'Preguntas frecuentes';
+  if (modal === 'faq') return 'Ayuda básica';
   return 'Contacto';
 }
 
@@ -341,22 +346,6 @@ function SupportModalShell({
           {children}
         </div>
       </section>
-    </div>
-  );
-}
-
-function FaqContent() {
-  return (
-    <div className="space-y-3">
-      <InfoCard title="No puedo guardar una compra">
-        Revisa conexión, campos obligatorios y espacio en bodega. Luego toca Reintentar.
-      </InfoCard>
-      <InfoCard title="Los datos no se actualizan">
-        Vuelve al inicio y toca Recargar. Tus registros guardados permanecen seguros.
-      </InfoCard>
-      <InfoCard title="No veo una opción">
-        Cierra y vuelve a abrir la pantalla. Si sigue igual, reporta el problema.
-      </InfoCard>
     </div>
   );
 }
@@ -470,27 +459,21 @@ function ReportForm({
         />
       </SupportField>
       <SupportField id="support-type" label="Tipo de solicitud" error={errors.tipo}>
-        <div className="relative">
-          <select
-            id="support-type"
-            value={form.tipo}
-            onChange={(event) =>
-              updateField('tipo', event.target.value as SupportType)
-            }
-            className={`${getFieldClass(Boolean(errors.tipo))} appearance-none pr-12`}
-          >
-            <option value="">Selecciona una opción</option>
-            {supportTypes.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500"
-            aria-hidden="true"
-          />
-        </div>
+        <SmartSelect
+          id="support-type"
+          value={form.tipo}
+          onChange={(event) =>
+            updateField('tipo', event.target.value as SupportType)
+          }
+          className={errors.tipo ? 'border-rose-300 bg-rose-50/40' : ''}
+        >
+          <option value="">Selecciona una opción</option>
+          {supportTypes.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SmartSelect>
       </SupportField>
       <SupportField id="support-message" label="Mensaje" error={errors.mensaje}>
         <textarea

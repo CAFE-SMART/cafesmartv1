@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 import { apiError } from '../common/errors/api-error';
 import { CreateVentaDto } from './dto/crear-venta.dto';
 import {
@@ -234,6 +238,9 @@ export class VentasService {
     userId: string,
     organizacionId?: string,
   ): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached && (!organizacionId || cached === organizacionId)) return cached;
+
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -262,6 +269,7 @@ export class VentasService {
       });
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 

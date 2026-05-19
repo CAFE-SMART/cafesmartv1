@@ -760,10 +760,11 @@ export default function Inicio() {
                   </div>
                   {capacidadInicialKg ? (
                     <div className="mt-3 rounded-[14px] bg-white/75 p-3">
-                      <label className="text-[0.72rem] font-black text-[#5f370e]">
+                      <label htmlFor="inicio-capacidad-inicial" className="text-[0.72rem] font-black text-[#5f370e]">
                         Capacidad máxima (kg)
                       </label>
                       <input
+                        id="inicio-capacidad-inicial"
                         type="number"
                         min="1"
                         value={capacidadInicialKg}
@@ -816,11 +817,14 @@ export default function Inicio() {
                   {bodegaLimitNotice}
                 </div>
               ) : null}
-              <label className="mt-4 block text-xs font-black text-slate-700">
+              <label htmlFor="inicio-nombre-bodega" className="mt-4 block text-xs font-black text-slate-700">
                 Nombre de bodega
               </label>
               <input
+                id="inicio-nombre-bodega"
                 type="text"
+                aria-label="Nombre de bodega"
+                title="Nombre de bodega"
                 value={nombreBodegaLocal}
                 maxLength={BODEGA_NAME_MAX_LENGTH}
                 onChange={(event) => {
@@ -837,10 +841,11 @@ export default function Inicio() {
               <p className="mt-1 text-right text-xs font-bold text-slate-500">
                 {nombreBodegaLocal.length}/{BODEGA_NAME_MAX_LENGTH}
               </p>
-              <label className="mt-3 block text-xs font-black text-slate-700">
+              <label htmlFor="inicio-capacidad-bodega" className="mt-3 block text-xs font-black text-slate-700">
                 Capacidad máxima kg
               </label>
               <input
+                id="inicio-capacidad-bodega"
                 type="text"
                 inputMode="numeric"
                 value={capacidadBodegaLocal}
@@ -940,9 +945,11 @@ export default function Inicio() {
                 </div>
 
                 <div className={`mt-3 h-2 overflow-hidden rounded-full ${ocupacionVisual.track}`}>
-                  <div
-                    className={`h-full rounded-full transition-[width] duration-500 ${ocupacionVisual.bar}`}
-                    style={{ width: `${ocupacion.porcentaje}%` }}
+                  <progress
+                    aria-label="Porcentaje de ocupación de bodega"
+                    value={ocupacion.porcentaje}
+                    max={100}
+                    className="h-full w-full overflow-hidden rounded-full border-0 bg-transparent [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[#102d92] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[#102d92]"
                   />
                 </div>
 
@@ -1014,7 +1021,7 @@ export default function Inicio() {
                   </div>
                 ) : cafeEnBodega.length === 0 ? (
                   <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                    Aun no hay cafe disponible en bodega.
+                    Aún no hay café disponible en bodega.
                   </div>
                 ) : (
                   <div>

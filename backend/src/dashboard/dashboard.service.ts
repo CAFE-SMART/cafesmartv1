@@ -8,6 +8,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { getCache, setCache } from '../common/dashboard-cache';
 import { Logger } from '@nestjs/common';
 import { ParametrosService } from '../parametros/parametros.service';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 
 type DashboardMovimiento = {
   id: string;
@@ -521,6 +525,9 @@ export class DashboardService {
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached) return cached;
+
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -536,6 +543,7 @@ export class DashboardService {
       );
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 

@@ -145,11 +145,13 @@ describe('SecadoService', () => {
     });
     expect(tx.sublote.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: subloteId }),
-        data: { pesoActual: { decrement: 80 } },
+        where: expect.objectContaining({
+          id: subloteId,
+          pesoActual: { gte: 80 },
+        }),
+        data: { pesoActual: 20 },
       }),
     );
-    expect(100 - 80).toBe(20);
     expect(tx.inventario.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ tipoCafeId: 'tipo-verde' }),

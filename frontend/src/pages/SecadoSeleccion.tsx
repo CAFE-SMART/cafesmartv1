@@ -15,11 +15,15 @@ import {
 } from '../services/lotesService';
 import {
   applySecadoToDetalle,
+  createSecadoDraftWithWeights,
   getActiveSecadoSessions,
-  startSecadoWithWeights,
   SecadoValidationError,
   type SecadoSession,
 } from '../utils/secadoFlow';
+import {
+  formatCoffeeFullName,
+  formatSubloteVisualCode,
+} from '../utils/coffeeCodes';
 
 const SECADO_SELECTION_DRAFT_PREFIX = 'cafe-smart:secado-seleccion-draft:v1';
 
@@ -84,27 +88,9 @@ function sanitizeSecadoWeightInput(value: string, max: number) {
   return next;
 }
 
-function buildDefaultSelectedWeights(
-  sublotes: SubloteDetalle[],
-  sessions: SecadoSession[],
-) {
-  const activeWeights = new Map<string, number>();
-  for (const session of sessions) {
-    for (const sublote of session.sublotes) {
-      activeWeights.set(
-        sublote.id,
-        (activeWeights.get(sublote.id) ?? 0) + sublote.pesoActual,
-      );
-    }
-  }
-
+function buildDefaultSelectedWeights(sublotes: SubloteDetalle[]) {
   return sublotes.reduce<Record<string, number>>((weights, sublote) => {
-    const available = Math.max(
-      0,
-      Number(
-        (sublote.pesoActual - (activeWeights.get(sublote.id) ?? 0)).toFixed(1),
-      ),
-    );
+    const available = Math.max(0, Number(sublote.pesoActual.toFixed(1)));
     if (available > 0) {
       weights[sublote.id] = available;
     }
@@ -171,7 +157,7 @@ export default function SecadoSeleccion() {
             setShowDraftModal(true);
           }
         } else {
-          setSelectedWeights(buildDefaultSelectedWeights(visual.sublotes, sessions));
+          setSelectedWeights(buildDefaultSelectedWeights(visual.sublotes));
         }
         setActiveSessions(sessions);
       } catch (err) {
@@ -215,36 +201,10 @@ export default function SecadoSeleccion() {
     () => selectedIds.reduce((sum, id) => sum + (selectedWeights[id] ?? 0), 0),
     [selectedIds, selectedWeights],
   );
-  const activeWeightBySubloteId = useMemo(() => {
-    const weights = new Map<string, number>();
-    for (const session of activeSessions) {
-      for (const sublote of session.sublotes) {
-        weights.set(
-          sublote.id,
-          (weights.get(sublote.id) ?? 0) + sublote.pesoActual,
-        );
-      }
-    }
-    return weights;
-  }, [activeSessions]);
-
   const availableSublotes = useMemo(
     () =>
-      (detalle?.sublotes ?? [])
-        .map((sublote) => ({
-          ...sublote,
-          pesoActual: Math.max(
-            0,
-            Number(
-              (
-                sublote.pesoActual -
-                (activeWeightBySubloteId.get(sublote.id) ?? 0)
-              ).toFixed(1),
-            ),
-          ),
-        }))
-        .filter((sublote) => sublote.pesoActual > 0),
-    [activeWeightBySubloteId, detalle?.sublotes],
+      (detalle?.sublotes ?? []).filter((sublote) => sublote.pesoActual > 0),
+    [detalle?.sublotes],
   );
 
   const todosSeleccionados = useMemo(
@@ -327,8 +287,7 @@ export default function SecadoSeleccion() {
       sublotes: availableSublotes,
     };
     try {
-      const session = startSecadoWithWeights(availableDetail, selectedWeights);
-      window.localStorage.removeItem(getSecadoDraftKey(tipoCafeId, calidadId));
+      const session = createSecadoDraftWithWeights(availableDetail, selectedWeights);
       navigate(`/inventario/secado/${session.id}/finalizar`, {
         state: { from: originPath },
       });
@@ -504,10 +463,12 @@ export default function SecadoSeleccion() {
                       />
                       Calidad: {quality.toLowerCase()}
                     </p>
-                    {items.map((sublote) => {
+                    {items.map((sublote, index) => {
                       const selected = (selectedWeights[sublote.id] ?? 0) > 0;
                       const selectedKg =
                         selectedWeights[sublote.id] ?? sublote.pesoActual;
+                      const visualCode = formatSubloteVisualCode(sublote, index);
+                      const fullName = formatCoffeeFullName(sublote);
 
                       return (
                         <article
@@ -527,15 +488,23 @@ export default function SecadoSeleccion() {
                                   ? 'border-emerald-400 bg-emerald-400 text-white'
                                   : 'border-slate-300 bg-white'
                               }`}
-                              aria-label="Seleccionar sublote"
+                              aria-label={`Seleccionar ${visualCode} ${fullName}`}
                             >
                               <Check size={14} strokeWidth={3} />
                             </button>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="truncate text-sm font-black text-slate-900">
-                                  {sublote.etiqueta}
-                                </p>
+                                <div className="min-w-0">
+                                  <p
+                                    className="truncate text-sm font-black text-slate-900"
+                                    title={`${visualCode} · ${fullName}`}
+                                  >
+                                    {visualCode}
+                                  </p>
+                                  <p className="mt-0.5 truncate text-[0.64rem] font-black text-[#5570a8]">
+                                    {fullName}
+                                  </p>
+                                </div>
                                 <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
                                   {formatDaysLabel(sublote.fechaIngreso)}
                                 </span>
@@ -574,7 +543,7 @@ export default function SecadoSeleccion() {
                                   }
                                 }}
                                 className="w-full bg-transparent text-right text-sm font-black text-slate-900 outline-none"
-                                aria-label={`Kilos a secar de ${sublote.etiqueta}`}
+                                aria-label={`Kilos a secar de ${visualCode} ${fullName}`}
                                 placeholder="0"
                               />
                               <span className="shrink-0 text-slate-500">kg</span>
@@ -706,7 +675,7 @@ export default function SecadoSeleccion() {
                     getSecadoDraftKey(tipoCafeId, calidadId),
                   );
                   setSelectedWeights(
-                    buildDefaultSelectedWeights(availableSublotes, activeSessions),
+                    buildDefaultSelectedWeights(availableSublotes),
                   );
                   setShowDraftModal(false);
                 }}

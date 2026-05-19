@@ -12,6 +12,10 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { apiError } from '../common/errors/api-error';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 import { PrismaService } from '../prisma/prisma.service';
 import { BodegaService } from './bodega.service';
 import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
@@ -42,6 +46,9 @@ export class BodegaController {
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached) return cached;
+
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -65,6 +72,7 @@ export class BodegaController {
       );
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 }

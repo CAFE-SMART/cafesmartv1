@@ -37,6 +37,10 @@ import {
   getFactorValidationMessage,
   getHumidityValidationMessage,
 } from '../utils/humidity';
+import {
+  formatCoffeeFullName,
+  formatSubloteVisualCode,
+} from '../utils/coffeeCodes';
 
 type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
@@ -1026,7 +1030,7 @@ export default function Sublotes() {
   return (
     <div className="min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
       <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white">
-        <div className="mx-auto grid h-[50px] w-full max-w-[430px] grid-cols-[42px_1fr_42px] items-center px-3">
+        <div className="mx-auto grid min-h-[56px] w-full max-w-[430px] grid-cols-[42px_1fr_auto] items-center gap-2 px-3 py-2">
           <button
             type="button"
             onClick={() => {
@@ -1115,18 +1119,21 @@ export default function Sublotes() {
                   humidity.quality === 'advertencia' ||
                   humidity.quality === 'descuento' ||
                   humidity.quality === 'rechazada';
+                const visualCode = formatSubloteVisualCode(sublote, index);
+                const fullName = formatCoffeeFullName(sublote);
 
                 return (
                   <button
                     key={sublote.id}
                     type="button"
                     onClick={() => setSelectedSubloteId(sublote.id)}
+                    title={`${visualCode} · ${fullName}`}
                     className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className="truncate text-[0.74rem] font-black text-[#202020]">
-                          Sublote {index + 1}
+                          {visualCode}
                         </p>
                         {showHumidityWarning ? (
                           <span
@@ -1137,8 +1144,7 @@ export default function Sublotes() {
                         ) : null}
                       </div>
                       <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
-                        {titleCase(sublote.tipoCafe)} {titleCase(sublote.calidad)}{' '}
-                        · {formatKg(sublote.pesoActual)}
+                        {fullName} · {formatKg(sublote.pesoActual)}
                       </p>
                       {showHumidityWarning ? (
                         <p className="mt-1 text-[0.56rem] font-black text-orange-700">
@@ -1184,18 +1190,21 @@ export default function Sublotes() {
                   </span>
                 </div>
                 <div className="mt-2 grid gap-2">
-                  {detalle.sublotes.map((sublote) => {
+                  {detalle.sublotes.map((sublote, index) => {
                     const active = sublote.id === subloteActivo.id;
                     const humidity = classifyHumidity(sublote.humedad);
                     const showHumidityWarning =
                       humidity.quality === 'advertencia' ||
                       humidity.quality === 'descuento' ||
                       humidity.quality === 'rechazada';
+                    const visualCode = formatSubloteVisualCode(sublote, index);
+                    const fullName = formatCoffeeFullName(sublote);
                     return (
                       <button
                         key={sublote.id}
                         type="button"
                         onClick={() => setSelectedSubloteId(sublote.id)}
+                        title={`${visualCode} · ${fullName}`}
                         className={`flex items-center justify-between rounded-[8px] border px-3 py-2 text-left transition ${
                           active
                             ? 'border-[#2f4aa4] bg-[#eef3ff]'
@@ -1205,7 +1214,7 @@ export default function Sublotes() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="truncate text-[0.7rem] font-black text-[#202020]">
-                              {sublote.etiqueta}
+                              {visualCode}
                             </p>
                             {showHumidityWarning ? (
                               <span className={`rounded-full px-1.5 py-0.5 text-[0.5rem] font-black uppercase ${humidity.toneClass}`}>
@@ -1214,7 +1223,7 @@ export default function Sublotes() {
                             ) : null}
                           </div>
                           <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
-                            {formatKg(sublote.pesoActual)} ·{' '}
+                            {fullName} · {formatKg(sublote.pesoActual)} ·{' '}
                             {showHumidityWarning
                               ? formatHumedad(sublote.humedad)
                               : formatDays(getDaysForSublote(sublote))}

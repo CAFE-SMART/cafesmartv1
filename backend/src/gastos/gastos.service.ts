@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { EstadoPago, Prisma, TipoGasto } from '@prisma/client';
 import { apiError } from '../common/errors/api-error';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
 
@@ -221,6 +225,9 @@ export class GastosService {
    * Resuelve el organizacionId del usuario autenticado.
    */
   private async obtenerOrganizacionId(userId: string): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached) return cached;
+
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -236,6 +243,7 @@ export class GastosService {
       );
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 

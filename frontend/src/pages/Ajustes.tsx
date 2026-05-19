@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { RefreshButton } from '../components/RefreshButton';
+import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   createGuidedError,
@@ -72,6 +73,11 @@ import {
   getActiveSecadoSessions,
   startSecadoWithWeights,
 } from '../utils/secadoFlow';
+import {
+  formatCoffeeFullName,
+  formatSubloteVisualCode,
+  getCoffeeCodePrefix,
+} from '../utils/coffeeCodes';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_MAX_LENGTH,
@@ -286,7 +292,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Falta el correo.',
-      'Necesitamos un correo valido.',
+      'Necesitamos un correo válido.',
       'Escribe el correo del usuario.',
     );
   }
@@ -2037,20 +2043,19 @@ export default function Ajustes() {
                       <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
                         Lote verde
                       </span>
-                      <select
+                      <SmartSelect
                         value={secadoLoteKey}
                         onChange={(event) => void cargarDetalleSecadoInline(event.target.value)}
-                        className="h-10 w-full rounded-[13px] border border-[#dfe5f2] bg-[#f8faff] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
                       >
                         {secadoLotes.map((lote) => (
                           <option
                             key={`${lote.tipoCafeId}:${lote.calidadId}`}
                             value={`${lote.tipoCafeId}:${lote.calidadId}`}
                           >
-                            {lote.tipoCafe} {lote.calidad} - {formatSecadoKg(lote.pesoActual)}
+                            {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)} - {formatSecadoKg(lote.pesoActual)}
                           </option>
                         ))}
-                      </select>
+                      </SmartSelect>
                     </label>
                   ) : null}
 
@@ -2062,9 +2067,12 @@ export default function Ajustes() {
                     <div className="space-y-2">
                       {sublotesSecadoDisponibles.map((sublote, index) => {
                         const checked = (secadoWeights[sublote.id] ?? 0) > 0;
+                        const visualCode = formatSubloteVisualCode(sublote, index);
+                        const fullName = formatCoffeeFullName(sublote);
                         return (
                           <article
                             key={sublote.id}
+                            title={`${visualCode} · ${fullName}`}
                             className={`rounded-[14px] border px-3 py-2.5 ${
                               checked
                                 ? 'border-[#c9d7ff] bg-[#f5f8ff]'
@@ -2087,18 +2095,20 @@ export default function Ajustes() {
                                   })
                                 }
                                 className="h-4 w-4 accent-[#102d92]"
-                                aria-label={`Seleccionar sublote ${index + 1}`}
+                                aria-label={`Seleccionar ${visualCode} ${fullName}`}
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-black text-slate-950">
-                                  Sublote {index + 1}
+                                  {visualCode}
                                 </p>
                                 <p className="text-[0.66rem] font-semibold text-slate-500">
-                                  {sublote.calidad} · {formatSecadoKg(sublote.pesoActual)}
+                                  {fullName} · {formatSecadoKg(sublote.pesoActual)}
                                 </p>
                               </div>
                               <input
                                 type="number"
+                                aria-label={`Kilos a secar de ${visualCode} ${fullName}`}
+                                title={`Kilos a secar de ${visualCode}`}
                                 inputMode="decimal"
                                 min="0"
                                 max={sublote.pesoActual}
@@ -2157,35 +2167,35 @@ export default function Ajustes() {
                       <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
                         Orden
                       </span>
-                      <select
+                      <SmartSelect
                         value={secadoSortMode}
                         onChange={(event) =>
                           setSecadoSortMode(event.target.value as SecadoSortMode)
                         }
-                        className="h-9 w-full rounded-[11px] border border-[#dfe5f2] bg-white px-2 text-[0.66rem] font-black text-slate-700"
+                        className="h-9 rounded-[11px] text-[0.66rem]"
                       >
                         <option value="recent">Más recientes</option>
                         <option value="oldest">Más antiguos</option>
-                      </select>
+                      </SmartSelect>
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
                         Calidad
                       </span>
-                      <select
+                      <SmartSelect
                         value={secadoQualityFilter}
                         onChange={(event) =>
                           setSecadoQualityFilter(
                             event.target.value as SecadoQualityFilter,
                           )
                         }
-                        className="h-9 w-full rounded-[11px] border border-[#dfe5f2] bg-white px-2 text-[0.66rem] font-black text-slate-700"
+                        className="h-9 rounded-[11px] text-[0.66rem]"
                       >
                         <option value="TODOS">Todos</option>
                         <option value="BUENO">Bueno</option>
                         <option value="REGULAR">Regular</option>
                         <option value="MALO">Malo</option>
-                      </select>
+                      </SmartSelect>
                     </label>
                   </div>
                   {secadosActivosInline.length === 0 ? (
@@ -2199,13 +2209,19 @@ export default function Ajustes() {
                     secadosActivosInline.map((session) => (
                       <article
                         key={session.id}
-                        className="rounded-[14px] border border-[#cdeef1] bg-[#e7fbfd] px-3 py-3"
+                        title={`${getCoffeeCodePrefix(session)} · ${formatCoffeeFullName(session)}`}
+                        className="rounded-[14px] border border-[#c7d8ff] bg-[#f4f8ff] px-3 py-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-[#102d92]">
-                              {session.tipoCafe} {session.calidad}
-                            </p>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.66rem] font-black text-[#102d92]">
+                                {getCoffeeCodePrefix(session)}
+                              </span>
+                              <p className="truncate text-sm font-black text-[#102d92]">
+                                {formatCoffeeFullName(session)}
+                              </p>
+                            </div>
                             <p className="text-[0.66rem] font-semibold text-slate-500">
                               {session.sublotes.length} sublotes · {formatSecadoKg(session.sublotes.reduce((sum, item) => sum + item.pesoActual, 0))}
                             </p>
@@ -2398,7 +2414,7 @@ export default function Ajustes() {
                   {company.nombreEmpresa.length}/{BUSINESS_NAME_MAX_LENGTH}
                 </span>
               </div>
-              <select
+              <SmartSelect
                 aria-label="Tipo de empresa"
                 value={company.tipoEmpresa}
                 onChange={(event) => {
@@ -2408,13 +2424,13 @@ export default function Ajustes() {
                   }));
                   clearFeedback();
                 }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                className="text-sm"
               >
                 <option value="">Seleccionar tipo</option>
                 <option value="Cooperativa">Cooperativa</option>
                 <option value="Compraventa">Compraventa</option>
                 <option value="Otro">Otro</option>
-              </select>
+              </SmartSelect>
               <textarea
                 value={company.descripcion}
                 onChange={(event) => {
@@ -2939,7 +2955,7 @@ export default function Ajustes() {
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
                   Tipo de documento
                 </span>
-              <select
+              <SmartSelect
                 value={peopleForm.tipoDocumento}
                 onChange={(event) =>
                   setPeopleForm((prev) => ({
@@ -2948,7 +2964,7 @@ export default function Ajustes() {
                     documento: '',
                   }))
                 }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none"
+                className="text-sm"
                 aria-label="Tipo de documento"
               >
                 <option value="">Selecciona el tipo de documento</option>
@@ -2957,7 +2973,7 @@ export default function Ajustes() {
                 <option value="CE">Cédula de extranjería</option>
                 <option value="PASAPORTE">Pasaporte</option>
                 <option value="OTRO">Otro</option>
-              </select>
+              </SmartSelect>
               </label>
               {peopleFormErrors.tipoDocumento ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.tipoDocumento}</p> : null}
               <label className="block">

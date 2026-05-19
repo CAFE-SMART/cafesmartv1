@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 
 export type SubloteFinanciero = {
   costoTotal: number;
@@ -625,26 +629,6 @@ export class LotesService {
       },
       select: {
         ...SUBLOTE_INVENTARIO_SELECT,
-        detallesVenta: {
-          where: { deletedAt: null },
-        },
-        gastosOperativos: {
-          include: {
-            gastoOperativo: {
-              include: {
-                sublotes: {
-                  include: {
-                    sublote: {
-                      include: {
-                        detallesVenta: { where: { deletedAt: null } },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
       },
       orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
     });
@@ -653,6 +637,7 @@ export class LotesService {
       throw new NotFoundException('No se encontraron sublotes para ese lote');
     }
 
+    const subloteIds = sublotes.map((sublote) => sublote.id);
     const sublotesOrganizacion = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
@@ -667,8 +652,24 @@ export class LotesService {
     const sublotesOrganizacionIds = sublotesOrganizacion.map(
       (sublote) => sublote.id,
     );
-    const [detallesVentaOrganizacion, gastosGenerales] =
+    const [
+      detallesVenta,
+      detallesVentaOrganizacion,
+      gastosGenerales,
+      gastosSeleccionados,
+    ] =
       await this.prisma.$transaction([
+        this.prisma.ventaDetalle.findMany({
+          where: {
+            deletedAt: null,
+            subloteId: { in: subloteIds },
+          },
+          select: {
+            subloteId: true,
+            pesoVendido: true,
+            subtotal: true,
+          },
+        }),
         this.prisma.ventaDetalle.findMany({
           where: {
             deletedAt: null,
@@ -690,7 +691,55 @@ export class LotesService {
             montoGasto: true,
           },
         }),
+        this.prisma.gastoSublote.findMany({
+          where: {
+            subloteId: { in: subloteIds },
+            gastoOperativo: {
+              deletedAt: null,
+              organizacionId,
+            },
+          },
+          select: {
+            gastoOperativoId: true,
+          },
+        }),
       ]);
+
+    const gastoIds = [
+      ...new Set(gastosSeleccionados.map((gasto) => gasto.gastoOperativoId)),
+    ];
+    const gastosAsociados =
+      gastoIds.length > 0
+        ? await this.prisma.gastoSublote.findMany({
+            where: {
+              gastoOperativoId: { in: gastoIds },
+              gastoOperativo: {
+                deletedAt: null,
+                organizacionId,
+              },
+            },
+            select: {
+              gastoOperativoId: true,
+              subloteId: true,
+              gastoOperativo: {
+                select: {
+                  montoGasto: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    const ventasPorSublote = new Map<string, VentaResumen>();
+    for (const detalle of detallesVenta) {
+      const actual = ventasPorSublote.get(detalle.subloteId) ?? {
+        pesoVendido: 0,
+        totalVentas: 0,
+      };
+      actual.pesoVendido += Number(detalle.pesoVendido);
+      actual.totalVentas += Number(detalle.subtotal);
+      ventasPorSublote.set(detalle.subloteId, actual);
+    }
 
     const ventasOrganizacionPorSublote = new Map<string, VentaResumen>();
     for (const detalle of detallesVentaOrganizacion) {
@@ -705,6 +754,11 @@ export class LotesService {
 
     const gastosGeneralesPorSublote = this.calcularGastosGeneralesPorSublote(
       gastosGenerales,
+      sublotesOrganizacion,
+      ventasOrganizacionPorSublote,
+    );
+    const gastosAsociadosPorSublote = this.calcularGastosPorSublote(
+      gastosAsociados,
       sublotesOrganizacion,
       ventasOrganizacionPorSublote,
     );
@@ -735,9 +789,11 @@ export class LotesService {
       const factor = this.normalizarNumeroNullable(sublote.factor);
       const fechaIngreso = sublote.compra.fecha;
 
-      const financiero = this.sumarGastoFinanciero(
-        this.calcularFinancieroSublote(sublote),
-        gastosGeneralesPorSublote.get(sublote.id) ?? 0,
+      const financiero = this.calcularFinancieroSubloteResumen(
+        sublote,
+        ventasPorSublote.get(sublote.id),
+        (gastosAsociadosPorSublote.get(sublote.id) ?? 0) +
+          (gastosGeneralesPorSublote.get(sublote.id) ?? 0),
       );
       totalVentas += financiero.totalVentas;
       totalGastos += financiero.totalGastos;
@@ -1093,6 +1149,9 @@ export class LotesService {
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached) return cached;
+
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -1108,6 +1167,7 @@ export class LotesService {
       );
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 

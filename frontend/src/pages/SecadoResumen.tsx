@@ -7,7 +7,7 @@ import {
   getSecadoSession,
   removeSecadoSession,
 } from '../utils/secadoFlow';
-import { crearSecado, transformarSecado } from '../services/secadoService';
+import { transformarSecado } from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 
@@ -39,7 +39,7 @@ function getSecadoPersistErrorMessage(error: unknown) {
     }
   }
 
-  if (error.message.includes('Esta opcion aun no esta disponible')) {
+  if (error.message.includes('Esta opcion aún no esta disponible')) {
     return 'No pudimos actualizar el inventario del secado. Vuelve a intentarlo.';
   }
 
@@ -90,17 +90,9 @@ export default function SecadoResumen() {
           },
         ].filter((salida) => salida.pesoKg > 0);
 
-        if (finalized.sublotes.length === 1 && salidas.length === 1) {
-          await crearSecado({
-            subloteId: finalized.sublotes[0].id,
-            pesoSalida: salidas[0].pesoKg,
-            calidadSalida: salidas[0].calidad,
-            humedad: salidas[0].humedad ?? null,
-          });
-        } else {
-          await transformarSecado({
+        if (import.meta.env.DEV) {
+          console.info('[secado:persistir]', {
             sessionId: finalized.id,
-            deviceId: await obtenerDeviceId(),
             fuentes: finalized.sublotes.map((sublote) => ({
               id: sublote.id,
               pesoKg: sublote.pesoActual,
@@ -108,6 +100,16 @@ export default function SecadoResumen() {
             salidas,
           });
         }
+
+        await transformarSecado({
+          sessionId: finalized.id,
+          deviceId: await obtenerDeviceId(),
+          fuentes: finalized.sublotes.map((sublote) => ({
+            id: sublote.id,
+            pesoKg: sublote.pesoActual,
+          })),
+          salidas,
+        });
 
         removeSecadoSession(finalized.id);
         setPersisted(true);

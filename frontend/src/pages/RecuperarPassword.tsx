@@ -160,48 +160,52 @@ export default function RecuperarPassword() {
               />
             ) : null}
 
-            <div className="rounded-[20px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-4 text-center shadow-[0_10px_24px_rgba(47,99,216,0.06)]">
-              <p className="text-sm font-black text-slate-900">
+            <div className="rounded-[22px] border border-[#dbe7ff] bg-[#f8fbff] px-4 py-4 text-left shadow-[0_12px_28px_rgba(47,99,216,0.07)]">
+              <p className="text-sm font-black text-[#07153b]">
                 ¿No recibiste el correo?
               </p>
 
-              <button
-                type="button"
-                onClick={() => void reenviarEnlace()}
-                disabled={isLoading || cooldownSeconds > 0}
-                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.2)] transition hover:bg-[#18358f] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/20 disabled:cursor-not-allowed disabled:bg-[#9fb2d9] disabled:shadow-none"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader size={17} className="animate-spin" />
-                    Reenviando...
-                  </>
-                ) : cooldownSeconds > 0 ? (
-                  `Reenviar enlace (${cooldownSeconds}s)`
-                ) : (
-                  'Reenviar enlace'
-                )}
-              </button>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => void reenviarEnlace()}
+                  disabled={isLoading || cooldownSeconds > 0}
+                  className="inline-flex min-h-[44px] min-w-[156px] flex-1 items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-center text-[0.82rem] font-black leading-tight text-white shadow-[0_14px_28px_rgba(16,45,146,0.2)] transition hover:bg-[#18358f] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/20 disabled:cursor-not-allowed disabled:bg-[#9fb2d9] disabled:shadow-none sm:flex-none"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader size={17} className="animate-spin" />
+                      Reenviando...
+                    </>
+                  ) : cooldownSeconds > 0 ? (
+                    `Reenviar enlace (${cooldownSeconds}s)`
+                  ) : (
+                    'Reenviar enlace'
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={usarOtroCorreo}
-                className="mt-3 text-sm font-black text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10"
-              >
-                Usar otro correo
-              </button>
+                <button
+                  type="button"
+                  onClick={usarOtroCorreo}
+                  className="inline-flex min-h-[44px] min-w-[132px] flex-1 items-center justify-center rounded-[16px] border border-[#cdd8ef] bg-white/90 px-4 text-center text-[0.82rem] font-black leading-tight text-[#102d92] shadow-[0_8px_18px_rgba(15,23,42,0.045)] transition hover:border-[#93c5fd] hover:bg-white active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10 sm:flex-none"
+                >
+                  Usar otro correo
+                </button>
+              </div>
             </div>
 
-            <div className="rounded-[18px] border border-[#e5ebf7] bg-white px-4 py-4 text-center">
-              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92]">
-                <Headset size={18} aria-hidden="true" />
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[#e5ebf7] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.045)]">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#102d92] shadow-[0_8px_18px_rgba(37,99,235,0.08)]">
+                  <Headset size={19} aria-hidden="true" />
+                </div>
+                <p className="min-w-0 text-sm font-black leading-5 text-[#07153b]">
+                  ¿Sigues teniendo problemas?
+                </p>
               </div>
-              <p className="text-sm font-bold text-slate-700">
-                ¿Sigues teniendo problemas?
-              </p>
               <a
                 href="mailto:soporte@cafesmart.com?subject=Ayuda%20con%20recuperaci%C3%B3n%20de%20contrase%C3%B1a"
-                className="mt-3 inline-flex h-10 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#f5f9ff] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10"
+                className="inline-flex min-h-[42px] shrink-0 items-center justify-center rounded-[16px] border border-[#cdd8ef] bg-white px-4 text-[0.82rem] font-black text-[#102d92] shadow-[0_8px_18px_rgba(15,23,42,0.045)] transition hover:border-[#93c5fd] hover:bg-[#f5f9ff] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10"
               >
                 Contactar soporte
               </a>

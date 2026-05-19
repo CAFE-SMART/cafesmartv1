@@ -230,7 +230,7 @@ export function useVentas() {
       const disponible = getDisponibleVenta(l);
       if (l.cantidad > disponible) return `Cantidad máxima permitida: ${kg(disponible)}.`;
       if (!isValidCantidadInput(String(l.cantidad), disponible)) return `La cantidad ingresada no es válida en ${l.codigo}.`;
-      if (l.precio < PRECIO_MINIMO_KG) return `Ingresa un precio por kg valido en ${l.codigo}.`;
+      if (l.precio < PRECIO_MINIMO_KG) return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
   }, [fechaVentaValidacion.isValid, fechaVentaValidacion.message, lotesVenta.length, modoVenta, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, lotesConCantidad]);

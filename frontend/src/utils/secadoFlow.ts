@@ -13,11 +13,12 @@ const SECADO_PROCESS_TYPE = 'EN SECADO';
 const SECADO_PROCESS_QUALITY = 'EN PROCESO';
 export const VISUAL_CAPACITY_KG = 3000;
 
-export type SecadoEstado = 'IN_PROCESS' | 'READY' | 'COMPLETED';
+export type SecadoEstado = 'DRAFT' | 'IN_PROCESS' | 'READY' | 'COMPLETED';
 
 export type SecadoSubloteSeleccionado = {
   id: string;
   etiqueta: string;
+  sourceLoteId?: string;
   pesoActual: number;
   pesoDisponible?: number;
   humedad: number | null;
@@ -180,7 +181,10 @@ function hasSelectedSublotes(session: SecadoSession) {
 }
 
 function isActiveSession(session: SecadoSession) {
-  return session.estado !== 'COMPLETED' && hasSelectedSublotes(session);
+  return (
+    (session.estado === 'IN_PROCESS' || session.estado === 'READY') &&
+    hasSelectedSublotes(session)
+  );
 }
 
 function getInventorySecadoSessions() {
@@ -196,7 +200,7 @@ function getInventorySecadoSessions() {
 
 function hasSourceSublotes(session: SecadoSession, sublotes: SubloteDetalle[]) {
   const ids = new Set(sublotes.map((sublote) => sublote.id));
-  return session.sublotes.every((sublote) => ids.has(sublote.id));
+  return session.sublotes.some((sublote) => ids.has(sublote.id));
 }
 
 function hasSecadoOutput(sublotes: SubloteDetalle[], generatedId: string) {
@@ -237,9 +241,10 @@ function getFullyRemovedSublotesByLot(sessions: SecadoSession[]) {
 
   for (const session of sessions) {
     for (const sublote of session.sublotes) {
-      const key = `${session.loteId}::${sublote.id}`;
+      const loteId = sublote.sourceLoteId ?? session.loteId;
+      const key = `${loteId}::${sublote.id}`;
       const current = removedBySublote.get(key) ?? {
-        loteId: session.loteId,
+        loteId,
         subloteId: sublote.id,
         removedKg: 0,
         disponibleKg: sublote.pesoDisponible ?? sublote.pesoActual,
@@ -494,7 +499,7 @@ export function getActiveSecadoSessionForLot(lotId: string) {
 export function getActiveSecadoBlockedSubloteIds() {
   return new Set(
     readStorage()
-      .filter((session) => session.estado !== 'COMPLETED')
+      .filter((session) => isActiveSession(session))
       .flatMap((session) => session.sublotes.map((sublote) => sublote.id)),
   );
 }
@@ -502,9 +507,7 @@ export function getActiveSecadoBlockedSubloteIds() {
 export function getActiveSecadoBlockedKgByLot() {
   const blockedByLot = new Map<string, number>();
 
-  for (const session of readStorage().filter(
-    (item) => item.estado !== 'COMPLETED',
-  )) {
+  for (const session of readStorage().filter((item) => isActiveSession(item))) {
     const blockedKg = totalInputKg(session);
     blockedByLot.set(
       session.loteId,
@@ -539,6 +542,9 @@ export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
     sublotes: selectedSublotes.map((sublote) => ({
       id: sublote.id,
       etiqueta: sublote.etiqueta,
+      sourceLoteId:
+        (sublote as SubloteDetalle & { sourceLoteId?: string }).sourceLoteId ??
+        detalle.lote.id,
       pesoActual: sublote.pesoActual,
       humedad: sublote.humedad,
       fechaIngreso: sublote.fechaIngreso,
@@ -615,6 +621,9 @@ export function startSecadoWithWeights(
     sublotes: selectedSublotes.map((sublote) => ({
       id: sublote.id,
       etiqueta: sublote.etiqueta,
+      sourceLoteId:
+        (sublote as SubloteDetalle & { sourceLoteId?: string }).sourceLoteId ??
+        detalle.lote.id,
       pesoActual: safeNumber(selectedWeights[sublote.id] ?? 0),
       pesoDisponible: sublote.pesoActual,
       humedad: sublote.humedad,
@@ -636,6 +645,61 @@ export function startSecadoWithWeights(
 
   writeStorage([session, ...sessions]);
   return session;
+}
+
+export function createSecadoDraftWithWeights(
+  detalle: LoteDetalle,
+  selectedWeights: Record<string, number>,
+) {
+  const session = startSecadoWithWeights(detalle, selectedWeights);
+  const sessions = readStorage();
+  const nextSession = {
+    ...session,
+    estado: 'DRAFT' as const,
+  };
+
+  writeStorage([
+    nextSession,
+    ...sessions.filter(
+      (item) => item.id !== session.id && item.estado !== 'DRAFT',
+    ),
+  ]);
+
+  return nextSession;
+}
+
+export function startSecadoProcess(sessionId: string, startedAt?: string) {
+  const sessions = readStorage();
+  let found = false;
+  const timestamp = startedAt ?? nowIso();
+  const nextSessions = sessions.map((session) => {
+    if (session.id !== sessionId) return session;
+    found = true;
+
+    if (!hasSelectedSublotes(session)) {
+      throw new SecadoValidationError(
+        'SECADO_ENTRADA_INVALIDA',
+        'Selecciona al menos un sublote para iniciar secado.',
+      );
+    }
+
+    return {
+      ...session,
+      estado: 'IN_PROCESS' as const,
+      startedAt: timestamp,
+      updatedAt: timestamp,
+    };
+  });
+
+  if (!found) {
+    throw new SecadoValidationError(
+      'SECADO_NO_ENCONTRADO',
+      'No pudimos iniciar el secado. Intenta nuevamente.',
+    );
+  }
+
+  writeStorage(nextSessions);
+  return nextSessions.find((session) => session.id === sessionId) ?? null;
 }
 
 function validarResultadoSecado(
@@ -692,6 +756,13 @@ export function saveSecadoResults(
   const sessions = readStorage();
   const nextSessions = sessions.map((session) => {
     if (session.id !== sessionId) return session;
+
+    if (session.estado === 'DRAFT') {
+      throw new SecadoValidationError(
+        'SECADO_NO_INICIADO',
+        'Debes iniciar el proceso antes de registrar resultados.',
+      );
+    }
 
     validarResultadoSecado(session, payload);
 
@@ -807,17 +878,27 @@ export function applySecadoToLots(
   const fullyRemovedByLot = getFullyRemovedSublotesByLot(sessions);
 
   for (const session of sessions) {
-    const removedKg = totalInputKg(session);
-    const source = lots.find((lot) => lot.id === session.loteId);
-
-    if (!source || !canApplySessionToLot(session, source)) {
-      continue;
+    const removedKgByLot = new Map<string, number>();
+    for (const sublote of session.sublotes) {
+      const loteId = sublote.sourceLoteId ?? session.loteId;
+      removedKgByLot.set(
+        loteId,
+        safeNumber((removedKgByLot.get(loteId) ?? 0) + sublote.pesoActual),
+      );
     }
 
-    source.pesoActual = safeNumber(Math.max(0, source.pesoActual - removedKg));
-    source.pesoInicial = safeNumber(
-      Math.max(0, source.pesoInicial - removedKg),
-    );
+    for (const [loteId, removedKg] of removedKgByLot.entries()) {
+      const source = lots.find((lot) => lot.id === loteId);
+
+      if (!source || removedKg > source.pesoActual) {
+        continue;
+      }
+
+      source.pesoActual = safeNumber(Math.max(0, source.pesoActual - removedKg));
+      source.pesoInicial = safeNumber(
+        Math.max(0, source.pesoInicial - removedKg),
+      );
+    }
 
     const completedAt = session.completedAt ?? session.updatedAt;
     if (session.estado !== 'COMPLETED') {
@@ -939,22 +1020,24 @@ export function applySecadoToDetalle(
     );
 
     for (const session of sourceSessions) {
-      if (session.loteId === baseDetail.lote.id) {
-        const selectedWeightById = new Map(
-          session.sublotes.map((sublote) => [sublote.id, sublote.pesoActual]),
-        );
-        nextSublotes = nextSublotes
-          .map((sublote) => ({
+      const selectedWeightById = new Map(
+        session.sublotes.map((sublote) => [sublote.id, sublote.pesoActual]),
+      );
+      nextSublotes = nextSublotes
+        .map((sublote) => {
+          const selectedWeight = selectedWeightById.get(sublote.id);
+          if (!selectedWeight) {
+            return sublote;
+          }
+
+          return {
             ...sublote,
-            pesoActual: safeNumber(
-              Math.max(
-                0,
-                sublote.pesoActual - (selectedWeightById.get(sublote.id) ?? 0),
-              ),
+            pesoActual: round2(
+              Math.max(0, sublote.pesoActual - selectedWeight),
             ),
-          }))
-          .filter((sublote) => sublote.pesoActual > 0);
-      }
+          };
+        })
+        .filter((sublote) => sublote.pesoActual > 0);
     }
 
     if (includeGeneratedOutputs && isDryLot(baseDetail)) {

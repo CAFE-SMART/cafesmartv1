@@ -165,6 +165,8 @@ model Sublote {
   @@index([compraId])
   @@index([deletedAt, compraId])
   @@index([tipoCafeId, calidadId, deletedAt])
+  @@index([deletedAt, tipoCafeId, calidadId, creadoEn], map: "idx_sublote_disponible_tipo_calidad")
+  @@index([deletedAt, pesoActual, creadoEn], map: "idx_sublote_disponible_fecha")
   @@index([idLote])
   @@index([compraId], map: "idx_sub_lote_id_compra")
   @@index([compraId], map: "idx_sublote_compraid")

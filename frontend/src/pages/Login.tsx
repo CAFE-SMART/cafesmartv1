@@ -44,7 +44,7 @@ function getProgressiveEmailError(value: string, mode: EmailValidationMode) {
 
   const [localPart, domainPart = '', extraPart] = trimmed.split('@');
   if (!localPart || extraPart !== undefined || /\s/.test(trimmed)) {
-    return 'El correo no parece valido.';
+    return 'El correo no parece válido.';
   }
 
   if (!domainPart) {
@@ -62,7 +62,7 @@ function getProgressiveEmailError(value: string, mode: EmailValidationMode) {
   }
 
   if (!isValidEmail(trimmed)) {
-    return 'El correo no parece valido.';
+    return 'El correo no parece válido.';
   }
 
   return null;

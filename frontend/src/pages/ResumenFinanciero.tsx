@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshButton } from '../components/RefreshButton';
+import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
@@ -550,7 +551,7 @@ export default function ResumenFinanciero() {
 
   const handleUnlock = async () => {
     if (!password.trim()) {
-      setError('Escribe la contrasena del administrador.');
+      setError('Escribe la contraseña del administrador.');
       return;
     }
 
@@ -841,8 +842,8 @@ export default function ResumenFinanciero() {
               Acceso financiero
             </h2>
             <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500">
-              Ingresa la contrasena del administrador para ver utilidad, merma y
-              analisis.
+              Ingresa la contraseña del administrador para ver utilidad, merma y
+              análisis.
             </p>
             <input
               type="password"
@@ -854,7 +855,7 @@ export default function ResumenFinanciero() {
                 }
               }}
               className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#102d92]"
-              placeholder="Contrasena"
+              placeholder="Contraseña"
             />
             <button
               type="button"
@@ -898,12 +899,12 @@ export default function ResumenFinanciero() {
               </div>
               {hasData ? (
                 <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
-                  Resultado despues de compras, gastos y ventas
+                  Resultado después de compras, gastos y ventas
                 </p>
               ) : (
                 <div className="mt-3 space-y-1 text-white/75">
                   <p className="text-[0.64rem] font-black leading-4">
-                    Aun no tienes movimientos registrados
+                    Aún no tienes movimientos registrados
                   </p>
                   <p className="text-[0.62rem] font-semibold leading-4">
                     Registra compras, ventas o gastos para ver tu utilidad
@@ -1149,7 +1150,7 @@ export default function ResumenFinanciero() {
               {financialSectionsOpen.movements ? (
               movimientosRecientes.length === 0 ? (
                 <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
-                  Aun no tienes movimientos
+                  Aún no tienes movimientos
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">
@@ -1360,10 +1361,10 @@ export default function ResumenFinanciero() {
                               ? 'Tipo de productor'
                               : 'Tipo de gasto'}
                         </label>
-                      <select
+                      <SmartSelect
                         value={historialTipo}
                         onChange={(event) => setHistorialTipo(event.target.value)}
-                          className="min-h-[42px] w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.68rem] font-bold text-slate-700"
+                        className="min-h-[42px] rounded-[12px] text-[0.68rem]"
                         aria-label="Filtrar por tipo"
                       >
                         {historialTipos.map((tipo) => (
@@ -1371,25 +1372,25 @@ export default function ResumenFinanciero() {
                             {tipo === 'TODOS' ? 'Todos' : tipo}
                           </option>
                         ))}
-                      </select>
+                      </SmartSelect>
                       </div>
                       <div className="min-w-0">
                         <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500">
                           Ordenar por
                         </label>
-                      <select
+                      <SmartSelect
                         value={historialSort}
                         onChange={(event) =>
                           setHistorialSort(event.target.value as typeof historialSort)
                         }
-                          className="min-h-[42px] w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.68rem] font-bold text-slate-700"
+                        className="min-h-[42px] rounded-[12px] text-[0.68rem]"
                         aria-label="Ordenar historial"
                       >
                         <option value="recent">Recientes</option>
                         <option value="oldest">Antiguos</option>
                         <option value="amount-desc">Mayor valor</option>
                         <option value="amount-asc">Menor valor</option>
-                      </select>
+                      </SmartSelect>
                       </div>
                     </div>
                     {historialDate ? (

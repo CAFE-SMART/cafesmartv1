@@ -29,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../components/TransactionSuccessScreen';
@@ -3186,7 +3187,7 @@ export default function Compras() {
     }
 
     if (catalogos.tiposCafe.length === 0 || catalogos.calidades.length === 0) {
-      return 'Aun no hay catalogos disponibles para registrar la compra.';
+      return 'Aún no hay catálogos disponibles para registrar la compra.';
     }
     for (const [index, sublote] of sublotes.entries()) {
       if (!sublote.tipoCafeId)
@@ -5244,26 +5245,26 @@ export default function Compras() {
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-black text-slate-700">Productor</span>
-                    <select
+                    <SmartSelect
                       value={historialCompraProductor}
                       onChange={(event) => setHistorialCompraProductor(event.target.value)}
-                      className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                      className="h-[42px]"
                     >
                       {historialCompraProductores.map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
-                    </select>
+                    </SmartSelect>
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
-                    <select
+                    <SmartSelect
                       value={historialCompraOrden}
                       onChange={(event) => setHistorialCompraOrden(event.target.value as 'recent' | 'oldest')}
-                      className="h-[42px] w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 text-xs font-black text-slate-700 outline-none"
+                      className="h-[42px]"
                     >
                       <option value="recent">Más recientes</option>
                       <option value="oldest">Más antiguos</option>
-                    </select>
+                    </SmartSelect>
                   </label>
                 </div>
                 {(historialCompraFecha ||

@@ -1,10 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CircleDashed, Package2, X } from 'lucide-react';
+import { SmartSelect } from '../components/SmartSelect';
 import {
   getActiveSecadoSessions,
   removeSecadoSession,
 } from '../utils/secadoFlow';
+import {
+  formatCoffeeFullName,
+  getCoffeeCodePrefix,
+} from '../utils/coffeeCodes';
 
 type ActiveSecadoSession = ReturnType<typeof getActiveSecadoSessions>[number];
 type SecadoSort = 'recent' | 'oldest';
@@ -100,9 +105,9 @@ export default function SecadosActivos() {
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
 
   return (
-    <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfbfb]">
-        <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
+    <div className="min-h-screen bg-[#f6f8ff] text-slate-950">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfdff]">
+        <header className="relative flex h-12 items-center justify-center border-b border-[#dbe7ff] px-4">
           <button
             type="button"
             onClick={handleBack}
@@ -125,41 +130,39 @@ export default function SecadosActivos() {
             </p>
           </section>
 
-          <section className="mt-4 rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm">
+          <section className="mt-4 rounded-[18px] border border-[#dbe7ff] bg-white p-3 shadow-[0_8px_24px_rgba(47,99,216,0.07)]">
             <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
                 <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
                   Filtro
                 </span>
-                <select
-                  value={sort}
-                  onChange={(event) => {
-                    setSort(event.target.value as SecadoSort);
-                    setShowAll(false);
-                  }}
-                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
-                >
-                  <option value="recent">Más recientes</option>
-                  <option value="oldest">Más antiguos</option>
-                </select>
+                  <SmartSelect
+                    value={sort}
+                    onChange={(event) => {
+                      setSort(event.target.value as SecadoSort);
+                      setShowAll(false);
+                    }}
+                  >
+                    <option value="recent">Más recientes</option>
+                    <option value="oldest">Más antiguos</option>
+                  </SmartSelect>
               </label>
               <label className="min-w-0">
                 <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
                   Tipo de calidad
                 </span>
-                <select
-                  value={qualityFilter}
-                  onChange={(event) => {
-                    setQualityFilter(event.target.value as SecadoQualityFilter);
-                    setShowAll(false);
-                  }}
-                  className="h-10 w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 text-xs font-black text-slate-800 outline-none focus:border-[#102d92]"
-                >
-                  <option value="TODOS">Todos</option>
-                  <option value="BUENO">Verde Bueno</option>
-                  <option value="REGULAR">Verde Regular</option>
-                  <option value="MALO">Verde Malo</option>
-                </select>
+                  <SmartSelect
+                    value={qualityFilter}
+                    onChange={(event) => {
+                      setQualityFilter(event.target.value as SecadoQualityFilter);
+                      setShowAll(false);
+                    }}
+                  >
+                    <option value="TODOS">Todos</option>
+                    <option value="BUENO">Verde Bueno</option>
+                    <option value="REGULAR">Verde Regular</option>
+                    <option value="MALO">Verde Malo</option>
+                  </SmartSelect>
               </label>
             </div>
           </section>
@@ -182,19 +185,25 @@ export default function SecadosActivos() {
               {visibleSessions.map((session) => (
                 <article
                   key={session.id}
-                  className="rounded-[18px] border border-slate-200 bg-white px-4 py-3.5 shadow-sm"
+                  title={`${getCoffeeCodePrefix(session)} · ${formatCoffeeFullName(session)}`}
+                  className="rounded-[18px] border border-[#c7d8ff] bg-[linear-gradient(135deg,#f4f8ff_0%,#ffffff_100%)] px-4 py-3.5 shadow-[0_12px_28px_rgba(47,99,216,0.10)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-slate-500">
+                      <p className="text-[0.66rem] font-black uppercase tracking-[0.14em] text-[#5570a8]">
                         En seguimiento
                       </p>
                       <div className="mt-1 flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-[1.05rem] font-black leading-tight text-slate-900">
-                            {session.tipoCafe} - {session.calidad}
-                          </p>
-                          <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black uppercase text-slate-600">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+                              {getCoffeeCodePrefix(session)}
+                            </span>
+                            <p className="truncate text-[1.05rem] font-black leading-tight text-[#0f235c]">
+                              {formatCoffeeFullName(session)}
+                            </p>
+                          </div>
+                          <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] font-black uppercase text-[#334b85]">
                             <span
                               className={`h-2 w-2 rounded-full ${qualityTone(session.calidad)}`}
                             />
@@ -206,11 +215,11 @@ export default function SecadosActivos() {
                           {kg(totalEntrada(session))}
                         </p>
                       </div>
-                      <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
+                      <p className="mt-1 text-[0.68rem] font-semibold text-[#5570a8]">
                         {startedLabel(session.startedAt)}
                       </p>
                     </div>
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#102d92]">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaf2ff] text-[#102d92] shadow-sm">
                       <CircleDashed size={16} />
                     </span>
                   </div>
@@ -219,7 +228,7 @@ export default function SecadosActivos() {
                     <button
                       type="button"
                       onClick={() => setInterruptionTarget(session)}
-                      className="inline-flex h-11 items-center justify-center rounded-[14px] border border-slate-200 bg-slate-100 px-3 text-[0.78rem] font-black text-slate-700"
+                      className="inline-flex h-11 items-center justify-center rounded-[14px] border border-[#9bbcff] bg-white px-3 text-[0.78rem] font-black text-[#102d92] transition hover:bg-[#f4f8ff]"
                     >
                       Interrumpir
                     </button>
@@ -231,7 +240,7 @@ export default function SecadosActivos() {
                           { state: { from: originPath } },
                         )
                       }
-                      className="inline-flex h-11 items-center justify-center rounded-[14px] bg-slate-900 px-3 text-[0.78rem] font-black text-white"
+                      className="inline-flex h-11 items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-[0.78rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f]"
                     >
                       Finalizar
                     </button>

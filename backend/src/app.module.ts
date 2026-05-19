@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,6 +17,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { SupportModule } from './support/support.module';
 import { SecadoModule } from './secado/secado.module';
 import { CreditoModule } from './compras/credito.module';
+import { RequestContextMiddleware } from './common/request-context.middleware';
 
 @Module({
   imports: [
@@ -39,4 +40,8 @@ import { CreditoModule } from './compras/credito.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

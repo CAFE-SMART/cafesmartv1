@@ -20,6 +20,7 @@ import {
   getSecadoSession,
   saveSecadoResults,
   SecadoValidationError,
+  startSecadoProcess,
 } from '../utils/secadoFlow';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -31,6 +32,7 @@ import {
 import { crearGasto } from '../services/gastosService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
+import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -183,13 +185,12 @@ function SecadoDatePicker({
       <button
         type="button"
         aria-haspopup="dialog"
-        aria-expanded={open ? 'true' : 'false'}
         onClick={onToggle}
-        className={`mt-2.5 flex min-h-[58px] w-full cursor-pointer items-center justify-between gap-3 rounded-[16px] border bg-[#f8f9ff] px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
+        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
           open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
         }`}
       >
-        <span className="min-w-0 flex-1 truncate text-[1.18rem] font-black leading-none text-[#08256d]">
+        <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d]">
           {value ? formatDateLabel(value) : 'Selecciona una fecha'}
         </span>
         <CalendarDays size={20} className={open ? 'text-[#102d92]' : 'text-slate-500'} />
@@ -199,15 +200,15 @@ function SecadoDatePicker({
         <div
           role="dialog"
           aria-label="Calendario de fecha de finalización"
-          className="absolute left-0 right-0 z-30 mt-2 rounded-[22px] border border-[#d5deee] bg-white p-3 shadow-[0_22px_48px_rgba(15,23,42,0.18)]"
+          className="absolute left-1/2 right-auto z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)]"
         >
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+          <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
               aria-label="Mes anterior"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
             >
               <ArrowLeft size={17} />
             </button>
@@ -216,7 +217,7 @@ function SecadoDatePicker({
                 type="button"
                 {...ariaPressed(calendarView === 'months')}
                 onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
-                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
               >
                 {MONTHS_ES[visibleMonth.getMonth()]}
               </button>
@@ -224,7 +225,7 @@ function SecadoDatePicker({
                 type="button"
                 {...ariaPressed(calendarView === 'years')}
                 onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
-                className={`rounded-full px-3 py-1.5 text-sm font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
               >
                 {visibleYear}
               </button>
@@ -234,14 +235,14 @@ function SecadoDatePicker({
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
               aria-label="Mes siguiente"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
             >
               <ArrowRight size={17} />
             </button>
           </div>
 
           {calendarView === 'months' ? (
-            <div className="grid grid-cols-3 gap-2 px-1 py-1">
+            <div className="grid grid-cols-3 gap-1.5 px-1 py-1">
               {MONTHS_ES.map((month, monthIndex) => {
                 const candidate = new Date(visibleYear, monthIndex, 1);
                 const disabled =
@@ -260,7 +261,7 @@ function SecadoDatePicker({
                         setCalendarView('days');
                       }
                     }}
-                    className={`min-h-[44px] rounded-[14px] px-2 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
                   >
                     {month}
                   </button>
@@ -268,7 +269,7 @@ function SecadoDatePicker({
               })}
             </div>
           ) : calendarView === 'years' ? (
-            <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto px-1 py-1">
+            <div className="grid max-h-44 grid-cols-3 gap-1.5 overflow-y-auto px-1 py-1">
               {yearOptions.map((year) => {
                 const active = year === visibleYear;
                 return (
@@ -280,7 +281,7 @@ function SecadoDatePicker({
                       setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
                       setCalendarView('months');
                     }}
-                    className={`min-h-[44px] rounded-[14px] px-2 text-sm font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition ${active ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
                   >
                     {year}
                   </button>
@@ -305,7 +306,7 @@ function SecadoDatePicker({
                       onChange(day.value);
                       onClose();
                     }}
-                    className={`h-10 rounded-full text-sm font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                    className={`h-8 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
                       day.value === value
                         ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
                         : day.value === max
@@ -444,8 +445,8 @@ const DivisionCalidadModal = ({ peso, calidad, onClose, onConfirm }: { peso: num
         <h3 className="font-bold text-lg mb-3">Dividir por Calidad</h3>
         <p className="text-sm text-gray-600 mb-3">Ingrese el porcentaje de cafe con calidad inferior</p>
         <div className="mb-3">
-          <label className="text-xs font-semibold text-gray-500">Porcentaje (%)</label>
-          <input type="number" min="0" max="100" value={porcentaje} onChange={e => setPorcentaje(Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 mt-1" />
+          <label htmlFor="division-calidad-porcentaje" className="text-xs font-semibold text-gray-500">Porcentaje (%)</label>
+          <input id="division-calidad-porcentaje" type="number" min="0" max="100" value={porcentaje} onChange={e => setPorcentaje(Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 mt-1" />
         </div>
         <div className="bg-gray-50 rounded-lg p-3 mb-4">
           <div className="flex justify-between text-sm"><span>Cantidad misma calidad:</span><span className="font-bold">{resultado.pesoMismaCalidad.toFixed(1)} KG</span></div>
@@ -463,6 +464,19 @@ const DivisionCalidadModal = ({ peso, calidad, onClose, onConfirm }: { peso: num
 
 const MAX_SECADO_OUTPUT_KG = 100000;
 const MAX_SECADO_EXPENSE_COP = 20000000;
+const SECADO_DRAFT_STORAGE_KEY = 'cafe-smart:secado-draft:v1';
+const SECADO_SELECTION_DRAFT_PREFIX = 'cafe-smart:secado-seleccion-draft:v1';
+
+function clearSecadoDrafts() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(SECADO_DRAFT_STORAGE_KEY);
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index);
+    if (key?.startsWith(SECADO_SELECTION_DRAFT_PREFIX)) {
+      window.localStorage.removeItem(key);
+    }
+  }
+}
 
 function sanitizeKgInput(value: string, max: number) {
   const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
@@ -507,14 +521,19 @@ export default function SecadoProceso() {
     setShowDivisionModal(true);
   };
 
-  const [step, setStep] = useState<'config' | 'active' | 'finish'>(
-    searchParams.get('step') === 'finish' || session?.estado === 'READY'
-      ? 'finish'
-      : 'config',
-  );
+  const [step, setStep] = useState<'config' | 'active' | 'finish'>(() => {
+    if (searchParams.get('step') === 'finish' || session?.estado === 'READY') {
+      return 'finish';
+    }
+    if (session?.estado === 'IN_PROCESS') {
+      return 'active';
+    }
+    return 'config';
+  });
   const [startDate, setStartDate] = useState(
     session ? dateInput(session.startedAt) : dateInput(''),
   );
+  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
   const [endDate, setEndDate] = useState(getTodayLocalDateValue());
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [buenoKg, setBuenoKg] = useState(
@@ -535,6 +554,9 @@ export default function SecadoProceso() {
   const [mostrarConfirmacionMermaCero, setMostrarConfirmacionMermaCero] =
     useState(false);
   const [registrandoSecado, setRegistrandoSecado] = useState(false);
+  const [startFeedback, setStartFeedback] = useState<'success' | 'error' | null>(
+    null,
+  );
 
   const totalEntrada = useMemo(
     () =>
@@ -735,9 +757,42 @@ export default function SecadoProceso() {
     guardarResultadoSecado();
   };
 
+  const volverABorrador = () => {
+    navigate('/inventario/secado/inicio', {
+      state: { from: originPath, restoreSecadoDraft: true },
+    });
+  };
+
+  const iniciarProceso = () => {
+    if (!sessionId || registrandoSecado) return;
+
+    const fechaInicioValidacion = validateBusinessDateRange(startDate);
+    if (!fechaInicioValidacion.isValid) {
+      setError(fechaInicioValidacion.message);
+      return;
+    }
+
+    try {
+      const startedAt = toIsoDateAtUtcNoon(startDate) ?? new Date().toISOString();
+      startSecadoProcess(sessionId, startedAt);
+      clearSecadoDrafts();
+      setError(null);
+      setStep('active');
+      setStartFeedback('success');
+    } catch {
+      setStartFeedback('error');
+      setError(null);
+    }
+  };
+
   const handleBack = () => {
     if (step === 'finish') {
       setStep('active');
+      return;
+    }
+
+    if (step === 'config') {
+      volverABorrador();
       return;
     }
 
@@ -775,9 +830,48 @@ export default function SecadoProceso() {
     );
   }
 
+  if (startFeedback === 'success') {
+    return (
+      <CafeSmartErrorState
+        variant="success"
+        title="Secado iniciado correctamente"
+        message="Los sublotes fueron enviados al proceso de secado correctamente."
+        info="El inventario verde se actualizó y el proceso quedó listo para finalizar cuando corresponda."
+        primaryLabel="Ver secados activos"
+        secondaryLabel="Ir a inventario"
+        onPrimary={() =>
+          navigate('/inventario/secados', { state: { from: originPath } })
+        }
+        onSecondary={() =>
+          navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
+        }
+        fullScreen
+      />
+    );
+  }
+
+  if (startFeedback === 'error') {
+    return (
+      <CafeSmartErrorState
+        variant="error"
+        title="No pudimos iniciar el secado"
+        message="Ocurrió un problema al iniciar el proceso. Verifica tu conexión e intenta nuevamente."
+        info="El borrador sigue guardado y el inventario no fue descontado."
+        primaryLabel="Reintentar"
+        secondaryLabel="Volver"
+        onPrimary={iniciarProceso}
+        onSecondary={() => {
+          setStartFeedback(null);
+          volverABorrador();
+        }}
+        fullScreen
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfbfb]">
+    <div className="min-h-screen bg-[#f6f8ff] text-slate-950">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfdff]">
         <header className="relative flex h-12 items-center justify-center px-4">
           <button
             type="button"
@@ -799,35 +893,45 @@ export default function SecadoProceso() {
 
         {step === 'config' ? (
           <main className="flex flex-col gap-4 px-4 py-4">
-            <section className="rounded-[18px] bg-slate-100 p-4">
-              <div className="flex h-full items-end">
-                <p className="text-lg font-black text-slate-900">
+            <section className="rounded-[20px] border border-[#dbe7ff] bg-[linear-gradient(135deg,#eef5ff_0%,#ffffff_100%)] p-4 shadow-[0_10px_26px_rgba(47,99,216,0.08)]">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#dbe8ff] text-[#102d92]">
+                  <SunMedium size={18} />
+                </span>
+                <p className="text-lg font-black text-[#0f235c]">
                   Configuración de secado
                 </p>
               </div>
             </section>
 
-            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+            <section className="rounded-[16px] border border-[#dbe7ff] bg-white p-4 shadow-[0_8px_22px_rgba(47,99,216,0.06)]">
               <label className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
                 Fecha de inicio de secado
               </label>
-              <div className="mt-2 flex h-12 items-center gap-3 rounded-[12px] bg-slate-100 px-3">
-                <CalendarDays size={17} className="text-[#0647d6]" />
-                <input
-                  type="date"
-                  value={startDate}
-                  min={BUSINESS_MIN_DATE_VALUE}
-                  max={getTodayLocalDateValue()}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className="w-full bg-transparent text-sm font-black outline-none"
-                />
-              </div>
+              <SecadoDatePicker
+                value={startDate}
+                min={BUSINESS_MIN_DATE_VALUE}
+                max={getTodayLocalDateValue()}
+                open={startDatePickerOpen}
+                onToggle={() => setStartDatePickerOpen((open) => !open)}
+                onClose={() => setStartDatePickerOpen(false)}
+                onChange={(value) => {
+                  setStartDate(value || getTodayLocalDateValue());
+                  setError(null);
+                }}
+              />
               <p className="mt-3 text-[0.68rem] text-slate-400">
                 Registra cuándo inició el proceso.
               </p>
+              {error ? (
+                <InlineGuidedError
+                  message={getSecadoGuidance(error)}
+                  className="mt-3"
+                />
+              ) : null}
             </section>
 
-            <section className="rounded-[16px] bg-white p-4 shadow-sm">
+            <section className="rounded-[16px] border border-[#dbe7ff] bg-white p-4 shadow-[0_8px_22px_rgba(47,99,216,0.06)]">
               <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
                 Resumen del secado
               </p>
@@ -860,8 +964,8 @@ export default function SecadoProceso() {
 
             <button
               type="button"
-              onClick={() => setStep('active')}
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+              onClick={iniciarProceso}
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] text-xs font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f]"
             >
               Iniciar proceso <Play size={15} fill="currentColor" />
             </button>
@@ -869,44 +973,49 @@ export default function SecadoProceso() {
         ) : null}
 
         {step === 'active' ? (
-          <main className="flex min-h-[calc(100vh-48px)] flex-col items-center px-5 py-8 text-center">
-            <section className="w-full overflow-hidden rounded-[20px] bg-slate-100 p-4">
-              <div className="flex h-full items-end">
-                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">
+          <main className="flex min-h-[calc(100vh-48px)] flex-col items-center px-5 py-6 text-center">
+            <section className="w-full overflow-hidden rounded-[22px] border border-[#dbe7ff] bg-[linear-gradient(135deg,#eef5ff_0%,#ffffff_100%)] p-5 shadow-[0_14px_34px_rgba(47,99,216,0.1)]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-xs font-black text-[#102d92] shadow-sm">
                   <SunMedium
                     size={17}
-                    className="rounded-full bg-slate-300 p-1 text-slate-700"
+                    className="rounded-full bg-[#dbe8ff] p-1 text-[#102d92]"
                   />
                   Proceso Activo
                 </span>
+                <span className="rounded-full bg-[#dbe8ff] px-3 py-1 text-[0.68rem] font-black text-[#102d92]">
+                  {kg(totalEntrada)}
+                </span>
+              </div>
+
+              <div className="mt-8">
+                <h2 className="text-2xl font-black leading-tight text-[#0f235c]">
+                El secado ha iniciado correctamente
+                </h2>
+                <p className="mt-4 text-sm leading-6 text-slate-500">
+                Cuando el proceso finalice, regresa aquí para registrar el
+                resultado del secado.
+                </p>
               </div>
             </section>
 
-            <div className="mt-8">
-              <h2 className="text-2xl font-black leading-tight">
-                El secado ha iniciado correctamente
-              </h2>
-              <p className="mt-4 text-sm leading-6 text-slate-500">
-                Cuando el proceso finalice, regresa aquí para registrar el
-                resultado del secado.
-              </p>
-            </div>
-
             <div className="mt-auto w-full pb-4">
-              <button
-                type="button"
-                onClick={() => setStep('finish')}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-900 text-xs font-black text-white transition hover:bg-slate-800"
-              >
-                Finalizar secado <CheckCircle2 size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/inicio')}
-                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-slate-700"
-              >
-                <ArrowLeft size={15} /> Ir a inicio
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStep('finish')}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f]"
+                >
+                  Finalizar secado <CheckCircle2 size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/inicio')}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#c7d8ff] bg-white px-3 text-xs font-black text-[#102d92] transition hover:bg-[#f4f7ff]"
+                >
+                  <ArrowLeft size={15} /> Ir a inicio
+                </button>
+              </div>
             </div>
           </main>
         ) : null}
@@ -956,6 +1065,8 @@ export default function SecadoProceso() {
                   </span>
                   <input
                     type="number"
+                    aria-label={`Peso de salida para ${field.label}`}
+                    title={`Peso de salida para ${field.label}`}
                     min="0"
                     max={Math.max(0, totalEntrada - getOtherOutputsTotal(field.quality))}
                     step="0.1"
@@ -1112,11 +1223,14 @@ export default function SecadoProceso() {
             <h2 className="text-lg font-black text-slate-950">
               Registrar gasto de secado
             </h2>
-            <label className="mt-4 block text-xs font-black text-slate-700">
+            <label htmlFor="secado-expense-concept" className="mt-4 block text-xs font-black text-slate-700">
               Concepto
             </label>
             <input
+              id="secado-expense-concept"
               type="text"
+              aria-label="Concepto del gasto de secado"
+              title="Concepto del gasto de secado"
               value={expenseConcept}
               onChange={(event) => setExpenseConcept(event.target.value)}
               className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
@@ -1172,4 +1286,3 @@ export default function SecadoProceso() {
 }
 
 export const MERMA_CRITICA_PCT=50
-

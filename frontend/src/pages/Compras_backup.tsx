@@ -4369,7 +4369,7 @@ export default function Compras() {
                 Registra la capacidad de la bodega
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Necesitamos la capacidad total para validar esta compra. TambiÃ©n
+                Necesitamos la capacidad total para validar esta compra. También
                 puedes cambiarla luego en Ajustes.
               </p>
             </div>
@@ -4513,11 +4513,11 @@ export default function Compras() {
                 Bodega en nivel de alerta
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                La compra dejarÃ¡ la bodega al {datosAlerta80.porcentaje}% de su
+                La compra dejará la bodega al {datosAlerta80.porcentaje}% de su
                 capacidad.
               </p>
               <p className="mt-2 text-[0.95rem] leading-6 text-slate-600">
-                Es recomendable considerar vender parte del inventario para
+                Se recomienda vender parte del inventario para
                 evitar problemas de almacenamiento.
               </p>
             </div>
@@ -4544,7 +4544,7 @@ export default function Compras() {
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>DespuÃ©s de la compra</span>
+                <span>Después de la compra</span>
                 <span className="font-semibold text-[#ea580c]">
                   {datosAlerta80.nuevoTotal.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
@@ -4580,10 +4580,10 @@ export default function Compras() {
                 <Check size={24} />
               </div>
               <h2 className="mt-5 text-[1.72rem] font-semibold leading-tight text-slate-900">
-                Â¿Registrar compra?
+                ¿Registrar compra?
               </h2>
               <p className="mt-3 text-[1rem] font-medium leading-6 text-slate-600">
-                Verifica la informaciÃ³n antes de continuar.
+                Verifica la información antes de continuar.
               </p>
             </div>
 
@@ -4748,7 +4748,7 @@ export default function Compras() {
               {sinProductoresRegistrados ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
                   <p className="font-bold text-slate-800">
-                    AÃºn no tienes productores registrados.
+                    Aún no tienes productores registrados.
                   </p>
                   <p className="mt-1 leading-5">
                     Registra un productor para poder asociarlo a esta compra.
@@ -4770,7 +4770,7 @@ export default function Compras() {
                     No encontramos productores con ese dato.
                   </p>
                   <p className="mt-1 leading-5">
-                    Prueba buscando por nombre, cÃ©dula o NIT.
+                    Prueba buscando por nombre, cédula o NIT.
                   </p>
                 </div>
               ) : (
@@ -4866,7 +4866,7 @@ export default function Compras() {
                     Tipo de documento
                   </label>
                   <ProductorHint>
-                    Selecciona si el productor usa cÃ©dula o NIT.
+                    Selecciona si el productor usa cédula o NIT.
                   </ProductorHint>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {[

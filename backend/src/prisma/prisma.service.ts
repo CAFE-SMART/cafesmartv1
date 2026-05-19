@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
+import { getRequestContext } from '../common/request-context';
 
 /**
  * Normaliza la URL de base de datos para asegurar SSL en entornos como Supabase.
@@ -27,6 +28,39 @@ function normalizeDatabaseUrl(value: string) {
   }
 
   return url.toString();
+}
+
+function summarizeQueryArgs(args: unknown) {
+  if (!args || typeof args !== 'object') {
+    return undefined;
+  }
+
+  const queryArgs = args as {
+    where?: unknown;
+    select?: unknown;
+    include?: unknown;
+    orderBy?: unknown;
+    take?: unknown;
+    skip?: unknown;
+  };
+
+  return {
+    whereKeys:
+      queryArgs.where && typeof queryArgs.where === 'object'
+        ? Object.keys(queryArgs.where)
+        : undefined,
+    selectKeys:
+      queryArgs.select && typeof queryArgs.select === 'object'
+        ? Object.keys(queryArgs.select)
+        : undefined,
+    includeKeys:
+      queryArgs.include && typeof queryArgs.include === 'object'
+        ? Object.keys(queryArgs.include)
+        : undefined,
+    orderBy: Boolean(queryArgs.orderBy),
+    take: queryArgs.take,
+    skip: queryArgs.skip,
+  };
 }
 
 const globalForPrisma = globalThis as typeof globalThis & {
@@ -78,17 +112,34 @@ export class PrismaService
 
     this.$use(async (params, next) => {
       const startedAt = Date.now();
+      let result: unknown;
       try {
-        return await next(params);
+        result = await next(params);
+        return result;
       } finally {
         const durationMs = Date.now() - startedAt;
         if (durationMs >= 3000) {
+          const requestContext = getRequestContext();
+          const recordCount = Array.isArray(result)
+            ? result.length
+            : typeof result === 'number'
+            ? result
+            : result != null
+            ? 1
+            : 0;
+
           this.logger.warn(
             JSON.stringify({
               event: 'prisma_slow_query',
               model: params.model,
               action: params.action,
               durationMs,
+              recordCount,
+              route: requestContext?.route,
+              method: requestContext?.method,
+              url: requestContext?.url,
+              userId: requestContext?.getUserId?.(),
+              args: summarizeQueryArgs(params.args),
             }),
           );
         }

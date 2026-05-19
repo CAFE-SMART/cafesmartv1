@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
+import { SmartSelect } from '../components/SmartSelect';
 import { listarGastos, type GastoItem } from '../services/gastosService';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -374,10 +375,10 @@ export default function GastosListado() {
               <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
                 Tipo
               </span>
-              <select
+              <SmartSelect
                 value={filtroTipo}
                 onChange={(event) => setFiltroTipo(event.target.value)}
-                className="h-10 w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.62rem] font-black text-slate-700 outline-none"
+                className="h-10 rounded-[12px] text-[0.62rem]"
               >
                 <option value="TODOS">Todos</option>
                 <option value="TRANSPORTE">Transporte</option>
@@ -386,20 +387,20 @@ export default function GastosListado() {
                 <option value="CARGUE">Cargue</option>
                 <option value="DESCARGUE">Descargue</option>
                 <option value="OTROS">Otros</option>
-              </select>
+              </SmartSelect>
             </label>
             <label className="col-span-2 block min-[430px]:col-span-1">
               <span className="mb-1 block text-[0.62rem] font-black text-slate-700">
                 Ordenar por
               </span>
-              <select
+              <SmartSelect
                 value={orden}
                 onChange={(event) => setOrden(event.target.value as 'recent' | 'oldest')}
-                className="h-10 w-full rounded-[12px] border border-[#dbe2f0] bg-white px-2 text-[0.62rem] font-black text-slate-700 outline-none"
+                className="h-10 rounded-[12px] text-[0.62rem]"
               >
                 <option value="recent">Más recientes</option>
                 <option value="oldest">Más antiguos</option>
-              </select>
+              </SmartSelect>
             </label>
           </div>
           {filtroFecha ? (
@@ -455,7 +456,7 @@ export default function GastosListado() {
               <p className="mt-3 text-[0.76rem] font-black text-slate-900">
                 {gastos.length > 0 && filtrosActivos
                   ? 'No hay registros con esos filtros'
-                  : 'Aun no has registrado gastos'}
+                  : 'Aún no has registrado gastos'}
               </p>
               <p className="mx-auto mt-1 max-w-[230px] text-[0.64rem] font-semibold leading-5 text-slate-500">
                 {gastos.length > 0 && filtrosActivos
@@ -504,4 +505,3 @@ export default function GastosListado() {
     </div>
   );
 }
-

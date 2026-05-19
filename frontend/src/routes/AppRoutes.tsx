@@ -20,6 +20,7 @@ const SecadoProceso = lazy(() => import('../pages/SecadoProceso'));
 const SecadoResumen = lazy(() => import('../pages/SecadoResumen'));
 const Ajustes = lazy(() => import('../pages/Ajustes'));
 const ContactoSoporte = lazy(() => import('../pages/ContactoSoporte'));
+const AyudaBasica = lazy(() => import('../pages/AyudaBasica'));
 const SystemStatus = lazy(() => import('../pages/SystemStatus'));
 const GastosOperativos = lazy(() => import('../pages/GastosOperativos'));
 const GastosListado = lazy(() => import('../pages/GastosListado'));
@@ -44,6 +45,7 @@ export default function AppRoutes() {
           <Route path="/inventario" element={<Inventario />} />
           <Route path="/ajustes" element={<Ajustes />} />
           <Route path="/soporte" element={<ContactoSoporte />} />
+          <Route path="/soporte/ayuda" element={<AyudaBasica />} />
           {ENABLE_SECADO_PROTOTYPE ? (
             <>
               <Route path="/inventario/secados" element={<SecadosActivos />} />

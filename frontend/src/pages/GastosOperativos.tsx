@@ -181,7 +181,7 @@ function getFieldGuidance(
 
   if (field === 'monto') {
     return {
-      what: whatOverride ?? 'El monto del gasto no es valido.',
+      what: whatOverride ?? 'El monto del gasto no es válido.',
       why: 'Solo se permiten valores mayores a cero.',
       how: 'Ingresa solo numeros y un monto dentro del límite permitido.',
       action: 'Ingresa un valor válido para continuar.',
@@ -201,7 +201,7 @@ function getFieldGuidance(
     return {
       what:
         whatOverride ?? 'No hay sublotes disponibles para asociar este gasto.',
-      why: 'Aun no existen sublotes registrados.',
+      why: 'Aún no existen sublotes registrados.',
       how: 'Registra sublotes o cambia a gasto general.',
       action: 'Selecciona "Gasto general" o crea sublotes.',
     };

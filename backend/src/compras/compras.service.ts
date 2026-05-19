@@ -15,6 +15,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
+import {
+  getCachedOrganizationId,
+  setCachedOrganizationId,
+} from '../common/request-context';
 import { CreateCompraDto } from './dto/crear-compra.dto';
 import {
   CompraProcesada,
@@ -462,6 +466,9 @@ export class ComprasService {
     userId: string,
     organizacionId?: string,
   ): Promise<string> {
+    const cached = getCachedOrganizationId(userId);
+    if (cached && (!organizacionId || cached === organizacionId)) return cached;
+
     const usuario = await tx.user.findUnique({
       where: { id: userId },
       select: { organizacionId: true },
@@ -483,6 +490,7 @@ export class ComprasService {
       );
     }
 
+    setCachedOrganizationId(userId, usuario.organizacionId);
     return usuario.organizacionId;
   }
 

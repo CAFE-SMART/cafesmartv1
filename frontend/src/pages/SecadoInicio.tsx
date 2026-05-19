@@ -10,6 +10,7 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
+import { SmartSelect } from '../components/SmartSelect';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import { EmptyState } from '../components/EmptyState';
@@ -24,11 +25,16 @@ import {
   applySecadoToDetalle,
   applySecadoToLots,
   cancelSecadoSession,
+  createSecadoDraftWithWeights,
   loadSecadoSessions,
   SecadoValidationError,
-  startSecadoWithWeights,
   type SecadoSession,
 } from '../utils/secadoFlow';
+import {
+  formatCoffeeFullName,
+  formatSubloteVisualCode,
+  getCoffeeCodePrefix,
+} from '../utils/coffeeCodes';
 
 type SecadoView = 'start' | 'pending';
 type SecadoQualityFilter = 'BUENO' | 'REGULAR' | 'MALO';
@@ -96,6 +102,53 @@ function formatDaysLabel(value: string) {
   if (days === 0) return 'Hoy';
   if (days === 1) return 'Hace 1d';
   return `Hace ${days}d`;
+}
+
+function combineLoteDetalles(
+  detalles: LoteDetalle[],
+  quality: SecadoQualityFilter,
+): LoteDetalle | null {
+  const sublotesById = new Map<
+    string,
+    SubloteDetalle & { sourceLoteId?: string }
+  >();
+
+  for (const detalle of detalles) {
+    for (const sublote of detalle.sublotes) {
+      if (
+        sublote.pesoActual > 0 &&
+        isQualityMatch(sublote.calidad, quality) &&
+        !sublotesById.has(sublote.id)
+      ) {
+        sublotesById.set(sublote.id, {
+          ...sublote,
+          sourceLoteId: detalle.lote.id,
+        });
+      }
+    }
+  }
+
+  const sublotes = [...sublotesById.values()];
+  if (detalles.length === 0 || sublotes.length === 0) return null;
+
+  const base = detalles[0].lote;
+  const pesoActual = sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  const pesoInicial = sublotes.reduce((sum, sublote) => sum + sublote.pesoInicial, 0);
+  const sublotesConHumedad = sublotes.filter((sublote) => sublote.humedad !== null).length;
+
+  return {
+    lote: {
+      ...base,
+      id: `secado-${base.tipoCafeId}-${quality.toLowerCase()}`,
+      codigo: `${base.tipoCafe} ${quality}`,
+      calidad: quality,
+      sublotes: sublotes.length,
+      sublotesConHumedad,
+      pesoActual,
+      pesoInicial,
+    },
+    sublotes,
+  };
 }
 
 function totalSecadoKg(session: SecadoSession) {
@@ -172,6 +225,7 @@ export default function SecadoInicio() {
   const locationState = location.state as {
     secadoView?: SecadoView;
     from?: string;
+    restoreSecadoDraft?: boolean;
   } | null;
   const initialView = locationState?.secadoView;
   const originPath = locationState?.from === '/ajustes' ? '/ajustes' : '/inventario';
@@ -191,12 +245,13 @@ export default function SecadoInicio() {
     useState<SecadoDraft | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SecadoSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cargarPendientes = () => {
     const pendientes = loadSecadoSessions()
-      .filter((session) => session.estado !== 'COMPLETED')
+      .filter((session) => session.estado === 'IN_PROCESS' || session.estado === 'READY')
       .sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -205,17 +260,26 @@ export default function SecadoInicio() {
     setPendingSessions(pendientes);
   };
 
+  const recargarProcesoSecado = async () => {
+    setRefreshing(true);
+    try {
+      cargarPendientes();
+      await cargar();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const cargar = async () => {
     setLoading(true);
     setError(null);
     const sessions = loadSecadoSessions();
     const pendientes = sessions
-      .filter((session) => session.estado !== 'COMPLETED')
+      .filter((session) => session.estado === 'IN_PROCESS' || session.estado === 'READY')
       .sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
-    const pendingLotIds = new Set(pendientes.map((session) => session.loteId));
     setPendingSessions(pendientes);
 
     try {
@@ -224,8 +288,7 @@ export default function SecadoInicio() {
       const verdesDisponibles = lotesVisuales.filter(
         (lote) =>
           keyOf(lote.tipoCafe) === 'VERDE' &&
-          lote.pesoActual > 0 &&
-          !pendingLotIds.has(lote.id),
+          lote.pesoActual > 0,
       );
       setLotes(verdesDisponibles);
       setSelectedId((current) => {
@@ -253,15 +316,26 @@ export default function SecadoInicio() {
   useEffect(() => {
     const draft = readSecadoDraft();
     if (draft) {
-      setPendingDraft(draft);
-      setShowDraftModal(true);
+      if (locationState?.restoreSecadoDraft) {
+        setQualityFilter(draft.qualityFilter);
+        setDraftWeightsToRestore(draft);
+        setView('start');
+      } else {
+        setPendingDraft(draft);
+        setShowDraftModal(true);
+      }
     }
     setDraftReady(true);
-  }, []);
+  }, [locationState?.restoreSecadoDraft]);
 
   const loteSeleccionado = useMemo(
     () => lotes.find((lote) => lote.id === selectedId) ?? null,
     [lotes, selectedId],
+  );
+
+  const lotesCalidadSeleccionada = useMemo(
+    () => lotes.filter((lote) => isQualityMatch(lote.calidad, qualityFilter)),
+    [lotes, qualityFilter],
   );
 
   useEffect(() => {
@@ -284,7 +358,7 @@ export default function SecadoInicio() {
   }, [draftWeightsToRestore?.selectedId, lotes, qualityFilter, view]);
 
   useEffect(() => {
-    if (!loteSeleccionado || view !== 'start') return;
+    if (lotesCalidadSeleccionada.length === 0 || view !== 'start') return;
 
     let cancelled = false;
     setDetailLoading(true);
@@ -292,24 +366,28 @@ export default function SecadoInicio() {
 
     void (async () => {
       try {
-        const base = await obtenerDetalleLote(
-          loteSeleccionado.tipoCafeId,
-          loteSeleccionado.calidadId,
+        const gruposUnicos = [
+          ...new Map(
+            lotesCalidadSeleccionada.map((lote) => [
+              `${lote.tipoCafeId}::${lote.calidadId}`,
+              lote,
+            ]),
+          ).values(),
+        ];
+        const detalles = await Promise.all(
+          gruposUnicos.map(async (lote) => {
+            const base = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+            return applySecadoToDetalle(base, lote.tipoCafeId, lote.calidadId);
+          }),
         );
-        const visual = applySecadoToDetalle(
-          base,
-          loteSeleccionado.tipoCafeId,
-          loteSeleccionado.calidadId,
+        const visual = combineLoteDetalles(
+          detalles.filter((detalle): detalle is LoteDetalle => Boolean(detalle)),
+          qualityFilter,
         );
         if (cancelled) return;
         setDetalle(visual);
-        const defaultWeights = Object.fromEntries(
-          (visual?.sublotes ?? [])
-            .filter((sublote) => sublote.pesoActual > 0)
-            .map((sublote) => [sublote.id, sublote.pesoActual]),
-        );
         const restoredWeights =
-          draftWeightsToRestore?.selectedId === loteSeleccionado.id
+          draftWeightsToRestore?.qualityFilter === qualityFilter
             ? Object.fromEntries(
                 Object.entries(draftWeightsToRestore.selectedWeights).filter(
                   ([id, weight]) =>
@@ -325,7 +403,7 @@ export default function SecadoInicio() {
         setSelectedWeights(
           restoredWeights && Object.keys(restoredWeights).length > 0
             ? (restoredWeights as Record<string, number>)
-            : defaultWeights,
+            : {},
         );
         setDraftWeightsToRestore(null);
       } catch {
@@ -342,7 +420,7 @@ export default function SecadoInicio() {
     return () => {
       cancelled = true;
     };
-  }, [draftWeightsToRestore, loteSeleccionado, view]);
+  }, [draftWeightsToRestore, lotesCalidadSeleccionada, qualityFilter, view]);
 
   const availableSublotes = useMemo(
     () =>
@@ -521,11 +599,16 @@ export default function SecadoInicio() {
       ]),
     );
     try {
-      const session = startSecadoWithWeights(
-        { ...detalle, sublotes: selectedVisibleSublotes },
+      writeSecadoDraft({
+        selectedId,
+        qualityFilter,
+        selectedWeights: visibleWeights,
+        savedAt: Date.now(),
+      });
+      const session = createSecadoDraftWithWeights(
+        { ...detalle, sublotes: availableSublotes },
         visibleWeights,
       );
-      clearSecadoDraft();
       navigate(`/inventario/secado/${session.id}/finalizar`, {
         state: { from: originPath },
       });
@@ -559,6 +642,14 @@ export default function SecadoInicio() {
                 Revisa secados activos o inicia un nuevo proceso.
               </p>
             </div>
+            <RefreshButton
+              onClick={() => void recargarProcesoSecado()}
+              loading={refreshing || loading || detailLoading}
+              aria-label="Recargar proceso de secado"
+              className="shrink-0"
+            >
+              Recargar
+            </RefreshButton>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 rounded-[14px] bg-[#eaf2ff] p-1">
             <button
@@ -603,27 +694,34 @@ export default function SecadoInicio() {
                   Lotes por finalizar
                 </h2>
               </div>
-              <RefreshButton
-                onClick={cargarPendientes}
-                aria-label="Actualizar pendientes"
-                iconOnly
-              />
             </div>
 
             <div className="mt-4 space-y-3">
               {pendingSessions.length > 0 ? (
-                pendingSessions.map((session) => (
+                pendingSessions.map((session) => {
+                  const sessionCode = getCoffeeCodePrefix(session);
+                  const sessionName = formatCoffeeFullName(session);
+                  return (
                   <article
                     key={session.id}
+                    title={`${sessionCode} · ${sessionName}`}
                     className="rounded-[14px] border border-[#cfe0ff] bg-[#f8fbff] p-3 shadow-[0_8px_20px_rgba(47,99,216,0.08)]"
                   >
                     <div className="flex items-start gap-3">
-                        <span className="inline-flex rounded-xl bg-[#eaf2ff] p-2 text-[#2f63d8]">
+                      <span className="inline-flex rounded-xl bg-[#eaf2ff] p-2 text-[#2f63d8]">
                         <SunMedium size={18} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-black text-[#0f235c]">
-                          {session.loteCodigo}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+                            {sessionCode}
+                          </span>
+                          <p className="truncate text-base font-black text-[#0f235c]">
+                            {session.loteCodigo}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-[0.7rem] font-semibold text-[#5570a8]">
+                          {sessionName}
                         </p>
                         <p className="mt-1 text-sm font-semibold text-[#2f63d8]">
                           {estadoLabel(session)}
@@ -638,27 +736,30 @@ export default function SecadoInicio() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(`/inventario/secado/${session.id}/finalizar`, {
-                          state: { from: originPath },
-                        })
-                      }
-                          className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)] transition hover:bg-[#18358f]"
-                    >
-                      Finalizar secado
-                      <ArrowRight size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCancelTarget(session)}
-                      className="mt-2 inline-flex min-h-[40px] w-full items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-4 text-sm font-black text-[#334b85] transition hover:bg-[#f4f7ff]"
-                    >
-                      Cancelar secado
-                    </button>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/inventario/secado/${session.id}/finalizar`, {
+                            state: { from: originPath },
+                          })
+                        }
+                        className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)] transition hover:bg-[#18358f]"
+                      >
+                        Finalizar secado
+                        <ArrowRight size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCancelTarget(session)}
+                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#334b85] transition hover:bg-[#f4f7ff]"
+                      >
+                        Cancelar secado
+                      </button>
+                    </div>
                   </article>
-                ))
+                  );
+                })
               ) : (
                 <EmptyState
                   icon={ClipboardList}
@@ -679,8 +780,8 @@ export default function SecadoInicio() {
                 Selecciona los sublotes de café verde
               </h2>
               <p className="mt-1.5 text-[0.72rem] font-semibold leading-5 text-slate-500">
-                Los sublotes disponibles inician seleccionados. Ajusta el
-                peso directamente si vas a secar solo una parte.
+                Selecciona solo los sublotes que vas a secar. Ajusta el peso
+                directamente si procesas una parte.
               </p>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -709,21 +810,21 @@ export default function SecadoInicio() {
                 >
                   Tipo de calidad
                 </label>
-                <select
+                <SmartSelect
                   id="secado-quality-filter"
                   value={qualityFilter}
                   onChange={(event) => {
                     setQualityFilter(event.target.value as SecadoQualityFilter);
                     setError(null);
                   }}
-                  className="h-8 min-w-[118px] rounded-[10px] border border-[#c7d8ff] bg-white px-2.5 text-xs font-black text-[#102d92] outline-none transition focus:border-[#2f63d8] focus:ring-2 focus:ring-[#2f63d8]/15"
+                  className="h-8 min-w-[118px] rounded-[10px] py-0"
                 >
                   {QUALITY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
-                </select>
+                </SmartSelect>
               </div>
             </section>
 
@@ -750,10 +851,12 @@ export default function SecadoInicio() {
                       <p className="flex items-center gap-2 px-1 text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
                         Calidad: {titleCase(quality)}
                       </p>
-                      {items.map((sublote) => {
+                      {items.map((sublote, index) => {
                         const selected = (selectedWeights[sublote.id] ?? 0) > 0;
                         const selectedKg = selectedWeights[sublote.id] ?? '';
                         const humidity = formatHumidity(sublote.humedad);
+                        const visualCode = formatSubloteVisualCode(sublote, index);
+                        const fullName = formatCoffeeFullName(sublote);
 
                         return (
                           <article
@@ -774,13 +877,19 @@ export default function SecadoInicio() {
                                       ? 'border-[#2f63d8] bg-[#2f63d8] text-white'
                                       : 'border-slate-300 bg-white text-transparent'
                                   }`}
-                                  aria-label={`Seleccionar ${sublote.etiqueta}`}
+                                  aria-label={`Seleccionar ${visualCode} ${fullName}`}
                                 >
                                   <Check size={13} strokeWidth={3} />
                                 </button>
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[0.82rem] font-black text-slate-950">
-                                    {sublote.etiqueta}
+                                  <p
+                                    className="truncate text-[0.82rem] font-black text-slate-950"
+                                    title={`${visualCode} · ${fullName}`}
+                                  >
+                                    {visualCode}
+                                  </p>
+                                  <p className="mt-0.5 truncate text-[0.62rem] font-black text-[#5570a8]">
+                                    {fullName}
                                   </p>
                                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.66rem] font-bold text-slate-500">
                                     <span>Peso disponible: {kg(sublote.pesoActual)}</span>
@@ -806,7 +915,7 @@ export default function SecadoInicio() {
                                       if (!selected) toggleSublote(sublote);
                                     }}
                                     className="w-full min-w-0 bg-transparent text-right font-black text-slate-900 outline-none"
-                                    aria-label={`Kilos a secar de ${sublote.etiqueta}`}
+                                    aria-label={`Kilos a secar de ${visualCode} ${fullName}`}
                                     placeholder="0"
                                   />
                                   <span className="shrink-0 text-slate-500">kg</span>
