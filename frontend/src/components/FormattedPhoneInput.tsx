@@ -4,6 +4,7 @@ import {
   getPhoneDigits,
   isValidPhone,
 } from '../utils/formatPhone';
+import { AppFeedbackMessage } from './AppFeedbackMessage';
 
 /**
  * Archivo: FormattedPhoneInput.tsx
@@ -136,14 +137,13 @@ export function FormattedPhoneInput({
         )}
       </div>
       {message ? (
-        <p
+        <AppFeedbackMessage
           id={messageId}
-          role="alert"
+          variant="error"
           aria-live="polite"
-          className="mt-2 text-sm font-semibold text-rose-600"
-        >
-          {message}
-        </p>
+          description={message}
+          className="mt-2"
+        />
       ) : (
         <p id={messageId} className="mt-2 text-sm font-semibold text-slate-500">
           {hint}

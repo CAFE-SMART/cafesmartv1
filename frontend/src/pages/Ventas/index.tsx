@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../../components/AppBottomNav';
+import { AppFeedbackMessage } from '../../components/AppFeedbackMessage';
 import { SmartSelect } from '../../components/SmartSelect';
 import {
   createGuidedError,
@@ -1690,9 +1691,10 @@ export default function Ventas() {
                     />
                   </label>
                   {historialVentaFecha ? (
-                    <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
-                      Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
-                    </p>
+                    <AppFeedbackMessage
+                      variant="warning"
+                      description="Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos."
+                    />
                   ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
@@ -2339,38 +2341,19 @@ export default function Ventas() {
                                 </button>
                               </div>
                               {alertaTarjeta ? (
-                                <div
-                                  role="alert"
-                                  className="mt-3 flex items-start gap-2 rounded-[12px] border border-rose-200 bg-rose-50/80 px-3 py-2 text-left shadow-[0_8px_18px_rgba(190,18,60,0.06)]"
-                                >
-                                  <AlertTriangle
-                                    size={14}
-                                    className="mt-0.5 shrink-0 text-rose-500"
-                                  />
-                                  <div className="min-w-0">
-                                    <p className="text-[0.76rem] font-black leading-4 text-rose-800">
-                                      {alertaTarjeta.title}
-                                    </p>
-                                    <p className="mt-0.5 text-[0.68rem] font-semibold leading-4 text-rose-700/80">
-                                      {alertaTarjeta.detail}
-                                    </p>
-                                  </div>
-                                </div>
+                                <AppFeedbackMessage
+                                  variant="error"
+                                  title={alertaTarjeta.title}
+                                  description={alertaTarjeta.detail}
+                                  className="mt-3"
+                                />
                               ) : ajustePendiente ? (
-                                <div className="mt-3 flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50/90 px-3 py-2 text-left">
-                                  <AlertTriangle
-                                    size={14}
-                                    className="mt-0.5 shrink-0 text-amber-600"
-                                  />
-                                  <div className="min-w-0">
-                                    <p className="text-[0.78rem] font-black leading-4 text-amber-900">
-                                      Ajuste pendiente en {lote.tipoCafe} {lote.calidad}.
-                                    </p>
-                                    <p className="mt-1 text-[0.7rem] font-semibold leading-4 text-amber-800">
-                                      Confirma o cancela este ajuste.
-                                    </p>
-                                  </div>
-                                </div>
+                                <AppFeedbackMessage
+                                  variant="warning"
+                                  title={`Ajuste pendiente en ${lote.tipoCafe} ${lote.calidad}.`}
+                                  description="Confirma o cancela este ajuste."
+                                  className="mt-3"
+                                />
                               ) : null}
                             </>
                           ) : null}
@@ -2404,34 +2387,20 @@ export default function Ventas() {
                   </div>
                 </article>
                 {submitError && paso === 2 && modoVenta === 'PARCIAL' ? (
-                  <div
-                    role="status"
-                    className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900"
-                  >
-                    Revisa los cambios y confirma el ajuste.
-                  </div>
+                  <AppFeedbackMessage
+                    variant="warning"
+                    description="Revisa los cambios y confirma el ajuste."
+                    className="mt-4"
+                  />
                 ) : submitError && paso === 2 ? (
-                  <div
-                    role="alert"
-                    className="mt-4 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[0_12px_28px_rgba(190,18,60,0.10)]"
+                  <AppFeedbackMessage
+                    variant="error"
+                    title="No pudimos continuar con la venta"
+                    description="Revisa la información o vuelve a intentarlo."
+                    className="mt-4"
                   >
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle
-                        size={18}
-                        className="mt-0.5 shrink-0 text-rose-600"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-black leading-5">
-                          No pudimos continuar con la venta
-                        </p>
-                        <p className="mt-1 font-semibold leading-5 text-rose-800">
-                          Revisa la información o vuelve a intentarlo.
-                        </p>
-                      </div>
-                    </div>
                     <InlineGuidedError
                       message={getVentasGuidance(submitError)}
-                      className="mt-3"
                     />
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
@@ -2453,7 +2422,7 @@ export default function Ventas() {
                         Volver a ventas
                       </button>
                     </div>
-                  </div>
+                  </AppFeedbackMessage>
                 ) : null}
 
                 <div className="mt-4 grid grid-cols-[0.8fr_1.2fr] gap-3">
@@ -2657,27 +2626,13 @@ export default function Ventas() {
                   />
                 ) : null}
                 {submitError && paso === 1 ? (
-                  <div
-                    role="alert"
-                    className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[0_12px_28px_rgba(190,18,60,0.10)]"
+                  <AppFeedbackMessage
+                    variant="error"
+                    title="No pudimos continuar con la venta"
+                    description="Revisa la información o vuelve a intentarlo."
                   >
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle
-                        size={18}
-                        className="mt-0.5 shrink-0 text-rose-600"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-black leading-5">
-                          No pudimos continuar con la venta
-                        </p>
-                        <p className="mt-1 font-semibold leading-5 text-rose-800">
-                          Revisa la información o vuelve a intentarlo.
-                        </p>
-                      </div>
-                    </div>
                     <InlineGuidedError
                       message={getVentasGuidance(submitError)}
-                      className="mt-3"
                     />
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
@@ -2699,7 +2654,7 @@ export default function Ventas() {
                         Volver a ventas
                       </button>
                     </div>
-                  </div>
+                  </AppFeedbackMessage>
                 ) : null}
 
                 <button
@@ -2739,23 +2694,12 @@ export default function Ventas() {
                   />
                 ) : null}
                 {revisionDeleteAlert ? (
-                  <div
-                    role="alert"
-                    className="mt-4 flex items-start gap-2 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2.5 text-left shadow-[0_8px_18px_rgba(180,83,9,0.08)]"
-                  >
-                    <AlertTriangle
-                      size={15}
-                      className="mt-0.5 shrink-0 text-amber-600"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[0.78rem] font-black leading-4 text-amber-900">
-                        {revisionDeleteAlert.title}
-                      </p>
-                      <p className="mt-1 text-[0.7rem] font-semibold leading-4 text-amber-800">
-                        {revisionDeleteAlert.detail}
-                      </p>
-                    </div>
-                  </div>
+                  <AppFeedbackMessage
+                    variant="warning"
+                    title={revisionDeleteAlert.title}
+                    description={revisionDeleteAlert.detail}
+                    className="mt-4"
+                  />
                 ) : null}
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
@@ -3531,21 +3475,11 @@ export default function Ventas() {
                   </label>
 
                   {nombreMaxToast ? (
-                    <div
-                      role="status"
-                      aria-live="polite"
-                      className="mt-2 flex items-center gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
-                    >
-                      <span
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-800"
-                        aria-hidden="true"
-                      >
-                        <span className="text-[0.8rem] font-black">!</span>
-                      </span>
-                      <span>
-                        No puedes ingresar más de {MAX_NOMBRE_CARACTERES} caracteres.
-                      </span>
-                    </div>
+                    <AppFeedbackMessage
+                      variant="warning"
+                      description={`No puedes ingresar más de ${MAX_NOMBRE_CARACTERES} caracteres.`}
+                      className="mt-2"
+                    />
                   ) : null}
 
                   {clienteFormErrors.nombre ? (

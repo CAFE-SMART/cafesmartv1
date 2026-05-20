@@ -42,10 +42,19 @@ function kg(value: number) {
 }
 
 function dateInput(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return value.slice(0, 10);
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime()))
-    return new Date().toISOString().slice(0, 10);
-  return date.toISOString().slice(0, 10);
+    return getTodayLocalDateValue();
+
+  return formatLocalDateValue(date);
 }
 
 function keyOf(value: string) {
@@ -489,16 +498,11 @@ function sanitizeKgInput(value: string, max: number) {
   return next;
 }
 
-function sanitizeMoneyInput(value: string, max = MAX_SECADO_EXPENSE_COP) {
-  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+function formatMoneyInput(value: string) {
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
   if (!digits) return '';
   const numeric = Number(digits);
-  return String(Math.min(max, Number.isFinite(numeric) ? numeric : max));
-}
-
-function formatMoneyInput(value: string) {
-  const numeric = Number(value.replace(/\D/g, ''));
-  if (!Number.isFinite(numeric) || numeric <= 0) return '';
+  if (!Number.isFinite(numeric)) return '';
   return new Intl.NumberFormat('es-CO').format(numeric);
 }
 
@@ -587,6 +591,13 @@ export default function SecadoProceso() {
   const merma = hasResultadoIngresado ? Math.max(0, totalEntrada - totalSalida) : 0;
   const mermaPct =
     totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
+  const expenseAmountValue = Number(expenseAmount.replace(/\D/g, ''));
+  const expenseAmountExceedsMax =
+    Number.isFinite(expenseAmountValue) &&
+    expenseAmountValue > MAX_SECADO_EXPENSE_COP;
+  const expenseAmountError = expenseAmountExceedsMax
+    ? `El monto supera el máximo permitido de $${new Intl.NumberFormat('es-CO').format(MAX_SECADO_EXPENSE_COP)}.`
+    : null;
   const outputFields = [
     {
       quality: 'BUENO' as const,
@@ -639,6 +650,21 @@ export default function SecadoProceso() {
     setMostrarConfirmacionMermaCero(false);
   };
 
+  const updateExpenseAmount = (rawValue: string) => {
+    const digits = rawValue.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    if (!digits) {
+      setExpenseAmount('');
+      return;
+    }
+
+    const nextAmount = Number(digits);
+    if (!Number.isFinite(nextAmount) || nextAmount > MAX_SECADO_EXPENSE_COP) {
+      return;
+    }
+
+    setExpenseAmount(formatMoneyInput(digits));
+  };
+
   const guardarResultadoSecado = () => {
     if (!sessionId || !session || registrandoSecado) return;
 
@@ -652,6 +678,7 @@ export default function SecadoProceso() {
         outputRegularHumedad: null,
         outputMaloKg: malo,
         outputMaloHumedad: null,
+        completedAt: endDate,
       });
       window.setTimeout(() => {
         navigate(`/inventario/secado/${sessionId}/resumen`);
@@ -682,7 +709,7 @@ export default function SecadoProceso() {
     }
 
     if (monto > MAX_SECADO_EXPENSE_COP) {
-      setError('El monto supera el límite permitido.');
+      setError(`El monto supera el máximo permitido de $${new Intl.NumberFormat('es-CO').format(MAX_SECADO_EXPENSE_COP)}.`);
       return;
     }
 
@@ -1241,14 +1268,25 @@ export default function SecadoProceso() {
             <input
               type="text"
               inputMode="numeric"
-              value={formatMoneyInput(expenseAmount)}
-              onChange={(event) => setExpenseAmount(sanitizeMoneyInput(event.target.value))}
+              value={expenseAmount}
+              onChange={(event) => updateExpenseAmount(event.target.value)}
               placeholder="Ej: 50000"
+              aria-invalid={expenseAmountError ? 'true' : 'false'}
+              aria-describedby={expenseAmountError ? 'secado-expense-amount-error' : undefined}
               className="mt-2 h-11 w-full min-w-0 rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
             />
             <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">
               Máximo permitido: ${new Intl.NumberFormat('es-CO').format(MAX_SECADO_EXPENSE_COP)}
             </p>
+            {expenseAmountError ? (
+              <p
+                id="secado-expense-amount-error"
+                role="alert"
+                className="mt-2 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black leading-5 text-rose-700"
+              >
+                {expenseAmountError}
+              </p>
+            ) : null}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1260,7 +1298,8 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={() => void guardarGastoSecado()}
-                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white"
+                disabled={expenseAmountExceedsMax}
+                className="min-h-[44px] rounded-[14px] bg-[#0647d6] px-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
               >
                 Guardar gasto
               </button>

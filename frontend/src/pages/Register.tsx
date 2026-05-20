@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
@@ -1060,20 +1061,14 @@ function CharacterLimitNotice({
   exiting: boolean;
 }) {
   return (
-    <p
+    <AppFeedbackMessage
       id={id}
-      role="status"
-      className={`mt-2 flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900 shadow-[0_8px_18px_rgba(180,83,9,0.08)] transition-all duration-300 ${
+      variant="warning"
+      description={`Llegaste al máximo de ${maxLength} caracteres.`}
+      className={`mt-2 ${
         exiting ? '-translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
       }`}
-    >
-      <AlertTriangle
-        size={14}
-        className="mt-0.5 shrink-0 text-amber-600"
-        aria-hidden="true"
-      />
-      Llegaste al máximo de {maxLength} caracteres.
-    </p>
+    />
   );
 }
 
@@ -1354,14 +1349,12 @@ function Divider({ label }: { label: string }) {
 
 function FieldError({ id, message }: { id?: string; message: string }) {
   return (
-    <p
+    <AppFeedbackMessage
       id={id}
-      role="alert"
-      className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-5 text-rose-600"
-    >
-      <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
-      <span>{message}</span>
-    </p>
+      variant="error"
+      description={message}
+      className="mt-2"
+    />
   );
 }
 
@@ -1389,27 +1382,15 @@ function ToastNotification({
 
   if (hidden) return null;
 
-  const colors =
-    type === 'error'
-      ? 'from-amber-50/90 to-orange-50/70 border-amber-200/60 text-amber-800/90'
-      : 'from-blue-50/80 to-sky-50/70 border-blue-200/60 text-blue-800/90';
-
-  const iconClr = type === 'error' ? 'text-amber-500' : 'text-blue-500';
-
   return (
-    <div
-      role="alert"
-      aria-live="polite"
-      className={`transform rounded-xl border bg-gradient-to-r px-4 py-3 text-sm shadow-lg backdrop-blur-sm transition-all duration-500 ease-out ${
+    <AppFeedbackMessage
+      variant={type === 'error' ? 'warning' : type}
+      description={message}
+      className={`transform backdrop-blur-sm transition-all duration-500 ease-out ${
         fadeOut ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
-      } ${colors} ${onDismiss ? 'cursor-pointer hover:opacity-80' : ''}`}
+      } ${onDismiss ? 'cursor-pointer hover:opacity-80' : ''}`}
       onClick={onDismiss}
-    >
-      <div className="flex items-center gap-3">
-        <AlertTriangle size={16} className={`shrink-0 ${iconClr}`} />
-        <span className="font-medium leading-relaxed">{message}</span>
-      </div>
-    </div>
+    />
   );
 }
 

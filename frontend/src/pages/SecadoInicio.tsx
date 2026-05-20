@@ -10,6 +10,7 @@ import {
   SunMedium,
 } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { SmartSelect } from '../components/SmartSelect';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
@@ -829,9 +830,7 @@ export default function SecadoInicio() {
             </section>
 
             {error ? (
-              <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-black leading-5 text-rose-700">
-                {error}
-              </section>
+              <AppFeedbackMessage variant="error" description={error} />
             ) : null}
 
             {loading || detailLoading ? (
@@ -971,7 +970,7 @@ export default function SecadoInicio() {
           labelledById="secado-draft-title"
           describedById="secado-draft-description"
           heading="Secado en progreso"
-          message="Encontramos un proceso de secado sin finalizar. Puedes continuar con la información guardada o empezar uno nuevo."
+          message="Tienes secados pendiente. ¿Deseas continuar o iniciar uno nuevo?"
           primaryLabel="Continuar secado"
           onPrimary={continuarBorradorSecado}
           onSecondary={empezarSecadoSinBorrador}

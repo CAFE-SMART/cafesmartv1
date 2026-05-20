@@ -9,6 +9,7 @@ import {
   InlineGuidedError,
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
@@ -917,11 +918,11 @@ Correo electrónico
           )}
 
           {!isGoogleAuthEnabled && (
-            <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800 animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]">
-              El acceso con Google no está disponible porque falta configurar
-              <strong> VITE_GOOGLE_CLIENT_ID </strong>
-              en el frontend.
-            </div>
+            <AppFeedbackMessage
+              variant="warning"
+              description={<>El acceso con Google no está disponible porque falta configurar<strong> VITE_GOOGLE_CLIENT_ID </strong>en el frontend.</>}
+              className="mt-1 animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]"
+            />
           )}
 
           <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600 animate-[cafesmartFadeUp_420ms_ease-out_420ms_both]">

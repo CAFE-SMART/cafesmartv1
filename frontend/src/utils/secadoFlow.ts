@@ -57,6 +57,7 @@ type ResultadoSecadoPayload = {
   outputRegularHumedad: number | null;
   outputMaloKg?: number;
   outputMaloHumedad?: number | null;
+  completedAt?: string;
 };
 
 export class SecadoValidationError extends Error {
@@ -76,6 +77,33 @@ function keyOf(value: string) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isLocalDateValue(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseDateForBusinessDay(value: string) {
+  if (isLocalDateValue(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  return new Date(value);
+}
+
+function normalizeBusinessDateValue(value: string | undefined) {
+  if (!value) return undefined;
+
+  if (isLocalDateValue(value)) {
+    return value;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  return undefined;
 }
 
 function safeNumber(value: number) {
@@ -133,22 +161,22 @@ function writeStorage(sessions: SecadoSession[]) {
 
 function daysSince(value: string) {
   const now = new Date();
-  const date = new Date(value);
+  const date = parseDateForBusinessDay(value);
 
   if (Number.isNaN(date.getTime())) return 0;
 
-  const currentDayUtc = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
+  const currentDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
   );
-  const targetDayUtc = Date.UTC(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate(),
+  const targetDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
   );
 
-  return Math.max(0, Math.floor((currentDayUtc - targetDayUtc) / 86400000));
+  return Math.max(0, Math.floor((currentDay.getTime() - targetDay.getTime()) / 86400000));
 }
 
 function weightedHumidity(
@@ -288,8 +316,8 @@ function getFullyRemovedSublotesByLot(sessions: SecadoSession[]) {
 }
 
 function isSameOrAfter(value: string, reference: string) {
-  const date = new Date(value);
-  const referenceDate = new Date(reference);
+  const date = parseDateForBusinessDay(value);
+  const referenceDate = parseDateForBusinessDay(reference);
 
   if (Number.isNaN(date.getTime()) || Number.isNaN(referenceDate.getTime())) {
     return true;
@@ -776,11 +804,13 @@ export function saveSecadoResults(
       totalEntrada > 0
         ? Number(((totalSalida / totalEntrada) * 100).toFixed(1))
         : 0;
+    const completedAt = normalizeBusinessDateValue(payload.completedAt);
 
     return {
       ...session,
       estado: 'READY' as const,
       updatedAt: nowIso(),
+      completedAt: completedAt ?? session.completedAt,
       outputBuenoKg: safeNumber(payload.outputBuenoKg),
       outputBuenoHumedad: payload.outputBuenoHumedad,
       outputRegularKg: safeNumber(payload.outputRegularKg),
@@ -804,7 +834,7 @@ export function finalizeSecado(sessionId: string) {
           ...session,
           estado: 'COMPLETED' as const,
           updatedAt: nowIso(),
-          completedAt: nowIso(),
+          completedAt: session.completedAt ?? nowIso(),
         }
       : session,
   );

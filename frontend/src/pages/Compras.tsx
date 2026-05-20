@@ -29,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
@@ -347,36 +348,21 @@ function ProductorHint({ children }: { children: React.ReactNode }) {
 
 function ProductorFieldError({ message }: { message: string }) {
   return (
-    <p
-      role="alert"
-      className="mt-2 rounded-[10px] border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-semibold leading-5 text-rose-700"
-    >
-      {message}
-    </p>
+    <AppFeedbackMessage
+      variant="error"
+      description={message}
+      className="mt-2"
+    />
   );
 }
 
 function ProductorGeneralError({ error }: { error: ProductorModalError }) {
   return (
-    <div
-      role="alert"
-      aria-live="assertive"
-      className="rounded-[14px] border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm"
-    >
-      <div className="flex items-start gap-3">
-        <AlertTriangle
-          size={18}
-          className="mt-0.5 shrink-0 text-rose-600"
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <p className="font-bold leading-5">{error.title}</p>
-          <p className="mt-1 text-[0.82rem] font-medium leading-5 text-rose-700">
-            {error.description}
-          </p>
-        </div>
-      </div>
-    </div>
+    <AppFeedbackMessage
+      variant="error"
+      title={error.title}
+      description={error.description}
+    />
   );
 }
 
@@ -390,28 +376,18 @@ function ProductorStepAlert({
   anchorRef?: React.Ref<HTMLDivElement>;
 }) {
   return (
-    <div
+    <AppFeedbackMessage
       ref={anchorRef}
-      role="alert"
+      variant="error"
+      title="Elige una opción para continuar."
+      description={message}
       aria-live="polite"
-      className={`flex items-start gap-3 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[0_12px_28px_rgba(190,18,60,0.10)] transition-all duration-300 ${
+      className={`${
         exiting
           ? 'translate-y-1 opacity-0'
           : 'translate-y-0 opacity-100'
       }`}
-    >
-      <AlertTriangle
-        size={18}
-        className="mt-0.5 shrink-0 text-rose-600"
-        aria-hidden="true"
-      />
-      <div className="min-w-0">
-        <p className="font-black leading-5">Elige una opción para continuar.</p>
-        <p className="mt-0.5 font-medium leading-5 text-rose-800">
-          {message}
-        </p>
-      </div>
-    </div>
+    />
   );
 }
 
@@ -423,18 +399,13 @@ function FieldLimitAlert({
   exiting?: boolean;
 }) {
   return (
-    <div
-      className={`mt-2 flex items-start gap-2.5 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold leading-5 text-rose-800 shadow-[0_10px_22px_rgba(190,18,60,0.08)] transition-all duration-300 ${
+    <AppFeedbackMessage
+      variant="warning"
+      description={message}
+      className={`mt-2 ${
         exiting ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
       }`}
-    >
-      <AlertTriangle
-        size={15}
-        className="mt-0.5 shrink-0 text-rose-600"
-        aria-hidden="true"
-      />
-      <span className="min-w-0">{message}</span>
-    </div>
+    />
   );
 }
 
@@ -2335,6 +2306,9 @@ export default function Compras() {
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
   const [mostrarModalConfigurarCapacidad, setMostrarModalConfigurarCapacidad] =
     useState(false);
+  const [panelBodegaVisible, setPanelBodegaVisible] = useState(true);
+  const panelBodegaTimeoutRef = useRef<number | null>(null);
+  const mostrarPanelBodega = checkingCapacidadPreview || Boolean(capacidadPrevia?.validada);
   const [nombreBodegaNueva, setNombreBodegaNueva] =
     useState('Bodega principal');
   const [capacidadNuevaKg, setCapacidadNuevaKg] = useState('');
@@ -2353,6 +2327,27 @@ export default function Compras() {
   } | null>(null);
   const [errorCapacidadCantidad, setErrorCapacidadCantidad] =
     useState<GuidedErrorMessage | null>(null);
+
+  useEffect(() => {
+    if (panelBodegaTimeoutRef.current) {
+      window.clearTimeout(panelBodegaTimeoutRef.current);
+      panelBodegaTimeoutRef.current = null;
+    }
+
+    if (mostrarPanelBodega && panelBodegaVisible) {
+      panelBodegaTimeoutRef.current = window.setTimeout(() => {
+        setPanelBodegaVisible(false);
+        panelBodegaTimeoutRef.current = null;
+      }, 5000);
+    }
+
+    return () => {
+      if (panelBodegaTimeoutRef.current) {
+        window.clearTimeout(panelBodegaTimeoutRef.current);
+        panelBodegaTimeoutRef.current = null;
+      }
+    };
+  }, [mostrarPanelBodega, panelBodegaVisible]);
   const [datosAlerta80, setDatosAlerta80] = useState<{
     capacidadKg: number;
     inventarioActual: number;
@@ -4077,9 +4072,14 @@ export default function Compras() {
                 porcentajeDisponibleDespues !== null &&
                 porcentajeDisponibleDespues < 10;
               const capacidadEnExceso = capacidadPrevia?.nivel === 'exceso';
-              const mostrarPanelBodega =
-                pesoFocusedSubloteId === sublote.id &&
-                (checkingCapacidadPreview || Boolean(capacidadPrevia?.validada));
+              const capacidadOcupacionPorcentaje =
+                capacidadPrevia?.validada &&
+                typeof capacidadPrevia.porcentajeOcupacion === 'number' &&
+                Number.isFinite(capacidadPrevia.porcentajeOcupacion)
+                  ? Math.min(100, Math.max(0, capacidadPrevia.porcentajeOcupacion))
+                  : porcentajeDisponibleDespues !== null
+                    ? Math.min(100, Math.max(0, 100 - porcentajeDisponibleDespues))
+                    : null;
               const pesoWarning =
                 subloteInputWarnings[sublote.id]?.pesoInicial ?? null;
               const precioWarning =
@@ -4153,12 +4153,13 @@ export default function Compras() {
                         <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
                       </div>
                     ) : catalogosError && tiposCafe.length === 0 ? (
-                      <div className="mt-3 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                        <p className="font-black">No pudimos continuar</p>
-                        <p className="mt-1 leading-5 text-slate-700">
-                          Revisa la información o vuelve a intentarlo.
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                      <AppFeedbackMessage
+                        variant="error"
+                        title="No pudimos continuar"
+                        description="Revisa la información o vuelve a intentarlo."
+                        className="mt-3"
+                      >
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => void cargarTodo()}
@@ -4175,14 +4176,13 @@ export default function Compras() {
                             Volver
                           </button>
                         </div>
-                      </div>
+                      </AppFeedbackMessage>
                     ) : catalogosFeedback ? (
-                      <p
-                        role="status"
-                        className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700"
-                      >
-                        {catalogosFeedback}
-                      </p>
+                      <AppFeedbackMessage
+                        variant="success"
+                        description={catalogosFeedback}
+                        className="mt-3"
+                      />
                     ) : null}
                     {tipoCafeError ? (
                       <InlineGuidedError
@@ -4243,12 +4243,13 @@ export default function Compras() {
                         <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
                       </div>
                     ) : catalogosError && calidades.length === 0 ? (
-                      <div className="mt-3 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                        <p className="font-black">No pudimos continuar</p>
-                        <p className="mt-1 leading-5 text-slate-700">
-                          Revisa la información o vuelve a intentarlo.
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
+                      <AppFeedbackMessage
+                        variant="error"
+                        title="No pudimos continuar"
+                        description="Revisa la información o vuelve a intentarlo."
+                        className="mt-3"
+                      >
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => void cargarTodo()}
@@ -4265,14 +4266,13 @@ export default function Compras() {
                             Volver
                           </button>
                         </div>
-                      </div>
+                      </AppFeedbackMessage>
                     ) : catalogosFeedback ? (
-                      <p
-                        role="status"
-                        className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700"
-                      >
-                        {catalogosFeedback}
-                      </p>
+                      <AppFeedbackMessage
+                        variant="success"
+                        description={catalogosFeedback}
+                        className="mt-3"
+                      />
                     ) : null}
                     {calidadError ? (
                       <InlineGuidedError
@@ -4283,7 +4283,7 @@ export default function Compras() {
                   </div>
 
                   <div className="mt-5 rounded-[22px] border border-[#e0e6f2] bg-white p-5">
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-[0.98rem] font-black text-slate-800">
                           Peso (kg)
@@ -4334,98 +4334,74 @@ export default function Compras() {
                               </span>
                             </span>
                           ) : null}
-                          {mostrarPanelBodega ? (
-                            <div className="pointer-events-none absolute left-0 top-[calc(100%+0.55rem)] z-40 w-[min(21.5rem,calc(100vw-2.5rem))] animate-[cafesmartFadeScale_220ms_ease-out_both]">
-                              {checkingCapacidadPreview ? (
-                                <div className="flex items-center gap-3 rounded-[20px] border border-[#dbe5fb] bg-white px-3.5 py-3 text-[0.84rem] font-bold leading-5 text-[#40516d] shadow-[0_18px_42px_rgba(15,23,42,0.16)] ring-1 ring-slate-900/[0.03] backdrop-blur">
-                                  <span
-                                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[#f1f5ff] text-[#1f3fa7]"
-                                    aria-hidden="true"
-                                  >
-                                    <LoaderCircle
-                                      size={17}
-                                      className="animate-spin"
-                                    />
-                                  </span>
-                                  Revisando espacio disponible...
-                                </div>
-                              ) : capacidadPrevia?.validada ? (
-                                <div
-                                  className={`rounded-[22px] border px-3.5 py-3.5 shadow-[0_20px_48px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/[0.03] backdrop-blur ${
-                                    capacidadEnExceso
-                                      ? 'border-rose-200 bg-white text-rose-950'
-                                      : capacidadCasiLlena
-                                        ? 'border-amber-200 bg-white text-amber-950'
-                                        : 'border-[#dbe5fb] bg-white/95 text-slate-900'
-                                  }`}
+                          {mostrarPanelBodega && panelBodegaVisible ? (
+                            <div className="pointer-events-auto cafe-mini-bodega absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(280px,calc(100vw-32px))] max-w-full min-w-[240px]">
+                              <div
+                                className={`relative w-full rounded-[16px] border px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-all duration-300 ease-out animate-[cafesmartFeedbackIn_220ms_ease-out_both] ${
+                                  capacidadEnExceso
+                                    ? 'border-rose-200 bg-rose-50 text-rose-950'
+                                    : capacidadCasiLlena
+                                      ? 'border-amber-200 bg-amber-50 text-amber-950'
+                                      : 'border-sky-200 bg-sky-50 text-sky-950'
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  aria-label="Cerrar panel espacio bodega"
+                                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-white/80 hover:text-slate-800"
+                                  onClick={() => setPanelBodegaVisible(false)}
                                 >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                      <span
-                                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] shadow-sm ${
-                                          capacidadEnExceso
-                                            ? 'bg-rose-50 text-rose-700'
-                                            : capacidadCasiLlena
-                                              ? 'bg-amber-50 text-amber-700'
-                                              : 'bg-[#eef4ff] text-[#1f3fa7]'
-                                        }`}
-                                        aria-hidden="true"
-                                      >
-                                        <Warehouse size={18} />
-                                      </span>
-                                      <p className="truncate text-[0.8rem] font-black text-slate-700">
-                                        Espacio disponible
-                                      </p>
-                                    </div>
-                                    {capacidadEnExceso || capacidadCasiLlena ? (
+                                  <X size={14} aria-hidden="true" />
+                                </button>
+
+                                {checkingCapacidadPreview ? (
+                                  <div className="flex items-start gap-3 pr-8 text-sm font-semibold text-slate-700">
+                                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-white/85 text-sky-700" aria-hidden="true">
+                                      <LoaderCircle size={18} className="animate-spin" />
+                                    </span>
+                                    <span className="text-[0.82rem] font-semibold leading-5 text-sky-800">Revisando espacio disponible...</span>
+                                  </div>
+                                ) : capacidadPrevia?.validada ? (
+                                  <div className="space-y-3 pr-8">
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex flex-wrap items-center gap-2">
                                         <span
-                                          className={`shrink-0 rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase tracking-[0.08em] ${
+                                          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-[0.08em] ${
                                             capacidadEnExceso
                                               ? 'bg-rose-100 text-rose-700'
-                                              : 'bg-amber-100 text-amber-700'
+                                              : capacidadCasiLlena
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : 'bg-sky-100 text-sky-700'
                                           }`}
                                         >
-                                          {capacidadEnExceso
-                                            ? 'Sin espacio'
-                                            : 'Casi llena'}
+                                          <Warehouse size={12} aria-hidden="true" />
+                                          {capacidadEnExceso ? 'Sin espacio' : capacidadCasiLlena ? 'Casi llena' : 'Disponible'}
                                         </span>
-                                      ) : null}
-                                  </div>
-
-                                  {capacidadDisponibleAntes !== null ? (
-                                    <p
-                                      className={`mt-2 whitespace-nowrap text-[clamp(1.45rem,6vw,1.78rem)] font-black leading-tight ${
-                                        capacidadEnExceso
-                                          ? 'text-rose-800'
-                                          : capacidadCasiLlena
-                                            ? 'text-amber-800'
-                                            : 'text-[#173a8a]'
-                                      }`}
-                                    >
-                                      {formatoKg(capacidadDisponibleAntes)} kg libres
-                                    </p>
-                                  ) : null}
-
-                                  {capacidadRestanteDespues !== null ? (
-                                    <div className="mt-2 flex items-center justify-between gap-3 rounded-[14px] bg-slate-50 px-3 py-2">
-                                      <span className="text-[0.74rem] font-black text-slate-500">
-                                        Después de esta compra
-                                      </span>
-                                      <span
-                                        className={`whitespace-nowrap text-[0.95rem] font-black leading-tight ${
-                                          capacidadEnExceso
-                                            ? 'text-rose-800'
-                                            : capacidadCasiLlena
-                                              ? 'text-amber-800'
-                                              : 'text-emerald-700'
-                                        }`}
-                                      >
-                                        {formatoKg(capacidadRestanteDespues)} kg
-                                      </span>
+                                      </div>
+                                      <span className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">Espacio disponible</span>
                                     </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
+
+                                    {capacidadDisponibleAntes !== null ? (
+                                      <p className={`whitespace-nowrap text-[1.2rem] font-black leading-none ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-800'}`}>
+                                        {formatoKg(capacidadDisponibleAntes)} kg libres
+                                      </p>
+                                    ) : null}
+
+                                    {capacidadOcupacionPorcentaje !== null ? (
+                                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <div className={`h-full rounded-full ${capacidadEnExceso ? 'bg-rose-500' : capacidadCasiLlena ? 'bg-amber-400' : 'bg-sky-500'}`} style={{ width: `${capacidadOcupacionPorcentaje}%` }} />
+                                      </div>
+                                    ) : null}
+
+                                    {capacidadRestanteDespues !== null ? (
+                                      <div className="flex items-center justify-between gap-2 rounded-[14px] bg-slate-50 px-3 py-2 text-[0.78rem]">
+                                        <span className="whitespace-nowrap font-black text-slate-500">Disponible después:</span>
+                                        <span className={`whitespace-nowrap font-black leading-tight ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-700'}`}>{formatoKg(capacidadRestanteDespues)} kg</span>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           ) : null}
                         </div>
@@ -4448,10 +4424,24 @@ export default function Compras() {
                         ) : null}
                       </div>
 
-                      <div>
-                        <label className="block text-[0.98rem] font-black text-slate-800">
+                      <div className="relative">
+                        <label className="block pr-12 text-[0.98rem] font-black text-slate-800">
                           Precio x kg
                         </label>
+                        <button
+                          type="button"
+                          onClick={() => setPanelBodegaVisible(true)}
+                          aria-label="Ver espacio disponible de bodega"
+                          className={`absolute right-0 top-[-0.2rem] inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                            capacidadEnExceso
+                              ? 'border-rose-200 text-rose-600 hover:bg-rose-50 focus-visible:ring-rose-500/40'
+                              : capacidadCasiLlena
+                                ? 'border-amber-200 text-amber-600 hover:bg-amber-50 focus-visible:ring-amber-500/40'
+                                : 'border-sky-200 text-sky-700 hover:bg-sky-50 focus-visible:ring-sky-500/40'
+                          }`}
+                        >
+                          <Warehouse size={21} strokeWidth={2.3} aria-hidden="true" />
+                        </button>
                         <p className="mt-1 text-[0.76rem] font-semibold leading-4 text-slate-500">
                           No escribas puntos.
                         </p>

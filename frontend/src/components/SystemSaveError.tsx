@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { LifeBuoy, Send, X } from 'lucide-react';
 import API_URL from '../config/api';
+import { AppFeedbackMessage } from './AppFeedbackMessage';
 import { CafeSmartErrorState } from './CafeSmartErrorState';
 
 type SystemSaveErrorProps = {
@@ -119,10 +120,11 @@ export function SystemSaveError({
             </div>
 
             {supportSent ? (
-              <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-base leading-6 text-emerald-700">
-                Gracias. Registramos tu mensaje y adjuntamos lo necesario para
-                revisar el problema.
-              </div>
+              <AppFeedbackMessage
+                variant="success"
+                description="Gracias. Registramos tu mensaje y adjuntamos lo necesario para revisar el problema."
+                className="mt-5"
+              />
             ) : (
               <>
                 <p className="mt-3 text-base leading-6 text-slate-600">

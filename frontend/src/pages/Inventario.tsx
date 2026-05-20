@@ -32,8 +32,10 @@ import {
   ShoppingCart,
   SunMedium,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
@@ -690,6 +692,7 @@ export default function Inventario() {
   const [bodegaCapacityDraft, setBodegaCapacityDraft] = useState('');
   const [bodegaEditorError, setBodegaEditorError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
+  const [capacityAlertClosed, setCapacityAlertClosed] = useState(false);
 
   const openBodegaEditor = () => {
     setBodegaNameDraft(bodegaConfig.nombreBodega || 'Bodega principal');
@@ -935,7 +938,7 @@ export default function Inventario() {
       return {
         title: 'La bodega alcanzó su límite.',
         text: 'Libera espacio antes de comprar más café.',
-        className: 'border-rose-200 bg-rose-50 text-rose-900',
+        variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
@@ -945,7 +948,7 @@ export default function Inventario() {
       return {
         title: 'La bodega está casi llena.',
         text: 'Libera espacio antes de comprar más café.',
-        className: 'border-amber-200 bg-amber-50 text-amber-950',
+        variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
@@ -955,7 +958,7 @@ export default function Inventario() {
       return {
         title: 'La bodega se está llenando.',
         text: 'Libera espacio antes de comprar más café.',
-        className: 'border-yellow-300 bg-yellow-50 text-yellow-950',
+        variant: 'warning' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
@@ -963,6 +966,10 @@ export default function Inventario() {
     }
     return null;
   }, [bodegaConfig.capacidadKg, totalKg]);
+
+  useEffect(() => {
+    setCapacityAlertClosed(false);
+  }, [capacityAlert?.variant, capacityAlert?.title]);
   const activeSecadoSessions = useMemo(
     () =>
       ENABLE_SECADO_PROTOTYPE
@@ -1006,40 +1013,45 @@ export default function Inventario() {
           />
         ) : null}
 
-        {!showGlobalEmptyState && capacityAlert ? (
-          <section className={`rounded-[18px] border px-4 py-3 shadow-sm ${capacityAlert.className}`}>
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/75">
-                <BadgeAlert size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[0.92rem] font-black">{capacityAlert.title}</p>
-                <p className="mt-1 text-[0.76rem] font-bold leading-5">
-                  {capacityAlert.text}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/ventas')}
-                    className="inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-[0.72rem] font-black text-white"
-                  >
-                    {capacityAlert.primary}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      capacityAlert.secondary === 'Editar bodega'
-                        ? openBodegaEditor()
-                        : navigate(capacityAlert.secondaryPath)
-                    }
-                    className="inline-flex min-h-[34px] items-center rounded-full bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm"
-                  >
-                    {capacityAlert.secondary}
-                  </button>
-                </div>
+        {!showGlobalEmptyState && capacityAlert && !capacityAlertClosed ? (
+          <div className="relative">
+            <AppFeedbackMessage
+              variant={capacityAlert.variant}
+              icon={BadgeAlert}
+              title={capacityAlert.title}
+              description={capacityAlert.text}
+              className="pr-12"
+            >
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/ventas')}
+                  className="inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-[0.72rem] font-black text-white"
+                >
+                  {capacityAlert.primary}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    capacityAlert.secondary === 'Editar bodega'
+                      ? openBodegaEditor()
+                      : navigate(capacityAlert.secondaryPath)
+                  }
+                  className="inline-flex min-h-[34px] items-center rounded-full bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm"
+                >
+                  {capacityAlert.secondary}
+                </button>
               </div>
-            </div>
-          </section>
+            </AppFeedbackMessage>
+            <button
+              type="button"
+              onClick={() => setCapacityAlertClosed(true)}
+              aria-label="Cerrar alerta de capacidad"
+              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          </div>
         ) : null}
 
         {!showGlobalEmptyState ? (
@@ -1215,30 +1227,22 @@ export default function Inventario() {
         ) : null}
 
         {ENABLE_SECADO_PROTOTYPE && locationState?.completedSecadoId ? (
-          <section className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm font-medium text-emerald-700">
-            El secado se envió al inventario y ya se refleja como sublote de
-            café seco.
-          </section>
+          <AppFeedbackMessage
+            variant="success"
+            description="El secado se envió al inventario y ya se refleja como sublote de café seco."
+          />
         ) : null}
 
         {error ? (
-          <section className="rounded-[22px] border border-[#dfe5f2] bg-white px-5 py-5 text-sm text-slate-700 shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#eef3ff] text-[#102d92]">
-                <WifiOff size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[1rem] font-black text-slate-900">
-                  {error.titulo}
-                </p>
-                <p className="mt-1 text-[0.9rem] font-semibold leading-5 text-slate-600">
-                  {error.mensaje}
-                </p>
-                <p className="mt-1 text-[0.82rem] leading-5 text-slate-500">
-                  {error.detalle}
-                </p>
-              </div>
-            </div>
+          <AppFeedbackMessage
+            variant="error"
+            icon={WifiOff}
+            title={error.titulo}
+            description={error.mensaje}
+          >
+            <p className="text-[0.82rem] font-semibold leading-5 text-rose-800">
+              {error.detalle}
+            </p>
             <RefreshButton
               onClick={() => void loadLots()}
               aria-label="Reintentar"
@@ -1246,7 +1250,7 @@ export default function Inventario() {
             >
               Reintentar
             </RefreshButton>
-          </section>
+          </AppFeedbackMessage>
         ) : null}
 
         {loading ? (
@@ -1349,14 +1353,12 @@ export default function Inventario() {
               Ajusta el nombre y la capacidad maxima de la bodega.
             </p>
             {bodegaLimitNotice ? (
-              <div
+              <AppFeedbackMessage
                 id="bodega-limit-notice"
-                role="status"
-                aria-live="polite"
-                className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800"
-              >
-                {bodegaLimitNotice}
-              </div>
+                variant="warning"
+                description={bodegaLimitNotice}
+                className="mt-3"
+              />
             ) : null}
             <label htmlFor="bodega-nombre" className="mt-4 block text-xs font-black text-slate-700">
               Nombre de bodega
@@ -1399,14 +1401,12 @@ export default function Inventario() {
               aria-describedby={bodegaEditorError ? 'bodega-editor-error' : undefined}
             />
             {bodegaEditorError ? (
-              <p
+              <AppFeedbackMessage
                 id="bodega-editor-error"
-                role="alert"
-                aria-live="assertive"
-                className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700"
-              >
-                {bodegaEditorError}
-              </p>
+                variant="error"
+                description={bodegaEditorError}
+                className="mt-3"
+              />
             ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button

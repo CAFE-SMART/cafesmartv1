@@ -8,6 +8,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
@@ -134,9 +135,7 @@ export default function AnalisisFinanciero() {
         </header>
 
         {error ? (
-          <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
+          <AppFeedbackMessage variant="error" description={error} />
         ) : null}
 
         <section className="rounded-[22px] bg-white p-5 shadow-sm">

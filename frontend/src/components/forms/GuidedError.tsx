@@ -1,4 +1,5 @@
-import { AlertCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { AppFeedbackMessage } from '../AppFeedbackMessage';
 
 export type GuidedErrorMessage = {
   what: string;
@@ -34,27 +35,17 @@ export function InlineGuidedError({
   message,
   className = '',
 }: InlineGuidedErrorProps) {
-  const guidance = message.action || message.how;
+  const fallbackMessage = message as GuidedErrorMessage & { text?: string };
+  const guidance = message.action || message.how || fallbackMessage.text;
 
   return (
-    <div
+    <AppFeedbackMessage
       id={id}
-      role="alert"
-      aria-live="assertive"
-      className={`mt-1.5 rounded-lg border border-rose-200/80 bg-rose-50/60 px-2.5 py-1.5 text-[0.65rem] leading-tight text-rose-700 ${className}`.trim()}
-    >
-      <div className="flex items-start gap-1.5">
-        <AlertCircle
-          size={12}
-          className="mt-0.5 shrink-0 text-rose-500"
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          {message.why ? <p className="font-semibold text-rose-800">{message.why}</p> : null}
-          {guidance ? <p className="mt-0.5 text-rose-600">{guidance}</p> : null}
-        </div>
-      </div>
-    </div>
+      variant="error"
+      title={message.why}
+      description={guidance}
+      className={`mt-1.5 ${className}`.trim()}
+    />
   );
 }
 
@@ -72,50 +63,41 @@ export function FloatingGuidedNotice({
       role="status"
       aria-live="polite"
     >
-      <div className="mx-auto w-full max-w-[340px] rounded-[12px] border border-rose-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
-        <div className="flex items-start gap-2.5 p-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-            <AlertCircle size={15} aria-hidden="true" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-[0.72rem] leading-snug text-slate-700">
-              {message.why ? <p className="font-bold">{message.why}</p> : null}
-              {guidance ? (
-                <p className="mt-0.5 text-rose-700">{guidance}</p>
-              ) : null}
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              {onPrimaryAction ? (
-                <button
-                  type="button"
-                  onClick={onPrimaryAction}
-                  className="rounded-full bg-rose-600 px-3 py-1.5 text-[0.68rem] font-bold text-white transition hover:bg-rose-700"
-                >
-                  {primaryLabel}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full border border-slate-200 px-3 py-1.5 text-[0.68rem] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-
+      <AppFeedbackMessage
+        variant="error"
+        title={message.why}
+        description={guidance}
+        className="mx-auto max-w-[340px] bg-white"
+        action={
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar aviso"
-            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-800"
           >
             <X size={14} />
           </button>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          {onPrimaryAction ? (
+            <button
+              type="button"
+              onClick={onPrimaryAction}
+              className="rounded-full bg-rose-600 px-3 py-1.5 text-[0.68rem] font-bold text-white transition hover:bg-rose-700"
+            >
+              {primaryLabel}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[0.68rem] font-semibold text-rose-800 transition hover:border-rose-300"
+          >
+            Cerrar
+          </button>
         </div>
-      </div>
+      </AppFeedbackMessage>
     </div>
   );
 }

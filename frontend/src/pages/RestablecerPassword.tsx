@@ -9,6 +9,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { authService, type AuthError } from '../services/authService';
@@ -113,12 +114,12 @@ function PasswordField({
         </button>
       </div>
       {error ? (
-        <p
+        <AppFeedbackMessage
           id={`${id}-error`}
-          className="mt-2 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold leading-5 text-rose-700"
-        >
-          {error}
-        </p>
+          variant="error"
+          description={error}
+          className="mt-2"
+        />
       ) : null}
     </div>
   );

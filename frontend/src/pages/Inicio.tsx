@@ -8,8 +8,10 @@ import {
   Sparkles,
   SunMedium,
   Warehouse,
+  X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
@@ -381,6 +383,7 @@ export default function Inicio() {
   const [capacidadBodegaLocal, setCapacidadBodegaLocal] = useState('');
   const [bodegaLocalError, setBodegaLocalError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
+  const [alertaBodegaCerrada, setAlertaBodegaCerrada] = useState(false);
 
   const cargarDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -574,8 +577,7 @@ export default function Inicio() {
       return {
         title: 'La bodega está casi llena.',
         text: 'Libera espacio antes de comprar más café.',
-        className: 'border-rose-200 bg-rose-50 text-rose-900',
-        icon: '!',
+        variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
@@ -585,8 +587,7 @@ export default function Inicio() {
       return {
         title: 'La bodega se está llenando.',
         text: 'Libera espacio antes de comprar más café.',
-        className: 'border-amber-200 bg-amber-50 text-amber-950',
-        icon: '!',
+        variant: 'warning' as const,
         primary: 'Ir a ventas',
         primaryPath: '/ventas',
         secondary: 'Editar bodega',
@@ -595,6 +596,10 @@ export default function Inicio() {
     }
     return null;
   }, [summary?.kgActual, summary?.kgCapacidad]);
+
+  useEffect(() => {
+    setAlertaBodegaCerrada(false);
+  }, [alertaBodega?.variant, alertaBodega?.title]);
 
   const cafeEnBodega = useMemo(() => {
     const sections: BodegaCoffeeItem[] = [
@@ -813,9 +818,11 @@ export default function Inicio() {
                 </button>
               </div>
               {bodegaLimitNotice ? (
-                <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
-                  {bodegaLimitNotice}
-                </div>
+                <AppFeedbackMessage
+                  variant="warning"
+                  description={bodegaLimitNotice}
+                  className="mt-3"
+                />
               ) : null}
               <label htmlFor="inicio-nombre-bodega" className="mt-4 block text-xs font-black text-slate-700">
                 Nombre de bodega
@@ -858,9 +865,11 @@ export default function Inicio() {
                 placeholder="100000"
               />
               {bodegaLocalError ? (
-                <p className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
-                  {bodegaLocalError}
-                </p>
+                <AppFeedbackMessage
+                  variant="error"
+                  description={bodegaLocalError}
+                  className="mt-3"
+                />
               ) : null}
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
@@ -972,45 +981,45 @@ export default function Inicio() {
                     total
                   </span>
                 </div>
-                {alertaBodega ? (
-                  <div
-                    className={`mt-3 rounded-[14px] border px-3 py-2.5 ${alertaBodega.className}`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/75 text-[0.8rem] font-black">
-                        {alertaBodega.icon}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[0.8rem] font-black">
-                          {alertaBodega.title}
-                        </p>
-                        <p className="mt-1 text-[0.7rem] font-bold leading-5">
-                          {alertaBodega.text}
-                        </p>
+                {alertaBodega && !alertaBodegaCerrada ? (
+                  <div className="relative mt-3">
+                    <AppFeedbackMessage
+                      variant={alertaBodega.variant}
+                      title={alertaBodega.title}
+                      description={alertaBodega.text}
+                      className="pr-12"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            alertaBodega.secondary === 'Editar bodega'
+                              ? abrirEditorBodegaLocal()
+                              : navigate(alertaBodega.secondaryPath)
+                          }
+                          className="inline-flex min-h-[32px] items-center rounded-full bg-[#102d92] px-3 text-[0.7rem] font-black text-white shadow-sm"
+                        >
+                          {alertaBodega.secondary}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(alertaBodega.primaryPath ?? '/ventas')
+                          }
+                          className="inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
+                        >
+                          {alertaBodega.primary}
+                        </button>
                       </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(alertaBodega.primaryPath ?? '/ventas')
-                        }
-                        className="inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
-                      >
-                        {alertaBodega.primary}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          alertaBodega.secondary === 'Editar bodega'
-                            ? abrirEditorBodegaLocal()
-                            : navigate(alertaBodega.secondaryPath)
-                        }
-                        className="inline-flex min-h-[32px] items-center rounded-full bg-[#102d92] px-3 text-[0.7rem] font-black text-white shadow-sm"
-                      >
-                        {alertaBodega.secondary}
-                      </button>
-                    </div>
+                    </AppFeedbackMessage>
+                    <button
+                      type="button"
+                      onClick={() => setAlertaBodegaCerrada(true)}
+                      aria-label="Cerrar alerta de capacidad"
+                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+                    >
+                      <X size={15} aria-hidden="true" />
+                    </button>
                   </div>
                 ) : null}
               </div>

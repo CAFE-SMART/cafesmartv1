@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Headset,
@@ -8,6 +7,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useResetPassword } from '../hooks/useResetPassword';
 
@@ -58,45 +58,30 @@ function RecoveryErrorNotice({
           : 'Intenta nuevamente en unos segundos.';
 
   return (
-    <div
-      role="alert"
-      className="relative overflow-hidden rounded-[22px] border border-rose-200 bg-[#fff7f8] px-4 py-4 text-left shadow-[0_18px_38px_rgba(190,18,60,0.10)]"
-    >
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-rose-200/45 blur-2xl" />
-      <div className="relative flex items-start gap-3">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-[0_12px_26px_rgba(190,18,60,0.12)]">
-          <AlertTriangle size={22} strokeWidth={2.4} aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-rose-800">{message}</p>
-          <p className="mt-1 text-xs font-semibold leading-5 text-rose-700/80">
-            {detail}
-          </p>
-          {onRetry || onSecondary ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {onRetry ? (
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_10px_20px_rgba(16,45,146,0.18)]"
-                >
-                  Intentar de nuevo
-                </button>
-              ) : null}
-              {onSecondary ? (
-                <button
-                  type="button"
-                  onClick={onSecondary}
-                  className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#102d92]"
-                >
-                  Usar otro correo
-                </button>
-              ) : null}
-            </div>
+    <AppFeedbackMessage variant="error" title={message} description={detail}>
+      {onRetry || onSecondary ? (
+        <div className="flex flex-wrap gap-2">
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_10px_20px_rgba(16,45,146,0.18)]"
+            >
+              Intentar de nuevo
+            </button>
+          ) : null}
+          {onSecondary ? (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#102d92]"
+            >
+              Usar otro correo
+            </button>
           ) : null}
         </div>
-      </div>
-    </div>
+      ) : null}
+    </AppFeedbackMessage>
   );
 }
 

@@ -1346,7 +1346,7 @@ export default function GastosOperativos() {
         <DraftRecoveryModal
           labelledById="gasto-draft-title"
           describedById="gasto-draft-description"
-          message="Encontramos un gasto sin finalizar. Puedes continuar con la información guardada o empezar uno nuevo."
+          message="Los datos de los gastis siguen disponibles. Puedes volver a editar o intentar nuevamente."
           primaryLabel="Continuar gasto"
           onPrimary={continuarBorradorGasto}
           onSecondary={empezarGastoNuevo}

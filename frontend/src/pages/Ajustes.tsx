@@ -28,6 +28,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
@@ -1761,17 +1762,23 @@ export default function Ajustes() {
                 </button>
               </div>
               {error && activeErrorSection === 'profile' ? (
-                <div className="mt-4 rounded-[16px] border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm font-black leading-5 text-rose-700">
-                  No pudimos actualizar tu perfil. Intenta de nuevo.
-                </div>
+                <AppFeedbackMessage
+                  variant="error"
+                  description="No pudimos actualizar tu perfil. Intenta de nuevo."
+                  className="mt-4"
+                />
               ) : null}
               {success === 'Perfil actualizado correctamente.' ? (
-                <div className="mt-4 flex items-center justify-between gap-2 rounded-[16px] border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm font-black text-emerald-700">
-                  <span>Perfil actualizado correctamente.</span>
-                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                    <X size={14} />
-                  </button>
-                </div>
+                <AppFeedbackMessage
+                  variant="success"
+                  description="Perfil actualizado correctamente."
+                  className="mt-4"
+                  action={
+                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                      <X size={14} />
+                    </button>
+                  }
+                />
               ) : null}
               <div>
               <label className="mb-2 block text-sm font-black text-slate-900">
@@ -2022,9 +2029,11 @@ export default function Ajustes() {
               ) : null}
 
               {secadoError ? (
-                <div className="mt-3 rounded-[13px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
-                  {secadoError}
-                </div>
+                <AppFeedbackMessage
+                  variant="error"
+                  description={secadoError}
+                  className="mt-3"
+                />
               ) : null}
 
               {!secadoLoading && secadoPanel === 'home' ? (
@@ -2377,9 +2386,7 @@ export default function Ajustes() {
               </div>
               <div className="mt-4 space-y-3">
               {limitNotice ? (
-                <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
-                  {limitNotice}
-                </div>
+                <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
               <input
                 type="text"
@@ -2462,12 +2469,15 @@ export default function Ajustes() {
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
               {success === 'Información de la empresa actualizada.' ? (
-                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
-                  <span>Información de la empresa actualizada.</span>
-                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                    <X size={14} />
-                  </button>
-                </div>
+                <AppFeedbackMessage
+                  variant="success"
+                  description="Información de la empresa actualizada."
+                  action={
+                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                      <X size={14} />
+                    </button>
+                  }
+                />
               ) : null}
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -2517,9 +2527,7 @@ export default function Ajustes() {
 
             <div className="mt-4 space-y-3">
               {limitNotice ? (
-                <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
-                  {limitNotice}
-                </div>
+                <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
               <div>
                 <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
@@ -2611,12 +2619,15 @@ export default function Ajustes() {
                 </button>
               </div>
               {success === 'Capacidad de bodega actualizada.' ? (
-                <div className="flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-opacity duration-300">
-                  <span>Capacidad de bodega actualizada.</span>
-                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                    <X size={14} />
-                  </button>
-                </div>
+                <AppFeedbackMessage
+                  variant="success"
+                  description="Capacidad de bodega actualizada."
+                  action={
+                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                      <X size={14} />
+                    </button>
+                  }
+                />
               ) : null}
               {error ? (
                 <div>
@@ -2749,17 +2760,23 @@ export default function Ajustes() {
                 {peopleFiltered.length} contacto{peopleFiltered.length === 1 ? '' : 's'}
               </p>
               {peopleSearchResult.isSimilar ? (
-                <p className="mt-2 rounded-[12px] border border-[#dbeafe] bg-[#eff6ff] px-3 py-2 text-xs font-bold text-[#1d4ed8]">
-                  Mostrando resultados similares
-                </p>
+                <AppFeedbackMessage
+                  variant="info"
+                  description="Mostrando resultados similares"
+                  className="mt-2"
+                />
               ) : null}
               {success && success.includes('Contacto') ? (
-                <div className="mt-3 flex items-center justify-between gap-2 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-opacity duration-300">
-                  <span>{success}</span>
-                  <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                    <X size={14} />
-                  </button>
-                </div>
+                <AppFeedbackMessage
+                  variant="success"
+                  description={success}
+                  className="mt-3"
+                  action={
+                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                      <X size={14} />
+                    </button>
+                  }
+                />
               ) : null}
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -2768,16 +2785,15 @@ export default function Ajustes() {
                   Cargando registros...
                 </p>
               ) : peopleError ? (
-                <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-bold text-rose-700">
-                  <p>{peopleError}</p>
+                <AppFeedbackMessage variant="error" description={peopleError}>
                   <button
                     type="button"
                     onClick={() => peopleMode && void cargarPersonasAdmin(peopleMode)}
-                    className="mt-3 rounded-[12px] bg-[#102d92] px-4 py-2 text-xs font-black text-white"
+                    className="rounded-[12px] bg-[#102d92] px-4 py-2 text-xs font-black text-white"
                   >
                     Reintentar
                   </button>
-                </div>
+                </AppFeedbackMessage>
               ) : peopleFiltered.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
                   <p className="font-bold text-slate-800">
@@ -2924,9 +2940,7 @@ export default function Ajustes() {
             </div>
             <div className="mt-4 space-y-3">
               {peopleFormError ? (
-                <div className="rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
-                  <p>{peopleFormError}</p>
-                </div>
+                <AppFeedbackMessage variant="error" description={peopleFormError} />
               ) : null}
               <label className="block">
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
