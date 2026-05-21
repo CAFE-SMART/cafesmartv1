@@ -137,6 +137,98 @@ export function getSecadoAvailableKg(sublote: SecadoSubloteSeleccionado) {
   return safeNumber(available);
 }
 
+export function validarIntegridadSesionSecado(session: SecadoSession) {
+  if (session.modoSecado !== 'TOTAL' && session.modoSecado !== 'PARCIAL') {
+    throw new SecadoValidationError(
+      'SECADO_SESION_INCONSISTENTE',
+      'La sesión guardada no es consistente. Inicia el proceso nuevamente.',
+      { sessionId: session.id, modoSecado: session.modoSecado },
+    );
+  }
+
+  for (const sublote of session.sublotes) {
+    const modoSublote = sublote.modoSecado ?? session.modoSecado;
+    const pesoDisponible = getSecadoAvailableKg(sublote);
+    const pesoSeleccionado = Number(sublote.pesoSeleccionadoKg);
+
+    if (!Number.isFinite(pesoDisponible) || pesoDisponible <= 0) {
+      throw new SecadoValidationError(
+        'SECADO_SESION_INCONSISTENTE',
+        'La sesión guardada no es consistente. Inicia el proceso nuevamente.',
+        { sessionId: session.id, subloteId: sublote.id, pesoDisponible },
+      );
+    }
+
+    if (modoSublote !== session.modoSecado) {
+      throw new SecadoValidationError(
+        'SECADO_SESION_INCONSISTENTE',
+        'La sesión guardada no es consistente. Inicia el proceso nuevamente.',
+        {
+          sessionId: session.id,
+          subloteId: sublote.id,
+          modoSecado: session.modoSecado,
+          modoSublote,
+        },
+      );
+    }
+
+    if (modoSublote === 'PARCIAL') {
+      if (!Number.isFinite(pesoSeleccionado) || pesoSeleccionado <= 0) {
+        throw new SecadoValidationError(
+          'SECADO_PESO_SELECCIONADO_FALTANTE',
+          'Falta el peso seleccionado en uno de los sublotes.',
+          { sessionId: session.id, subloteId: sublote.id },
+        );
+      }
+
+      if (pesoSeleccionado > pesoDisponible) {
+        throw new SecadoValidationError(
+          'SECADO_ENTRADA_SUPERA_DISPONIBLE',
+          'El peso seleccionado supera el peso disponible.',
+          {
+            sessionId: session.id,
+            subloteId: sublote.id,
+            disponibleKg: pesoDisponible,
+            solicitadoKg: pesoSeleccionado,
+          },
+        );
+      }
+    }
+
+    if (modoSublote === 'TOTAL') {
+      if (
+        Number.isFinite(pesoSeleccionado) &&
+        pesoSeleccionado > 0 &&
+        pesoSeleccionado < pesoDisponible
+      ) {
+        throw new SecadoValidationError(
+          'SECADO_SESION_INCONSISTENTE',
+          'La sesión guardada no es consistente. Inicia el proceso nuevamente.',
+          {
+            sessionId: session.id,
+            subloteId: sublote.id,
+            disponibleKg: pesoDisponible,
+            seleccionadoKg: pesoSeleccionado,
+          },
+        );
+      }
+
+      if (Number.isFinite(pesoSeleccionado) && pesoSeleccionado > pesoDisponible) {
+        throw new SecadoValidationError(
+          'SECADO_ENTRADA_SUPERA_DISPONIBLE',
+          'El peso seleccionado supera el peso disponible.',
+          {
+            sessionId: session.id,
+            subloteId: sublote.id,
+            disponibleKg: pesoDisponible,
+            solicitadoKg: pesoSeleccionado,
+          },
+        );
+      }
+    }
+  }
+}
+
 function round2(value: number) {
   return Number.isFinite(value)
     ? Math.round((value + Number.EPSILON) * 100) / 100

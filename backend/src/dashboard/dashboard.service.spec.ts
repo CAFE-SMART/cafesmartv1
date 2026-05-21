@@ -1,5 +1,3 @@
-/// <reference types="jest" />
-
 import { DashboardService } from './dashboard.service';
 
 describe('DashboardService', () => {

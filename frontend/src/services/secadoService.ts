@@ -90,6 +90,9 @@ export async function startSecado(
   });
 }
 
+// Endpoint oficial del flujo por sesion:
+// localStorage -> resumen final -> POST /secado/transformar.
+// Soporta varios sublotes, pesos parciales, salidas por calidad y merma.
 export async function transformarSecado(
   payload: TransformarSecadoPayload,
 ): Promise<TransformarSecadoResponse> {

@@ -8,6 +8,7 @@ import {
   getSecadoSelectedKg,
   getSecadoSession,
   removeSecadoSession,
+  validarIntegridadSesionSecado,
 } from '../utils/secadoFlow';
 import { getCoffeeCodePrefix } from '../utils/coffeeCodes';
 import { transformarSecado } from '../services/secadoService';
@@ -40,6 +41,10 @@ function getSecadoPersistErrorMessage(error: unknown) {
     if (error.message) {
       return error.message;
     }
+  }
+
+  if (error.message.includes('sesión guardada no es consistente')) {
+    return 'No se pudo continuar con este secado. La sesión guardada no es consistente. Inicia el proceso nuevamente.';
   }
 
   if (error.message.includes('Esta opcion aún no esta disponible')) {
@@ -87,6 +92,8 @@ export default function SecadoResumen() {
       setPersistError(null);
 
       try {
+        validarIntegridadSesionSecado(finalized);
+
         const salidas = [
           {
             calidad: 'BUENO' as const,

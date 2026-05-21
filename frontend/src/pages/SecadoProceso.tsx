@@ -1275,8 +1275,12 @@ export default function SecadoProceso() {
               value={expenseAmount}
               onChange={(event) => updateExpenseAmount(event.target.value)}
               placeholder="Ej: 50000"
-              aria-invalid={expenseAmountError ? 'true' : 'false'}
-              aria-describedby={expenseAmountError ? 'secado-expense-amount-error' : undefined}
+              {...(expenseAmountError
+                ? ({
+                    'aria-invalid': 'true',
+                    'aria-describedby': 'secado-expense-amount-error',
+                  } as const)
+                : ({ 'aria-invalid': 'false' } as const))}
               className="mt-2 h-11 w-full min-w-0 rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
             />
             <p className="mt-1 text-[0.68rem] font-semibold text-slate-500">

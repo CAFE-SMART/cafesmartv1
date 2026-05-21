@@ -13,6 +13,7 @@ import {
   saveSecadoResults,
   startSecadoProcess,
   startSecadoWithWeights,
+  validarIntegridadSesionSecado,
 } from './secadoFlow';
 
 const FECHA = '2026-05-06T12:00:00.000Z';
@@ -279,6 +280,45 @@ describe('secadoFlow', () => {
     expect(detalleSecoVenta?.sublotes.map((item) => item.id)).toEqual([
       'sub-seco-real-1',
     ]);
+  });
+
+  it('valida sesiones totales y parciales consistentes antes de transformar', () => {
+    const totalBase = startSecadoWithWeights(detalleVerde(), {
+      'sub-verde-1': 300,
+    });
+    const total = {
+      ...totalBase,
+      modoSecado: 'TOTAL' as const,
+      sublotes: totalBase.sublotes.map((item) => ({
+        ...item,
+        modoSecado: 'TOTAL' as const,
+        pesoSeleccionadoKg: item.pesoActual,
+      })),
+    };
+    const parcial = startSecadoWithWeights(detalleVerde(), {
+      'sub-verde-1': 10,
+    });
+
+    expect(() => validarIntegridadSesionSecado(total)).not.toThrow();
+    expect(() => validarIntegridadSesionSecado(parcial)).not.toThrow();
+  });
+
+  it('bloquea una sesion corrupta con peso parcial marcado como total', () => {
+    const session = startSecadoWithWeights(detalleVerde(), {
+      'sub-verde-1': 10,
+    });
+    const corrupta = {
+      ...session,
+      modoSecado: 'TOTAL' as const,
+      sublotes: session.sublotes.map((item) => ({
+        ...item,
+        modoSecado: 'TOTAL' as const,
+      })),
+    };
+
+    expect(() => validarIntegridadSesionSecado(corrupta)).toThrow(
+      'La sesión guardada no es consistente. Inicia el proceso nuevamente.',
+    );
   });
 
   it('mantiene el contador del resumen igual al detalle mientras un sublote verde esta en secado', () => {
