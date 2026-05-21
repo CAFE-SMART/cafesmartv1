@@ -362,6 +362,7 @@ enum TipoMovimientoInventario {
   COMPRA
   VENTA
   SECADO
+  MERMA_SECADO
   MEZCLA
 }
 

@@ -43,7 +43,6 @@ import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../servi
 import { ApiRequestError } from '../services/apiService';
 import {
   applySecadoToLots,
-  getActiveSecadoSession,
   getActiveSecadoSessions,
 } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
@@ -107,6 +106,25 @@ function displayCoffeeName(value: string) {
   const key = keyOf(value);
   if (key === 'EN SECADO') return 'En secado';
   return value.toLowerCase();
+}
+
+function getGeneralCoffeeTypeKey(value: string) {
+  const key = keyOf(value);
+  if (key.includes('EN SECADO')) return 'EN SECADO';
+  if (key.includes('PASILLA')) return 'PASILLA';
+  if (key.includes('TRILLADO')) return 'TRILLADO';
+  if (key.includes('SECO')) return 'SECO';
+  if (key.includes('VERDE')) return 'VERDE';
+  return key;
+}
+
+function getGeneralCoffeeTypeName(key: string) {
+  if (key === 'EN SECADO') return 'En secado';
+  if (key === 'PASILLA') return 'Pasilla';
+  if (key === 'TRILLADO') return 'Trillado';
+  if (key === 'SECO') return 'Seco';
+  if (key === 'VERDE') return 'Verde';
+  return key;
 }
 
 function getLotDays(lot: LoteResumen) {
@@ -757,9 +775,9 @@ export default function Inventario() {
     const map = new Map<string, { key: string; name: string }>();
 
     for (const lot of lots) {
-      const key = keyOf(lot.tipoCafe);
+      const key = getGeneralCoffeeTypeKey(lot.tipoCafe);
       if (!map.has(key)) {
-        map.set(key, { key, name: lot.tipoCafe });
+        map.set(key, { key, name: getGeneralCoffeeTypeName(key) });
       }
     }
 
@@ -818,7 +836,7 @@ export default function Inventario() {
     if (!typeKey) return [];
     return lots.filter(
       (lot) =>
-        keyOf(lot.tipoCafe) === typeKey &&
+        getGeneralCoffeeTypeKey(lot.tipoCafe) === typeKey &&
         (!qualityFilterKey || keyOf(lot.calidad) === qualityFilterKey),
     );
   }, [lots, qualityFilterKey, typeKey]);
@@ -829,36 +847,28 @@ export default function Inventario() {
   );
   const coffeeFilterValue = useMemo(() => {
     if (!typeKey) return 'TODOS';
-    if (typeKey === 'VERDE' && qualityFilterKey === 'BUENO') return 'VERDE_BUENO';
-    if (typeKey === 'VERDE' && qualityFilterKey === 'REGULAR') return 'VERDE_REGULAR';
-    if (typeKey === 'SECO') return 'SECO';
     return typeKey;
-  }, [qualityFilterKey, typeKey]);
+  }, [typeKey]);
 
   const handleCoffeeFilterChange = (value: string) => {
     if (value === 'EN_SECADO') {
-      navigate('/inventario/secados');
-      return;
-    }
-
-    if (value === 'VERDE_BUENO') {
-      setTypeKey('VERDE');
-      setQualityFilterKey('BUENO');
-      return;
-    }
-
-    if (value === 'VERDE_REGULAR') {
-      setTypeKey('VERDE');
-      setQualityFilterKey('REGULAR');
-      return;
-    }
-
-    if (value === 'SECO') {
-      setTypeKey('SECO');
+      setTypeKey('EN SECADO');
       setQualityFilterKey('');
       return;
     }
 
+    if (value !== 'TODOS') {
+      setTypeKey(value);
+      setQualityFilterKey('');
+      return;
+    }
+
+    setTypeKey('');
+    setQualityFilterKey('');
+  };
+
+  const limpiarFiltros = () => {
+    setSortKey('OLDEST');
     setTypeKey('');
     setQualityFilterKey('');
   };
@@ -887,10 +897,10 @@ export default function Inventario() {
     >();
 
     for (const lot of lots) {
-      const key = keyOf(lot.tipoCafe);
+      const key = getGeneralCoffeeTypeKey(lot.tipoCafe);
       const current = grouped.get(key) ?? {
         key,
-        name: lot.tipoCafe,
+        name: getGeneralCoffeeTypeName(key),
         lots: [],
       };
 
@@ -980,17 +990,10 @@ export default function Inventario() {
         : [],
     [lots],
   );
-  const activeSessionBase = ENABLE_SECADO_PROTOTYPE
-    ? getActiveSecadoSession()
-    : null;
-  const activeSession =
-    activeSessionBase && lots.some((lot) => lot.id === activeSessionBase.loteId)
-      ? activeSessionBase
-      : null;
-  const secadoTarget =
-    ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0
-      ? orderedLots[0]
-      : null;
+  const canOpenSecadoProcess =
+    ENABLE_SECADO_PROTOTYPE &&
+    (activeSecadoSessions.length > 0 ||
+      lots.some((lot) => getGeneralCoffeeTypeKey(lot.tipoCafe) === 'VERDE'));
   const showGlobalEmptyState = !loading && !error && lots.length === 0;
 
   return (
@@ -1082,13 +1085,33 @@ export default function Inventario() {
                   onChange={(event) => handleCoffeeFilterChange(event.target.value)}
                 >
                   <option value="TODOS">Todos</option>
-                  <option value="VERDE_BUENO">Verde Bueno</option>
-                  <option value="VERDE_REGULAR">Verde Regular</option>
-                  <option value="EN_SECADO">En secado</option>
-                  <option value="SECO">Secado terminado</option>
+                  {availableTypes.some((type) => type.key === 'VERDE') ? (
+                    <option value="VERDE">Verde</option>
+                  ) : null}
+                  {availableTypes.some((type) => type.key === 'SECO') ? (
+                    <option value="SECO">Seco</option>
+                  ) : null}
+                  {availableTypes.some((type) => type.key === 'PASILLA') ? (
+                    <option value="PASILLA">Pasilla</option>
+                  ) : null}
+                  {availableTypes.some((type) => type.key === 'TRILLADO') ? (
+                    <option value="TRILLADO">Trillado</option>
+                  ) : null}
+                  {availableTypes.some((type) => type.key === 'EN SECADO') ? (
+                    <option value="EN_SECADO">En secado</option>
+                  ) : null}
                 </SmartSelect>
               </label>
             </div>
+            {(sortKey !== 'OLDEST' || typeKey || qualityFilterKey) ? (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#c7d8ff] bg-[#f8fbff] px-3 text-xs font-black text-[#173ea6]"
+              >
+                Limpiar filtros
+              </button>
+            ) : null}
           </section>
         ) : null}
 
@@ -1159,9 +1182,19 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {typeKey === 'VERDE' && (activeSession || secadoTarget) ? (
-          <section className="rounded-[20px] border border-[#e6eaf3] bg-white p-4 shadow-sm">
-            <div className="mb-3">
+        {!showGlobalEmptyState &&
+        canOpenSecadoProcess &&
+        typeKey === 'VERDE' ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/inventario/secado/inicio', {
+                state: { from: '/inventario' },
+              })
+            }
+            className="flex w-full items-center justify-between gap-3 rounded-[20px] border border-[#e6eaf3] bg-white p-4 text-left shadow-sm transition hover:border-[#c7d8ff] hover:bg-[#f8fbff]"
+          >
+            <div className="min-w-0">
               <h2 className="text-base font-black text-[#102d92]">
                 Proceso de secado
               </h2>
@@ -1169,32 +1202,10 @@ export default function Inventario() {
                 Revisa secados activos o inicia un nuevo proceso.
               </p>
             </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/inventario/secados')}
-                disabled={!activeSession}
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] border border-[#1e3a8a] bg-white px-3 text-center text-[0.78rem] font-black text-[#1e3a8a] transition hover:bg-[#f3f4f6] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <CircleDashed size={15} />
-                Ver secados activos
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  secadoTarget &&
-                  navigate(
-                    `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
-                  )
-                }
-                disabled={!secadoTarget}
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[#102d92] px-3 text-center text-[0.78rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <SunMedium size={16} />
-                Iniciar secado
-              </button>
-            </div>
-          </section>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#173ea6]">
+              <ArrowRight size={18} />
+            </span>
+          </button>
         ) : null}
 
         {typeKey === 'EN SECADO' && !showGlobalEmptyState ? (

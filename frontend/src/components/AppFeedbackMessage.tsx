@@ -200,12 +200,24 @@ export const AppFeedbackMessage = React.forwardRef<
 
   if (!visible) return null;
 
+  const accessibilityProps =
+    resolvedRole === 'alert'
+      ? resolvedLive === 'assertive'
+        ? ({ role: 'alert', 'aria-live': 'assertive' } as const)
+        : resolvedLive === 'polite'
+          ? ({ role: 'alert', 'aria-live': 'polite' } as const)
+          : ({ role: 'alert', 'aria-live': 'off' } as const)
+      : resolvedLive === 'assertive'
+        ? ({ role: 'status', 'aria-live': 'assertive' } as const)
+        : resolvedLive === 'polite'
+          ? ({ role: 'status', 'aria-live': 'polite' } as const)
+          : ({ role: 'status', 'aria-live': 'off' } as const);
+
   return (
     <div
       ref={ref}
       id={id}
-      role={resolvedRole}
-      aria-live={resolvedLive}
+      {...accessibilityProps}
       {...rest}
       onMouseEnter={(event) => {
         pauseAutoClose();

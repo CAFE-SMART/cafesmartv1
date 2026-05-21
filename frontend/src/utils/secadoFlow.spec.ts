@@ -322,7 +322,8 @@ describe('secadoFlow', () => {
     expect(session.sublotes).toHaveLength(1);
     expect(session.sublotes[0]).toMatchObject({
       id: 'sub-verde-1',
-      pesoActual: 10,
+      pesoActual: 32,
+      pesoSeleccionadoKg: 10,
       pesoDisponible: 32,
     });
     expect(verde?.pesoActual).toBe(117);

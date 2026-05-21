@@ -4,9 +4,12 @@ import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   finalizeSecado,
+  getSecadoAvailableKg,
+  getSecadoSelectedKg,
   getSecadoSession,
   removeSecadoSession,
 } from '../utils/secadoFlow';
+import { getCoffeeCodePrefix } from '../utils/coffeeCodes';
 import { transformarSecado } from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
@@ -19,7 +22,7 @@ function kg(value: number) {
 }
 
 function getSecadoPersistErrorMessage(error: unknown) {
-  const fallback = 'No pudimos actualizar el inventario del secado.';
+  const fallback = 'No se pudo registrar el secado. Conservamos el proceso para que puedas reintentarlo.';
 
   if (!(error instanceof Error)) {
     return fallback;
@@ -44,6 +47,18 @@ function getSecadoPersistErrorMessage(error: unknown) {
   }
 
   return fallback;
+}
+
+function formatOriginCodes(session: NonNullable<ReturnType<typeof getSecadoSession>>) {
+  const prefix = getCoffeeCodePrefix(session);
+  return session.sublotes
+    .map((sublote, index) => {
+      const code = sublote.codigo || sublote.etiqueta;
+      return code && code.toUpperCase().startsWith(`${prefix}-`)
+        ? code.toUpperCase()
+        : `${prefix}-${String(index + 1).padStart(2, '0')}`;
+    })
+    .join(', ');
 }
 
 export default function SecadoResumen() {
@@ -89,14 +104,28 @@ export default function SecadoResumen() {
             humedad: finalized.outputMaloHumedad ?? null,
           },
         ].filter((salida) => salida.pesoKg > 0);
+        const fuentes = finalized.sublotes.map((sublote) => {
+          const pesoSeleccionadoKg = getSecadoSelectedKg(sublote);
+          const pesoDisponibleKg = getSecadoAvailableKg(sublote);
+
+          if (!pesoSeleccionadoKg || pesoSeleccionadoKg <= 0) {
+            throw new Error('El peso seleccionado para secado no es válido.');
+          }
+
+          if (pesoSeleccionadoKg > pesoDisponibleKg) {
+            throw new Error('El peso seleccionado supera el disponible del sublote.');
+          }
+
+          return {
+            id: sublote.id,
+            pesoKg: pesoSeleccionadoKg,
+          };
+        });
 
         if (import.meta.env.DEV) {
           console.info('[secado:persistir]', {
             sessionId: finalized.id,
-            fuentes: finalized.sublotes.map((sublote) => ({
-              id: sublote.id,
-              pesoKg: sublote.pesoActual,
-            })),
+            fuentes,
             salidas,
           });
         }
@@ -104,10 +133,7 @@ export default function SecadoResumen() {
         await transformarSecado({
           sessionId: finalized.id,
           deviceId: await obtenerDeviceId(),
-          fuentes: finalized.sublotes.map((sublote) => ({
-            id: sublote.id,
-            pesoKg: sublote.pesoActual,
-          })),
+          fuentes,
           salidas,
         });
 
@@ -127,7 +153,10 @@ export default function SecadoResumen() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce(
+            (sum, sublote) => sum + getSecadoSelectedKg(sublote),
+            0,
+          )
         : 0,
     [session],
   );
@@ -167,7 +196,7 @@ export default function SecadoResumen() {
             : persisting
               ? 'Procesando secado...'
               : persisted
-                ? 'Inventario real actualizado.'
+                ? 'Secado registrado correctamente. El inventario fue actualizado con los pesos transformados.'
                 : 'Proceso guardado.'
         }
         primaryLabel={persistError ? 'Reintentar actualización' : 'Registrar nuevo secado'}
@@ -204,8 +233,8 @@ export default function SecadoResumen() {
           </p>
           <div className="mt-4 space-y-3 text-[0.72rem]">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Lote</span>
-              <span className="font-black">{session.loteCodigo}</span>
+              <span className="text-slate-500">Origen</span>
+              <span className="font-black">{formatOriginCodes(session)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Entrada</span>
@@ -213,7 +242,7 @@ export default function SecadoResumen() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Salida seca</span>
-              <span className="font-black">{kg(totalSalida)}</span>
+              <span className="font-black">{persisted ? kg(totalSalida) : 'Pendiente'}</span>
             </div>
             <div className="rounded-[10px] bg-slate-50 px-3 py-3">
               <div className="flex items-center justify-between text-xs font-black uppercase">

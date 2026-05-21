@@ -23,7 +23,17 @@ type FuenteSecado = {
   id: string;
   precioKg: Prisma.Decimal;
   pesoInicial: Prisma.Decimal;
+  pesoActual: Prisma.Decimal;
   costoTotal: Prisma.Decimal;
+  tipoCafeId: string;
+  calidadId: string;
+  compraId: string;
+  tipoCafe: {
+    nombre: string;
+  };
+  calidad: {
+    nombre: string;
+  };
 };
 
 type TransformarSecadoInput = TransformarSecadoDto & {
@@ -171,6 +181,26 @@ export class SecadoService {
       );
     }
 
+    const fuenteIds = dto.fuentes.map((fuente) => fuente.id);
+    if (new Set(fuenteIds).size !== fuenteIds.length) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_FUENTES_DUPLICADAS',
+          'No se puede enviar el mismo sublote dos veces en un secado.',
+        ),
+      );
+    }
+
+    const calidadesSalida = dto.salidas.map((salida) => salida.calidad);
+    if (new Set(calidadesSalida).size !== calidadesSalida.length) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SALIDAS_DUPLICADAS',
+          'No se puede repetir la misma calidad de salida en un secado.',
+        ),
+      );
+    }
+
     const totalMermaKg = this.redondear(totalEntrada - totalSalida);
     const referenciaSecadoId = dto.referenciaSubloteOrigenId ?? dto.sessionId;
 
@@ -190,22 +220,11 @@ export class SecadoService {
       orderBy: { creadoEn: 'asc' },
     });
 
-    if (salidasExistentes.length === dto.salidas.length) {
-      return {
-        sessionId: dto.sessionId,
-        totalEntradaKg: totalEntrada,
-        totalSalidaKg: totalSalida,
-        totalMermaKg,
-        sublotes: salidasExistentes,
-        alreadyProcessed: true,
-      };
-    }
-
     if (salidasExistentes.length > 0) {
       throw new ConflictException(
         apiError(
-          'SECADO_SYNC_INCONSISTENTE',
-          'El secado ya fue procesado parcialmente. Refresca el inventario e intenta de nuevo.',
+          'SECADO_SESION_DUPLICADA',
+          'Este proceso de secado ya fue registrado. Actualiza el inventario para ver los cambios.',
         ),
       );
     }
@@ -228,6 +247,12 @@ export class SecadoService {
         compraId: true,
         tipoCafeId: true,
         calidadId: true,
+        tipoCafe: {
+          select: { nombre: true },
+        },
+        calidad: {
+          select: { nombre: true },
+        },
       },
     });
 
@@ -240,6 +265,30 @@ export class SecadoService {
       );
     }
 
+    const tiposFuente = new Set(
+      fuentes.map((fuente) => fuente.tipoCafe.nombre.trim().toUpperCase()),
+    );
+    if (tiposFuente.size !== 1 || !tiposFuente.has('VERDE')) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+          'Solo puedes secar sublotes de cafe verde disponible.',
+        ),
+      );
+    }
+
+    const calidadesFuente = new Set(
+      fuentes.map((fuente) => fuente.calidad.nombre.trim().toUpperCase()),
+    );
+    if (calidadesFuente.size !== 1) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_MEZCLA_CALIDADES',
+          'No se pueden mezclar diferentes calidades de cafe en un mismo proceso de secado. Procesa cada calidad por separado.',
+        ),
+      );
+    }
+
     const fuentesPorId = new Map(
       fuentes.map((fuente) => [fuente.id, fuente]),
     );
@@ -248,11 +297,11 @@ export class SecadoService {
       const fuente = fuentesPorId.get(fuenteInput.id);
       const disponible = this.redondear(Number(fuente?.pesoActual ?? 0));
 
-      if (!fuente || disponible < fuenteInput.pesoKg) {
+      if (!fuente || disponible <= 0 || disponible < fuenteInput.pesoKg) {
         throw new BadRequestException(
           apiError(
             'SECADO_INVENTARIO_INSUFICIENTE',
-            'No hay suficiente cafe verde para completar el secado.',
+            'El peso a secar supera el disponible en uno de los sublotes.',
             {
               details: {
                 subloteId: fuenteInput.id,
@@ -421,6 +470,24 @@ export class SecadoService {
           subloteId: subloteSalida.id,
           cantidad: salida.pesoKg,
           tipoMovimiento: TipoMovimientoInventario.SECADO,
+          referenciaTipo: TipoReferenciaInventario.SECADO,
+          referenciaId: referenciaSecadoId,
+        },
+      });
+    }
+
+    if (totalMermaKg > 0) {
+      const fuenteReferencia = fuentes[0];
+
+      await tx.inventarioMovimiento.create({
+        data: {
+          organizacionId,
+          usuarioId: userId,
+          tipoCafeId: fuenteReferencia.tipoCafeId,
+          calidadId: fuenteReferencia.calidadId,
+          subloteId: fuenteReferencia.id,
+          cantidad: totalMermaKg,
+          tipoMovimiento: TipoMovimientoInventario.MERMA_SECADO,
           referenciaTipo: TipoReferenciaInventario.SECADO,
           referenciaId: referenciaSecadoId,
         },

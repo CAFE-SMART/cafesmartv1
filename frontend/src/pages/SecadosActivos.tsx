@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, CircleDashed, Package2, X } from 'lucide-reac
 import { SmartSelect } from '../components/SmartSelect';
 import {
   getActiveSecadoSessions,
+  getSecadoSelectedKg,
   removeSecadoSession,
 } from '../utils/secadoFlow';
 import {
@@ -23,7 +24,22 @@ function kg(value: number) {
 }
 
 function totalEntrada(session: ActiveSecadoSession) {
-  return session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  return session.sublotes.reduce(
+    (sum, sublote) => sum + getSecadoSelectedKg(sublote),
+    0,
+  );
+}
+
+function formatOriginCodes(session: ActiveSecadoSession) {
+  const prefix = getCoffeeCodePrefix(session);
+  return session.sublotes
+    .map((sublote, index) => {
+      const code = sublote.codigo || sublote.etiqueta;
+      return code && code.toUpperCase().startsWith(`${prefix}-`)
+        ? code.toUpperCase()
+        : `${prefix}-${String(index + 1).padStart(2, '0')}`;
+    })
+    .join(', ');
 }
 
 function daysSince(value: string) {
@@ -197,7 +213,7 @@ export default function SecadosActivos() {
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
                             <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
-                              {getCoffeeCodePrefix(session)}
+                              {formatOriginCodes(session)}
                             </span>
                             <p className="truncate text-[1.05rem] font-black leading-tight text-[#0f235c]">
                               {formatCoffeeFullName(session)}
@@ -216,7 +232,7 @@ export default function SecadosActivos() {
                         </p>
                       </div>
                       <p className="mt-1 text-[0.68rem] font-semibold text-[#5570a8]">
-                        {startedLabel(session.startedAt)}
+                        {startedLabel(session.startedAt)} · Resultado seco pendiente
                       </p>
                     </div>
                     <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaf2ff] text-[#102d92] shadow-sm">

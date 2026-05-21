@@ -2190,11 +2190,11 @@ export default function Ventas() {
           <>
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
-   
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+                  Seleccionar café
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  ¿Como deseas realizar la venta?
+                  ¿Cómo deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
@@ -2249,9 +2249,9 @@ export default function Ventas() {
                       setSubmitError(null);
                     }}
                     disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
+                    className={`min-h-[86px] rounded-[18px] border p-3.5 text-left transition ${
                       modoVenta === 'PARCIAL'
-                        ? 'border-[#102d92] bg-[#eef2ff]'
+                        ? 'border-[#102d92] bg-[#eef4ff] shadow-[0_10px_24px_rgba(16,45,146,0.08)]'
                         : sinInventario
                           ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
                           : modoInvalido
@@ -2275,9 +2275,9 @@ export default function Ventas() {
                       setSubmitError(null);
                     }}
                     disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
+                    className={`min-h-[86px] rounded-[18px] border p-3.5 text-left transition ${
                       modoVenta === 'TOTAL'
-                        ? 'border-[#102d92] bg-[#eef2ff]'
+                        ? 'border-[#102d92] bg-[#eef4ff] shadow-[0_10px_24px_rgba(16,45,146,0.08)]'
                         : sinInventario
                           ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
                           : modoInvalido
@@ -3026,18 +3026,38 @@ export default function Ventas() {
             ) : null}
 
             {paso === 3 ? (
-              <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
-                  Revision final
-                </p>
-                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  Confirma los datos de la venta
-                </h2>
+              <section className="space-y-4">
+                <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+                    Datos de la venta
+                  </p>
+                  <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
+                    Confirma los datos de la venta
+                  </h2>
+
+                  <div className="mt-4 grid gap-2 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                        Cliente
+                      </span>
+                      <span className="min-w-0 truncate text-right text-sm font-black text-slate-900">
+                        {clienteSeleccionado?.nombre ?? 'Sin cliente'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                        Fecha
+                      </span>
+                      <span className="min-w-0 truncate text-right text-sm font-black text-slate-900">
+                        {formatDateLabel(fechaVenta)}
+                      </span>
+                    </div>
+                  </div>
+                </section>
 
                 {submitError ? (
                   <InlineGuidedError
                     message={getVentasGuidance(submitError)}
-                    className="mt-4"
                   />
                 ) : null}
                 {revisionDeleteAlert ? (
@@ -3045,109 +3065,107 @@ export default function Ventas() {
                     variant="warning"
                     title={revisionDeleteAlert.title}
                     description={revisionDeleteAlert.detail}
-                    className="mt-4"
                   />
                 ) : null}
 
-                <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">Cliente</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {clienteSeleccionado?.nombre ?? 'Sin cliente'}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {clienteSeleccionado?.documento ?? 'Selección pendiente'}
-                  </p>
-                  <p className="mt-2 text-xs font-medium text-slate-500">
-                    Fecha
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {formatDateLabel(fechaVenta)}
-                  </p>
-                </div>
+                <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+                        Historial de la venta
+                      </p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
+                        Revisa cada café antes de confirmar. Puedes editar o eliminar un producto si lo necesitas.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#edf3ff] px-2.5 py-1 text-[0.68rem] font-black text-[#173ea6]">
+                      {lotesConCantidad.length}
+                    </span>
+                  </div>
+
                 {lotesConCantidad.length ? (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-4 space-y-3">
                     {(lotesConCantidad.length > 2
                       ? lotesConCantidad.slice(-2)
                       : lotesConCantidad
                     ).map((lote) => (
-                      <div
+                      <article
                         key={lote.id}
-                        className="rounded-[12px] border border-[#e5e7f2] bg-[#fcfcff] px-3 py-2"
+                        className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-black text-slate-950">
                               {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)}
                             </p>
-                            <p className="text-xs text-slate-600">
-                              {lote.codigo}
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-[#102d92]">
-                              {kg(lote.cantidad)} ·{' '}
-                              {money(lote.cantidad * lote.precio)}
+                            <p className="mt-1 text-sm font-bold text-slate-600">
+                              {kg(lote.cantidad)} · {money(lote.cantidad * lote.precio)}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={editarLoteDesdeRevision}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
                               title="Editar producto"
                               aria-label={`Editar ${lote.codigo}`}
                             >
-                              <Pencil size={15} />
+                              <Pencil size={14} />
                             </button>
                             {lotesConCantidad.length > 1 ? (
                               <button
                                 type="button"
                                 onClick={() => eliminarLoteDesdeRevision(lote.id)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
                                 title="Quitar producto"
                                 aria-label={`Quitar ${lote.codigo}`}
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={14} />
                               </button>
                             ) : null}
                           </div>
                         </div>
-                      </div>
+                      </article>
                     ))}
                   </div>
                 ) : null}
-                {lotesConCantidad.length > 2 ? (
-                  <button
-                    type="button"
-                    onClick={() => setMostrarHistorialLotesVenta(true)}
-                    className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
-                  >
-                    Ver historial completo
-                    <ArrowRight size={15} />
-                  </button>
-                ) : null}
+                  {lotesConCantidad.length > 2 ? (
+                    <button
+                      type="button"
+                      onClick={() => setMostrarHistorialLotesVenta(true)}
+                      className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+                    >
+                      Ver historial completo
+                      <ArrowRight size={15} />
+                    </button>
+                  ) : null}
+                </section>
 
-                {ventaFifoBreakdown.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setMostrarDesgloseSublotesVenta(true)}
-                    className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
-                  >
-                    Ver detalle de sublotes
-                    <ArrowRight size={15} />
-                  </button>
-                ) : null}
-
-                <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
-                  <div className="flex items-center justify-between text-sm font-black">
-                    <span>Total kg</span>
-                    <span>{kg(totalKg)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-lg font-black">
-                    <span>Total estimado</span>
-                    <span>{money(totalEstimado)}</span>
+                <article className="rounded-[22px] border border-[#dbe5fb] bg-white p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)]">
+                  <p className="mb-3 text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+                    Resumen financiero
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="min-w-0 rounded-[18px] bg-[#f7f9ff] px-3 py-3">
+                      <span className="block text-[clamp(1.15rem,5vw,1.55rem)] font-black leading-tight text-[#173a8a]">
+                        {kg(totalKg)}
+                      </span>
+                      <span className="mt-1 block text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        Total vendido
+                      </span>
+                    </div>
+                    <div className="min-w-0 rounded-[18px] bg-[#eef4ff] px-3 py-3">
+                      <span className="block text-[clamp(1.15rem,5vw,1.55rem)] font-black leading-tight text-[#08256d]">
+                        {money(totalEstimado)}
+                      </span>
+                      <span className="mt-1 block text-[0.72rem] font-black uppercase tracking-[0.08em] text-[#52657d]">
+                        Total estimado
+                      </span>
+                    </div>
                   </div>
                 </article>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={volverPasoAnterior}

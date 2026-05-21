@@ -117,6 +117,8 @@ describe('SecadoService', () => {
           compraId: 'compra-1',
           tipoCafeId: 'tipo-verde',
           calidadId: 'calidad-bueno',
+          tipoCafe: { nombre: 'VERDE' },
+          calidad: { nombre: 'BUENO' },
         },
       ]);
     tx.tipoCafe.findUnique.mockResolvedValue({ id: 'tipo-seco' });
@@ -189,6 +191,85 @@ describe('SecadoService', () => {
         }),
       }),
     );
+  });
+
+  it('registra la merma de secado como movimiento trazable sin descontar inventario dos veces', async () => {
+    const { tx, service } = crearMocks();
+    const subloteId = '11111111-1111-4111-8111-111111111111';
+
+    tx.sublote.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: subloteId,
+          pesoActual: 100,
+          pesoInicial: 100,
+          precioKg: 5000,
+          costoTotal: 500000,
+          compraId: 'compra-1',
+          tipoCafeId: 'tipo-verde',
+          calidadId: 'calidad-bueno',
+          tipoCafe: { nombre: 'VERDE' },
+          calidad: { nombre: 'BUENO' },
+        },
+      ]);
+    tx.tipoCafe.findUnique.mockResolvedValue({ id: 'tipo-seco' });
+    tx.calidad.findMany.mockResolvedValue([{ id: 'calidad-seco', nombre: 'BUENO' }]);
+    tx.sublote.updateMany.mockResolvedValue({ count: 1 });
+    tx.inventario.updateMany.mockResolvedValue({ count: 1 });
+    tx.lote.upsert.mockResolvedValue({ id: 'lote-seco' });
+    tx.sublote.create.mockResolvedValue({
+      id: 'sublote-seco',
+      pesoActual: 80,
+    });
+
+    const result = await service.transformarSecado('user-1', {
+      sessionId: 'secado-session-1',
+      deviceId: 'device-1',
+      fuentes: [{ id: subloteId, pesoKg: 100 }],
+      salidas: [
+        {
+          calidad: 'BUENO',
+          pesoKg: 80,
+          humedad: 11,
+          factor: 100,
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      totalEntradaKg: 100,
+      totalSalidaKg: 80,
+      totalMermaKg: 20,
+      alreadyProcessed: false,
+    });
+    expect(tx.inventario.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tipoCafeId: 'tipo-verde' }),
+        data: { pesoTotal: { decrement: 100 } },
+      }),
+    );
+    expect(tx.inventario.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          tipoCafeId: 'tipo-seco',
+          pesoTotal: 80,
+        }),
+        update: { pesoTotal: { increment: 80 } },
+      }),
+    );
+    expect(tx.inventarioMovimiento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subloteId,
+          cantidad: 20,
+          tipoMovimiento: TipoMovimientoInventario.MERMA_SECADO,
+          referenciaTipo: TipoReferenciaInventario.SECADO,
+          referenciaId: 'secado-session-1',
+        }),
+      }),
+    );
+    expect(tx.inventarioMovimiento.create).toHaveBeenCalledTimes(3);
   });
 
   it('valida humedad, factor y peso en el DTO de creacion', async () => {

@@ -17,6 +17,7 @@ import {
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import {
+  getSecadoSelectedKg,
   getSecadoSession,
   saveSecadoResults,
   SecadoValidationError,
@@ -565,7 +566,10 @@ export default function SecadoProceso() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce(
+            (sum, sublote) => sum + getSecadoSelectedKg(sublote),
+            0,
+          )
         : 0,
     [session],
   );

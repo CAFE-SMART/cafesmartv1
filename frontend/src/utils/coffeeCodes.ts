@@ -71,7 +71,18 @@ export function formatCoffeeFullName(input: CoffeeCodeInput) {
     .join(' ');
 }
 
-export function formatSubloteVisualCode(input: CoffeeCodeInput, index: number) {
+export function formatSubloteVisualCode(input: SubloteCodeInput, index: number) {
+  const expectedPrefix = getCoffeeCodePrefix(input);
+  const explicitCode = input.codigo?.trim();
+  if (explicitCode && explicitCode.toUpperCase().startsWith(`${expectedPrefix}-`)) {
+    return explicitCode.toUpperCase();
+  }
+
+  const etiqueta = input.etiqueta?.trim();
+  if (etiqueta && etiqueta.toUpperCase().startsWith(`${expectedPrefix}-`)) {
+    return etiqueta.toUpperCase();
+  }
+
   return `${getCoffeeCodePrefix(input)}-${String(index + 1).padStart(2, '0')}`;
 }
 

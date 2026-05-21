@@ -27,6 +27,7 @@ import {
   applySecadoToLots,
   cancelSecadoSession,
   createSecadoDraftWithWeights,
+  getSecadoSelectedKg,
   loadSecadoSessions,
   SecadoValidationError,
   type SecadoSession,
@@ -39,6 +40,7 @@ import {
 
 type SecadoView = 'start' | 'pending';
 type SecadoQualityFilter = 'BUENO' | 'REGULAR' | 'MALO';
+type PendingQualityFilter = 'TODOS' | SecadoQualityFilter;
 type SecadoDraft = {
   selectedId: string | null;
   qualityFilter: SecadoQualityFilter;
@@ -52,6 +54,10 @@ const QUALITY_OPTIONS: Array<{ value: SecadoQualityFilter; label: string }> = [
   { value: 'BUENO', label: 'Bueno' },
   { value: 'REGULAR', label: 'Regular' },
   { value: 'MALO', label: 'Malo' },
+];
+const PENDING_QUALITY_OPTIONS: Array<{ value: PendingQualityFilter; label: string }> = [
+  { value: 'TODOS', label: 'Todos' },
+  ...QUALITY_OPTIONS,
 ];
 
 function keyOf(value: string) {
@@ -78,6 +84,13 @@ function titleCase(value: string) {
 function isQualityMatch(value: string, quality: SecadoQualityFilter) {
   const key = keyOf(value);
   if (quality === 'MALO') return key === 'MALO';
+  return key === quality;
+}
+
+function isPendingQualityMatch(value: string, quality: PendingQualityFilter) {
+  if (quality === 'TODOS') return true;
+  const key = keyOf(value);
+  if (quality === 'MALO') return key === 'MALO' || key === 'PASILLA';
   return key === quality;
 }
 
@@ -153,7 +166,22 @@ function combineLoteDetalles(
 }
 
 function totalSecadoKg(session: SecadoSession) {
-  return session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
+  return session.sublotes.reduce(
+    (sum, sublote) => sum + getSecadoSelectedKg(sublote),
+    0,
+  );
+}
+
+function formatSessionOriginCodes(session: SecadoSession) {
+  const prefix = getCoffeeCodePrefix(session);
+  return session.sublotes
+    .map((sublote, index) => {
+      const code = sublote.codigo || sublote.etiqueta;
+      return code && code.toUpperCase().startsWith(`${prefix}-`)
+        ? code.toUpperCase()
+        : `${prefix}-${String(index + 1).padStart(2, '0')}`;
+    })
+    .join(', ');
 }
 
 function estadoLabel(session: SecadoSession) {
@@ -237,6 +265,8 @@ export default function SecadoInicio() {
   const [pendingSessions, setPendingSessions] = useState<SecadoSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [qualityFilter, setQualityFilter] = useState<SecadoQualityFilter>('BUENO');
+  const [pendingQualityFilter, setPendingQualityFilter] =
+    useState<PendingQualityFilter>('TODOS');
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
   const [selectedWeights, setSelectedWeights] = useState<Record<string, number>>({});
   const [draftReady, setDraftReady] = useState(false);
@@ -337,6 +367,13 @@ export default function SecadoInicio() {
   const lotesCalidadSeleccionada = useMemo(
     () => lotes.filter((lote) => isQualityMatch(lote.calidad, qualityFilter)),
     [lotes, qualityFilter],
+  );
+  const pendingSessionsFiltradas = useMemo(
+    () =>
+      pendingSessions.filter((session) =>
+        isPendingQualityMatch(session.calidad, pendingQualityFilter),
+      ),
+    [pendingQualityFilter, pendingSessions],
   );
 
   useEffect(() => {
@@ -697,11 +734,37 @@ export default function SecadoInicio() {
               </div>
             </div>
 
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2">
+              <label
+                htmlFor="secado-pending-quality-filter"
+                className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a]"
+              >
+                Tipo de calidad
+              </label>
+              <div className="w-[124px] shrink-0">
+                <SmartSelect
+                  id="secado-pending-quality-filter"
+                  value={pendingQualityFilter}
+                  onChange={(event) =>
+                    setPendingQualityFilter(event.target.value as PendingQualityFilter)
+                  }
+                  className="h-9 rounded-[11px] border border-[#c7d8ff] bg-white px-3 py-0 pr-8 text-[0.76rem] font-black text-slate-900 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]"
+                >
+                  {PENDING_QUALITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </SmartSelect>
+              </div>
+            </div>
+
             <div className="mt-4 space-y-3">
-              {pendingSessions.length > 0 ? (
-                pendingSessions.map((session) => {
+              {pendingSessionsFiltradas.length > 0 ? (
+                pendingSessionsFiltradas.map((session) => {
                   const sessionCode = getCoffeeCodePrefix(session);
                   const sessionName = formatCoffeeFullName(session);
+                  const originCodes = formatSessionOriginCodes(session);
                   return (
                   <article
                     key={session.id}
@@ -718,7 +781,7 @@ export default function SecadoInicio() {
                             {sessionCode}
                           </span>
                           <p className="truncate text-base font-black text-[#0f235c]">
-                            {session.loteCodigo}
+                            Origen: {originCodes}
                           </p>
                         </div>
                         <p className="mt-1 text-sm font-semibold text-[#2f63d8]">
@@ -726,6 +789,7 @@ export default function SecadoInicio() {
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           <span>{formatKg(totalSecadoKg(session))} kg</span>
+                          <span>Resultado seco pendiente</span>
                           <span>
                             {session.sublotes.length} sublote
                             {session.sublotes.length === 1 ? '' : 's'}
@@ -761,8 +825,16 @@ export default function SecadoInicio() {
               ) : (
                 <EmptyState
                   icon={ClipboardList}
-                  title="No hay secados pendientes"
-                  description="Cuando inicies un secado, aparecerá aquí hasta finalizarlo."
+                  title={
+                    pendingSessions.length > 0
+                      ? 'No hay secados con esa calidad'
+                      : 'No hay secados pendientes'
+                  }
+                  description={
+                    pendingSessions.length > 0
+                      ? 'Cambia el filtro para ver otros lotes por finalizar.'
+                      : 'Cuando inicies un secado, aparecerá aquí hasta finalizarlo.'
+                  }
                   actionLabel="Iniciar secado"
                   onAction={() => setView('start')}
                 />

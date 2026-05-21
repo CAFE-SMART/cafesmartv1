@@ -1,0 +1,1 @@
+ALTER TYPE "TipoMovimientoInventario" ADD VALUE IF NOT EXISTS 'MERMA_SECADO';

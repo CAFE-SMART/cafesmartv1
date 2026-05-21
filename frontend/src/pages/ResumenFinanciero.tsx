@@ -32,6 +32,11 @@ import {
 import { listarCompras } from '../services/comprasService';
 import { listarGastos } from '../services/gastosService';
 import { listarVentas } from '../services/ventasService';
+import {
+  obtenerDetalleLote,
+  obtenerLotes,
+  type SubloteDetalle,
+} from '../services/lotesService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -151,26 +156,10 @@ const MONTHS_ES = [
   'Noviembre',
   'Diciembre',
 ];
-const TREND_STATIC_LABELS = ['10', '11', '12', '13', '14', '15', '16'];
-const TREND_STATIC_VALUES = [
-  1200000,
-  850000,
-  1500000,
-  2100000,
-  1800000,
-  950000,
-  2400000,
-];
-const TREND_STATIC_NODE_LABELS = [
-  '$1.2M',
-  '$850K',
-  '$1.5M',
-  '$2.1M',
-  '$1.8M',
-  '$950K',
-  '$2.4M',
-];
 const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
+const HUMEDAD_MINIMA_IDEAL = 10;
+const HUMEDAD_MAXIMA_IDEAL = 12;
+const FACTOR_BASE_MERCADO = 94;
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
 }
@@ -487,17 +476,137 @@ type MermaAuditData = {
   totalKg: number;
   totalPercentage: number;
   totalValue: number;
+  laboratoryAnalysis: LaboratoryAnalysis | null;
 };
 
-function getMermaAuditMetrics({ totalKg, totalPercentage, totalValue }: MermaAuditData) {
-  const humidityKg = Math.round(totalKg * 0.59);
-  const factorKg = Math.max(0, totalKg - humidityKg);
-  const lotKg =
-    totalPercentage > 0 ? Math.round(totalKg / (totalPercentage / 100)) : 0;
+type LaboratorySublote = {
+  id: string;
+  codigo: string;
+  tipoCafe: string;
+  calidad: string;
+  pesoDisponible: number;
+  pesoInicial: number;
+  humedad: number | null;
+  factorRendimiento: number | null;
+  precioCompraKg: number;
+  fechaIngreso: string;
+  estado: string;
+};
+
+type LaboratoryAnalysis = {
+  sublotes: LaboratorySublote[];
+  totalKgInventario: number;
+  humedadPromedio: number | null;
+  factorPromedio: number | null;
+  totalDescuentoHumedad: number;
+  totalDescuentoFactor: number;
+  totalMerma: number;
+  sublotesConHumedad: number;
+  sublotesConFactor: number;
+};
+
+function roundOne(value: number) {
+  return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
+function roundTwo(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeLabNumber(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function buildLaboratoryAnalysis(sublotes: SubloteDetalle[]): LaboratoryAnalysis {
+  const labSublotes = sublotes
+    .filter((sublote) => sublote.pesoActual > 0)
+    .map((sublote): LaboratorySublote => ({
+      id: sublote.id,
+      codigo: sublote.codigo || sublote.etiqueta,
+      tipoCafe: sublote.tipoCafe,
+      calidad: sublote.calidad,
+      pesoDisponible: sublote.pesoActual,
+      pesoInicial: sublote.pesoInicial,
+      humedad: normalizeLabNumber(sublote.humedad),
+      factorRendimiento: normalizeLabNumber(sublote.factor),
+      precioCompraKg: sublote.precioKg,
+      fechaIngreso: sublote.fechaIngreso,
+      estado: sublote.pesoActual > 0 ? 'disponible' : 'agotado',
+    }));
+
+  let totalKgInventario = 0;
+  let pesoConHumedad = 0;
+  let humedadPonderada = 0;
+  let pesoConFactor = 0;
+  let factorPonderado = 0;
+  let totalDescuentoHumedad = 0;
+  let totalDescuentoFactor = 0;
+
+  for (const sublote of labSublotes) {
+    totalKgInventario += sublote.pesoDisponible;
+
+    if (sublote.humedad !== null) {
+      pesoConHumedad += sublote.pesoDisponible;
+      humedadPonderada += sublote.humedad * sublote.pesoDisponible;
+      const excesoHumedad = Math.max(0, sublote.humedad - HUMEDAD_MAXIMA_IDEAL);
+      totalDescuentoHumedad += sublote.pesoDisponible * (excesoHumedad / 100);
+    }
+
+    if (sublote.factorRendimiento !== null) {
+      pesoConFactor += sublote.pesoDisponible;
+      factorPonderado += sublote.factorRendimiento * sublote.pesoDisponible;
+      const diferenciaFactor = Math.max(
+        0,
+        sublote.factorRendimiento - FACTOR_BASE_MERCADO,
+      );
+      totalDescuentoFactor += sublote.pesoDisponible * (diferenciaFactor / 100);
+    }
+  }
+
+  return {
+    sublotes: labSublotes,
+    totalKgInventario: roundTwo(totalKgInventario),
+    humedadPromedio:
+      pesoConHumedad > 0 ? roundOne(humedadPonderada / pesoConHumedad) : null,
+    factorPromedio:
+      pesoConFactor > 0 ? roundOne(factorPonderado / pesoConFactor) : null,
+    totalDescuentoHumedad: roundTwo(totalDescuentoHumedad),
+    totalDescuentoFactor: roundTwo(totalDescuentoFactor),
+    totalMerma: roundTwo(totalDescuentoHumedad + totalDescuentoFactor),
+    sublotesConHumedad: labSublotes.filter((sublote) => sublote.humedad !== null).length,
+    sublotesConFactor: labSublotes.filter((sublote) => sublote.factorRendimiento !== null).length,
+  };
+}
+
+async function cargarAnalisisLaboratorio(): Promise<LaboratoryAnalysis> {
+  const lotes = await obtenerLotes();
+  const detalles = await Promise.all(
+    lotes
+      .filter((lote) => lote.pesoActual > 0)
+      .map((lote) => obtenerDetalleLote(lote.tipoCafeId, lote.calidadId)),
+  );
+  const sublotes = detalles.flatMap((detalle) => detalle.sublotes);
+  const analysis = buildLaboratoryAnalysis(sublotes);
+
+  if (import.meta.env.DEV) {
+    console.info('Sublotes para análisis:', analysis.sublotes);
+    console.info('Total kg inventario:', analysis.totalKgInventario);
+    console.info('Descuento humedad:', analysis.totalDescuentoHumedad);
+    console.info('Descuento factor:', analysis.totalDescuentoFactor);
+  }
+
+  return analysis;
+}
+
+function getMermaAuditMetrics({ totalKg, totalPercentage, totalValue, laboratoryAnalysis }: MermaAuditData) {
+  const humidityKg = laboratoryAnalysis?.totalDescuentoHumedad ?? 0;
+  const factorKg = laboratoryAnalysis?.totalDescuentoFactor ?? 0;
+  const lotKg = laboratoryAnalysis?.totalKgInventario ?? 0;
   const roundedTotalPercentage = Math.round(totalPercentage);
   const humidityPercentage =
     lotKg > 0 ? Math.round((humidityKg / lotKg) * 100) : 0;
-  const factorPercentage = Math.max(0, roundedTotalPercentage - humidityPercentage);
+  const factorPercentage =
+    lotKg > 0 ? Math.round((factorKg / lotKg) * 100) : 0;
 
   return {
     totalKg,
@@ -524,6 +633,13 @@ function MermaAuditSummaryCard({
   onOpenLaboratory,
 }: MermaAuditSummaryCardProps) {
   const metrics = getMermaAuditMetrics(data);
+  const hasLaboratoryData = Boolean(
+    data.laboratoryAnalysis &&
+      (data.laboratoryAnalysis.sublotesConHumedad > 0 ||
+        data.laboratoryAnalysis.sublotesConFactor > 0),
+  );
+  const hasHumidity = Boolean(data.laboratoryAnalysis?.sublotesConHumedad);
+  const hasFactor = Boolean(data.laboratoryAnalysis?.sublotesConFactor);
 
   return (
     <section
@@ -562,7 +678,10 @@ function MermaAuditSummaryCard({
 
       <section className="mt-4 border-y border-slate-200 py-4">
         <div className="grid grid-cols-[120px_1fr] items-center gap-4 max-[360px]:grid-cols-1">
-          <MermaDonutChart />
+          <MermaDonutChart
+            humidityKg={metrics.humidityKg}
+            factorKg={metrics.factorKg}
+          />
           <div className="space-y-4">
             <div className="flex items-start gap-3">
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#3B82F6]" />
@@ -571,7 +690,9 @@ function MermaAuditSummaryCard({
                   Humedad: -{formatKg(metrics.humidityKg)}
                 </p>
                 <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
-                  Descontados por exceso de agua ({metrics.humidityPercentage}% del lote).
+                  {hasHumidity
+                    ? `Calculado con humedad real (${metrics.humidityPercentage}% del inventario disponible).`
+                    : 'Sin humedad registrada en sublotes disponibles.'}
                 </p>
               </div>
             </div>
@@ -582,7 +703,9 @@ function MermaAuditSummaryCard({
                   Factor: -{formatKg(metrics.factorKg)}
                 </p>
                 <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
-                  Descartados por pasilla y defectos ({metrics.factorPercentage}% del lote).
+                  {hasFactor
+                    ? `Calculado con factor real (${metrics.factorPercentage}% del inventario disponible).`
+                    : 'Sin factor registrado en sublotes disponibles.'}
                 </p>
               </div>
             </div>
@@ -593,7 +716,9 @@ function MermaAuditSummaryCard({
             Total kilos descontados
           </p>
           <p className="text-right text-sm font-black text-slate-950">
-            - {formatKg(metrics.totalKg)} ({formatPercentRounded(metrics.roundedTotalPercentage)} del lote)
+            - {formatKg(hasLaboratoryData ? metrics.humidityKg + metrics.factorKg : metrics.totalKg)}
+            {' '}
+            ({hasLaboratoryData ? formatPercentRounded(metrics.humidityPercentage + metrics.factorPercentage) : formatPercentRounded(metrics.roundedTotalPercentage)} del inventario)
           </p>
         </div>
       </section>
@@ -638,6 +763,24 @@ type MermaLaboratoryViewProps = {
 
 function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps) {
   const metrics = getMermaAuditMetrics(data);
+  const analysis = data.laboratoryAnalysis;
+  const hasHumidity = Boolean(analysis && analysis.sublotesConHumedad > 0);
+  const hasFactor = Boolean(analysis && analysis.sublotesConFactor > 0);
+  const hasLaboratoryData = hasHumidity || hasFactor;
+  const humidityState =
+    analysis?.humedadPromedio === null || analysis?.humedadPromedio === undefined
+      ? 'Sin dato registrado'
+      : analysis.humedadPromedio > HUMEDAD_MAXIMA_IDEAL
+        ? 'Alta'
+        : analysis.humedadPromedio < HUMEDAD_MINIMA_IDEAL
+          ? 'Baja'
+          : 'Óptima';
+  const factorState =
+    analysis?.factorPromedio === null || analysis?.factorPromedio === undefined
+      ? 'Sin dato registrado'
+      : analysis.factorPromedio > FACTOR_BASE_MERCADO
+        ? 'Por encima de la base'
+        : 'Dentro del rango esperado';
 
   return (
     <section
@@ -663,7 +806,7 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
             Análisis de laboratorio
           </h2>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            Valores medidos en el lote de {formatKg(metrics.lotKg)}
+            Valores calculados con base en el inventario disponible
           </p>
         </div>
         <button
@@ -677,35 +820,56 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        <article className="rounded-[20px] border border-blue-100 bg-blue-50/60 p-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
-            💧 Humedad medida: 13.5%
-          </h3>
-          <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
-            <p>• Estado: Alta (Requiere más secado)</p>
-            <p>• Rango ideal: 10.0% a 12.0%</p>
-            <p>• Resultado comercial: Se restan {formatKg(metrics.humidityKg)} de agua sobrante.</p>
-          </div>
-          <p className="mt-4 rounded-[16px] bg-blue-100/70 px-3 py-3 text-xs font-semibold italic leading-5 text-blue-950">
-            Tu café registró 13.5% de humedad. Como el límite máximo permitido para compra normal es 12%, el café está demasiado húmedo. Esos {formatKg(metrics.humidityKg)} que se te restan corresponden al peso del agua evaporable en exceso que tenemos que secar en la bodega.
-          </p>
-        </article>
+        {!hasLaboratoryData ? (
+          <article className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+            <h3 className="text-sm font-black text-slate-950">
+              Aún no hay datos de laboratorio suficientes.
+            </h3>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+              Registra humedad y factor de rendimiento en los sublotes para generar este análisis.
+            </p>
+          </article>
+        ) : null}
 
-        <div className="h-px bg-slate-200" />
+        {hasHumidity ? (
+          <article className="rounded-[20px] border border-blue-100 bg-blue-50/60 p-4">
+            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+              Humedad promedio: {formatPercent(analysis?.humedadPromedio ?? 0)}
+            </h3>
+            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+              <p>Estado: {humidityState}</p>
+              <p>
+                Rango ideal: {formatPercent(HUMEDAD_MINIMA_IDEAL)} a {formatPercent(HUMEDAD_MAXIMA_IDEAL)}
+              </p>
+              <p>
+                Resultado comercial: Se estiman {formatKg(metrics.humidityKg)} por exceso de humedad.
+              </p>
+            </div>
+            <p className="mt-4 rounded-[16px] bg-blue-100/70 px-3 py-3 text-xs font-semibold italic leading-5 text-blue-950">
+              Cálculo ponderado sobre {formatKg(analysis?.totalKgInventario ?? 0)} disponibles con datos reales de inventario.
+            </p>
+          </article>
+        ) : null}
 
-        <article className="rounded-[20px] border border-stone-200 bg-stone-50 p-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
-            ☕ Factor de rendimiento: 98
-          </h3>
-          <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
-            <p>• Estado: Grano con defectos (Pasilla/Broca)</p>
-            <p>• Base del mercado: 94</p>
-            <p>• Resultado comercial: Se restan {formatKg(metrics.factorKg)} por bajo rendimiento.</p>
-          </div>
-          <p className="mt-4 rounded-[16px] bg-stone-200/60 px-3 py-3 text-xs font-semibold italic leading-5 text-stone-900">
-            El factor base es 94. Al registrar 98, significa que se necesitan más kilos de tu café para completar un saco de exportación debido a granos defectuosos o pasilla. Por eso se descuentan {formatKg(metrics.factorKg)}.
-          </p>
-        </article>
+        {hasHumidity && hasFactor ? <div className="h-px bg-slate-200" /> : null}
+
+        {hasFactor ? (
+          <article className="rounded-[20px] border border-stone-200 bg-stone-50 p-4">
+            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+              Factor promedio: {analysis?.factorPromedio ?? 0}
+            </h3>
+            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+              <p>Estado: {factorState}</p>
+              <p>Base del mercado: {FACTOR_BASE_MERCADO}</p>
+              <p>
+                Resultado comercial: Se estiman {formatKg(metrics.factorKg)} por rendimiento fuera de base.
+              </p>
+            </div>
+            <p className="mt-4 rounded-[16px] bg-stone-200/60 px-3 py-3 text-xs font-semibold italic leading-5 text-stone-900">
+              Factor calculado con promedio ponderado por kilos disponibles en sublotes activos.
+            </p>
+          </article>
+        ) : null}
 
         <button
           type="button"
@@ -747,6 +911,8 @@ export default function ResumenFinanciero() {
   });
   const [showMermaAudit, setShowMermaAudit] = useState(false);
   const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
+  const [laboratoryAnalysis, setLaboratoryAnalysis] =
+    useState<LaboratoryAnalysis | null>(null);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (refreshing) return;
@@ -761,9 +927,10 @@ export default function ResumenFinanciero() {
     if (isRefresh) setRefreshFeedback(null);
 
     try {
-      const [summaryResult, historialResult] = await Promise.allSettled([
+      const [summaryResult, historialResult, laboratoryResult] = await Promise.allSettled([
         obtenerDashboardSummary(),
         cargarMovimientosHistoricos(),
+        cargarAnalisisLaboratorio(),
       ]);
 
       if (summaryResult.status === 'fulfilled') {
@@ -780,9 +947,15 @@ export default function ResumenFinanciero() {
         setHistorialError('No pudimos cargar el historial. Intenta nuevamente.');
       }
 
+      setLaboratoryAnalysis(
+        laboratoryResult.status === 'fulfilled' ? laboratoryResult.value : null,
+      );
+
       if (isRefresh) {
         setRefreshFeedback(
-          summaryResult.status === 'fulfilled' && historialResult.status === 'fulfilled'
+          summaryResult.status === 'fulfilled' &&
+            historialResult.status === 'fulfilled' &&
+            laboratoryResult.status === 'fulfilled'
             ? 'Datos actualizados correctamente.'
             : 'No pudimos actualizar todos los datos. Intenta nuevamente.',
         );
@@ -949,13 +1122,53 @@ export default function ResumenFinanciero() {
   });
 
   const trend = useMemo(() => {
-    const buckets = TREND_STATIC_LABELS.map((label, index) => ({
-      key: `mayo-${label}`,
-      label,
-      time: new Date(2026, 4, Number(label)).getTime(),
-      value: TREND_STATIC_VALUES[index],
-      displayValue: TREND_STATIC_NODE_LABELS[index],
-    }));
+    const byDay = new Map<
+      string,
+      { fecha: string; ventas: number; compras: number; gastos: number; utilidad: number }
+    >();
+
+    for (const movimiento of movimientos) {
+      const fecha = movimiento.fecha.slice(0, 10);
+      const current = byDay.get(fecha) ?? {
+        fecha,
+        ventas: 0,
+        compras: 0,
+        gastos: 0,
+        utilidad: 0,
+      };
+
+      if (movimiento.tipo === 'VENTA') current.ventas += movimiento.valor;
+      if (movimiento.tipo === 'COMPRA') current.compras += movimiento.valor;
+      if (movimiento.tipo === 'GASTO') current.gastos += movimiento.valor;
+      current.utilidad = current.ventas - current.compras - current.gastos;
+      byDay.set(fecha, current);
+    }
+
+    const buckets = [...byDay.values()]
+      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+      .slice(-7)
+      .map((item) => {
+        const date = new Date(`${item.fecha}T12:00:00`);
+        return {
+          key: item.fecha,
+          label: formatDayShort(date),
+          time: date.getTime(),
+          value: item.utilidad,
+          displayValue: formatCurrencyShort(item.utilidad),
+        };
+      });
+
+    if (buckets.length === 0) {
+      return {
+        points: [],
+        polyline: '',
+        zeroY: 0,
+        yLabels: [],
+        yAxisTitle: 'Utilidad (COP)',
+        xAxisTitle: 'Últimos movimientos',
+        hasEnoughData: false,
+      };
+    }
 
     const values = buckets.map((bucket) => bucket.value);
     const rawMin = Math.min(0, ...values);
@@ -994,10 +1207,10 @@ export default function ResumenFinanciero() {
           y: chart.top + chart.height - ((value - min) / range) * chart.height,
         })),
       yAxisTitle: 'Dinero utilizado / Gastado (COP)',
-      xAxisTitle: 'Mes: Mayo',
+      xAxisTitle: 'Últimos 7 días con movimiento',
       hasEnoughData: true,
     };
-  }, []);
+  }, [movimientos]);
 
   if (loading || refreshing || historialLoading) {
     return (
@@ -1267,7 +1480,7 @@ export default function ResumenFinanciero() {
                     Movimiento de registro durante la última semana
                   </h3>
                   <p className="mt-0.5 text-[0.66rem] font-semibold text-slate-500">
-                    Gráfico de movimiento
+                    Ventas menos compras y gastos por fecha real
                   </p>
                 </div>
                 <svg
@@ -1369,7 +1582,10 @@ export default function ResumenFinanciero() {
               ) : (
                 <div className="mt-4 rounded-[14px] border border-[#dbe5f7] bg-[#f8fbff] px-4 py-5 text-center">
                   <p className="text-[0.86rem] font-black text-slate-900">
-                    Aún no hay movimientos para mostrar.
+                    Aún no hay datos suficientes para mostrar la tendencia de utilidad.
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                    Registra compras, ventas o gastos para generar el análisis.
                   </p>
                 </div>
               )
@@ -1752,6 +1968,7 @@ export default function ResumenFinanciero() {
                 totalKg: mermaTotalKg,
                 totalPercentage: mermaTotalPorcentaje,
                 totalValue: mermaTotalValor,
+                laboratoryAnalysis,
               }}
               onClose={closeMermaAudit}
               onOpenLaboratory={() => setMermaAuditView('laboratory')}
@@ -1762,6 +1979,7 @@ export default function ResumenFinanciero() {
                 totalKg: mermaTotalKg,
                 totalPercentage: mermaTotalPorcentaje,
                 totalValue: mermaTotalValor,
+                laboratoryAnalysis,
               }}
               onBack={() => setMermaAuditView('summary')}
               onClose={closeMermaAudit}
@@ -1773,14 +1991,22 @@ export default function ResumenFinanciero() {
   );
 }
 
-function MermaDonutChart() {
+function MermaDonutChart({
+  humidityKg,
+  factorKg,
+}: {
+  humidityKg: number;
+  factorKg: number;
+}) {
   const radius = 46;
   const strokeWidth = 16;
   const circumference = 2 * Math.PI * radius;
-  const humidityOffset = circumference * 0.41;
+  const total = Math.max(0, humidityKg + factorKg);
+  const humidityShare = total > 0 ? humidityKg / total : 0;
+  const humidityOffset = circumference * (1 - humidityShare);
 
   return (
-    <div className="relative mx-auto h-32 w-32 shrink-0" aria-label="Distribución de merma: humedad 59%, factor 41%" role="img">
+    <div className="relative mx-auto h-32 w-32 shrink-0" aria-label="Distribución de merma calculada con datos reales de laboratorio" role="img">
       <svg viewBox="0 0 120 120" className="h-32 w-32 -rotate-90">
         <circle
           cx="60"
@@ -1806,7 +2032,9 @@ function MermaDonutChart() {
         <span className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-400">
           Merma
         </span>
-        <span className="text-lg font-black text-slate-950">100%</span>
+        <span className="text-lg font-black text-slate-950">
+          {total > 0 ? '100%' : '0%'}
+        </span>
       </div>
     </div>
   );
