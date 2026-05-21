@@ -721,9 +721,6 @@ export default function SecadoInicio() {
                             {session.loteCodigo}
                           </p>
                         </div>
-                        <p className="mt-1 text-[0.7rem] font-semibold text-[#5570a8]">
-                          {sessionName}
-                        </p>
                         <p className="mt-1 text-sm font-semibold text-[#2f63d8]">
                           {estadoLabel(session)}
                         </p>
@@ -804,28 +801,30 @@ export default function SecadoInicio() {
                 </button>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2">
                 <label
                   htmlFor="secado-quality-filter"
-                  className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-[#24469a]"
+                  className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a]"
                 >
                   Tipo de calidad
                 </label>
-                <SmartSelect
-                  id="secado-quality-filter"
-                  value={qualityFilter}
-                  onChange={(event) => {
-                    setQualityFilter(event.target.value as SecadoQualityFilter);
-                    setError(null);
-                  }}
-                  className="h-8 min-w-[118px] rounded-[10px] py-0"
-                >
-                  {QUALITY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </SmartSelect>
+                <div className="w-[124px] shrink-0">
+                  <SmartSelect
+                    id="secado-quality-filter"
+                    value={qualityFilter}
+                    onChange={(event) => {
+                      setQualityFilter(event.target.value as SecadoQualityFilter);
+                      setError(null);
+                    }}
+                    className="h-9 rounded-[11px] border border-[#c7d8ff] bg-white px-3 py-0 pr-8 text-[0.76rem] font-black text-slate-900 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]"
+                  >
+                    {QUALITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </SmartSelect>
+                </div>
               </div>
             </section>
 
@@ -848,7 +847,7 @@ export default function SecadoInicio() {
                   items.length > 0 ? (
                     <div key={quality} className="space-y-2">
                       <p className="flex items-center gap-2 px-1 text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                        Calidad: {titleCase(quality)}
+                        Tipo de calidad: {titleCase(quality)}
                       </p>
                       {items.map((sublote, index) => {
                         const selected = (selectedWeights[sublote.id] ?? 0) > 0;
@@ -887,9 +886,7 @@ export default function SecadoInicio() {
                                   >
                                     {visualCode}
                                   </p>
-                                  <p className="mt-0.5 truncate text-[0.62rem] font-black text-[#5570a8]">
-                                    {fullName}
-                                  </p>
+
                                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.66rem] font-bold text-slate-500">
                                     <span>Peso disponible: {kg(sublote.pesoActual)}</span>
                                     {humidity ? <span>Humedad: {humidity}</span> : null}
@@ -937,20 +934,16 @@ export default function SecadoInicio() {
             ) : null}
 
             <section className="sticky bottom-[72px] z-10 rounded-[18px] border border-[#c7d8ff] bg-white/95 p-3 shadow-[0_-10px_28px_rgba(47,99,216,0.14)] backdrop-blur">
-              <div className="rounded-[14px] bg-[linear-gradient(135deg,#102d92_0%,#1d4ed8_100%)] px-4 py-3 text-white">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-blue-100">
+              <div className="rounded-[14px] bg-[linear-gradient(135deg,#5b8ff5_0%,#3b7dd8_100%)] px-4 py-2.5 text-white">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-blue-50">
                     Total seleccionado
                   </span>
-                  <span className="inline-flex items-center gap-2 text-base font-black">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-black">
                     {kg(totalSeleccionado)}
-                    <Scale size={16} />
+                    <Scale size={14} />
                   </span>
                 </div>
-                <p className="mt-1 text-[0.72rem] font-bold text-blue-100">
-                  {selectedIds.length} sublote{selectedIds.length === 1 ? '' : 's'} listo
-                  {selectedIds.length === 1 ? '' : 's'} para secado
-                </p>
               </div>
               <button
                 type="button"

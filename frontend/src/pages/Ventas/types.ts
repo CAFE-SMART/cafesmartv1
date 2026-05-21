@@ -39,9 +39,14 @@ export type LoteVenta = {
 export type VentaFifoItem = {
   groupId: string;
   subloteId: string;
+  subloteCodigo: string;
   subloteNombre: string;
+  tipoCafe: string;
+  calidad: string;
+  nombreCafe: string;
   fifoPosition: number;
   pesoAsignado: number;
+  pesoRestante: number;
   fechaEntrada: string;
   costoBase: number | null;
 };
@@ -87,6 +92,7 @@ export type UseVentasState = {
   fechaVentaPickerOpen: boolean;
   preciosVentaTotal: Record<string, string>;
   lotesVenta: LoteVenta[];
+  bodegaConfig: { nombreBodega: string; capacidadKg: number | null; updatedAt: string } | null;
   ventaParcialOpenId: string | null;
   busquedaCafeVenta: string;
   tipoCafeFiltroVenta: string;

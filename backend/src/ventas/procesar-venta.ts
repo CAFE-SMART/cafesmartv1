@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { CreateVentaDto } from './dto/crear-venta.dto';
 import { PRECIO_MINIMO_KG } from '../common/business-rules';
+import { generarCodigoLote, generarPrefijoCodigo } from '../common/codigo-lote.util';
 
 export type CrearVentaResultado = {
   venta: Venta;
@@ -47,8 +48,21 @@ type MovimientoAgrupado = {
 type SubloteBloqueado = {
   id: string;
   pesoActual: Prisma.Decimal;
+  precioKg: Prisma.Decimal;
+  creadoEn: Date;
+  fechaIngreso: Date;
   tipoCafeId: string;
+  tipoCafeNombre: string;
   calidadId: string;
+  calidadNombre: string;
+};
+
+type SubloteParaCodigo = {
+  id: string;
+  creadoEn: Date;
+  compra: { fecha: Date };
+  tipoCafe: { nombre: string };
+  calidad: { nombre: string };
 };
 
 export class VentaConSublotesDuplicadosError extends Error {
@@ -190,6 +204,10 @@ export async function procesarVenta(
       const sublotesPorId = new Map(
         sublotes.map((sublote) => [sublote.id, sublote]),
       );
+      const codigosSublote = await generarMapaCodigosSublote(
+        tx,
+        data.organizacionId,
+      );
       const faltantes = data.detalles
         .map((detalle) => detalle.subloteId)
         .filter((subloteId) => !sublotesPorId.has(subloteId));
@@ -267,6 +285,10 @@ export async function procesarVenta(
       const detallesCreados: VentaDetalle[] = [];
 
       for (const detalle of detallesOrdenados) {
+        const subloteOriginal = sublotesPorId.get(detalle.subloteId)!;
+        const inventarioRestante = normalizarADosDecimales(
+          Number(subloteOriginal.pesoActual) - detalle.pesoVendido,
+        );
         const actualizacionSublote = await tx.sublote.updateMany({
           where: {
             id: detalle.subloteId,
@@ -321,6 +343,12 @@ export async function procesarVenta(
             pesoVendido: detalle.pesoVendido,
             precioKg: detalle.precioKg,
             subtotal: detalle.subtotal,
+            codigoSublote: codigosSublote.get(detalle.subloteId) ?? null,
+            tipoCafeSnapshot: subloteOriginal.tipoCafeNombre,
+            calidadSnapshot: subloteOriginal.calidadNombre,
+            precioCompraKg: normalizarADosDecimales(Number(subloteOriginal.precioKg)),
+            fechaIngresoSublote: subloteOriginal.fechaIngreso,
+            inventarioRestante,
             deviceId: detalle.deviceId,
             localId: detalle.localId,
           },
@@ -472,11 +500,20 @@ async function bloquearSublotesDisponibles(
     SELECT
       s.id_sublote AS id,
       s.peso_actual AS "pesoActual",
+      s.precio_kg AS "precioKg",
+      s.creado_en AS "creadoEn",
+      c.fecha AS "fechaIngreso",
       s.id_tipo_cafe AS "tipoCafeId",
-      s.id_calidad AS "calidadId"
+      tc.nombre AS "tipoCafeNombre",
+      s.id_calidad AS "calidadId",
+      q.nombre AS "calidadNombre"
     FROM sublote s
     INNER JOIN compra c
       ON c.id_compra = s.id_compra
+    INNER JOIN tipo_cafe tc
+      ON tc.id_tipo_cafe = s.id_tipo_cafe
+    INNER JOIN calidad q
+      ON q.id_calidad = s.id_calidad
     WHERE s.id_sublote IN (${Prisma.join(idsOrdenados)})
       AND s.deleted_at IS NULL
       AND c.deleted_at IS NULL
@@ -484,6 +521,74 @@ async function bloquearSublotesDisponibles(
     ORDER BY s.id_sublote
     FOR UPDATE
   `);
+}
+
+async function generarMapaCodigosSublote(
+  tx: Prisma.TransactionClient,
+  organizacionId: string,
+): Promise<Map<string, string>> {
+  const sublotes = await tx.sublote.findMany({
+    where: {
+      deletedAt: null,
+      compra: {
+        deletedAt: null,
+        organizacionId,
+      },
+    },
+    select: {
+      id: true,
+      creadoEn: true,
+      compra: { select: { fecha: true } },
+      tipoCafe: { select: { nombre: true } },
+      calidad: { select: { nombre: true } },
+    },
+  });
+
+  return construirMapaCodigosSublote(sublotes);
+}
+
+function construirMapaCodigosSublote(
+  sublotes: SubloteParaCodigo[],
+): Map<string, string> {
+  const counters = new Map<string, number>();
+  const codigos = new Map<string, string>();
+
+  [...sublotes]
+    .sort((a, b) => {
+      const prefixCompare = generarPrefijoCodigo(
+        a.tipoCafe.nombre,
+        a.calidad.nombre,
+      ).localeCompare(
+        generarPrefijoCodigo(b.tipoCafe.nombre, b.calidad.nombre),
+      );
+      if (prefixCompare !== 0) return prefixCompare;
+
+      const fechaCompare = a.compra.fecha.getTime() - b.compra.fecha.getTime();
+      if (fechaCompare !== 0) return fechaCompare;
+
+      const creadoCompare = a.creadoEn.getTime() - b.creadoEn.getTime();
+      if (creadoCompare !== 0) return creadoCompare;
+
+      return a.id.localeCompare(b.id);
+    })
+    .forEach((sublote) => {
+      const prefijo = generarPrefijoCodigo(
+        sublote.tipoCafe.nombre,
+        sublote.calidad.nombre,
+      );
+      const secuencia = (counters.get(prefijo) ?? 0) + 1;
+      counters.set(prefijo, secuencia);
+      codigos.set(
+        sublote.id,
+        generarCodigoLote(
+          sublote.tipoCafe.nombre,
+          sublote.calidad.nombre,
+          secuencia,
+        ),
+      );
+    });
+
+  return codigos;
 }
 
 /**

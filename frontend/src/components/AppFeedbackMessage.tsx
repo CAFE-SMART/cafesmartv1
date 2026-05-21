@@ -22,6 +22,10 @@ type AppFeedbackMessageProps = Omit<
   'aria-live'?: 'assertive' | 'polite' | 'off';
   icon?: LucideIcon;
   action?: React.ReactNode;
+  autoClose?: boolean;
+  duration?: number;
+  fadeDuration?: number;
+  onClose?: () => void;
 };
 
 const variantStyles: Record<
@@ -99,6 +103,15 @@ export const AppFeedbackMessage = React.forwardRef<
     'aria-live': ariaLive,
     icon,
     action,
+    autoClose = variant !== 'error',
+    duration,
+    fadeDuration = 500,
+    onClose,
+    onMouseEnter,
+    onMouseLeave,
+    onTouchStart,
+    onTouchEnd,
+    onTouchCancel,
     ...rest
   },
   ref,
@@ -107,6 +120,85 @@ export const AppFeedbackMessage = React.forwardRef<
   const Icon = icon ?? styles.Icon;
   const resolvedRole = role ?? styles.defaultRole;
   const resolvedLive = ariaLive ?? styles.defaultLive;
+  const [visible, setVisible] = React.useState(true);
+  const [closing, setClosing] = React.useState(false);
+  const closeTimerRef = React.useRef<number | null>(null);
+  const removeTimerRef = React.useRef<number | null>(null);
+  const startedAtRef = React.useRef(0);
+  const remainingRef = React.useRef(0);
+  const pausedRef = React.useRef(false);
+  const resolvedDuration =
+    duration ??
+    (variant === 'success' ? 2500 : variant === 'info' ? 2200 : variant === 'warning' ? 4000 : 5200);
+
+  const clearTimers = React.useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (removeTimerRef.current !== null) {
+      window.clearTimeout(removeTimerRef.current);
+      removeTimerRef.current = null;
+    }
+  }, []);
+
+  const beginClose = React.useCallback(() => {
+    closeTimerRef.current = null;
+    setClosing(true);
+    removeTimerRef.current = window.setTimeout(() => {
+      setVisible(false);
+      onClose?.();
+    }, fadeDuration);
+  }, [fadeDuration, onClose]);
+
+  const startCloseTimer = React.useCallback(
+    (delay: number) => {
+      if (!autoClose) return;
+      if (delay <= 0) {
+        beginClose();
+        return;
+      }
+      startedAtRef.current = Date.now();
+      closeTimerRef.current = window.setTimeout(beginClose, delay);
+    },
+    [autoClose, beginClose],
+  );
+
+  React.useEffect(() => {
+    if (!autoClose) return undefined;
+
+    clearTimers();
+    setVisible(true);
+    setClosing(false);
+    pausedRef.current = false;
+    remainingRef.current = resolvedDuration;
+    startCloseTimer(resolvedDuration);
+
+    return () => {
+      clearTimers();
+    };
+  }, [autoClose, clearTimers, resolvedDuration, startCloseTimer]);
+
+  const pauseAutoClose = React.useCallback(() => {
+    if (!autoClose || pausedRef.current || closing) return;
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+      remainingRef.current = Math.max(
+        0,
+        remainingRef.current - (Date.now() - startedAtRef.current),
+      );
+      pausedRef.current = true;
+    }
+  }, [autoClose, closing]);
+
+  const resumeAutoClose = React.useCallback(() => {
+    if (!autoClose || !pausedRef.current || closing) return;
+    pausedRef.current = false;
+    startCloseTimer(remainingRef.current);
+  }, [autoClose, closing, startCloseTimer]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -115,7 +207,28 @@ export const AppFeedbackMessage = React.forwardRef<
       role={resolvedRole}
       aria-live={resolvedLive}
       {...rest}
-      className={`w-full min-w-0 rounded-[16px] border px-4 py-3 text-sm shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out animate-[cafesmartFeedbackIn_220ms_ease-out_both] ${styles.border} ${styles.bg} ${className}`.trim()}
+      onMouseEnter={(event) => {
+        pauseAutoClose();
+        onMouseEnter?.(event);
+      }}
+      onMouseLeave={(event) => {
+        resumeAutoClose();
+        onMouseLeave?.(event);
+      }}
+      onTouchStart={(event) => {
+        pauseAutoClose();
+        onTouchStart?.(event);
+      }}
+      onTouchEnd={(event) => {
+        resumeAutoClose();
+        onTouchEnd?.(event);
+      }}
+      onTouchCancel={(event) => {
+        resumeAutoClose();
+        onTouchCancel?.(event);
+      }}
+      className={`w-full min-w-0 rounded-[16px] border px-4 py-3 text-sm shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out animate-[cafesmartFeedbackIn_220ms_ease-out_both] ${closing ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'} ${styles.border} ${styles.bg} ${className}`.trim()}
+      style={{ ...rest.style, transitionDuration: `${fadeDuration}ms` }}
     >
       <div className="flex min-w-0 items-start gap-3">
         <span

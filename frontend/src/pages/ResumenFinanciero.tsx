@@ -65,6 +65,12 @@ function formatPercent(value: number) {
   }).format(value)}%`;
 }
 
+function formatPercentRounded(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  }).format(value)}%`;
+}
+
 function formatDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
@@ -477,6 +483,242 @@ function getMovimientoCopy(item: DashboardMovimiento) {
   };
 }
 
+type MermaAuditData = {
+  totalKg: number;
+  totalPercentage: number;
+  totalValue: number;
+};
+
+function getMermaAuditMetrics({ totalKg, totalPercentage, totalValue }: MermaAuditData) {
+  const humidityKg = Math.round(totalKg * 0.59);
+  const factorKg = Math.max(0, totalKg - humidityKg);
+  const lotKg =
+    totalPercentage > 0 ? Math.round(totalKg / (totalPercentage / 100)) : 0;
+  const roundedTotalPercentage = Math.round(totalPercentage);
+  const humidityPercentage =
+    lotKg > 0 ? Math.round((humidityKg / lotKg) * 100) : 0;
+  const factorPercentage = Math.max(0, roundedTotalPercentage - humidityPercentage);
+
+  return {
+    totalKg,
+    totalPercentage,
+    totalValue,
+    humidityKg,
+    factorKg,
+    lotKg,
+    roundedTotalPercentage,
+    humidityPercentage,
+    factorPercentage,
+  };
+}
+
+type MermaAuditSummaryCardProps = {
+  data: MermaAuditData;
+  onClose: () => void;
+  onOpenLaboratory: () => void;
+};
+
+function MermaAuditSummaryCard({
+  data,
+  onClose,
+  onOpenLaboratory,
+}: MermaAuditSummaryCardProps) {
+  const metrics = getMermaAuditMetrics(data);
+
+  return (
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="merma-audit-title"
+      className="max-h-[92dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-amber-100 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">
+            Revisión de merma
+          </p>
+          <h2 id="merma-audit-title" className="mt-1 text-lg font-black text-slate-950">
+            Resumen de pérdidas del lote
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          aria-label="Cerrar revisión de merma"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-3">
+        <span className="inline-flex rounded-full bg-amber-200 px-2.5 py-1 text-[0.62rem] font-black text-amber-900">
+          Advertencia
+        </span>
+        <p className="mt-3 text-sm font-bold leading-6 text-amber-950">
+          El lote presenta una pérdida total del {formatPercent(data.totalPercentage)} debido a calidad subestándar del grano.
+        </p>
+      </div>
+
+      <section className="mt-4 border-y border-slate-200 py-4">
+        <div className="grid grid-cols-[120px_1fr] items-center gap-4 max-[360px]:grid-cols-1">
+          <MermaDonutChart />
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#3B82F6]" />
+              <div>
+                <p className="text-sm font-black text-slate-950">
+                  Humedad: -{formatKg(metrics.humidityKg)}
+                </p>
+                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
+                  Descontados por exceso de agua ({metrics.humidityPercentage}% del lote).
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#111827]" />
+              <div>
+                <p className="text-sm font-black text-slate-950">
+                  Factor: -{formatKg(metrics.factorKg)}
+                </p>
+                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
+                  Descartados por pasilla y defectos ({metrics.factorPercentage}% del lote).
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 flex items-start justify-between gap-3 border-t border-slate-200 pt-3">
+          <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-700">
+            Total kilos descontados
+          </p>
+          <p className="text-right text-sm font-black text-slate-950">
+            - {formatKg(metrics.totalKg)} ({formatPercentRounded(metrics.roundedTotalPercentage)} del lote)
+          </p>
+        </div>
+      </section>
+
+      <article className="border-b border-slate-200 py-4">
+        <p className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-slate-500">
+          Impacto financiero
+        </p>
+        <p className="mt-1 text-2xl font-black text-slate-950">
+          {formatCurrencyTight(data.totalValue)}
+        </p>
+        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
+          (Descuento total aplicado debido a los parámetros de calidad)
+        </p>
+      </article>
+
+      <div className="pt-4">
+        <button
+          type="button"
+          onClick={onOpenLaboratory}
+          className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          🔍 Ver análisis de laboratorio
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+        >
+          Confirmar liquidación y continuar
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type MermaLaboratoryViewProps = {
+  data: MermaAuditData;
+  onBack: () => void;
+  onClose: () => void;
+};
+
+function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps) {
+  const metrics = getMermaAuditMetrics(data);
+
+  return (
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="merma-lab-title"
+      className="flex max-h-[94dvh] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+    >
+      <header className="flex shrink-0 items-start gap-3 border-b border-slate-200 px-4 py-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+          aria-label="Volver al resumen de merma"
+        >
+          <ArrowLeft size={17} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xl leading-none" aria-hidden="true">
+            🔬
+          </p>
+          <h2 id="merma-lab-title" className="mt-2 text-base font-black uppercase tracking-[0.08em] text-slate-950">
+            Análisis de laboratorio
+          </h2>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            Valores medidos en el lote de {formatKg(metrics.lotKg)}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          aria-label="Cerrar análisis de laboratorio"
+        >
+          <X size={16} />
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <article className="rounded-[20px] border border-blue-100 bg-blue-50/60 p-4">
+          <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+            💧 Humedad medida: 13.5%
+          </h3>
+          <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+            <p>• Estado: Alta (Requiere más secado)</p>
+            <p>• Rango ideal: 10.0% a 12.0%</p>
+            <p>• Resultado comercial: Se restan {formatKg(metrics.humidityKg)} de agua sobrante.</p>
+          </div>
+          <p className="mt-4 rounded-[16px] bg-blue-100/70 px-3 py-3 text-xs font-semibold italic leading-5 text-blue-950">
+            Tu café registró 13.5% de humedad. Como el límite máximo permitido para compra normal es 12%, el café está demasiado húmedo. Esos {formatKg(metrics.humidityKg)} que se te restan corresponden al peso del agua evaporable en exceso que tenemos que secar en la bodega.
+          </p>
+        </article>
+
+        <div className="h-px bg-slate-200" />
+
+        <article className="rounded-[20px] border border-stone-200 bg-stone-50 p-4">
+          <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+            ☕ Factor de rendimiento: 98
+          </h3>
+          <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+            <p>• Estado: Grano con defectos (Pasilla/Broca)</p>
+            <p>• Base del mercado: 94</p>
+            <p>• Resultado comercial: Se restan {formatKg(metrics.factorKg)} por bajo rendimiento.</p>
+          </div>
+          <p className="mt-4 rounded-[16px] bg-stone-200/60 px-3 py-3 text-xs font-semibold italic leading-5 text-stone-900">
+            El factor base es 94. Al registrar 98, significa que se necesitan más kilos de tu café para completar un saco de exportación debido a granos defectuosos o pasilla. Por eso se descuentan {formatKg(metrics.factorKg)}.
+          </p>
+        </article>
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+        >
+          Volver al resumen
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -504,6 +746,7 @@ export default function ResumenFinanciero() {
     histories: false,
   });
   const [showMermaAudit, setShowMermaAudit] = useState(false);
+  const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (refreshing) return;
@@ -681,6 +924,10 @@ export default function ResumenFinanciero() {
       ...current,
       [section]: !current[section],
     }));
+  };
+  const closeMermaAudit = () => {
+    setShowMermaAudit(false);
+    setMermaAuditView('summary');
   };
 
   const ventasTotal = summary?.totalVentasHoy ?? 0;
@@ -977,7 +1224,10 @@ export default function ResumenFinanciero() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowMermaAudit(true)}
+                  onClick={() => {
+                    setMermaAuditView('summary');
+                    setShowMermaAudit(true);
+                  }}
                   disabled={mermaTotalKg <= 0}
                   className="rounded-full bg-white/90 px-3 py-1.5 text-[0.58rem] font-black text-amber-700 shadow-sm transition hover:bg-white disabled:opacity-60"
                 >
@@ -1496,96 +1746,27 @@ export default function ResumenFinanciero() {
 
       {showMermaAudit ? (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="merma-audit-title"
-            className="max-h-[92dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-amber-100 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">
-                  Revisión de merma
-                </p>
-                <h2 id="merma-audit-title" className="mt-1 text-lg font-black text-slate-950">
-                  Resumen de pérdidas del lote
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMermaAudit(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
-                  aria-label="Cerrar revisión de merma"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-3">
-              <span className="inline-flex rounded-full bg-amber-200 px-2.5 py-1 text-[0.62rem] font-black text-amber-900">
-                Advertencia
-              </span>
-              <p className="mt-3 text-sm font-bold leading-6 text-amber-950">
-                El lote presenta una pérdida total del {formatPercent(mermaTotalPorcentaje)} debido a calidad subestándar del grano.
-              </p>
-            </div>
-
-            <section className="mt-4 grid grid-cols-[132px_1fr] items-center gap-4 border-y border-slate-200 py-4 max-[360px]:grid-cols-1">
-              <MermaDonutChart />
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#3B82F6]" />
-                  <div>
-                    <p className="text-sm font-black text-slate-950">
-                      Humedad: {formatKg(Math.round(mermaTotalKg * 0.59))} (59%)
-                    </p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Descontados por exceso de agua.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#4B5563]" />
-                  <div>
-                    <p className="text-sm font-black text-slate-950">
-                      Factor: {formatKg(Math.max(0, mermaTotalKg - Math.round(mermaTotalKg * 0.59)))} (41%)
-                    </p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Descartados por pasilla y defectos.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <article className="border-b border-slate-200 py-4">
-              <p className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-slate-500">
-                Impacto financiero
-              </p>
-              <p className="mt-1 text-2xl font-black text-slate-950">
-                {formatCurrencyTight(mermaTotalValor)}
-              </p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
-                El sistema aplicó este descuento debido a los parámetros de calidad.
-              </p>
-            </article>
-
-            <div className="pt-4">
-              <p className="text-sm font-black text-slate-950">
-                La merma supera el límite permitido.
-              </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                Se guardará un registro de esta operación.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowMermaAudit(false)}
-                className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-              >
-                Confirmar liquidación y continuar
-              </button>
-            </div>
-          </section>
+          {mermaAuditView === 'summary' ? (
+            <MermaAuditSummaryCard
+              data={{
+                totalKg: mermaTotalKg,
+                totalPercentage: mermaTotalPorcentaje,
+                totalValue: mermaTotalValor,
+              }}
+              onClose={closeMermaAudit}
+              onOpenLaboratory={() => setMermaAuditView('laboratory')}
+            />
+          ) : (
+            <MermaLaboratoryView
+              data={{
+                totalKg: mermaTotalKg,
+                totalPercentage: mermaTotalPorcentaje,
+                totalValue: mermaTotalValor,
+              }}
+              onBack={() => setMermaAuditView('summary')}
+              onClose={closeMermaAudit}
+            />
+          )}
         </div>
       ) : null}
     </div>

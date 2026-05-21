@@ -353,6 +353,11 @@ function SupportModalShell({
 function BeforeContactContent() {
   return (
     <div className="space-y-3">
+      <InfoCard title="¿Cuándo se libera espacio en bodega?">
+        El espacio se libera cuando registras una venta, finalizas un secado o
+        cancelas un proceso de secado que devuelve café verde al inventario.
+        También puedes ampliar la capacidad desde Ajustes.
+      </InfoCard>
       <InfoCard title="Ten a mano el paso donde ocurrió">
         Por ejemplo: compra, venta, perfil, inventario o login.
       </InfoCard>

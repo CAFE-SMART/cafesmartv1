@@ -1704,34 +1704,6 @@ function getPorcentajeDisponible(capacidad: EstadoCapacidadCompra | null) {
   return (restante / capacidad.capacidadBodegaKg) * 100;
 }
 
-function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
-  if (!capacidad || capacidad.nivel === 'normal') {
-    return {
-      contenedor: 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]',
-      icono: 'bg-[#dbeafe] text-[#1d4ed8]',
-    };
-  }
-
-  if (capacidad.nivel === 'exceso') {
-    return {
-      contenedor: 'border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]',
-      icono: 'bg-[#ffedd5] text-[#ea580c]',
-    };
-  }
-
-  if (capacidad.nivel === 'alerta') {
-    return {
-      contenedor: 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]',
-      icono: 'bg-[#fef3c7] text-[#d97706]',
-    };
-  }
-
-  return {
-    contenedor: 'border-[#e5e7eb] bg-[#f8fafc] text-slate-700',
-    icono: 'bg-[#e2e8f0] text-slate-600',
-  };
-}
-
 function getCompraErrorMessage(error: unknown) {
   if (error instanceof ApiRequestError) {
     if (error.status === 0) {
@@ -3697,27 +3669,18 @@ export default function Compras() {
         capacityNotice={
           compraGuardada.capacidad &&
           compraGuardada.capacidad.nivel !== 'normal' ? (
-            <div
-              className={`rounded-[16px] border px-3.5 py-3 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${estiloCapacidad(compraGuardada.capacidad).icono}`}
-                >
-                  <AlertTriangle size={16} />
-                </span>
-                <div>
-                  <p className="text-[0.86rem] font-bold">
-                    {compraGuardada.capacidad.validada
-                      ? 'Capacidad de bodega validada'
-                      : 'Sin validación de capacidad'}
-                  </p>
-                  <p className="mt-1 text-[0.8rem] font-medium leading-5">
-                    {compraGuardada.capacidad.mensaje}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <AppFeedbackMessage
+              variant="warning"
+              title={
+                compraGuardada.capacidad.validada
+                  ? 'Capacidad de bodega validada'
+                  : 'Sin validación de capacidad'
+              }
+              description={compraGuardada.capacidad.mensaje}
+              autoClose
+              duration={5000}
+              fadeDuration={500}
+            />
           ) : undefined
         }
       />

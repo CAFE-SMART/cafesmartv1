@@ -1,32 +1,41 @@
 /**
- * Utility para generar códigos únicos de lote con formato TIPO_CALIDAD_NUMERO
- * Ejemplo: VB-01 (Verde Bueno), SB-01 (Seco Bueno), SR-02 (Seco Regular)
+ * Utility para generar codigos unicos de lote con formato TIPO_CALIDAD_NUMERO.
+ * Ejemplo: VB-01 (Verde Bueno), SB-01 (Seco Bueno), SR-02 (Seco Regular).
  */
 
+function normalizarCodigo(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
 /**
- * Genera el prefijo de código basado en tipo de café y calidad
- * @param tipoCafeNombre Nombre del tipo de café (VERDE, SECO, TRILLADO, PASILLA)
- * @param calidadNombre Nombre de la calidad (BUENO, REGULAR, MALO)
- * @returns Prefijo de 2 caracteres (ej. VB para Verde Bueno)
+ * Genera el prefijo de codigo basado en tipo de cafe y calidad.
  */
 export function generarPrefijoCodigo(
   tipoCafeNombre: string,
   calidadNombre: string,
 ): string {
-  const prefijosTipo: Record<string, string> = {
-    VERDE: 'V',
-    SECO: 'S',
-    TRILLADO: 'T',
-    PASILLA: 'P',
-  };
-  const letraTipo = prefijosTipo[tipoCafeNombre.toUpperCase()] ?? 'X';
+  const tipo = normalizarCodigo(tipoCafeNombre);
+  const calidad = normalizarCodigo(calidadNombre);
 
-  const prefijosCalidad: Record<string, string> = {
-    BUENO: 'B',
-    REGULAR: 'R',
-    MALO: 'M',
-  };
-  const letraCalidad = prefijosCalidad[calidadNombre.toUpperCase()] ?? 'X';
+  const letraTipo = tipo.includes('PASILLA')
+    ? 'P'
+    : tipo.includes('SECO')
+      ? 'S'
+      : tipo.includes('VERDE')
+        ? 'V'
+        : tipo.charAt(0) || 'X';
+
+  const letraCalidad = calidad.includes('REGULAR')
+    ? 'R'
+    : calidad.includes('MALO') || calidad.includes('MALA') || calidad.includes('BAJO')
+      ? 'M'
+      : calidad.includes('BUENO') || calidad.includes('BUENA') || calidad.includes('ALTO')
+        ? 'B'
+        : calidad.charAt(0) || 'X';
 
   return `${letraTipo}${letraCalidad}`;
 }
@@ -35,7 +44,7 @@ export function formatearNumeroSecuencia(
   numero: number,
   digitos: number = 2,
 ): string {
-  return numero.toString().padStart(digitos, '0').slice(-digitos);
+  return numero.toString().padStart(digitos, '0');
 }
 
 export function generarCodigoLote(
@@ -51,8 +60,7 @@ export function generarCodigoLote(
 export const PARAM_SECUENCIAS_LOTE = 'SECUENCIAS_CODIGOS_LOTE';
 
 /**
- * Obtiene la siguiente secuencia para un código específico
- * y genera el código único
+ * Obtiene la siguiente secuencia para un codigo especifico y genera el codigo unico.
  */
 export function generarSiguienteCodigo(
   secuenciasMap: Record<string, number> | null,

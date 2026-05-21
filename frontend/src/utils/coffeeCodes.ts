@@ -3,6 +3,15 @@ export type CoffeeCodeInput = {
   calidad?: string | null;
 };
 
+export type SubloteCodeInput = CoffeeCodeInput & {
+  id?: string | null;
+  codigo?: string | null;
+  etiqueta?: string | null;
+  fechaIngreso?: string | null;
+  createdAt?: string | null;
+  creadoEn?: string | null;
+};
+
 export const COFFEE_CODE_GLOSSARY = [
   { code: 'VB', label: 'Verde Bueno' },
   { code: 'VR', label: 'Verde Regular' },
@@ -64,4 +73,62 @@ export function formatCoffeeFullName(input: CoffeeCodeInput) {
 
 export function formatSubloteVisualCode(input: CoffeeCodeInput, index: number) {
   return `${getCoffeeCodePrefix(input)}-${String(index + 1).padStart(2, '0')}`;
+}
+
+export function formatSubloteSequenceCode(input: CoffeeCodeInput, sequence: number) {
+  const safeSequence = Math.max(1, Math.trunc(sequence || 1));
+  return `${getCoffeeCodePrefix(input)}-${String(safeSequence).padStart(2, '0')}`;
+}
+
+export function getSubloteDisplayCode(input: SubloteCodeInput, fallbackIndex = 0) {
+  const expectedPrefix = getCoffeeCodePrefix(input);
+  const explicitCode = input.codigo?.trim();
+  if (explicitCode && explicitCode.toUpperCase().startsWith(`${expectedPrefix}-`)) {
+    return explicitCode.toUpperCase();
+  }
+
+  const etiqueta = input.etiqueta?.trim();
+  if (etiqueta && etiqueta.toUpperCase().startsWith(`${expectedPrefix}-`)) {
+    return etiqueta.toUpperCase();
+  }
+
+  return formatSubloteVisualCode(input, fallbackIndex);
+}
+
+function getSubloteSortTime(input: SubloteCodeInput) {
+  const raw = input.fechaIngreso ?? input.createdAt ?? input.creadoEn ?? '';
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+}
+
+export function getSubloteCodeMap<T extends SubloteCodeInput>(sublotes: T[]) {
+  const counters = new Map<string, number>();
+  const codes = new Map<string, string>();
+
+  [...sublotes]
+    .sort((a, b) => {
+      const prefixCompare = getCoffeeCodePrefix(a).localeCompare(getCoffeeCodePrefix(b));
+      if (prefixCompare !== 0) return prefixCompare;
+      const timeCompare = getSubloteSortTime(a) - getSubloteSortTime(b);
+      if (timeCompare !== 0) return timeCompare;
+      return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+    })
+    .forEach((sublote) => {
+      const id = sublote.id;
+      if (!id) return;
+      const prefix = getCoffeeCodePrefix(sublote);
+      const rawExplicitCode = sublote.codigo?.trim() || sublote.etiqueta?.trim() || '';
+      const explicitMatch = rawExplicitCode.match(new RegExp(`^${prefix}-(\\d+)$`, 'i'));
+      if (explicitMatch) {
+        const explicitSequence = Number(explicitMatch[1]);
+        counters.set(prefix, Math.max(counters.get(prefix) ?? 0, explicitSequence));
+        codes.set(id, rawExplicitCode.toUpperCase());
+        return;
+      }
+      const nextSequence = (counters.get(prefix) ?? 0) + 1;
+      counters.set(prefix, nextSequence);
+      codes.set(id, formatSubloteSequenceCode(sublote, nextSequence));
+    });
+
+  return codes;
 }

@@ -28,6 +28,7 @@ export type LoteResumen = {
 
 export type SubloteDetalle = {
   id: string;
+  codigo?: string;
   etiqueta: string;
   tipoCafeId: string;
   tipoCafe: string;

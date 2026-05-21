@@ -12,6 +12,9 @@ type InlineGuidedErrorProps = {
   id?: string;
   message: GuidedErrorMessage;
   className?: string;
+  autoClose?: boolean;
+  duration?: number;
+  onClose?: () => void;
 };
 
 type FloatingGuidedNoticeProps = {
@@ -34,6 +37,9 @@ export function InlineGuidedError({
   id,
   message,
   className = '',
+  autoClose = true,
+  duration,
+  onClose,
 }: InlineGuidedErrorProps) {
   const fallbackMessage = message as GuidedErrorMessage & { text?: string };
   const guidance = message.action || message.how || fallbackMessage.text;
@@ -45,6 +51,9 @@ export function InlineGuidedError({
       title={message.why}
       description={guidance}
       className={`mt-1.5 ${className}`.trim()}
+      autoClose={autoClose}
+      duration={duration}
+      onClose={onClose}
     />
   );
 }

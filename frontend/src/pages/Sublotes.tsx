@@ -39,6 +39,7 @@ import {
 } from '../utils/humidity';
 import {
   formatCoffeeFullName,
+  getSubloteCodeMap,
   formatSubloteVisualCode,
 } from '../utils/coffeeCodes';
 
@@ -478,6 +479,10 @@ export default function Sublotes() {
       ? detalle.sublotes
       : detalle.sublotes.slice(0, SUBLOTES_PREVIEW_LIMIT);
   }, [detalle, showAllSublotes]);
+  const subloteCodeMap = useMemo(
+    () => getSubloteCodeMap(detalle?.sublotes ?? []),
+    [detalle],
+  );
 
   const hiddenSublotesCount = detalle
     ? Math.max(0, detalle.sublotes.length - sublotesPreview.length)
@@ -1119,7 +1124,9 @@ export default function Sublotes() {
                   humidity.quality === 'advertencia' ||
                   humidity.quality === 'descuento' ||
                   humidity.quality === 'rechazada';
-                const visualCode = formatSubloteVisualCode(sublote, index);
+                const visualCode =
+                  subloteCodeMap.get(sublote.id) ??
+                  formatSubloteVisualCode(sublote, index);
                 const fullName = formatCoffeeFullName(sublote);
 
                 return (
@@ -1197,7 +1204,9 @@ export default function Sublotes() {
                       humidity.quality === 'advertencia' ||
                       humidity.quality === 'descuento' ||
                       humidity.quality === 'rechazada';
-                    const visualCode = formatSubloteVisualCode(sublote, index);
+                    const visualCode =
+                      subloteCodeMap.get(sublote.id) ??
+                      formatSubloteVisualCode(sublote, index);
                     const fullName = formatCoffeeFullName(sublote);
                     return (
                       <button

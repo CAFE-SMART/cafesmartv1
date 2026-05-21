@@ -3,18 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { Preferences } from '@capacitor/preferences';
 import { listarClientes } from '../../../services/clientesService';
 import { obtenerLotes, obtenerDetalleLote, guardarPesosSublotes } from '../../../services/lotesService';
-import { crearVenta } from '../../../services/ventasService';
+import { crearVenta, listarVentas } from '../../../services/ventasService';
+import { obtenerConfiguracionBodega, type ConfiguracionBodega } from '../../../services/bodegaApi';
 import { obtenerDeviceId } from '../../../utils/deviceId';
 import { getTodayLocalDateValue, validateBusinessDateRange, toIsoDateAtUtcNoon } from '../../../utils/date';
 import { PRECIO_MINIMO_KG } from '../../../utils/businessRules';
 import { VENTA_DRAFT_STORAGE_KEY, VENTA_FILTRO_TODOS } from '../constants';
 import type { VentaGuardadaResumen, ClienteOption, ClienteForm, ClienteFormErrors, LoteVenta, ModoVenta, Step, VentaParcialCardAlert, VentaFifoItem } from '../types';
-import { dedupeClientesOptions, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getVentaSubmitMessage, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos, MAX_PRECIO_KG } from '../utils';
+import { dedupeClientesOptions, distribuirPesoVerificado, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getPesoVerificado, getVentaSubmitMessage, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos, MAX_PRECIO_KG } from '../utils';
 import { ENABLE_SECADO_PROTOTYPE } from '../../../config/features';
 import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFlow';
 import { sanitizeSearchInput } from '../../../utils/inputLimits';
 import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
 import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, sanitizeDigits as sanitizePersonDigits, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber } from '../../../utils/personValidation';
+import { formatCoffeeFullName, getSubloteDisplayCode } from '../../../utils/coffeeCodes';
 
 async function readVentaDraft() {
   try {
@@ -56,6 +58,7 @@ export function useVentas() {
   const [fechaVentaPickerOpen, setFechaVentaPickerOpen] = React.useState(false);
   const [preciosVentaTotal, setPreciosVentaTotal] = React.useState<Record<string, string>>({});
   const [lotesVenta, setLotesVenta] = React.useState<LoteVenta[]>([]);
+  const [bodegaConfig, setBodegaConfig] = React.useState<ConfiguracionBodega | null>(null);
   const [ventaParcialOpenId, setVentaParcialOpenId] = React.useState<string | null>(null);
   const [busquedaCafeVenta, setBusquedaCafeVenta] = React.useState('');
   const [tipoCafeFiltroVenta, setTipoCafeFiltroVenta] = React.useState(VENTA_FILTRO_TODOS);
@@ -107,14 +110,77 @@ export function useVentas() {
     try {
       setCargando(true);
       setLoadError(null);
-      const [lotesResult, clientesResult] = await Promise.allSettled([obtenerLotes(), listarClientes()]);
+      const [lotesResult, clientesResult, bodegaResult, ventasResult] = await Promise.allSettled([
+        obtenerLotes(),
+        listarClientes(),
+        obtenerConfiguracionBodega(),
+        listarVentas({ limit: 50 }),
+      ]);
       if (lotesResult.status === 'rejected') throw lotesResult.reason;
       if (clientesResult.status === 'rejected') setClientes([]);
+      if (bodegaResult.status === 'fulfilled') setBodegaConfig(bodegaResult.value);
       const lotes = lotesResult.value;
       const clientesData = clientesResult.status === 'fulfilled' ? clientesResult.value : [];
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes, { includeGeneratedOutputs: false }) : lotes;
       setLotesVenta(mkLotes(lotesDisponibles));
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
+      if (ventasResult.status === 'fulfilled') {
+        setVentasRealizadas(
+          ventasResult.value.registros.map((venta) => ({
+            referenciaId: venta.id,
+            fecha: venta.fecha,
+            clienteNombre: venta.clienteNombre,
+            clienteDocumento: venta.clienteDocumento || 'Sin detalle',
+            totalKg: venta.totalKg,
+            totalVenta: venta.totalVenta,
+            items: [],
+            fifoBreakdown: (venta.detallesSublotes?.length
+              ? venta.detallesSublotes.map((detalle, index) => ({
+                  groupId: venta.id,
+                  subloteId: detalle.subloteId,
+                  subloteCodigo: detalle.codigoSublote,
+                  subloteNombre: detalle.codigoSublote,
+                  tipoCafe: detalle.tipoCafe ?? '',
+                  calidad: detalle.calidad ?? '',
+                  nombreCafe: [detalle.tipoCafe, detalle.calidad].filter(Boolean).join(' '),
+                  fifoPosition: index + 1,
+                  pesoAsignado: detalle.kilosVendidos,
+                  pesoRestante: detalle.inventarioRestante,
+                  fechaEntrada: detalle.fechaIngreso,
+                  costoBase: detalle.precioCompraKg,
+                }))
+              : venta.detalles.map((detalle, index) => ({
+                  groupId: venta.id,
+                  subloteId: detalle.subloteId ?? `${venta.id}-${index}`,
+                  subloteCodigo: detalle.subloteCodigo ?? `SUB-${String(index + 1).padStart(2, '0')}`,
+                  subloteNombre: detalle.subloteCodigo ?? `SUB-${String(index + 1).padStart(2, '0')}`,
+                  tipoCafe: detalle.tipoCafe ?? '',
+                  calidad: detalle.calidad ?? '',
+                  nombreCafe: [detalle.tipoCafe, detalle.calidad].filter(Boolean).join(' '),
+                  fifoPosition: detalle.ventaNumero ?? index + 1,
+                  pesoAsignado: detalle.pesoVendido,
+                  pesoRestante:
+                    detalle.pesoRestante ??
+                    detalle.peso_restante ??
+                    detalle.sublote?.pesoDisponible ??
+                    detalle.sublote?.peso_disponible ??
+                    0,
+                  fechaEntrada:
+                    detalle.fechaIngreso ??
+                    detalle.fecha_ingreso ??
+                    detalle.sublote?.fechaIngreso ??
+                    detalle.sublote?.fecha_ingreso ??
+                    venta.fecha,
+                  costoBase:
+                    detalle.precioCompra ??
+                    detalle.precio_compra ??
+                    detalle.sublote?.precioCompra ??
+                    detalle.sublote?.precio_compra ??
+                    null,
+                }))),
+          })),
+        );
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'No fue posible cargar el inventario para venta.');
     } finally {
@@ -191,6 +257,15 @@ export function useVentas() {
     return lotesVenta.map((l) => ({ ...l, cantidad: toNum(l.cantidadKg), precio: toNum(l.precioKg) })).filter((l) => ajustesVentaParcialConfirmados[l.id] && l.cantidad > 0);
   }, [ajustesVentaParcialConfirmados, lotesVenta, modoVenta, preciosVentaTotal]);
 
+  const ajustesParcialesPendientes =
+    modoVenta === 'PARCIAL'
+      ? lotesVenta.filter(
+          (lote) =>
+            !ajustesVentaParcialConfirmados[lote.id] &&
+            toNum(lote.cantidadKg) > 0,
+        )
+      : [];
+
   const totalKg = React.useMemo(() => lotesConCantidad.reduce((a, l) => a + l.cantidad, 0), [lotesConCantidad]);
   const totalEstimado = React.useMemo(() => lotesConCantidad.reduce((a, l) => a + l.cantidad * l.precio, 0), [lotesConCantidad]);
   const totalDisponibleVenta = React.useMemo(() => lotesVenta.reduce((total, lote) => total + getDisponibleVenta(lote), 0), [lotesVenta]);
@@ -234,6 +309,7 @@ export function useVentas() {
       }
       return null;
     }
+    if (modoVenta === 'PARCIAL' && ajustesParcialesPendientes.length > 0) return 'Todavía hay cafés sin confirmar.';
     if (modoVenta === 'PARCIAL' && !lotesConCantidad.length) return 'Ingresa al menos una cantidad para continuar.';
     for (const l of lotesConCantidad) {
       if (pesoVerificadoInvalido(l)) return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
@@ -243,7 +319,7 @@ export function useVentas() {
       if (l.precio < PRECIO_MINIMO_KG) return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
-  }, [fechaVentaValidacion.isValid, fechaVentaValidacion.message, lotesVenta.length, modoVenta, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, lotesConCantidad]);
+  }, [ajustesParcialesPendientes.length, fechaVentaValidacion.isValid, fechaVentaValidacion.message, lotesVenta.length, modoVenta, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, lotesConCantidad]);
 
   const hayCantidadParcial = React.useMemo(
     () =>
@@ -276,7 +352,7 @@ export function useVentas() {
       ? false
       : modoVenta === 'TOTAL'
       ? resumenDisponiblePorTipo.length > 0 && preciosVentaTotalInvalidos.size === 0 && !lotesVenta.some(pesoVerificadoInvalido)
-      : hayCantidadParcial && !parcialConErrores;
+      : hayCantidadParcial && !parcialConErrores && ajustesParcialesPendientes.length === 0;
 
   const tipoCafeFiltroOpciones = React.useMemo(() => {
     const vistos = new Set<string>();
@@ -378,8 +454,25 @@ export function useVentas() {
       setIntentoPaso2(true);
       const mensajeValidacion = validarPasoVenta();
       if (mensajeValidacion || !puedeAvanzarPaso2) {
+        if (ajustesParcialesPendientes.length > 0) {
+          setVentaParcialCardAlerts(
+            ajustesParcialesPendientes.reduce<Record<string, VentaParcialCardAlert>>(
+              (alerts, lote) => {
+                alerts[lote.id] = {
+                  title: 'Todavía hay cafés sin confirmar.',
+                  detail: 'Confirma este ajuste o cancélalo antes de continuar.',
+                };
+                return alerts;
+              },
+              {},
+            ),
+          );
+        }
         setSubmitError(
-          mensajeValidacion ?? 'Revisa los campos obligatorios antes de continuar.',
+          mensajeValidacion ??
+            (ajustesParcialesPendientes.length > 0
+              ? 'Todavía hay cafés sin confirmar.'
+              : 'Revisa los campos obligatorios antes de continuar.'),
         );
         return;
       }
@@ -387,7 +480,7 @@ export function useVentas() {
       setSubmitError(null);
       return setPaso(3);
     }
-  }, [clienteSeleccionado, paso, puedeAvanzarPaso2, validarPasoVenta, validandoPasoVenta]);
+  }, [ajustesParcialesPendientes, clienteSeleccionado, paso, puedeAvanzarPaso2, validarPasoVenta, validandoPasoVenta]);
 
   const anterior = React.useCallback(() => {
     setSubmitError(null);
@@ -455,14 +548,57 @@ export function useVentas() {
     setRegistroErrorMensaje(null);
     try {
       const detalles = [] as Array<{ subloteId: string; pesoVendido: number; precioKg: number }>;
+      const desgloseFIFO: VentaFifoItem[] = [];
+      type PoolEntry = {
+        subloteId: string;
+        subloteCodigo: string;
+        subloteNombre: string;
+        tipoCafe: string;
+        calidad: string;
+        nombreCafe: string;
+        fifoPosition: number;
+        fechaEntrada: string;
+        costoBase: number | null;
+        disponibleKg: number;
+      };
+      const pools = new Map<string, PoolEntry[]>();
+
       for (const lote of lotesConCantidad) {
         const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
-        const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
-        const detalle = ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, { includeGeneratedOutputs: false }) : detalleBase;
-        let pool = (detalle?.sublotes ?? [])
-          .filter((sublote) => sublote.pesoActual > 0)
-          .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
-          .map((sublote) => ({ subloteId: sublote.id, disponibleKg: round2(sublote.pesoActual) }));
+        if (!pools.has(poolKey)) {
+          const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+          const detalle = ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, { includeGeneratedOutputs: false }) : detalleBase;
+          let pool = [...(detalle?.sublotes ?? [])]
+            .filter((sublote) => sublote.pesoActual > 0)
+            .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
+            .map((sublote, index) => ({
+              subloteId: sublote.id,
+              subloteCodigo: getSubloteDisplayCode(sublote, index),
+              subloteNombre: sublote.etiqueta || getSubloteDisplayCode(sublote, index),
+              tipoCafe: sublote.tipoCafe,
+              calidad: sublote.calidad,
+              nombreCafe: formatCoffeeFullName(sublote),
+              fifoPosition: index + 1,
+              fechaEntrada: sublote.fechaIngreso,
+              costoBase: Number.isFinite(sublote.costoPorKg) ? sublote.costoPorKg : null,
+              disponibleKg: round2(sublote.pesoActual),
+            }));
+          const pesoVerificado = getPesoVerificado(lote);
+          const totalPool = round2(pool.reduce((sum, item) => sum + item.disponibleKg, 0));
+          if (pesoVerificado !== null && pesoVerificado < totalPool) {
+            const poolAjustado = distribuirPesoVerificado(pool, pesoVerificado);
+            await guardarPesosSublotes(
+              poolAjustado.map((entry) => ({
+                id: entry.subloteId,
+                pesoActual: entry.disponibleKg,
+                motivo: 'Calibración antes de venta',
+              })),
+            );
+            pool = poolAjustado;
+          }
+          pools.set(poolKey, pool);
+        }
+        const pool = pools.get(poolKey) ?? [];
         let restante = round2(lote.cantidad);
         for (const entry of pool) {
           if (restante <= 0) break;
@@ -471,10 +607,25 @@ export function useVentas() {
           if (asignado <= 0) continue;
           detalles.push({ subloteId: entry.subloteId, pesoVendido: asignado, precioKg: round2(lote.precio) });
           entry.disponibleKg = round2(entry.disponibleKg - asignado);
+          desgloseFIFO.push({
+            groupId: lote.id,
+            subloteId: entry.subloteId,
+            subloteCodigo: entry.subloteCodigo,
+            subloteNombre: entry.subloteNombre,
+            tipoCafe: entry.tipoCafe,
+            calidad: entry.calidad,
+            nombreCafe: entry.nombreCafe,
+            fifoPosition: entry.fifoPosition,
+            pesoAsignado: asignado,
+            pesoRestante: entry.disponibleKg,
+            fechaEntrada: entry.fechaEntrada,
+            costoBase: entry.costoBase,
+          });
           restante = round2(restante - asignado);
         }
         if (restante > 0.001) throw new Error(`La cantidad supera el disponible en ${lote.codigo}.`);
       }
+      setVentaFifoBreakdown(desgloseFIFO);
       const fechaVentaIso = toIsoDateAtUtcNoon(fechaVenta);
       const respuesta = await crearVenta({
         ...(fechaVentaIso ? { fecha: fechaVentaIso } : {}),
@@ -497,7 +648,7 @@ export function useVentas() {
           cantidadKg: item.cantidad,
           subtotal: item.cantidad * item.precio,
         })),
-        fifoBreakdown: ventaFifoBreakdown,
+        fifoBreakdown: desgloseFIFO,
       };
       setVentaGuardada(ventaResumen);
       setVentasRealizadas((actual) => [ventaResumen, ...actual]);
@@ -515,7 +666,7 @@ export function useVentas() {
       setGuardandoVenta(false);
       setBotonConfirmarPresionado(false);
     }
-  }, [cargarLotes, clienteSeleccionado, guardandoVenta, lotesConCantidad, fechaVenta, totalEstimado, totalKg, ventaFifoBreakdown, validarPasoVenta]);
+  }, [cargarLotes, clienteSeleccionado, guardandoVenta, lotesConCantidad, fechaVenta, totalEstimado, totalKg, validarPasoVenta]);
 
   const reiniciar = React.useCallback(() => {
     void clearVentaDraft();
@@ -645,10 +796,45 @@ export function useVentas() {
         delete next[lote.id];
         return next;
       });
+      setVentaParcialAlert(null);
+      setSubmitError(null);
+      setIntentoPaso2(false);
       setVentaParcialOpenId(null);
     },
     [getVentaParcialCardAlert, mostrarAlertaTarjetaVentaParcial],
   );
+
+  const cancelarAjusteParcial = React.useCallback((loteId: string) => {
+    const ajusteYaConfirmado = Boolean(ajustesVentaParcialConfirmados[loteId]);
+    setVentaParcialCardAlerts((current) => {
+      if (!current[loteId]) return current;
+      const next = { ...current };
+      delete next[loteId];
+      return next;
+    });
+    if (!ajusteYaConfirmado) {
+      setAjustesVentaParcialConfirmados((current) => {
+        if (!current[loteId]) return current;
+        const next = { ...current };
+        delete next[loteId];
+        return next;
+      });
+      setLotesVenta((current) =>
+        current.map((lote) =>
+          lote.id === loteId
+            ? {
+                ...lote,
+                cantidadKg: '',
+              }
+            : lote,
+        ),
+      );
+    }
+    setVentaParcialAlert(null);
+    setSubmitError(null);
+    setIntentoPaso2(false);
+    setVentaParcialOpenId(null);
+  }, [ajustesVentaParcialConfirmados]);
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
     setClienteSeleccionado(cliente);
@@ -760,13 +946,34 @@ export function useVentas() {
   const parcialSinCantidad = paso === 2 && modoVenta === 'PARCIAL' && !hayCantidadParcial;
   const parcialSinSeleccion = parcialSinCantidad && intentoPaso2;
 
+  React.useEffect(() => {
+    if (!modoVenta) return;
+    setIntentoPaso2(false);
+    setSubmitError((current) =>
+      current === 'Selecciona como deseas realizar la venta.' ? null : current,
+    );
+  }, [modoVenta]);
+
+  React.useEffect(() => {
+    if (!modoInvalido) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setIntentoPaso2(false);
+      setSubmitError((current) =>
+        current === 'Selecciona como deseas realizar la venta.' ? null : current,
+      );
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [modoInvalido]);
+
   const confirmarCancelarVenta = () => {
     setMostrarModalCancelar(false);
     reiniciar();
   };
 
   React.useEffect(() => {
-    if (paso !== 3 || modoVenta !== 'PARCIAL' || lotesConCantidad.length === 0) {
+    if (paso !== 3 || !modoVenta || lotesConCantidad.length === 0) {
       setVentaFifoBreakdown([]);
       return;
     }
@@ -777,19 +984,36 @@ export function useVentas() {
         const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
         const detalle = ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, { includeGeneratedOutputs: false }) : detalleBase;
         let restante = round2(lote.cantidad);
-        const sublotesOrdenados = [...(detalle?.sublotes ?? [])].filter((sublote) => sublote.pesoActual > 0).sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime());
-        sublotesOrdenados.forEach((sublote, index) => {
+        const sublotesOrdenados = [...(detalle?.sublotes ?? [])]
+          .filter((sublote) => sublote.pesoActual > 0)
+          .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime());
+        let pool = sublotesOrdenados.map((sublote, index) => ({
+          sublote,
+          fifoPosition: index + 1,
+          disponibleKg: round2(sublote.pesoActual),
+        }));
+        const pesoVerificado = getPesoVerificado(lote);
+        const totalPool = round2(pool.reduce((sum, item) => sum + item.disponibleKg, 0));
+        if (pesoVerificado !== null && pesoVerificado < totalPool) {
+          pool = distribuirPesoVerificado(pool, pesoVerificado);
+        }
+        pool.forEach((entry) => {
           if (restante <= 0) return;
-          const asignado = round2(Math.min(restante, sublote.pesoActual));
+          const asignado = round2(Math.min(restante, entry.disponibleKg));
           if (asignado <= 0) return;
           breakdown.push({
             groupId: lote.id,
-            subloteId: sublote.id,
-            subloteNombre: sublote.etiqueta || `Sublote ${index + 1}`,
-            fifoPosition: index + 1,
+            subloteId: entry.sublote.id,
+            subloteCodigo: getSubloteDisplayCode(entry.sublote, entry.fifoPosition - 1),
+            subloteNombre: entry.sublote.etiqueta || getSubloteDisplayCode(entry.sublote, entry.fifoPosition - 1),
+            tipoCafe: entry.sublote.tipoCafe,
+            calidad: entry.sublote.calidad,
+            nombreCafe: formatCoffeeFullName(entry.sublote),
+            fifoPosition: entry.fifoPosition,
             pesoAsignado: asignado,
-            fechaEntrada: sublote.fechaIngreso,
-            costoBase: Number.isFinite(sublote.costoPorKg) ? sublote.costoPorKg : null,
+            pesoRestante: round2(entry.disponibleKg - asignado),
+            fechaEntrada: entry.sublote.fechaIngreso,
+            costoBase: Number.isFinite(entry.sublote.costoPorKg) ? entry.sublote.costoPorKg : null,
           });
           restante = round2(restante - asignado);
         });
@@ -807,7 +1031,7 @@ export function useVentas() {
     cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso, botonConfirmarPresionado, intentoPaso1, intentoPaso2,
     clienteMetodo, clienteSeleccionado, busquedaCliente, busquedaAplicada, clientes, clientesRecientes, clientesRecientesUsaSimilares, clienteForm, clienteFormErrors, clienteFormError, clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal, busquedaClientesModalDebounced, clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
     mostrarModal, mostrarModalClientes, mostrarModalConfirmar, mostrarModalCancelar, mostrarModalBorradorVenta, mostrarHistorialLotesVenta, mostrarDesgloseSublotesVenta, mostrarHistorialVentas,
-    modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion, lotesVenta, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta, tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen, mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares, preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId, ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, hayCantidadParcial, puedeAvanzarPaso2, ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente, historialVentaOrden, ventasRealizadas, ventasHistorialFiltradas, historialVentaClientes, borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida, precioTotalInvalido, sinInventario, parcialSinCantidad, parcialSinSeleccion,
-    siguiente, anterior, confirmar, reiniciar, cargarLotes, seleccionarCliente, buscarCliente, validarClienteForm, guardarCliente, updateLote, confirmarAjusteParcial, setModoVenta, setFechaVenta, setPaso, setClienteSeleccionado, setClienteMetodo, setBusquedaCliente, setBusquedaAplicada, setLotesVenta, setPreciosVentaTotal, setMostrarModal, setMostrarModalClientes, setMostrarModalConfirmar, setClienteForm, setClienteFormErrors, setClienteFormError, setClienteEditando, setClienteDetalle, setMostrarModalBorradorVenta, setBorradorVentaPendiente, continuarBorradorVenta, empezarVentaNuevaDesdeBorrador, mostrarAlertaVentaParcial, getVentaParcialCardAlert, mostrarAlertaTarjetaVentaParcial, mostrarAlertaRevision, editarLoteDesdeRevision, eliminarLoteDesdeRevision, setVentaParcialOpenId, confirmarCancelarVenta, setBusquedaCafeVenta, setTipoCafeFiltroVenta, setCalidadFiltroVenta, setTipoCafeFiltroOpen, setCalidadFiltroOpen, setMostrarTodosCafeVenta, setVentaParcialAlert, setVentaParcialCardAlerts, setAjustesVentaParcialConfirmados, setVentaFifoBreakdown, setBusquedaClientesModal, setClientesSortMode, setClientesSortDropdownOpen, setClienteDocumentoDropdownOpen, setSubmitError, setRegistroErrorMensaje, setGuardandoVenta, setBotonConfirmarPresionado, setFechaVentaPickerOpen, setIntentoPaso1, setIntentoPaso2, setVentaGuardada, setCargando, setLoadError, setMostrarHistorialVentas, setHistorialVentaFecha, setHistorialVentaFechaPickerOpen, setHistorialVentaCliente, setHistorialVentaOrden, setMostrarHistorialLotesVenta, setVentasRealizadas, setMostrarDesgloseSublotesVenta, setMostrarModalCancelar, setNombreMaxToast, revisionDeleteAlert, setRevisionDeleteAlert,
+    modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion, lotesVenta, bodegaConfig, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta, tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen, mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares, preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId, ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, hayCantidadParcial, puedeAvanzarPaso2, ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente, historialVentaOrden, ventasRealizadas, ventasHistorialFiltradas, historialVentaClientes, borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida, precioTotalInvalido, sinInventario, parcialSinCantidad, parcialSinSeleccion,
+    siguiente, anterior, confirmar, reiniciar, cargarLotes, seleccionarCliente, buscarCliente, validarClienteForm, guardarCliente, updateLote, confirmarAjusteParcial, cancelarAjusteParcial, setModoVenta, setFechaVenta, setPaso, setClienteSeleccionado, setClienteMetodo, setBusquedaCliente, setBusquedaAplicada, setLotesVenta, setPreciosVentaTotal, setMostrarModal, setMostrarModalClientes, setMostrarModalConfirmar, setClienteForm, setClienteFormErrors, setClienteFormError, setClienteEditando, setClienteDetalle, setMostrarModalBorradorVenta, setBorradorVentaPendiente, continuarBorradorVenta, empezarVentaNuevaDesdeBorrador, mostrarAlertaVentaParcial, getVentaParcialCardAlert, mostrarAlertaTarjetaVentaParcial, mostrarAlertaRevision, editarLoteDesdeRevision, eliminarLoteDesdeRevision, setVentaParcialOpenId, confirmarCancelarVenta, setBusquedaCafeVenta, setTipoCafeFiltroVenta, setCalidadFiltroVenta, setTipoCafeFiltroOpen, setCalidadFiltroOpen, setMostrarTodosCafeVenta, setVentaParcialAlert, setVentaParcialCardAlerts, setAjustesVentaParcialConfirmados, setVentaFifoBreakdown, setBusquedaClientesModal, setClientesSortMode, setClientesSortDropdownOpen, setClienteDocumentoDropdownOpen, setSubmitError, setRegistroErrorMensaje, setGuardandoVenta, setBotonConfirmarPresionado, setFechaVentaPickerOpen, setIntentoPaso1, setIntentoPaso2, setVentaGuardada, setCargando, setLoadError, setMostrarHistorialVentas, setHistorialVentaFecha, setHistorialVentaFechaPickerOpen, setHistorialVentaCliente, setHistorialVentaOrden, setMostrarHistorialLotesVenta, setVentasRealizadas, setMostrarDesgloseSublotesVenta, setMostrarModalCancelar, setNombreMaxToast, revisionDeleteAlert, setRevisionDeleteAlert,
   };
 }

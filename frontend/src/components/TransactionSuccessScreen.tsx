@@ -45,45 +45,47 @@ export function TransactionSuccessScreen({
       fullScreen
       className="max-h-none"
     >
-      <section className="rounded-[22px] border border-slate-200/80 bg-white p-4 text-left shadow-[0_14px_34px_rgba(15,23,42,0.06)]">
-        <p className="text-center text-[0.72rem] font-black uppercase tracking-[0.14em] text-emerald-700">
-          Todo quedó listo
-        </p>
-        <p className="mt-2 text-center text-sm font-semibold leading-5 text-slate-600">
-          {info}
-        </p>
+      <section className="rounded-[20px] border border-slate-200/85 bg-white p-3 text-left shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-emerald-700">
+            Resumen
+          </span>
+          <span className="text-[0.72rem] font-semibold text-slate-500">
+            {totalLabel}
+          </span>
+        </div>
 
-        <div className="mt-4 divide-y divide-slate-200/70 rounded-[16px] border border-slate-200/70 bg-white px-4">
+        <div className="space-y-2">
           {rows.map((row) => (
             <div
               key={row.label}
-              className="grid grid-cols-[3rem_1fr] items-center gap-2 py-3"
+              className="grid grid-cols-[2.5rem_1fr] items-center gap-2 rounded-[14px] bg-[#f7fbff] px-3 py-2"
             >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-sm font-black text-[#1d4ed8]">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-sm font-black text-[#1d4ed8]">
                 {row.icon}
               </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-black text-[#0f172a]">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-slate-900">
                   {row.label}
-                </span>
-                <span className="mt-1 block truncate text-sm font-medium leading-5 text-[#475569]">
+                </p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-slate-600">
                   {row.value}
-                </span>
-              </span>
+                </p>
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-3 rounded-[18px] border border-[#d8e3f7] bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-4 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-          <span className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-[#38557f]">
+        <div className="mt-3 rounded-[16px] bg-[#eef4ff] px-3 py-3 text-center">
+          <p className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[#375a9c]">
             {totalLabel}
-          </span>
-          <p className="mt-1 break-words text-[clamp(1.65rem,7vw,2.05rem)] font-black leading-tight text-[#173a8a]">
+          </p>
+          <p className="mt-1 text-lg font-black leading-tight text-[#0f172a]">
             {totalValue}
           </p>
         </div>
 
-        {capacityNotice ? <div className="mt-3">{capacityNotice}</div> : null}
+        {capacityNotice ? <div className="mt-3 text-sm">{capacityNotice}</div> : null}
       </section>
     </CafeSmartErrorState>
   );

@@ -11,6 +11,7 @@ import {
   setCachedOrganizationId,
 } from '../common/request-context';
 import { apiError } from '../common/errors/api-error';
+import { generarCodigoLote, generarPrefijoCodigo } from '../common/codigo-lote.util';
 import { CreateVentaDto } from './dto/crear-venta.dto';
 import {
   buscarVentaActivaPorSync,
@@ -63,14 +64,91 @@ export class VentasService {
         },
         detalles: {
           where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
           select: {
+            id: true,
+            subloteId: true,
             pesoVendido: true,
             precioKg: true,
             subtotal: true,
+            codigoSublote: true,
+            tipoCafeSnapshot: true,
+            calidadSnapshot: true,
+            precioCompraKg: true,
+            fechaIngresoSublote: true,
+            inventarioRestante: true,
+            createdAt: true,
+            sublote: {
+              select: {
+                id: true,
+                precioKg: true,
+                pesoActual: true,
+                creadoEn: true,
+                compra: {
+                  select: {
+                    fecha: true,
+                  },
+                },
+                tipoCafe: {
+                  select: {
+                    nombre: true,
+                  },
+                },
+                calidad: {
+                  select: {
+                    nombre: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
+
+    const subloteIds = [
+      ...new Set(
+        ventas.flatMap((venta) =>
+          venta.detalles.map((detalle) => detalle.subloteId),
+        ),
+      ),
+    ];
+    const sublotesOrganizacion = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        id: true,
+        creadoEn: true,
+        compra: { select: { fecha: true } },
+        tipoCafe: { select: { nombre: true } },
+        calidad: { select: { nombre: true } },
+      },
+    });
+    const codigoPorSublote = this.generarMapaCodigosSublote(sublotesOrganizacion);
+    const detallesPosteriores =
+      subloteIds.length > 0
+        ? await this.prisma.ventaDetalle.findMany({
+            where: {
+              deletedAt: null,
+              subloteId: { in: subloteIds },
+              venta: {
+                organizacionId,
+                deletedAt: null,
+              },
+            },
+            select: {
+              id: true,
+              subloteId: true,
+              pesoVendido: true,
+              createdAt: true,
+            },
+          })
+        : [];
 
     const totalAcumulado = ventas.reduce(
       (total, venta) => total + Number(venta.totalVenta),
@@ -89,11 +167,64 @@ export class VentasService {
           (total, detalle) => total + Number(detalle.pesoVendido),
           0,
         ),
-        detalles: venta.detalles.map((detalle) => ({
-          pesoVendido: Number(detalle.pesoVendido),
-          precioKg: Number(detalle.precioKg),
-          subtotal: Number(detalle.subtotal),
-        })),
+        detalles: venta.detalles.map((detalle, index) => {
+          const vendidoDespues = detallesPosteriores.reduce((total, item) => {
+            if (item.subloteId !== detalle.subloteId) return total;
+            if (item.id === detalle.id) return total;
+            if (item.createdAt <= detalle.createdAt) return total;
+            return total + Number(item.pesoVendido);
+          }, 0);
+          return {
+            subloteId: detalle.subloteId,
+            subloteCodigo:
+              detalle.codigoSublote ??
+              codigoPorSublote.get(detalle.subloteId) ??
+              `SUB-${String(index + 1).padStart(2, '0')}`,
+            tipoCafe: detalle.tipoCafeSnapshot ?? detalle.sublote.tipoCafe.nombre,
+            calidad: detalle.calidadSnapshot ?? detalle.sublote.calidad.nombre,
+            fechaIngreso:
+              detalle.fechaIngresoSublote?.toISOString() ??
+              detalle.sublote.compra.fecha.toISOString(),
+            pesoVendido: Number(detalle.pesoVendido),
+            precioKg: Number(detalle.precioKg),
+            precioCompra: Number(detalle.precioCompraKg ?? detalle.sublote.precioKg),
+            subtotal: Number(detalle.subtotal),
+            ventaNumero: index + 1,
+            pesoRestante:
+              detalle.inventarioRestante !== null &&
+              detalle.inventarioRestante !== undefined
+                ? Number(detalle.inventarioRestante)
+                : Number(detalle.sublote.pesoActual) + vendidoDespues,
+          };
+        }),
+        detallesSublotes: venta.detalles.map((detalle, index) => {
+          const vendidoDespues = detallesPosteriores.reduce((total, item) => {
+            if (item.subloteId !== detalle.subloteId) return total;
+            if (item.id === detalle.id) return total;
+            if (item.createdAt <= detalle.createdAt) return total;
+            return total + Number(item.pesoVendido);
+          }, 0);
+          return {
+            subloteId: detalle.subloteId,
+            codigoSublote:
+              detalle.codigoSublote ??
+              codigoPorSublote.get(detalle.subloteId) ??
+              `SUB-${String(index + 1).padStart(2, '0')}`,
+            tipoCafe: detalle.tipoCafeSnapshot ?? detalle.sublote.tipoCafe.nombre,
+            calidad: detalle.calidadSnapshot ?? detalle.sublote.calidad.nombre,
+            kilosVendidos: Number(detalle.pesoVendido),
+            precioVentaKg: Number(detalle.precioKg),
+            precioCompraKg: Number(detalle.precioCompraKg ?? detalle.sublote.precioKg),
+            fechaIngreso:
+              detalle.fechaIngresoSublote?.toISOString() ??
+              detalle.sublote.compra.fecha.toISOString(),
+            inventarioRestante:
+              detalle.inventarioRestante !== null &&
+              detalle.inventarioRestante !== undefined
+                ? Number(detalle.inventarioRestante)
+                : Number(detalle.sublote.pesoActual) + vendidoDespues,
+          };
+        }),
       })),
     };
   }
@@ -318,5 +449,56 @@ export class VentasService {
       take: safeLimit,
       skip: (safePage - 1) * safeLimit,
     };
+  }
+
+  private generarMapaCodigosSublote(
+    sublotes: Array<{
+      id: string;
+      creadoEn: Date;
+      compra: { fecha: Date };
+      tipoCafe: { nombre: string };
+      calidad: { nombre: string };
+    }>,
+  ): Map<string, string> {
+    const counters = new Map<string, number>();
+    const codigos = new Map<string, string>();
+
+    [...sublotes]
+      .sort((a, b) => {
+        const prefixCompare = generarPrefijoCodigo(
+          a.tipoCafe.nombre,
+          a.calidad.nombre,
+        ).localeCompare(
+          generarPrefijoCodigo(b.tipoCafe.nombre, b.calidad.nombre),
+        );
+        if (prefixCompare !== 0) return prefixCompare;
+
+        const fechaCompare =
+          a.compra.fecha.getTime() - b.compra.fecha.getTime();
+        if (fechaCompare !== 0) return fechaCompare;
+
+        const creadoCompare = a.creadoEn.getTime() - b.creadoEn.getTime();
+        if (creadoCompare !== 0) return creadoCompare;
+
+        return a.id.localeCompare(b.id);
+      })
+      .forEach((sublote) => {
+        const prefijo = generarPrefijoCodigo(
+          sublote.tipoCafe.nombre,
+          sublote.calidad.nombre,
+        );
+        const secuencia = (counters.get(prefijo) ?? 0) + 1;
+        counters.set(prefijo, secuencia);
+        codigos.set(
+          sublote.id,
+          generarCodigoLote(
+            sublote.tipoCafe.nombre,
+            sublote.calidad.nombre,
+            secuencia,
+          ),
+        );
+      });
+
+    return codigos;
   }
 }

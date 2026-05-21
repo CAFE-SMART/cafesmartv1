@@ -5,6 +5,7 @@ interface ModalConfirmacionVentaProps {
   mostrar: boolean;
   guardando: boolean;
   presionado: boolean;
+  fifoNotice?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -13,6 +14,7 @@ export function ModalConfirmacionVenta({
   mostrar,
   guardando,
   presionado,
+  fifoNotice,
   onConfirm,
   onCancel,
 }: ModalConfirmacionVentaProps) {
@@ -31,6 +33,11 @@ export function ModalConfirmacionVenta({
         <p className="mt-3 text-base leading-6 text-slate-500">
           Se registrará esta venta y se descontará del inventario.
         </p>
+        {fifoNotice ? (
+          <p className="mt-4 rounded-[14px] border border-[#cfe0ff] bg-[#f4f8ff] px-4 py-3 text-sm font-black leading-5 text-[#102d92]">
+            {fifoNotice}
+          </p>
+        ) : null}
 
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button

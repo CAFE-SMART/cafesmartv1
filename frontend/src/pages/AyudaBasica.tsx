@@ -25,6 +25,11 @@ const helpItems = [
     description:
       'Verifica el tipo de café, la calidad y si el sublote ya fue usado en venta o secado.',
   },
+  {
+    title: '¿Cuándo se libera espacio en bodega?',
+    description:
+      'El espacio se libera cuando registras una venta, finalizas un secado o cancelas un proceso de secado que devuelve café verde al inventario. También puedes ampliar la capacidad desde Ajustes.',
+  },
 ] as const;
 
 export default function AyudaBasica() {

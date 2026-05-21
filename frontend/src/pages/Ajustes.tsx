@@ -1517,8 +1517,8 @@ export default function Ajustes() {
     },
     {
       id: 'capacidad-bodega',
-      title: 'Capacidad de bodega',
-      description: 'Límites de almacenamiento',
+      title: 'Bodega',
+      description: 'Espacio de bodega',
       icon: Warehouse,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
@@ -1536,7 +1536,7 @@ export default function Ajustes() {
     {
       id: 'contacto-soporte',
       title: 'Soporte',
-      description: 'Ayuda, dudas y reportes',
+      description: 'Ayuda y reportes',
       icon: LifeBuoy,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
       staticOnly: false,

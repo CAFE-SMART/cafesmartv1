@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Coffee,
+  Eye,
   History,
   IdCard,
   LoaderCircle,
@@ -24,6 +25,7 @@ import {
   ShoppingCart,
   Trash2,
   User,
+  Warehouse,
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../../components/AppBottomNav';
@@ -48,6 +50,7 @@ import { CafeSmartErrorState } from '../../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
 import { fuzzySearch } from '../../utils/fuzzySearch';
+import { formatCoffeeFullName, getCoffeeCodePrefix } from '../../utils/coffeeCodes';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -98,12 +101,210 @@ type LoteVenta = {
   precioKg: string;
   pesoVerificadoKg: string;
 };
+
+function getBodegaVentaTone(ocupacion: number) {
+  if (ocupacion >= 100) {
+    return {
+      badge: '🔴 CRÍTICA',
+      border: 'border-rose-200',
+      bg: 'bg-rose-50',
+      badgeClass: 'bg-rose-100 text-rose-800',
+      text: 'text-rose-800',
+      bar: 'bg-rose-500',
+      track: 'bg-rose-100',
+      icon: 'bg-white text-rose-700',
+    };
+  }
+  if (ocupacion >= 90) {
+    return {
+      badge: '🟠 CASI LLENA',
+      border: 'border-orange-200',
+      bg: 'bg-orange-50',
+      badgeClass: 'bg-orange-100 text-orange-800',
+      text: 'text-orange-800',
+      bar: 'bg-orange-400',
+      track: 'bg-orange-100',
+      icon: 'bg-white text-orange-700',
+    };
+  }
+  if (ocupacion >= 70) {
+    return {
+      badge: '🟡 MEDIA',
+      border: 'border-amber-200',
+      bg: 'bg-amber-50',
+      badgeClass: 'bg-amber-100 text-amber-800',
+      text: 'text-amber-800',
+      bar: 'bg-amber-400',
+      track: 'bg-amber-100',
+      icon: 'bg-white text-amber-700',
+    };
+  }
+  return {
+    badge: '🔵 DISPONIBLE',
+    border: 'border-sky-200',
+    bg: 'bg-sky-50',
+    badgeClass: 'bg-sky-100 text-sky-800',
+    text: 'text-sky-800',
+    bar: 'bg-sky-500',
+    track: 'bg-sky-100',
+    icon: 'bg-white text-sky-700',
+  };
+}
+
+function BodegaVentaInfoContent({
+  capacidadKg,
+  inventarioKg,
+  ventaKg,
+}: {
+  capacidadKg: number | null | undefined;
+  inventarioKg: number;
+  ventaKg: number;
+}) {
+  if (!capacidadKg || !Number.isFinite(capacidadKg) || capacidadKg <= 0) {
+    return null;
+  }
+
+  const inventarioActual = Math.max(0, inventarioKg);
+  const liberadoKg = Math.max(0, ventaKg);
+  const inventarioDespues = Math.max(0, inventarioActual - liberadoKg);
+  const libreActual = Math.max(0, capacidadKg - inventarioActual);
+  const libreDespues = Math.max(0, capacidadKg - inventarioDespues);
+  const ocupacionActual = Math.min(100, Math.max(0, (inventarioActual / capacidadKg) * 100));
+  const ocupacionDespues = Math.min(100, Math.max(0, (inventarioDespues / capacidadKg) * 100));
+  const tone = getBodegaVentaTone(ocupacionActual);
+  const liberaMucho = liberadoKg >= Math.max(25, capacidadKg * 0.05);
+
+  return (
+    <div className="space-y-3" aria-live="polite">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-[0.65rem] font-black ${tone.badgeClass}`}>
+            {tone.badge}
+          </span>
+          <p className="mt-3 text-[0.72rem] font-black uppercase tracking-[0.1em] text-slate-500">
+            Espacio disponible
+          </p>
+          <p className={`mt-1 text-[1.55rem] font-black leading-tight ${tone.text}`}>
+            {kg(libreActual)} libres
+          </p>
+        </div>
+        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] shadow-sm ${tone.icon}`}>
+          <Warehouse size={21} />
+        </span>
+      </div>
+
+      <div className={`mt-3 h-3 overflow-hidden rounded-full ${tone.track}`}>
+        <div
+          className={`h-full rounded-full transition-all duration-500 ease-out ${tone.bar}`}
+          style={{ width: `${ocupacionActual}%` }}
+        />
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+        <span className="font-semibold text-slate-600">Disponible después:</span>
+        <span className={`whitespace-nowrap text-base font-black ${tone.text}`}>
+          {kg(libreDespues)}
+        </span>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+        <span>Ocupación después</span>
+        <span>{Math.round(ocupacionDespues)}%</span>
+      </div>
+
+      {ventaKg > 0 ? (
+        <AppFeedbackMessage
+          variant={liberaMucho ? 'success' : 'warning'}
+          title={
+            liberaMucho
+              ? 'La venta ayudará a liberar espacio en bodega.'
+              : 'La capacidad seguirá alta después de esta venta.'
+          }
+          className="mt-1"
+          autoClose
+          duration={liberaMucho ? 2600 : 4000}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function BodegaVentaInfoModal({
+  open,
+  onClose,
+  capacidadKg,
+  inventarioKg,
+  ventaKg,
+}: {
+  open: boolean;
+  onClose: () => void;
+  capacidadKg: number | null | undefined;
+  inventarioKg: number;
+  ventaKg: number;
+}) {
+  if (!open || !capacidadKg || !Number.isFinite(capacidadKg) || capacidadKg <= 0) {
+    return null;
+  }
+
+  const ocupacionActual = Math.min(
+    100,
+    Math.max(0, (Math.max(0, inventarioKg) / capacidadKg) * 100),
+  );
+  const tone = getBodegaVentaTone(ocupacionActual);
+
+  return (
+    <div
+      className="fixed inset-0 z-[95] flex items-end justify-center bg-slate-950/45 px-3 pb-4 pt-4 backdrop-blur-sm sm:items-center"
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="venta-bodega-info-title"
+        className={`w-full max-w-[360px] rounded-[22px] border p-4 shadow-[0_28px_70px_rgba(15,23,42,0.28)] ${tone.border} ${tone.bg}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">
+              Bodega
+            </p>
+            <h2 id="venta-bodega-info-title" className="mt-1 text-lg font-black leading-tight text-slate-950">
+              Espacio disponible
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar información de bodega"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-500 transition hover:bg-white hover:text-slate-800"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <BodegaVentaInfoContent
+            capacidadKg={capacidadKg}
+            inventarioKg={inventarioKg}
+            ventaKg={ventaKg}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
 type VentaFifoItem = {
   groupId: string;
   subloteId: string;
+  subloteCodigo: string;
   subloteNombre: string;
+  tipoCafe: string;
+  calidad: string;
+  nombreCafe: string;
   fifoPosition: number;
   pesoAsignado: number;
+  pesoRestante: number;
   fechaEntrada: string;
   costoBase: number | null;
 };
@@ -368,7 +569,7 @@ function SalesDatePicker({
         aria-haspopup="dialog"
         {...ariaExpanded(open)}
         onClick={onToggle}
-        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
+        className={`flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
           open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
         }`}
       >
@@ -1465,6 +1666,7 @@ function NoInventorySalesScreen({
 export default function Ventas() {
   const navigate = useNavigate();
   const nombreMaxToastTimerRef = React.useRef<number | null>(null);
+  const [showBodegaVentaInfo, setShowBodegaVentaInfo] = React.useState(false);
   const ventas = useVentas() as any;
   const {
     cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso,
@@ -1475,7 +1677,7 @@ export default function Ventas() {
     mostrarModal, mostrarModalClientes, mostrarModalConfirmar, mostrarModalCancelar,
     mostrarModalBorradorVenta, mostrarHistorialLotesVenta, mostrarDesgloseSublotesVenta,
     mostrarHistorialVentas, modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion,
-    lotesVenta, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta,
+    lotesVenta, bodegaConfig, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta,
     tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen,
     mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares,
     preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId,
@@ -1485,7 +1687,7 @@ export default function Ventas() {
     borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida,
     precioTotalInvalido, sinInventario, parcialSinSeleccion, revisionDeleteAlert,
     anterior: volverPasoAnterior, siguiente, confirmar, reiniciar, cargarLotes, seleccionarCliente, buscarCliente, validarPasoVenta,
-    guardarCliente, updateLote, confirmarAjusteParcial, continuarBorradorVenta,
+    guardarCliente, updateLote, confirmarAjusteParcial, cancelarAjusteParcial, continuarBorradorVenta,
     empezarVentaNuevaDesdeBorrador, getVentaParcialCardAlert, editarLoteDesdeRevision,
     eliminarLoteDesdeRevision, confirmarCancelarVenta,
     setModoVenta, setFechaVenta, setPaso, setClienteSeleccionado, setClienteMetodo,
@@ -1503,6 +1705,8 @@ export default function Ventas() {
     setMostrarDesgloseSublotesVenta, setMostrarModalCancelar, setNombreMaxToast,
     setRevisionDeleteAlert,
   } = ventas;
+  const [ventasTecnicasAbiertas, setVentasTecnicasAbiertas] = React.useState<Record<string, boolean>>({});
+  const [showDetails, setShowDetails] = React.useState(false);
 
   const volverDesdeEncabezado = React.useCallback(() => {
     if (paso > 1) {
@@ -1560,6 +1764,62 @@ export default function Ventas() {
     },
     [setPreciosVentaTotal, setSubmitError],
   );
+
+  const ventaHistorialItems = React.useMemo(() => {
+    const lotesPorId = new Map(lotesConCantidad.map((lote: any) => [lote.id, lote]));
+
+    if (ventaFifoBreakdown.length > 0) {
+      return ventaFifoBreakdown.map((item: any, index: number) => {
+        const lote = lotesPorId.get(item.groupId);
+        const precioVenta = Number(lote?.precio ?? 0);
+        const peso = Number(item.pesoAsignado ?? 0);
+        const precioCompra =
+          item.precioCompra ??
+          item.precio_compra ??
+          item.costoBase ??
+          item.sublote?.precioCompra ??
+          item.sublote?.precio_compra ??
+          null;
+        const fechaIngreso =
+          item.fechaIngreso ??
+          item.fecha_ingreso ??
+          item.fechaEntrada ??
+          item.sublote?.fechaIngreso ??
+          item.sublote?.fecha_ingreso ??
+          null;
+        const restante =
+          item.restante ??
+          item.pesoRestante ??
+          item.peso_restante ??
+          item.sublote?.pesoDisponible ??
+          item.sublote?.peso_disponible ??
+          null;
+        return {
+          id: `${item.groupId}-${item.subloteId}-${index}`,
+          groupId: item.groupId,
+          code: item.subloteCodigo ?? item.subloteNombre ?? `Sublote ${index + 1}`,
+          peso,
+          total: precioVenta > 0 ? peso * precioVenta : 0,
+          precioCompra,
+          fechaIngreso,
+          restante,
+          canDelete: lotesConCantidad.length > 1,
+        };
+      });
+    }
+
+    return lotesConCantidad.map((lote: any) => ({
+      id: lote.id,
+      groupId: lote.id,
+      code: lote.codigo || [lote.tipoCafe, lote.calidad].filter(Boolean).join(' '),
+      peso: Number(lote.cantidad ?? 0),
+      total: Number(lote.cantidad ?? 0) * Number(lote.precio ?? 0),
+      precioCompra: null,
+      fechaIngreso: null,
+      restante: null,
+      canDelete: lotesConCantidad.length > 1,
+    }));
+  }, [lotesConCantidad, ventaFifoBreakdown]);
 
   const validarPasoVentaSeguro = React.useCallback(() => {
     if (typeof validarPasoVenta === 'function') {
@@ -1626,6 +1886,17 @@ export default function Ventas() {
           primaryLabel="Registrar otra venta"
           onPrimary={reiniciar}
           onHome={() => navigate('/inicio')}
+          capacityNotice={
+            ventasRealizadas.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setMostrarHistorialVentas(true)}
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
+              >
+                Ver historial de ventas
+              </button>
+            ) : null
+          }
           rows={[
             {
               icon: '1',
@@ -1639,7 +1910,7 @@ export default function Ventas() {
             },
           ]}
         />
-        {false && mostrarHistorialVentas ? (
+        {mostrarHistorialVentas ? (
           <div
             className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
             role="presentation"
@@ -1750,49 +2021,96 @@ export default function Ventas() {
                       : 'Aún no hay ventas registradas.'}
                   </div>
                 ) : null}
-                {ventasHistorialFiltradas.map((venta) => (
+                {ventasHistorialFiltradas.map((venta) => {
+                  const detallesAbiertos = Boolean(ventasTecnicasAbiertas[venta.referenciaId]);
+                  const cafesVendidos = [
+                    ...new Set(
+                      (venta.items?.length
+                        ? venta.items.map((item) => [item.tipoCafe, item.calidad].filter(Boolean).join(' '))
+                        : venta.fifoBreakdown?.map((item) => item.nombreCafe || [item.tipoCafe, item.calidad].filter(Boolean).join(' ')) ?? []
+                      ).filter(Boolean),
+                    ),
+                  ].join(', ');
+
+                  return (
                   <article
                     key={venta.referenciaId}
-                    className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                    className="rounded-[18px] border border-[#e2e8f4] bg-white px-4 py-3 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[0.68rem] font-black uppercase tracking-[0.11em] text-[#52657d]">
-                          Venta del {formatDateLabel(venta.fecha)}
-                        </p>
-                        <p className="mt-0.5 text-sm font-black text-slate-950">
+                        <p className="text-sm font-black text-slate-950">
                           {venta.clienteNombre}
                         </p>
-                        <p className="mt-1 text-sm font-black text-[#173ea6]">
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {formatDateLabel(venta.fecha)} · {kg(venta.totalKg)}
+                        </p>
+                        {cafesVendidos ? (
+                          <p className="mt-1 text-xs font-bold text-slate-500">
+                            {cafesVendidos}
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-base font-black text-[#173ea6]">
                           {money(venta.totalVenta)}
                         </p>
                       </div>
-                      <div className="flex shrink-0 gap-1.5">
+                      <div className="flex shrink-0 flex-col items-end gap-2">
                         <button
                           type="button"
-                          aria-label="Editar venta"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#eef4ff] text-[#173ea6]"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Eliminar venta"
                           onClick={() =>
-                            setVentasRealizadas((actual) =>
-                              actual.filter(
-                                (item) => item.referenciaId !== venta.referenciaId,
-                              ),
-                            )
+                            setVentasTecnicasAbiertas((actual) => ({
+                              ...actual,
+                              [venta.referenciaId]: !detallesAbiertos,
+                            }))
                           }
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
+                          className="inline-flex min-h-[34px] items-center justify-center rounded-[11px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#173ea6] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fbff]"
                         >
-                          <Trash2 size={14} />
+                          {detallesAbiertos ? 'Ocultar detalles' : 'Ver detalles'}
                         </button>
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[0.65rem] font-black uppercase text-emerald-700">
+                          Registrada
+                        </span>
                       </div>
                     </div>
+                    {venta.fifoBreakdown?.length ? (
+                      detallesAbiertos ? (
+                        <div className="mt-4 space-y-2 rounded-[14px] border border-[#e3ebff] bg-[#f8fbff] px-3 py-3">
+                          <p className="text-xs font-black uppercase tracking-[0.1em] text-[#102d92]">
+                            Detalle de sublotes usados
+                          </p>
+                          {venta.fifoBreakdown.map((item, index) => (
+                            <article
+                              key={`${venta.referenciaId}-${item.groupId}-${item.subloteId}`}
+                              className="rounded-[12px] border border-[#e6ebf5] bg-white px-3 py-2"
+                            >
+                              <p className="text-sm font-black text-[#102d92]">
+                                {item.subloteCodigo ?? item.subloteNombre}
+                                {item.nombreCafe || item.tipoCafe || item.calidad ? (
+                                  <span className="text-slate-500"> · {item.nombreCafe || [item.tipoCafe, item.calidad].filter(Boolean).join(' ')}</span>
+                                ) : null}
+                              </p>
+                              <p className="mt-1 text-xs font-bold text-slate-700">
+                                {kg(item.pesoAsignado)} vendidos · venta #{index + 1}
+                              </p>
+                              <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                                Ingreso: {formatDateLabel(item.fechaEntrada)}
+                              </p>
+                              <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                                Inventario restante: {kg(item.pesoRestante)}
+                              </p>
+                              {index === 0 ? (
+                                <p className="mt-0.5 text-xs font-black text-slate-500">
+                                  Más antiguo
+                                </p>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      ) : null
+                    ) : null}
                   </article>
-                ))}
+                );
+                })}
               </div>
             </section>
           </div>
@@ -1873,10 +2191,10 @@ export default function Ventas() {
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-medium text-slate-500">
-                  Seleccionar cafe
+   
                 </p>
                 <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  Como deseas realizar la venta?
+                  ¿Como deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
@@ -1892,21 +2210,25 @@ export default function Ventas() {
                 </div>
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
-                    Fecha de venta
-                  </p>
-                  <SalesDatePicker
-                    value={fechaVenta}
-                    min={BUSINESS_MIN_DATE_VALUE}
-                    max={getTodayLocalDateValue()}
-                    open={fechaVentaPickerOpen}
-                    onToggle={() => setFechaVentaPickerOpen((open) => !open)}
-                    onClose={() => setFechaVentaPickerOpen(false)}
-                    onChange={(value) => {
-                      setFechaVenta(value || getTodayLocalDateValue());
-                      setSubmitError(null);
-                    }}
-                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs font-medium text-slate-500">
+                      Fecha de venta
+                    </span>
+                    <div className="min-w-0 flex-1 sm:max-w-[55%]">
+                      <SalesDatePicker
+                        value={fechaVenta}
+                        min={BUSINESS_MIN_DATE_VALUE}
+                        max={getTodayLocalDateValue()}
+                        open={fechaVentaPickerOpen}
+                        onToggle={() => setFechaVentaPickerOpen((open) => !open)}
+                        onClose={() => setFechaVentaPickerOpen(false)}
+                        onChange={(value) => {
+                          setFechaVenta(value || getTodayLocalDateValue());
+                          setSubmitError(null);
+                        }}
+                      />
+                    </div>
+                  </div>
                   {fechaVentaInvalida ? (
                     <InlineGuidedError
                       message={getVentasGuidance(
@@ -1924,6 +2246,7 @@ export default function Ventas() {
                     onClick={() => {
                       setModoVenta('PARCIAL');
                       setIntentoPaso2(false);
+                      setSubmitError(null);
                     }}
                     disabled={sinInventario}
                     className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
@@ -1949,6 +2272,7 @@ export default function Ventas() {
                     onClick={() => {
                       setModoVenta('TOTAL');
                       setIntentoPaso2(false);
+                      setSubmitError(null);
                     }}
                     disabled={sinInventario}
                     className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
@@ -1985,7 +2309,6 @@ export default function Ventas() {
                     className="mt-2"
                   />
                 ) : null}
-
                 {modoVenta === 'TOTAL' ? (
                   <div className="mt-6 space-y-4">
                     <div className="text-center">
@@ -2115,9 +2438,21 @@ export default function Ventas() {
                 {modoVenta === 'PARCIAL' ? (
                   <div className="mt-5 space-y-3">
                     <div className="space-y-2 rounded-[18px] border border-[#dfe6f4] bg-[#f8faff] p-3">
-                      <p className="rounded-[12px] bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-600">
-                        Completa cantidad y precio, luego confirma el ajuste para agregarlo a la venta.
-                      </p>
+                      <div className="flex items-center gap-2 rounded-[12px] bg-white px-3 py-2">
+                        <p className="min-w-0 flex-1 text-xs font-bold leading-5 text-slate-600">
+                          Completa cantidad y precio, luego confirma el ajuste para agregarlo a la venta.
+                        </p>
+                        {bodegaConfig?.capacidadKg ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowBodegaVentaInfo(true)}
+                            aria-label="Ver espacio disponible en bodega"
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 active:scale-95"
+                          >
+                            <Warehouse size={18} />
+                          </button>
+                        ) : null}
+                      </div>
                       <label className="relative block">
                         <Search
                           size={16}
@@ -2209,8 +2544,7 @@ export default function Ventas() {
                       const alertaTarjeta = ventaParcialCardAlerts[lote.id];
                       const ajustePendiente =
                         !ajustesVentaParcialConfirmados[lote.id] &&
-                        (lote.cantidadKg.trim() !== '' ||
-                          lote.precioKg.trim() !== '');
+                        toNum(lote.cantidadKg) > 0;
 
                       return (
                         <article
@@ -2220,7 +2554,7 @@ export default function Ventas() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-base font-black uppercase text-[#102d92]">
-                                {lote.tipoCafe} {lote.calidad}
+                                {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)}
                               </p>
                               <p className="text-sm font-semibold text-slate-600">
                                 Disponible: {kg(disponibleVenta)}
@@ -2334,7 +2668,7 @@ export default function Ventas() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setVentaParcialOpenId(null)}
+                                  onClick={() => cancelarAjusteParcial(lote.id)}
                                   className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white text-sm font-black text-[#334b85]"
                                 >
                                   Cancelar
@@ -2389,10 +2723,23 @@ export default function Ventas() {
                 {submitError && paso === 2 && modoVenta === 'PARCIAL' ? (
                   <AppFeedbackMessage
                     variant="warning"
-                    description="Revisa los cambios y confirma el ajuste."
+                    title={
+                      submitError === 'Todavía hay cafés sin confirmar.'
+                        ? 'Todavía hay cafés sin confirmar.'
+                        : 'Revisa este ajuste.'
+                    }
+                    description={
+                      submitError === 'Todavía hay cafés sin confirmar.'
+                        ? 'Confirma o cancela únicamente los cafés marcados antes de continuar.'
+                        : submitError
+                    }
                     className="mt-4"
-                  />
-                ) : submitError && paso === 2 ? (
+                  >
+                    {submitError !== 'Todavía hay cafés sin confirmar.' ? (
+                      <InlineGuidedError message={getVentasGuidance(submitError)} />
+                    ) : null}
+                  </AppFeedbackMessage>
+                ) : submitError && paso === 2 && !modoInvalido ? (
                   <AppFeedbackMessage
                     variant="error"
                     title="No pudimos continuar con la venta"
@@ -2730,10 +3077,10 @@ export default function Ventas() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold text-slate-900">
-                              {lote.codigo}
+                              {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)}
                             </p>
                             <p className="text-xs text-slate-600">
-                              {lote.tipoCafe} — {lote.calidad}
+                              {lote.codigo}
                             </p>
                             <p className="mt-1 text-sm font-semibold text-[#102d92]">
                               {kg(lote.cantidad)} ·{' '}
@@ -2767,7 +3114,7 @@ export default function Ventas() {
                     ))}
                   </div>
                 ) : null}
-                {false && lotesConCantidad.length > 2 ? (
+                {lotesConCantidad.length > 2 ? (
                   <button
                     type="button"
                     onClick={() => setMostrarHistorialLotesVenta(true)}
@@ -2778,13 +3125,13 @@ export default function Ventas() {
                   </button>
                 ) : null}
 
-                {false && ventaFifoBreakdown.length > 1 ? (
+                {ventaFifoBreakdown.length > 0 ? (
                   <button
                     type="button"
                     onClick={() => setMostrarDesgloseSublotesVenta(true)}
                     className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
                   >
-                    Ver desglose de sublotes
+                    Ver detalle de sublotes
                     <ArrowRight size={15} />
                   </button>
                 ) : null}
@@ -2946,7 +3293,7 @@ export default function Ventas() {
                   Venta parcial
                 </p>
                 <h2 id="desglose-sublotes-venta-title" className="mt-1 text-lg font-black text-slate-950">
-                  Desglose de sublotes
+                  Detalle de sublotes usados
                 </h2>
               </div>
               <button
@@ -2966,14 +3313,17 @@ export default function Ventas() {
                   className="rounded-[16px] border border-[#e6ebf5] bg-[#f8fbff] px-3 py-3"
                 >
                   <p className="text-sm font-black text-[#102d92]">
-                    Sublote {index + 1}
+                    {item.subloteCodigo ?? item.subloteNombre} · {item.nombreCafe || [item.tipoCafe, item.calidad].filter(Boolean).join(' ') || item.subloteNombre}
                   </p>
                   <p className="mt-1 text-sm font-semibold text-slate-700">
-                    {kg(item.pesoAsignado)} asignados · Entrada:{' '}
+                    {kg(item.pesoAsignado)} vendidos · Ingreso:{' '}
                     {formatDateLabel(item.fechaEntrada)}
                   </p>
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                    {item.subloteNombre}
+                    Inventario restante: {kg(item.pesoRestante)}
+                  </p>
+                  <p className="mt-0.5 text-xs font-bold text-slate-500">
+                    venta #{index + 1}{index === 0 ? ' · Más antiguo' : ''}
                   </p>
                   {item.costoBase !== null ? (
                     <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -3008,38 +3358,51 @@ export default function Ventas() {
                     Historial completo de la venta
                   </h2>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    {lotesConCantidad.length} registros · {kg(totalKg)} · {money(totalEstimado)}
+                    {ventaHistorialItems.length} registros · {kg(totalKg)} · {money(totalEstimado)}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMostrarHistorialLotesVenta(false)}
+                  onClick={() => {
+                    setShowDetails(false);
+                    setMostrarHistorialLotesVenta(false);
+                  }}
                   aria-label="Cerrar historial de la venta"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 >
                   <X size={18} />
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowDetails((prev) => !prev)}
+                aria-expanded={showDetails}
+                aria-label={showDetails ? 'Ocultar detalles de sublotes' : 'Ver detalles de sublotes'}
+                className="mt-3 inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-[11px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#173ea6] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fbff]"
+              >
+                <Eye size={14} />
+                {showDetails ? 'Ocultar detalles' : 'Ver detalles'}
+              </button>
             </header>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
-              {lotesConCantidad.map((lote) => (
+              {ventaHistorialItems.map((item: any) => (
                 <article
-                  key={lote.id}
+                  key={item.id}
                   className="rounded-[18px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-black text-slate-950">
-                        {lote.tipoCafe} — {lote.calidad}
+                        {item.code}
                       </p>
                       <p className="mt-1 text-sm font-bold text-slate-600">
-                        {kg(lote.cantidad)} · {money(lote.cantidad * lote.precio)}
+                        {kg(item.peso)} · {money(item.total)}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button
                         type="button"
-                        aria-label={`Editar ${lote.codigo}`}
+                        aria-label={`Editar ${item.code}`}
                         onClick={() => {
                           setMostrarHistorialLotesVenta(false);
                           editarLoteDesdeRevision();
@@ -3048,11 +3411,11 @@ export default function Ventas() {
                       >
                         <Pencil size={14} />
                       </button>
-                      {lotesConCantidad.length > 1 ? (
+                      {item.canDelete ? (
                         <button
                           type="button"
-                          aria-label={`Eliminar ${lote.codigo}`}
-                          onClick={() => eliminarLoteDesdeRevision(lote.id)}
+                          aria-label={`Eliminar ${item.code}`}
+                          onClick={() => eliminarLoteDesdeRevision(item.groupId)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
                         >
                           <Trash2 size={14} />
@@ -3060,6 +3423,32 @@ export default function Ventas() {
                       ) : null}
                     </div>
                   </div>
+                  {showDetails ? (
+                    <div className="mt-3 space-y-1 text-xs font-semibold leading-5 text-slate-600">
+                      <p>
+                        Precio compra:{' '}
+                        <span className="font-black text-slate-800">
+                          {item.precioCompra !== null && Number.isFinite(Number(item.precioCompra))
+                            ? `${money(Number(item.precioCompra))}/kg`
+                            : 'No disponible'}
+                        </span>
+                      </p>
+                      <p>
+                        Fecha ingreso:{' '}
+                        <span className="font-black text-slate-800">
+                          {item.fechaIngreso ? formatDateLabel(item.fechaIngreso) : 'No disponible'}
+                        </span>
+                      </p>
+                      <p>
+                        Restante:{' '}
+                        <span className="font-black text-slate-800">
+                          {item.restante !== null && Number.isFinite(Number(item.restante))
+                            ? kg(Number(item.restante))
+                            : 'No disponible'}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -3660,6 +4049,14 @@ export default function Ventas() {
           </div>
         </div>
       ) : null}
+
+      <BodegaVentaInfoModal
+        open={showBodegaVentaInfo}
+        onClose={() => setShowBodegaVentaInfo(false)}
+        capacidadKg={bodegaConfig?.capacidadKg}
+        inventarioKg={totalDisponibleVenta}
+        ventaKg={totalKg}
+      />
 
       {guardandoVenta || botonConfirmarPresionado ? (
         <div className="fixed inset-0 z-50">

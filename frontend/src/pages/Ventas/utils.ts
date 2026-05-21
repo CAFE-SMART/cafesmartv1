@@ -107,10 +107,10 @@ export function pesoVerificadoInvalido(lote: LoteVenta) {
   );
 }
 
-export function distribuirPesoVerificado(
-  pool: Array<{ subloteId: string; disponibleKg: number }>,
+export function distribuirPesoVerificado<T extends { subloteId: string; disponibleKg: number }>(
+  pool: T[],
   pesoVerificado: number,
-) {
+): T[] {
   const totalActual = round2(
     pool.reduce((sum, item) => sum + item.disponibleKg, 0),
   );
@@ -128,7 +128,7 @@ export function distribuirPesoVerificado(
       ...item,
       disponibleKg,
     };
-  });
+  }) as T[];
 }
 
 // Date functions
@@ -408,9 +408,9 @@ export function getVentasGuidance(message: string): GuidedErrorMessage {
   if (message.includes('modo de venta') || message.includes('como deseas realizar la venta')) {
     return createGuidedError(
       message,
-      'Selecciona como vender',
+      'Selecciona cómo vender',
       'No elegiste el tipo de venta.',
-      'Una parte o todo el inventario.',
+      'Elige venta parcial o venta total para continuar.',
     );
   }
 

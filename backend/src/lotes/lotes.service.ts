@@ -10,6 +10,7 @@ import {
   getCachedOrganizationId,
   setCachedOrganizationId,
 } from '../common/request-context';
+import { generarCodigoLote, generarPrefijoCodigo } from '../common/codigo-lote.util';
 
 export type SubloteFinanciero = {
   costoTotal: number;
@@ -52,6 +53,7 @@ export type LoteResponseItem = {
 
 export type LoteSubloteResponseItem = {
   id: string;
+  codigo: string;
   etiqueta: string;
   tipoCafeId: string;
   tipoCafe: string;
@@ -154,6 +156,14 @@ const SUBLOTE_INVENTARIO_SELECT = {
 type InventarioSublote = Prisma.SubloteGetPayload<{
   select: typeof SUBLOTE_INVENTARIO_SELECT;
 }>;
+
+type SubloteParaCodigo = {
+  id: string;
+  creadoEn: Date;
+  compra: { fecha: Date };
+  tipoCafe: { nombre: string };
+  calidad: { nombre: string };
+};
 
 type VentaResumen = {
   pesoVendido: number;
@@ -638,6 +648,25 @@ export class LotesService {
     }
 
     const subloteIds = sublotes.map((sublote) => sublote.id);
+    const sublotesParaCodigo = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        tipoCafeId,
+        calidadId,
+        compra: {
+          deletedAt: null,
+          organizacionId,
+        },
+      },
+      select: {
+        id: true,
+        creadoEn: true,
+        compra: { select: { fecha: true } },
+        tipoCafe: { select: { nombre: true } },
+        calidad: { select: { nombre: true } },
+      },
+    });
+    const codigosSublote = this.generarMapaCodigosSublote(sublotesParaCodigo);
     const sublotesOrganizacion = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
@@ -818,7 +847,8 @@ export class LotesService {
 
       return {
         id: sublote.id,
-        etiqueta: `Sublote ${index + 1}`,
+        codigo: codigosSublote.get(sublote.id) ?? `SUB-${index + 1}`,
+        etiqueta: codigosSublote.get(sublote.id) ?? `SUB-${index + 1}`,
         tipoCafeId: sublote.tipoCafe.id,
         tipoCafe: sublote.tipoCafe.nombre,
         calidadId: sublote.calidad.id,
@@ -1146,6 +1176,51 @@ export class LotesService {
     );
 
     return { totalActualizados: sublotes.length };
+  }
+
+  private generarMapaCodigosSublote(
+    sublotes: SubloteParaCodigo[],
+  ): Map<string, string> {
+    const counters = new Map<string, number>();
+    const codigos = new Map<string, string>();
+
+    [...sublotes]
+      .sort((a, b) => {
+        const prefixCompare = generarPrefijoCodigo(
+          a.tipoCafe.nombre,
+          a.calidad.nombre,
+        ).localeCompare(
+          generarPrefijoCodigo(b.tipoCafe.nombre, b.calidad.nombre),
+        );
+        if (prefixCompare !== 0) return prefixCompare;
+
+        const fechaCompare =
+          a.compra.fecha.getTime() - b.compra.fecha.getTime();
+        if (fechaCompare !== 0) return fechaCompare;
+
+        const creadoCompare = a.creadoEn.getTime() - b.creadoEn.getTime();
+        if (creadoCompare !== 0) return creadoCompare;
+
+        return a.id.localeCompare(b.id);
+      })
+      .forEach((sublote) => {
+        const prefijo = generarPrefijoCodigo(
+          sublote.tipoCafe.nombre,
+          sublote.calidad.nombre,
+        );
+        const secuencia = (counters.get(prefijo) ?? 0) + 1;
+        counters.set(prefijo, secuencia);
+        codigos.set(
+          sublote.id,
+          generarCodigoLote(
+            sublote.tipoCafe.nombre,
+            sublote.calidad.nombre,
+            secuencia,
+          ),
+        );
+      });
+
+    return codigos;
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {

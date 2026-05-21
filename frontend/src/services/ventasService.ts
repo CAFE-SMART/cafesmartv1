@@ -48,9 +48,39 @@ export type VentaListadoItem = {
   totalVenta: number;
   totalKg: number;
   detalles: Array<{
+    subloteId?: string;
+    subloteCodigo?: string;
+    tipoCafe?: string;
+    calidad?: string;
+    fechaIngreso?: string;
+    fecha_ingreso?: string;
     pesoVendido: number;
     precioKg: number;
+    precioCompra?: number;
+    precio_compra?: number;
     subtotal: number;
+    ventaNumero?: number;
+    pesoRestante?: number;
+    peso_restante?: number;
+    sublote?: {
+      precioCompra?: number;
+      precio_compra?: number;
+      fechaIngreso?: string;
+      fecha_ingreso?: string;
+      pesoDisponible?: number;
+      peso_disponible?: number;
+    };
+  }>;
+  detallesSublotes?: Array<{
+    subloteId: string;
+    codigoSublote: string;
+    tipoCafe: string;
+    calidad: string;
+    kilosVendidos: number;
+    precioVentaKg: number;
+    precioCompraKg: number;
+    fechaIngreso: string;
+    inventarioRestante: number;
   }>;
 };
 
