@@ -1948,6 +1948,22 @@ export default function Compras() {
       });
       setMostrarModalConfirmar(false);
     } catch (err) {
+      if (
+        err instanceof ApiRequestError &&
+        err.code === 'COMPRA_CAPACIDAD_REQUERIDA'
+      ) {
+        setMostrarModalConfirmar(false);
+        setMostrarModalConfigurarCapacidad(true);
+        setCapacidadPrevia({
+          validada: false,
+          nivel: 'requiere_configuracion',
+          mensaje: err.message,
+        });
+        savingRef.current = false;
+        setSaving(false);
+        return;
+      }
+
       const mensaje = getCompraErrorMessage(err);
       setError(mensaje);
       setMostrarErrorFormulario(true);
@@ -2805,7 +2821,6 @@ export default function Compras() {
                 className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.2rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition active:scale-[0.99]"
               >
                 Siguiente Paso
-                <ArrowRight size={22} />
               </button>
               <button
                 type="button"
@@ -3036,8 +3051,9 @@ export default function Compras() {
                 Registra la capacidad de la bodega
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Necesitamos la capacidad total para validar esta compra. También
-                puedes cambiarla luego en Ajustes.
+                Antes de registrar una compra necesitamos saber cuál es el
+                máximo de café que almacena tu bodega. También puedes cambiarlo
+                luego en Ajustes.
               </p>
             </div>
 
@@ -3049,8 +3065,9 @@ export default function Compras() {
                 <input
                   type="text"
                   value={nombreBodegaNueva}
+                  maxLength={50}
                   onChange={(event) => {
-                    setNombreBodegaNueva(event.target.value);
+                    setNombreBodegaNueva(event.target.value.slice(0, 50));
                     setCapacidadNuevaError(null);
                   }}
                   className="mt-2 w-full rounded-[16px] border border-[#dde4f1] bg-[#f8faff] px-4 py-4 text-[1.05rem] font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
@@ -3357,8 +3374,10 @@ export default function Compras() {
                 <input
                   type="text"
                   value={busquedaSelectorProductor}
+                  maxLength={60}
                   onChange={(event) => {
-                    setBusquedaSelectorProductor(event.target.value);
+                    const busqueda = event.target.value.slice(0, 60);
+                    setBusquedaSelectorProductor(busqueda);
                     setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
                     setProductoresSelector([]);
                   }}

@@ -140,6 +140,7 @@ model Productor {
 
   compras Compra[]
 
+  @@index([organizacionId, deletedAt])
   @@map("productor")
 }
 
@@ -247,6 +248,7 @@ model Venta {
 
   @@unique([deviceId, localId])
   @@index([organizacionId, fecha])
+  @@index([organizacionId, deletedAt, fecha])
   @@map("venta")
 }
 
@@ -403,6 +405,7 @@ model GastoOperativo {
   @@index([organizacionId, fechaGasto])
   @@index([organizacionId, tipoGasto])
   @@index([organizacionId, deletedAt])
+  @@index([organizacionId, deletedAt, fechaGasto])
   @@map("gasto_operativo")
 }
 

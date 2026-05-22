@@ -9,18 +9,17 @@ import {
   FlaskConical,
   Lock,
   LogOut,
-  ScanSearch,
   Save,
   Scale,
+  ScanSearch,
   Settings,
   Shield,
   UserCircle2,
-  UserCog,
-  X,
   Users,
   Users2,
   Warehouse,
   Wallet,
+  X,
   LoaderCircle,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -43,6 +42,8 @@ import {
   BUSINESS_NAME_ERROR,
   sanitizeBusinessNameInput,
   validateBusinessName,
+  isValidPhone,
+  sanitizeRegisterPhoneInput,
 } from '../utils/registerValidators';
 import {
   PESO_MAXIMO_ENTRADA_KG,
@@ -235,6 +236,11 @@ export default function Ajustes() {
     focusSetting?: string;
   } | null;
   const { user, logout } = useUser();
+  const safeUserName = typeof user?.name === 'string' ? user.name : '';
+  const safeUserEmail = typeof user?.email === 'string' ? user.email : '';
+  const safeUserPhone = typeof user?.telefono === 'string' ? user.telefono : '';
+  const safeTipoOrganizacion =
+    typeof user?.tipoOrganizacion === 'string' ? user.tipoOrganizacion : '';
 
   const initialConfig = useMemo(
     () => ({
@@ -246,9 +252,14 @@ export default function Ajustes() {
   );
 
   const [profile, setProfile] = useState<ProfileSettings>(() => ({
-    nombre: user?.name ?? '',
-    correo: user?.email ?? '',
-    telefono: '',
+    nombre: safeUserName,
+    correo: safeUserEmail,
+    telefono: safeUserPhone,
+  }));
+  const [savedProfile, setSavedProfile] = useState<ProfileSettings>(() => ({
+    nombre: safeUserName,
+    correo: safeUserEmail,
+    telefono: safeUserPhone,
   }));
   const [company, setCompany] = useState<CompanySettings>(() => ({
     nombreEmpresa: '',
@@ -311,9 +322,9 @@ export default function Ajustes() {
 
     const nextTipo =
       company.tipoEmpresa ||
-      (user?.tipoOrganizacion
-        ? user.tipoOrganizacion.charAt(0) +
-          user.tipoOrganizacion.slice(1).toLowerCase()
+      (safeTipoOrganizacion
+        ? safeTipoOrganizacion.charAt(0) +
+          safeTipoOrganizacion.slice(1).toLowerCase()
         : 'Compraventa');
 
     if (!company.nombreEmpresa || !company.tipoEmpresa) {
@@ -331,11 +342,26 @@ export default function Ajustes() {
     company.descripcion,
     profile.nombre,
     profile.correo,
-    user?.name,
-    user?.email,
-    user?.tipoOrganizacion,
+    safeUserName,
+    safeUserEmail,
+    safeTipoOrganizacion,
     isEditingCompany,
+    safeUserPhone,
   ]);
+
+  useEffect(() => {
+    const nextProfile = {
+      nombre: safeUserName,
+      correo: safeUserEmail,
+      telefono: safeUserPhone,
+    };
+
+    setSavedProfile(nextProfile);
+
+    if (!isEditingProfile) {
+      setProfile(nextProfile);
+    }
+  }, [safeUserEmail, safeUserName, safeUserPhone]);
 
   const cargarInventario = async () => {
     setLoadingStock(true);
@@ -415,10 +441,17 @@ export default function Ajustes() {
 
   const abrirEditorPerfil = () => {
     clearFeedback();
+    setProfile(savedProfile);
     setIsEditingProfile(true);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
     setIsEditingLimites(false);
+  };
+
+  const cerrarEditorPerfil = () => {
+    clearFeedback();
+    setProfile(savedProfile);
+    setIsEditingProfile(false);
   };
 
   const guardarLimites = async () => {
@@ -490,12 +523,13 @@ export default function Ajustes() {
       }
     }
     if (profile.telefono.trim()) {
-      if (profile.telefono.length !== 10 || !profile.telefono.startsWith('3')) {
+      if (!isValidPhone(profile.telefono)) {
         const message = 'El teléfono debe tener 10 dígitos y empezar con 3.';
         setError(message);
         return;
       }
     }
+    setSavedProfile(profile);
     setSuccess('Perfil actualizado correctamente.');
     setToastNotification({ message: 'Perfil guardado con éxito.', type: 'success' });
     setIsEditingProfile(false);
@@ -647,15 +681,6 @@ export default function Ajustes() {
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
       onClick: abrirEditorLimites,
-    },
-    {
-      id: 'perfil-usuario',
-      title: 'Perfil de usuario',
-      description: 'Datos de tu cuenta',
-      icon: UserCog,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: false,
-      onClick: abrirEditorPerfil,
     },
     {
       id: 'gestion-usuarios',
@@ -1002,7 +1027,7 @@ export default function Ajustes() {
               </h3>
               <button
                 type="button"
-                onClick={() => setIsEditingProfile(false)}
+                onClick={cerrarEditorPerfil}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
                 aria-label="Cerrar"
               >
@@ -1022,7 +1047,9 @@ export default function Ajustes() {
                   onChange={(event) => {
                     setProfile((prev) => ({
                       ...prev,
-                      nombre: event.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''),
+                      nombre: event.target.value
+                        .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')
+                        .slice(0, 70),
                     }));
                     clearFeedback();
                   }}
@@ -1047,7 +1074,7 @@ export default function Ajustes() {
                   onChange={(event) => {
                     setProfile((prev) => ({
                       ...prev,
-                      correo: event.target.value,
+                      correo: event.target.value.slice(0, 100),
                     }));
                     clearFeedback();
                   }}
@@ -1068,16 +1095,17 @@ export default function Ajustes() {
                 <input
                   type="tel"
                   maxLength={10}
+                  inputMode="numeric"
                   value={profile.telefono}
                   onChange={(event) => {
                     setProfile((prev) => ({
                       ...prev,
-                      telefono: event.target.value.replace(/\D/g, ''),
+                      telefono: sanitizeRegisterPhoneInput(event.target.value),
                     }));
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border ${error === 'El teléfono debe tener 10 dígitos y empezar con 3.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
-                  placeholder="Teléfono"
+                  placeholder="3001234567"
                 />
                 {error === 'El teléfono debe tener 10 dígitos y empezar con 3.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1124,8 +1152,9 @@ export default function Ajustes() {
                 <input
                   type="text"
                   value={nombreBodega}
+                  maxLength={50}
                   onChange={(event) => {
-                    setNombreBodega(event.target.value);
+                    setNombreBodega(event.target.value.slice(0, 50));
                     clearFeedback();
                   }}
                   className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
@@ -1231,6 +1260,7 @@ export default function Ajustes() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  maxLength={5}
                   value={limitMaxPesoKg}
                   onChange={(event) => {
                     const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
@@ -1256,6 +1286,7 @@ export default function Ajustes() {
                   <input
                     type="text"
                     inputMode="numeric"
+                    maxLength={6}
                     value={limitMaxPrecioKg}
                     onChange={(event) => {
                       const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
@@ -1282,6 +1313,7 @@ export default function Ajustes() {
                   <input
                     type="text"
                     inputMode="numeric"
+                    maxLength={6}
                     value={limitMaxPrecioVentaKg}
                     onChange={(event) => {
                       const raw = event.target.value.replace(/\D/g, '').slice(0, 6);

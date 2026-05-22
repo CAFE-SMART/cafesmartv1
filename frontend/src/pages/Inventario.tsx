@@ -1106,6 +1106,7 @@ export default function Inventario() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  maxLength={6}
                   value={capacidadBodegaForm}
                   onChange={(event) => {
                     setCapacidadBodegaForm(

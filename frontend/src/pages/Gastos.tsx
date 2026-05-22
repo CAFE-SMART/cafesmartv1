@@ -74,6 +74,9 @@ const FORM_INICIAL: GastoForm = {
   aplicaA: 'GENERAL',
   lotesIds: [],
 };
+const CONCEPTO_MAX_LENGTH = 60;
+const DESCRIPCION_MAX_LENGTH = 200;
+const MONTO_MAX_LENGTH = 11;
 
 function generarId() {
   if (
@@ -259,9 +262,10 @@ export default function Gastos() {
                 onChange={(event) =>
                   setForm((actual) => ({
                     ...actual,
-                    concepto: event.target.value,
+                    concepto: event.target.value.slice(0, CONCEPTO_MAX_LENGTH),
                   }))
                 }
+                maxLength={CONCEPTO_MAX_LENGTH}
                 placeholder="Ej. Pago de jornaleros - Cosecha Oct"
                 className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
               />
@@ -276,9 +280,13 @@ export default function Gastos() {
                 onChange={(event) =>
                   setForm((actual) => ({
                     ...actual,
-                    descripcion: event.target.value,
+                    descripcion: event.target.value.slice(
+                      0,
+                      DESCRIPCION_MAX_LENGTH,
+                    ),
                   }))
                 }
+                maxLength={DESCRIPCION_MAX_LENGTH}
                 placeholder="Detalles adicionales..."
                 rows={3}
                 className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
@@ -298,7 +306,7 @@ export default function Gastos() {
                   onChange={(event) =>
                     setForm((actual) => ({
                       ...actual,
-                      monto: event.target.value,
+                      monto: event.target.value.slice(0, MONTO_MAX_LENGTH),
                     }))
                   }
                   placeholder="$ 0.00"

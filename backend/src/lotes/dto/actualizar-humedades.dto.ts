@@ -19,8 +19,8 @@ export class ActualizarHumedadSubloteDto {
   @ValidateIf((_, value) => value !== null && value !== undefined)
   @Type(() => Number)
   @IsNumber({}, { message: 'La humedad debe ser un numero' })
-  @Min(0, { message: 'La humedad no puede ser negativa' })
-  @Max(100, { message: 'La humedad no puede superar el 100%' })
+  @Min(8, { message: 'La humedad debe ser mínimo 8%' })
+  @Max(14, { message: 'La humedad no puede superar el 14%' })
   humedad?: number | null;
 }
 

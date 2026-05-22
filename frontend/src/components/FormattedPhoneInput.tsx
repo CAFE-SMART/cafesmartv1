@@ -76,6 +76,7 @@ export function FormattedPhoneInput({
             autoComplete="tel"
             value={displayValue}
             onChange={handleChange}
+            maxLength={17}
             placeholder="+57 300 123 4567"
             aria-invalid="true"
             className={inputClass}
@@ -88,6 +89,7 @@ export function FormattedPhoneInput({
             autoComplete="tel"
             value={displayValue}
             onChange={handleChange}
+            maxLength={17}
             placeholder="+57 300 123 4567"
             aria-invalid="false"
             className={inputClass}

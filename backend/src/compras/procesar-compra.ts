@@ -308,7 +308,7 @@ export function crearCapacidadRequerida(): EstadoCapacidadCompra {
     validada: false,
     nivel: 'requiere_configuracion',
     mensaje:
-      'Registra la capacidad total de la bodega para validar esta compra.',
+      'Antes de registrar una compra, configura la capacidad total de la bodega.',
   };
 }
 
@@ -328,7 +328,7 @@ export function procesarCompra(
     sublotes,
     ...(contextoCapacidad
       ? evaluarCapacidadCompra(compra.totalKg, contextoCapacidad)
-      : { capacidad: crearCapacidadSinValidacion() }),
+      : { capacidad: crearCapacidadRequerida() }),
   };
 }
 

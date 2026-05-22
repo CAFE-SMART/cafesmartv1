@@ -14,20 +14,17 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { useUser } from '../context/UserContext';
 import {
-  obtenerDashboardSummary,
-  type DashboardSummary,
+  obtenerDashboardInicio,
+  type DashboardInicio,
+  type DashboardInicioBodegaItem,
 } from '../services/dashboardService';
-import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import {
   guardarConfiguracionBodega,
   obtenerConfiguracionBodega,
 } from '../services/bodegaApi';
-import { applySecadoToLots } from '../utils/secadoFlow';
-import { getDaysInBodega } from '../utils/date';
-import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 const sectionTitleClass =
-  'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
+  'text-[0.82rem] font-black tracking-normal text-[#65758f]';
 const cardClass =
   'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
 
@@ -53,16 +50,7 @@ function formatKg(value: number) {
 }
 
 function formatKgUpper(value: number) {
-  return `${new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(value)} KG`;
-}
-
-function formatMoney(value: number) {
-  return `$${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatKg(value);
 }
 
 function getCapacityTone(percentage: number) {
@@ -103,26 +91,22 @@ function getCapacityTone(percentage: number) {
 
 function resolveCloudLabel(tone: string) {
   if (tone === 'offline' || tone === 'error') {
-    return 'SIN CONEXION';
+    return 'Sin conexión';
   }
 
   if (tone === 'checking') {
-    return 'VERIFICANDO';
+    return 'Verificando';
   }
 
   if (tone === 'syncing') {
-    return 'SINCRONIZANDO';
+    return 'Sincronizando';
   }
 
   if (tone === 'degraded') {
-    return 'CONEXION INESTABLE';
+    return 'Conexión inestable';
   }
 
-  return 'CONECTADO';
-}
-
-function keyOf(value: string) {
-  return value.trim().toUpperCase();
+  return 'Conectado';
 }
 
 function resolveDashboardErrorMessage(error: unknown) {
@@ -183,36 +167,26 @@ function formatMetric(
   return formatter(value);
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function SummaryMetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 text-[0.76rem]">
-      <span className="text-[#5a6b84]">{label}</span>
-      <span className="font-black text-[#1f2937]">{value}</span>
+    <div className="min-h-[64px] rounded-[14px] border border-[#e5ebf5] bg-[#f8faff] px-3 py-3">
+      <span className="block text-[0.67rem] font-semibold leading-4 text-[#65758f]">
+        {label}
+      </span>
+      <span className="mt-1 block text-[0.95rem] font-black leading-tight text-[#111827]">
+        {value}
+      </span>
     </div>
   );
 }
 
-function lotDays(lot: LoteResumen) {
-  return Math.max(
-    getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha),
-    getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha),
-    lot.diasEnBodegaMax || 0,
-  );
-}
-
-type BodegaCoffeeItem = {
-  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
-  tipo: 'Verde' | 'Seco';
-  calidad: 'Bueno' | 'Regular';
-  tipoCafeId: string;
-  calidadId: string;
-  totalKg: number;
-  lots: number;
-  averageDays: number;
-  dayWeight: number;
-};
-
-function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: () => void }) {
+function BodegaCoffeeRow({
+  item,
+  onClick,
+}: {
+  item: DashboardInicioBodegaItem;
+  onClick?: () => void;
+}) {
   const isGood = item.calidad === 'Bueno';
   const isDry = item.tipo === 'Seco';
   const Icon = isDry ? SunMedium : Leaf;
@@ -243,9 +217,9 @@ function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: 
           <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937]">
             {item.tipo}
           </p>
-          <p className="mt-1 flex items-center gap-1 text-[0.56rem] font-bold uppercase tracking-[0.03em] text-[#8a98ad]">
+          <p className="mt-1 flex items-center gap-1 text-[0.56rem] font-bold tracking-normal text-[#8a98ad]">
             <CalendarDays size={10} strokeWidth={2.2} />
-            {item.averageDays} dias
+            {item.averageDays} días
           </p>
         </div>
       </div>
@@ -254,7 +228,7 @@ function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: 
           {formatKgUpper(item.totalKg)}
         </p>
         <span
-          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}
+          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black ${qualityClass}`}
         >
           {item.calidad}
         </span>
@@ -300,8 +274,7 @@ export default function Inicio() {
   const { logout } = useUser();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [summary, setSummary] = useState<DashboardInicio | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -319,27 +292,13 @@ export default function Inicio() {
     }
 
     try {
-      const [dashboardResult, lotesResult] = await Promise.allSettled([
-        obtenerDashboardSummary(),
-        obtenerLotes(),
-      ]);
+      const dashboardResult = await obtenerDashboardInicio();
 
-      if (dashboardResult.status === 'fulfilled') {
-        setSummary(dashboardResult.value);
-        setError(null);
-      } else {
-        setError(resolveDashboardErrorMessage(dashboardResult.reason));
-      }
-
-      if (lotesResult.status === 'fulfilled') {
-        setLotesBodega(
-          ENABLE_SECADO_PROTOTYPE
-            ? applySecadoToLots(lotesResult.value)
-            : lotesResult.value,
-        );
-      } else {
-        setLotesBodega([]);
-      }
+      setSummary(dashboardResult);
+      setError(null);
+    } catch (err) {
+      setError(resolveDashboardErrorMessage(err));
+      setSummary(null);
 
     } finally {
       if (isRefresh) {
@@ -441,79 +400,7 @@ export default function Inicio() {
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
 
-  const cafeEnBodega = useMemo(() => {
-    const sections: BodegaCoffeeItem[] = [
-      {
-        key: 'VERDE_BUENO',
-        tipo: 'Verde',
-        calidad: 'Bueno',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'VERDE_REGULAR',
-        tipo: 'Verde',
-        calidad: 'Regular',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'SECO_BUENO',
-        tipo: 'Seco',
-        calidad: 'Bueno',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-    ];
-
-    lotesBodega.forEach((lot) => {
-      const typeKey = keyOf(lot.tipoCafe);
-      const qualityKey = keyOf(lot.calidad);
-      const section = sections.find(
-        (item) => item.key === `${typeKey}_${qualityKey}`,
-      );
-      if (!section) return;
-
-      if (!section.tipoCafeId) {
-        section.tipoCafeId = lot.tipoCafeId;
-        section.calidadId = lot.calidadId;
-      }
-
-      const weight = Math.max(1, lot.sublotes);
-      section.totalKg += lot.pesoActual;
-      section.lots += lot.sublotes;
-      section.dayWeight += lotDays(lot) * weight;
-    });
-
-    return sections
-      .map((section) => ({
-        ...section,
-        averageDays:
-          section.totalKg > 0
-            ? Math.round(section.dayWeight / Math.max(1, section.lots))
-            : 0,
-      }))
-      .filter((section) => section.totalKg > 0)
-      .sort((a, b) => {
-        if (b.averageDays !== a.averageDays) {
-          return b.averageDays - a.averageDays;
-        }
-
-        return b.totalKg - a.totalKg;
-      });
-  }, [lotesBodega]);
+  const cafeEnBodega = summary?.inventarioBodega ?? [];
 
   const isEmptyDashboard =
     !loading &&
@@ -525,7 +412,7 @@ export default function Inicio() {
     summary.totalVentasHoy === 0 &&
     summary.totalGastosHoy === 0 &&
     summary.kgActual === 0 &&
-    lotesBodega.length === 0;
+    cafeEnBodega.length === 0;
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
@@ -536,7 +423,7 @@ export default function Inicio() {
               <h1 className="text-[1.35rem] font-black text-[#111827]">
                 Caf&eacute; Smart
               </h1>
-              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm">
+              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.64rem] font-black tracking-normal text-[#72809a] shadow-sm">
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${resolveCloudDotClass(tone)}`}
                   aria-hidden="true"
@@ -598,33 +485,33 @@ export default function Inicio() {
               <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
 
               <div className={`mt-3 ${cardClass}`}>
-                <div className="space-y-2.5">
-                  <MetricRow
-                    label="Compras hoy:"
+                <div className="grid grid-cols-2 gap-2">
+                  <SummaryMetricCard
+                    label="Compras hoy"
                     value={formatMetric(
                       loading,
                       summary?.comprasHoy ?? null,
                       formatInteger,
                     )}
                   />
-                  <MetricRow
-                    label="Ventas hoy:"
+                  <SummaryMetricCard
+                    label="Ventas hoy"
                     value={formatMetric(
                       loading,
                       summary?.ventasHoy ?? null,
                       formatInteger,
                     )}
                   />
-                  <MetricRow
-                    label="Kg comprados hoy:"
+                  <SummaryMetricCard
+                    label="Kg comprados"
                     value={formatMetric(
                       loading,
                       summary?.kgCompradosHoy ?? null,
                       formatKg,
                     )}
                   />
-                  <MetricRow
-                    label="Productores registrados:"
+                  <SummaryMetricCard
+                    label="Productores"
                     value={formatMetric(
                       loading,
                       summary?.totalProductores ?? null,
@@ -635,7 +522,7 @@ export default function Inicio() {
                 <button
                   type="button"
                   onClick={() => navigate('/gastos/registro')}
-                  className="mt-3 flex min-h-[30px] w-full items-center justify-center rounded-[10px] border border-[#e4e9f4] bg-[#f8faff] text-[0.66rem] font-black text-[#173b9c]"
+                  className="mt-2 flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#dfe6f2] bg-white text-[0.74rem] font-black text-[#173b9c] shadow-sm transition hover:bg-[#f8faff]"
                 >
                   Registrar gasto
                 </button>
@@ -648,7 +535,7 @@ export default function Inicio() {
                 <button
                   type="button"
                   onClick={() => void abrirModalBodega()}
-                  className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-400 transition hover:text-[#18479d]"
+                  className="text-[0.68rem] font-black tracking-normal text-slate-400 transition hover:text-[#18479d]"
                 >
                   Ajustar bodega
                 </button>
@@ -682,7 +569,7 @@ export default function Inicio() {
 
                 <div className="mt-2 grid grid-cols-2 gap-3 text-[0.58rem] font-black text-[#74839a]">
                   <span className="min-w-0">
-                    <span className="block text-[0.52rem] uppercase tracking-[0.08em]">
+                    <span className="block text-[0.58rem] tracking-normal">
                       Usados
                     </span>
                     <span className="block truncate text-[0.66rem] text-[#4b5c77]">
@@ -690,7 +577,7 @@ export default function Inicio() {
                     </span>
                   </span>
                   <span className="min-w-0 text-right">
-                    <span className="block text-[0.52rem] uppercase tracking-[0.08em]">
+                    <span className="block text-[0.58rem] tracking-normal">
                       Total
                     </span>
                     <span className="block truncate text-[0.66rem] text-[#4b5c77]">
@@ -796,6 +683,7 @@ export default function Inicio() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  maxLength={6}
                   value={capacidadBodegaForm}
                   onChange={(event) => {
                     setCapacidadBodegaForm(

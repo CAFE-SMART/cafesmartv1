@@ -11,8 +11,10 @@ import {
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
 
-const BUSINESS_NAME_PATTERN = /^(?=.*\p{L})[\p{L}0-9 &.'/-]+$/u;
+const BUSINESS_NAME_PATTERN = /^(?=.*\p{L})(?=(?:\D*\d){0,5}\D*$)[\p{L}0-9 ]+$/u;
+const ADMIN_NAME_PATTERN = /^(?=.*\p{L})[\p{L} ]+$/u;
 const BUSINESS_NAME_MESSAGE = 'Ingresa un nombre de negocio válido.';
+const ADMIN_NAME_MESSAGE = 'El nombre del administrador solo puede tener letras y espacios.';
 const BUSINESS_NAME_MAX_LENGTH_MESSAGE =
   'El nombre del negocio no puede superar 30 caracteres.';
 
@@ -30,10 +32,13 @@ export class RegisterGoogleDto {
   @Transform(({ value }) => String(value).trim().toLowerCase())
   @IsEmail({}, { message: 'El correo debe tener un formato valido.' })
   @IsNotEmpty()
+  @MaxLength(100, { message: 'El correo no puede superar 100 caracteres.' })
   correo: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(70, { message: 'El nombre no puede superar 70 caracteres.' })
+  @Matches(ADMIN_NAME_PATTERN, { message: ADMIN_NAME_MESSAGE })
   nombre: string;
 
   @Transform(({ value }) => normalizeBusinessName(value))
@@ -53,19 +58,25 @@ export class RegisterGoogleDto {
 
   @ValidateIf((o) => o.tipoOrganizacion === TipoOrganizacion.OTRO)
   @IsString({ message: 'Debes especificar el tipo de negocio.' })
+  @MaxLength(50, {
+    message: 'El detalle del tipo de negocio no puede superar 50 caracteres.',
+  })
   @IsNotEmpty()
   otroTipoDetalle?: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString({ message: 'El telefono es obligatorio.' })
   @IsNotEmpty()
-  @Matches(/^(?:\+57\s?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/, {
-    message: 'El telefono debe ser colombiano. Ejemplo: +57 300 123 4567',
+  @MaxLength(10, { message: 'El telefono no puede superar 10 digitos.' })
+  @Matches(/^3\d{9}$/, {
+    message: 'El telefono debe tener 10 digitos y empezar con 3.',
   })
   telefono: string;
 
   @IsString({ message: 'La contrasena es obligatoria.' })
   @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
   @MinLength(6, { message: 'La contrasena debe tener al menos 6 caracteres.' })
+  @MaxLength(72, { message: 'La contrasena no puede superar 72 caracteres.' })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z]).+$/, {
     message:
       'La contrasena debe incluir al menos una minuscula y una mayuscula.',

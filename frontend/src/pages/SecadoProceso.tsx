@@ -84,12 +84,6 @@ function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
 
-function titleCase(value: string) {
-  const clean = value.trim().toLowerCase();
-  if (!clean) return '';
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
-
 function QualityDot({ color }: { color: string }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
@@ -198,13 +192,7 @@ export default function SecadoProceso() {
     [pendingTotalEntrada, session],
   );
   const sourceQuality = keyOf(session?.calidad ?? pendingCalidad);
-  const visibleQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
-    (quality) => !sourceQuality || sourceQuality === quality,
-  );
-  const showAllOutputs = visibleQualities.length === 0;
-  const outputQualities = showAllOutputs
-    ? (['BUENO', 'REGULAR', 'MALO'] as const)
-    : visibleQualities;
+  const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
   const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
   const regular = outputQualities.includes('REGULAR')
     ? Number(regularKg) || 0
@@ -612,7 +600,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida para café verde {titleCase(session?.calidad ?? '')}.
+                Registra los kilos secos obtenidos por calidad.
               </p>
               {outputFields.map((field) => (
                 <label key={field.quality} className="mt-4 block">
@@ -638,9 +626,6 @@ export default function SecadoProceso() {
                     className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
                     placeholder="0"
                   />
-                  <span className="mt-1 block text-right text-[0.62rem] font-semibold text-slate-400">
-                    Máx. 99.999 kg
-                  </span>
                 </label>
               ))}
               {resultadoSecadoError ? (
