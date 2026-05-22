@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { TipoMovimientoInventario, TipoReferenciaInventario } from '@prisma/client';
@@ -42,6 +42,44 @@ describe('SecadoService', () => {
     };
 
     return { prisma, tx, service: new SecadoService(prisma as never) };
+  }
+
+  const subloteId = '11111111-1111-4111-8111-111111111111';
+
+  function fuenteVerde(overrides: Record<string, unknown> = {}) {
+    return {
+      id: subloteId,
+      pesoActual: 32,
+      pesoInicial: 32,
+      precioKg: 5000,
+      costoTotal: 160000,
+      compraId: 'compra-1',
+      tipoCafeId: 'tipo-verde',
+      calidadId: 'calidad-bueno',
+      tipoCafe: { nombre: 'VERDE' },
+      calidad: { nombre: 'BUENO' },
+      ...overrides,
+    };
+  }
+
+  function prepararTransformacion(
+    tx: ReturnType<typeof crearMocks>['tx'],
+    fuentes: Array<Record<string, unknown>>,
+  ) {
+    tx.sublote.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(fuentes);
+    tx.tipoCafe.findUnique.mockResolvedValue({ id: 'tipo-seco' });
+    tx.calidad.findMany.mockResolvedValue([
+      { id: 'calidad-seco', nombre: 'BUENO' },
+    ]);
+    tx.sublote.updateMany.mockResolvedValue({ count: 1 });
+    tx.inventario.updateMany.mockResolvedValue({ count: 1 });
+    tx.lote.upsert.mockResolvedValue({ id: 'lote-seco' });
+    tx.sublote.create.mockResolvedValue({
+      id: 'sublote-seco',
+      pesoActual: 8,
+    });
   }
 
   it('valida que el sublote exista y tenga peso disponible', async () => {
@@ -191,6 +229,200 @@ describe('SecadoService', () => {
         }),
       }),
     );
+  });
+
+  it('secado parcial conserva restante, crea seco y registra merma exacta', async () => {
+    const { tx, service } = crearMocks();
+    prepararTransformacion(tx, [fuenteVerde()]);
+    tx.sublote.create.mockResolvedValue({
+      id: 'sublote-seco',
+      pesoActual: 8,
+    });
+
+    const result = await service.transformarSecado('user-1', {
+      sessionId: 'secado-parcial-1',
+      deviceId: 'device-1',
+      fuentes: [{ id: subloteId, pesoKg: 10 }],
+      salidas: [{ calidad: 'BUENO', pesoKg: 8, humedad: 11, factor: 100 }],
+    });
+
+    expect(result).toMatchObject({
+      totalEntradaKg: 10,
+      totalSalidaKg: 8,
+      totalMermaKg: 2,
+    });
+    expect(tx.sublote.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: subloteId,
+          pesoActual: { gte: 10 },
+        }),
+        data: { pesoActual: 22 },
+      }),
+    );
+    expect(tx.sublote.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          pesoInicial: 8,
+          pesoActual: 8,
+        }),
+      }),
+    );
+    expect(tx.inventarioMovimiento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cantidad: 2,
+          tipoMovimiento: TipoMovimientoInventario.MERMA_SECADO,
+        }),
+      }),
+    );
+  });
+
+  it('secado total deja el origen en cero, crea seco y registra merma', async () => {
+    const { tx, service } = crearMocks();
+    prepararTransformacion(tx, [fuenteVerde()]);
+    tx.sublote.create.mockResolvedValue({
+      id: 'sublote-seco',
+      pesoActual: 27,
+    });
+
+    const result = await service.transformarSecado('user-1', {
+      sessionId: 'secado-total-1',
+      deviceId: 'device-1',
+      fuentes: [{ id: subloteId, pesoKg: 32 }],
+      salidas: [{ calidad: 'BUENO', pesoKg: 27, humedad: 11, factor: 100 }],
+    });
+
+    expect(result).toMatchObject({
+      totalEntradaKg: 32,
+      totalSalidaKg: 27,
+      totalMermaKg: 5,
+    });
+    expect(tx.sublote.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { pesoActual: 0 },
+      }),
+    );
+    expect(tx.inventario.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ pesoTotal: 27 }),
+        update: { pesoTotal: { increment: 27 } },
+      }),
+    );
+    expect(tx.inventarioMovimiento.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cantidad: 5,
+          tipoMovimiento: TipoMovimientoInventario.MERMA_SECADO,
+        }),
+      }),
+    );
+  });
+
+  it('rechaza peso mayor al disponible sin crear seco ni actualizar inventario', async () => {
+    const { tx, service } = crearMocks();
+    prepararTransformacion(tx, [fuenteVerde()]);
+
+    await expect(
+      service.transformarSecado('user-1', {
+        sessionId: 'secado-peso-mayor',
+        deviceId: 'device-1',
+        fuentes: [{ id: subloteId, pesoKg: 40 }],
+        salidas: [{ calidad: 'BUENO', pesoKg: 30, humedad: 11, factor: 100 }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(tx.sublote.updateMany).not.toHaveBeenCalled();
+    expect(tx.sublote.create).not.toHaveBeenCalled();
+    expect(tx.inventario.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventario.upsert).not.toHaveBeenCalled();
+  });
+
+  it('solo modifica los sublotes enviados como fuente de secado', async () => {
+    const { tx, service } = crearMocks();
+    prepararTransformacion(tx, [fuenteVerde({ id: 'VB-01' })]);
+
+    await service.transformarSecado('user-1', {
+      sessionId: 'secado-solo-vb01',
+      deviceId: 'device-1',
+      fuentes: [{ id: 'VB-01', pesoKg: 10 }],
+      salidas: [{ calidad: 'BUENO', pesoKg: 8, humedad: 11, factor: 100 }],
+    });
+
+    expect(tx.sublote.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.sublote.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'VB-01' }),
+      }),
+    );
+    expect(tx.sublote.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'VB-02' }),
+      }),
+    );
+    expect(tx.sublote.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'VB-03' }),
+      }),
+    );
+  });
+
+  it('evita duplicar una sesion ya registrada y no descuenta inventario otra vez', async () => {
+    const { tx, service } = crearMocks();
+    tx.sublote.findMany.mockResolvedValueOnce([
+      { id: 'sublote-seco-existente', localId: 'secado-duplicado-BUENO' },
+    ]);
+
+    await expect(
+      service.transformarSecado('user-1', {
+        sessionId: 'secado-duplicado',
+        deviceId: 'device-1',
+        fuentes: [{ id: subloteId, pesoKg: 10 }],
+        salidas: [{ calidad: 'BUENO', pesoKg: 8, humedad: 11, factor: 100 }],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.sublote.updateMany).not.toHaveBeenCalled();
+    expect(tx.sublote.create).not.toHaveBeenCalled();
+    expect(tx.inventario.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventarioMovimiento.create).not.toHaveBeenCalled();
+  });
+
+  it('usa transaccion y revierte efectos persistentes si falla la creacion del sublote seco', async () => {
+    const { prisma, tx, service } = crearMocks();
+    const persistedEffects: string[] = [];
+
+    prisma.$transaction.mockImplementation(async (callback) => {
+      try {
+        return await callback(tx);
+      } catch (error) {
+        persistedEffects.length = 0;
+        throw error;
+      }
+    });
+    prepararTransformacion(tx, [fuenteVerde()]);
+    tx.sublote.updateMany.mockImplementation(async () => {
+      persistedEffects.push('origen-actualizado');
+      return { count: 1 };
+    });
+    tx.inventario.updateMany.mockImplementation(async () => {
+      persistedEffects.push('inventario-verde-actualizado');
+      return { count: 1 };
+    });
+    tx.sublote.create.mockRejectedValue(new Error('fallo creando seco'));
+
+    await expect(
+      service.transformarSecado('user-1', {
+        sessionId: 'secado-transaccion',
+        deviceId: 'device-1',
+        fuentes: [{ id: subloteId, pesoKg: 10 }],
+        salidas: [{ calidad: 'BUENO', pesoKg: 8, humedad: 11, factor: 100 }],
+      }),
+    ).rejects.toThrow('fallo creando seco');
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(tx.sublote.create).toHaveBeenCalled();
+    expect(persistedEffects).toEqual([]);
   });
 
   it('registra la merma de secado como movimiento trazable sin descontar inventario dos veces', async () => {

@@ -11,9 +11,11 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -80,6 +82,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.nuevaPassword);
+  }
+
+  @Get('reset-password/validate')
+  @HttpCode(HttpStatus.OK)
+  validateResetPasswordToken(@Query('token') token = '') {
+    return this.authService.validateResetPasswordToken(token);
   }
 
   @Post('verify-password')

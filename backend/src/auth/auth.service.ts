@@ -10,17 +10,16 @@
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
+import { apiError } from '../common/errors/api-error';
 
-type PasswordResetTokenPayload = {
-  sub?: unknown;
-  email?: unknown;
-  purpose?: unknown;
-};
+const PASSWORD_RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -28,6 +27,7 @@ export class AuthService {
 
   constructor(
     private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -205,16 +205,32 @@ export class AuthService {
       });
     }
 
-    const resetUrl = this.buildPasswordResetUrl(
-      this.jwtService.sign(
-        {
-          sub: user.id,
-          email: user.correo,
-          purpose: 'password-reset',
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashPasswordResetToken(token);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.updateMany({
+        where: {
+          userId: user.id,
+          usedAt: null,
+          revokedAt: null,
         },
-        { expiresIn: '15m' },
-      ),
-    );
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+
+      await tx.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+    });
+
+    const resetUrl = this.buildPasswordResetUrl(token);
 
     if (!isProduction) {
       this.logger.log(
@@ -265,40 +281,133 @@ export class AuthService {
     };
   }
 
+  async validateResetPasswordToken(token: string) {
+    await this.getValidPasswordResetToken(token);
+    return { valid: true };
+  }
+
   async resetPassword(token: string, nuevaPassword: string) {
-    let payload: PasswordResetTokenPayload;
-
-    try {
-      payload = await this.jwtService.verifyAsync<PasswordResetTokenPayload>(
-        token,
-      );
-    } catch {
-      throw this.buildInvalidResetTokenError();
-    }
-
-    if (payload.purpose !== 'password-reset' || typeof payload.sub !== 'string') {
-      throw this.buildInvalidResetTokenError();
-    }
+    const resetToken = await this.getValidPasswordResetToken(token);
 
     const hashedPassword = await bcrypt.hash(nuevaPassword, 10);
-    const updatedUser = await this.usersService.updatePassword(
-      payload.sub,
-      hashedPassword,
-    );
+    const now = new Date();
 
-    if (!updatedUser) {
-      throw this.buildInvalidResetTokenError();
-    }
+    await this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.updateMany({
+        where: {
+          id: resetToken.userId,
+          activo: true,
+        },
+        data: {
+          password: hashedPassword,
+        },
+      });
 
-    return { message: 'Contraseña actualizada con éxito.' };
+      if (updatedUser.count === 0) {
+        throw this.buildInvalidResetTokenError();
+      }
+
+      const updatedToken = await tx.passwordResetToken.updateMany({
+        where: {
+          id: resetToken.id,
+          usedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: {
+          usedAt: now,
+        },
+      });
+
+      if (updatedToken.count === 0) {
+        throw this.buildInvalidResetTokenError();
+      }
+    });
+
+    return { message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' };
   }
 
   private buildInvalidResetTokenError() {
-    return new BadRequestException({
-      code: 'PASSWORD_RESET_TOKEN_INVALID',
-      message: 'El enlace expiró o no es válido.',
-      field: 'token',
+    return new BadRequestException(
+      apiError(
+        'PASSWORD_RESET_TOKEN_INVALID',
+        'El enlace no es válido. Revisa el correo o solicita uno nuevo.',
+        { field: 'token' },
+      ),
+    );
+  }
+
+  private buildExpiredResetTokenError() {
+    return new BadRequestException(
+      apiError(
+        'PASSWORD_RESET_TOKEN_EXPIRED',
+        'Este enlace ya venció. Solicita uno nuevo para restablecer tu contraseña.',
+        { field: 'token' },
+      ),
+    );
+  }
+
+  private buildUsedResetTokenError() {
+    return new BadRequestException(
+      apiError(
+        'PASSWORD_RESET_TOKEN_USED',
+        'Este enlace ya fue utilizado. Solicita uno nuevo si necesitas cambiar tu contraseña otra vez.',
+        { field: 'token' },
+      ),
+    );
+  }
+
+  private buildRevokedResetTokenError() {
+    return new BadRequestException(
+      apiError(
+        'PASSWORD_RESET_TOKEN_REVOKED',
+        'Este enlace ya no está activo. Solicita uno nuevo para restablecer tu contraseña.',
+        { field: 'token' },
+      ),
+    );
+  }
+
+  private hashPasswordResetToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async getValidPasswordResetToken(token: string) {
+    const cleanToken = token.trim();
+    if (!cleanToken) {
+      throw this.buildInvalidResetTokenError();
+    }
+
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: {
+        tokenHash: this.hashPasswordResetToken(cleanToken),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            activo: true,
+          },
+        },
+      },
     });
+
+    if (!resetToken || !resetToken.user?.activo) {
+      throw this.buildInvalidResetTokenError();
+    }
+
+    if (resetToken.usedAt) {
+      throw this.buildUsedResetTokenError();
+    }
+
+    if (resetToken.revokedAt) {
+      throw this.buildRevokedResetTokenError();
+    }
+
+    if (resetToken.expiresAt <= new Date()) {
+      throw this.buildExpiredResetTokenError();
+    }
+
+    return resetToken;
   }
 
   private buildPasswordResetUrl(token: string) {

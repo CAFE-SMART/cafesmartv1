@@ -1,6 +1,14 @@
 import { CafeSmartLogo } from './CafeSmartLogo';
 
-export function AppLoadingScreen() {
+type AppLoadingScreenProps = {
+  title?: string;
+  subtitle?: string;
+};
+
+export function AppLoadingScreen({
+  title = 'Cargando...',
+  subtitle = 'Preparando tu experiencia',
+}: AppLoadingScreenProps) {
   return (
     <main
       className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-6 py-10 text-[#07153b]"
@@ -51,10 +59,10 @@ export function AppLoadingScreen() {
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">
           <div className="mx-auto h-16 w-16 rounded-full border-[5px] border-blue-100 border-t-[#1683f7] animate-[appSplashSpin_900ms_linear_infinite]" />
           <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b]">
-            Cargando...
+            {title}
           </p>
           <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">
-            Preparando tu experiencia
+            {subtitle}
           </p>
         </section>
       </div>

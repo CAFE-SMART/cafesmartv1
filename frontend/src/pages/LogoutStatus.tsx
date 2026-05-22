@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
-import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { useUser } from '../context/UserContext';
 
 const MIN_LOGOUT_DURATION_MS = 2200;
@@ -78,12 +78,9 @@ export default function LogoutStatus() {
           }
         `}
       </style>
-      <CafeSmartProcessingScreen
-        title="Cerrando sesión..."
-        subtitle="Por favor espera un momento mientras cerramos tu sesión de forma segura."
-        helperText="Protegiendo tu información..."
-        trustTitle="Tu seguridad es importante"
-        trustText="CaféSmart está cerrando el acceso local de forma segura."
+      <AppLoadingScreen
+        title="Cerrando sesión"
+        subtitle="Estamos protegiendo tus datos antes de salir."
       />
     </div>
   );

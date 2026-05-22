@@ -1,4 +1,4 @@
-import React, { FormEvent, useMemo, useState } from 'react';
+import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
@@ -24,6 +25,14 @@ type TouchedFields = {
   password: boolean;
   confirmPassword: boolean;
 };
+
+type ResetTokenStatus =
+  | 'validating'
+  | 'valid'
+  | 'expired'
+  | 'used'
+  | 'invalid'
+  | 'network';
 
 function ResetDecorations() {
   return (
@@ -50,6 +59,95 @@ function ResetDecorations() {
       <div className="absolute bottom-4 left-5 h-24 w-16 rounded-t-full border-l-4 border-[#93c5fd]/70 opacity-60" />
       <div className="absolute bottom-4 right-8 h-28 w-20 rounded-t-full border-r-4 border-[#60a5fa]/55 opacity-60" />
     </div>
+  );
+}
+
+function getResetTokenStatus(error: Partial<AuthError>): ResetTokenStatus {
+  if (error.code === 'OFFLINE' || error.status === 0) return 'network';
+
+  if (error.apiCode === 'PASSWORD_RESET_TOKEN_EXPIRED') return 'expired';
+  if (error.apiCode === 'PASSWORD_RESET_TOKEN_USED') return 'used';
+  if (error.apiCode === 'PASSWORD_RESET_TOKEN_REVOKED') return 'invalid';
+  if (error.apiCode === 'PASSWORD_RESET_TOKEN_INVALID') return 'invalid';
+
+  const message = (error.message ?? '').toLowerCase();
+  if (message.includes('venci') || message.includes('expir')) return 'expired';
+  if (message.includes('utilizado') || message.includes('usado')) return 'used';
+  return 'invalid';
+}
+
+function ResetStatusScreen({
+  status,
+  onRetry,
+}: {
+  status: Exclude<ResetTokenStatus, 'valid'>;
+  onRetry?: () => void;
+}) {
+  const navigate = useNavigate();
+  const content = {
+    validating: {
+      title: 'Validando enlace',
+      message: 'Estamos revisando que el enlace siga vigente.',
+      primaryLabel: '',
+      secondaryLabel: '',
+    },
+    expired: {
+      title: 'El enlace ya venció',
+      message:
+        'Por seguridad, los enlaces para restablecer contraseña solo duran 15 minutos. Solicita uno nuevo para continuar.',
+      primaryLabel: 'Solicitar nuevo enlace',
+      secondaryLabel: 'Ir al inicio',
+    },
+    used: {
+      title: 'Este enlace ya fue usado',
+      message:
+        'Por seguridad, cada enlace solo puede utilizarse una vez. Solicita uno nuevo si necesitas cambiar tu contraseña otra vez.',
+      primaryLabel: 'Solicitar nuevo enlace',
+      secondaryLabel: 'Ir al inicio',
+    },
+    invalid: {
+      title: 'Enlace no válido',
+      message:
+        'No pudimos validar este enlace. Revisa el correo o solicita uno nuevo.',
+      primaryLabel: 'Solicitar nuevo enlace',
+      secondaryLabel: 'Ir al inicio',
+    },
+    network: {
+      title: 'No pudimos validar el enlace',
+      message: 'Revisa tu conexión e inténtalo de nuevo.',
+      primaryLabel: 'Reintentar',
+      secondaryLabel: 'Solicitar nuevo enlace',
+    },
+  }[status];
+
+  if (status === 'validating') {
+    return (
+      <AppLoadingScreen
+        title="Validando enlace"
+        subtitle="Estamos revisando que el enlace siga vigente."
+      />
+    );
+  }
+
+  return (
+    <CafeSmartErrorState
+      fullScreen
+      title={content.title}
+      message={content.message}
+      info="Solicita un nuevo enlace para continuar de forma segura."
+      primaryLabel={content.primaryLabel}
+      secondaryLabel={content.secondaryLabel}
+      onPrimary={
+        status === 'network' && onRetry
+          ? onRetry
+          : () => navigate('/recuperar-password', { replace: true })
+      }
+      onSecondary={
+        status === 'network'
+          ? () => navigate('/recuperar-password', { replace: true })
+          : () => navigate('/login', { replace: true })
+      }
+    />
   );
 }
 
@@ -210,7 +308,9 @@ export default function RestablecerPassword() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [fatalError, setFatalError] = useState<string | null>(null);
+  const [resetStatus, setResetStatus] = useState<ResetTokenStatus>(
+    token ? 'validating' : 'invalid',
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const passwordError = useMemo(
@@ -222,10 +322,33 @@ export default function RestablecerPassword() {
     [password, confirmPassword],
   );
   const isFormInvalid = Boolean(
-    !token || passwordError || confirmPasswordError || isSubmitting,
+    resetStatus !== 'valid' ||
+      !token ||
+      passwordError ||
+      confirmPasswordError ||
+      isSubmitting,
   );
 
   const goToLogin = () => navigate('/login', { replace: true });
+
+  const validateToken = React.useCallback(async () => {
+    if (!token) {
+      setResetStatus('invalid');
+      return;
+    }
+
+    setResetStatus('validating');
+    try {
+      await authService.validateResetPasswordToken(token);
+      setResetStatus('valid');
+    } catch (error) {
+      setResetStatus(getResetTokenStatus(error as Partial<AuthError>));
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void validateToken();
+  }, [validateToken]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -249,7 +372,7 @@ export default function RestablecerPassword() {
         'No pudimos actualizar la contraseña. Intenta solicitar un nuevo enlace.';
 
       if (authError.field === 'token' || authError.status === 400) {
-        setFatalError('El enlace expiró o ya no es válido.');
+        setResetStatus(getResetTokenStatus(authError));
         return;
       }
 
@@ -265,7 +388,7 @@ export default function RestablecerPassword() {
         fullScreen
         variant="success"
         title="Contraseña actualizada"
-        message="¡Contraseña actualizada con éxito! Ya puedes iniciar sesión con tus nuevas credenciales."
+        message="Tu contraseña fue cambiada correctamente. Ya puedes iniciar sesión."
         info="Tu cuenta quedó protegida con la nueva clave de acceso."
         primaryLabel="Ir a iniciar sesión"
         onPrimary={goToLogin}
@@ -273,19 +396,8 @@ export default function RestablecerPassword() {
     );
   }
 
-  if (!token || fatalError) {
-    return (
-      <CafeSmartErrorState
-        fullScreen
-        title="Enlace no válido"
-        message={
-          fatalError ?? 'El enlace de recuperación no es válido o está incompleto.'
-        }
-        info="Solicita un nuevo enlace de recuperación desde la pantalla de inicio de sesión."
-        primaryLabel="Ir a iniciar sesión"
-        onPrimary={goToLogin}
-      />
-    );
+  if (resetStatus !== 'valid') {
+    return <ResetStatusScreen status={resetStatus} onRetry={() => void validateToken()} />;
   }
 
   if (submitError) {

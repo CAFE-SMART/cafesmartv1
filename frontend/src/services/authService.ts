@@ -15,6 +15,7 @@ export type AuthError = {
   details?: Record<string, string[]>;
   action?: string | null;
   code: 'OFFLINE' | 'HTTP' | 'UNKNOWN';
+  apiCode?: string;
   status?: number;
 };
 
@@ -38,6 +39,7 @@ export type ResetPasswordResponse = {
 };
 
 type RawApiError = {
+  code?: string;
   message?: string | string[];
   field?: string;
   details?: Record<string, string[]>;
@@ -129,6 +131,7 @@ async function postAuth<TResponse>(
             details: data.details,
             action: data.action ?? null,
             code: 'HTTP',
+            apiCode: data.code,
             status: response.status,
           };
           throw authError;
@@ -178,6 +181,66 @@ async function postAuth<TResponse>(
       details: knownError.details,
       action: knownError.action ?? null,
       code: knownError.code ?? 'UNKNOWN',
+      apiCode: knownError.apiCode,
+      status: knownError.status,
+    } as AuthError;
+  }
+}
+
+async function getAuth<TResponse>(
+  endpoint: string,
+  fallbackError: string,
+): Promise<TResponse> {
+  let lastNetworkError: unknown = null;
+
+  try {
+    for (const apiBaseUrl of buildApiBaseCandidates()) {
+      try {
+        const response = await fetch(`${apiBaseUrl}/auth${endpoint}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = (await response.json().catch(() => ({}))) as TResponse &
+          RawApiError;
+
+        if (!response.ok) {
+          throw {
+            message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
+            field: data.field ?? null,
+            details: data.details,
+            action: data.action ?? null,
+            code: 'HTTP',
+            apiCode: data.code,
+            status: response.status,
+          } as AuthError;
+        }
+
+        return data;
+      } catch (error) {
+        if (!isNetworkFetchError(error)) {
+          throw error;
+        }
+
+        lastNetworkError = error;
+      }
+    }
+
+    throw lastNetworkError ?? buildOfflineAuthError();
+  } catch (error) {
+    if (isNetworkFetchError(error)) {
+      throw buildOfflineAuthError();
+    }
+
+    const knownError = error as Partial<AuthError>;
+    throw {
+      message:
+        knownError.message ||
+        'No pudimos completar la acción. Vuelve a intentarlo.',
+      field: knownError.field ?? null,
+      details: knownError.details,
+      action: knownError.action ?? null,
+      code: knownError.code ?? 'UNKNOWN',
+      apiCode: knownError.apiCode,
       status: knownError.status,
     } as AuthError;
   }
@@ -276,6 +339,13 @@ export const authService = {
       { token, nuevaPassword },
       'No pudimos actualizar la contraseña. Intenta solicitar un nuevo enlace.',
       { enabled: false },
+    );
+  },
+
+  validateResetPasswordToken(token: string): Promise<{ valid: true }> {
+    return getAuth<{ valid: true }>(
+      `/reset-password/validate?token=${encodeURIComponent(token)}`,
+      'No pudimos validar este enlace.',
     );
   },
 };

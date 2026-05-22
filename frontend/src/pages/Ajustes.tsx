@@ -29,9 +29,9 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
+import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
-import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   createGuidedError,
   FloatingGuidedNotice,
@@ -500,6 +500,8 @@ export default function Ajustes() {
     null,
   );
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [mostrarConfirmacionCerrarSesion, setMostrarConfirmacionCerrarSesion] =
+    useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
 
   const clearFeedback = () => {
@@ -1456,6 +1458,7 @@ export default function Ajustes() {
   };
 
   const cerrarSesion = async () => {
+    setMostrarConfirmacionCerrarSesion(false);
     setCerrandoSesion(true);
     try {
       await logout();
@@ -1565,12 +1568,9 @@ export default function Ajustes() {
 
   if (cerrandoSesion) {
     return (
-      <CafeSmartProcessingScreen
+      <AppLoadingScreen
         title="Cerrando sesión"
-        subtitle="Estamos cerrando tu sesión de forma segura."
-        helperText="Protegiendo tus datos antes de salir."
-        trustTitle="Sesión protegida"
-        trustText="CaféSmart está cerrando el acceso local de forma segura."
+        subtitle="Estamos protegiendo tus datos antes de salir."
       />
     );
   }
@@ -1633,7 +1633,7 @@ export default function Ajustes() {
               </button>
               <button
                 type="button"
-                onClick={() => void cerrarSesion()}
+                onClick={() => setMostrarConfirmacionCerrarSesion(true)}
                 disabled={cerrandoSesion}
                 aria-label={cerrandoSesion ? 'Cerrando sesión' : 'Cerrar sesión'}
                 title="Cerrar sesión"
@@ -1643,6 +1643,56 @@ export default function Ajustes() {
               </button>
             </div>
           </div>
+
+          {mostrarConfirmacionCerrarSesion ? (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+              onClick={() => setMostrarConfirmacionCerrarSesion(false)}
+            >
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="cerrar-sesion-title"
+                className="w-full max-w-[390px] rounded-[24px] border border-[#dbe5f7] bg-[#f8fbff] p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+                    <LogOut size={22} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2
+                      id="cerrar-sesion-title"
+                      className="text-lg font-black text-slate-950"
+                    >
+                      ¿Cerrar sesión?
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-600">
+                      Tu sesión actual se cerrará en este dispositivo.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-[330px]:grid-cols-1">
+                  <button
+                    type="button"
+                    autoFocus
+                    onClick={() => setMostrarConfirmacionCerrarSesion(false)}
+                    className="inline-flex h-12 items-center justify-center rounded-[15px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#1f3fa7] shadow-sm transition hover:bg-[#f3f6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15"
+                  >
+                    Permanecer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void cerrarSesion()}
+                    className="inline-flex h-12 items-center justify-center rounded-[15px] bg-rose-600 px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : null}
 
           {isViewingPublicProfile ? (
             <div
