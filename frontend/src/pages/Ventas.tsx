@@ -2,7 +2,6 @@ import React from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   CalendarDays,
   CheckCircle2,
   Pencil,
@@ -44,7 +43,6 @@ import {
   getActiveSecadoSessions,
 } from '../utils/secadoFlow';
 import {
-  PESO_MAXIMO_ENTRADA_KG,
   PESO_MINIMO_KG,
   PRECIO_MAXIMO_KG,
   PRECIO_MINIMO_KG,
@@ -116,7 +114,6 @@ type VentaGuardadaResumen = {
 };
 
 const LIMITE = 6;
-const PESO_MAXIMO_VENTA_KG = PESO_MAXIMO_ENTRADA_KG;
 
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
@@ -202,7 +199,7 @@ function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
       calidad: l.calidad,
       disponibleKg: l.pesoActual,
       cantidadKg: '',
-      precioKg: String(Math.round(l.precioPromedioKg || 0)),
+      precioKg: '',
       pesoVerificadoKg: '',
     }));
 }
@@ -280,10 +277,14 @@ function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function sanitizeDecimalVentaInput(value: string, maxValue: number) {
+function sanitizeDecimalVentaInput(value: string, maxValue?: number) {
   const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
   const [integerRaw = '', ...decimalParts] = normalized.split('.');
-  const integer = integerRaw.slice(0, 5);
+  const maxIntegerLength =
+    maxValue && Number.isFinite(maxValue) && maxValue > 0
+      ? String(Math.floor(maxValue)).length
+      : 9;
+  const integer = integerRaw.slice(0, maxIntegerLength);
   const decimal = decimalParts.join('').slice(0, 2);
   const next = normalized.includes('.')
     ? `${integer || '0'}${decimal.length > 0 ? `.${decimal}` : '.'}`
@@ -295,7 +296,7 @@ function sanitizeDecimalVentaInput(value: string, maxValue: number) {
   const parsed = Number(next);
   if (!Number.isFinite(parsed)) return '';
 
-  return parsed > maxValue ? String(maxValue) : next;
+  return maxValue && parsed > maxValue ? String(maxValue) : next;
 }
 
 function sanitizeIntegerVentaInput(
@@ -328,10 +329,6 @@ function pesoVerificadoInvalido(lote: LoteVenta) {
   return (
     verificado !== null && (verificado < 0 || verificado > lote.disponibleKg)
   );
-}
-
-function esPesoRegistradoCompleto(lote: LoteVenta, cantidad: number) {
-  return Math.abs(cantidad - lote.disponibleKg) < 0.01;
 }
 
 function distribuirPesoVerificado(
@@ -571,15 +568,6 @@ function getCantidadLoteGuidance(
     );
   }
 
-  if (cantidad > PESO_MAXIMO_VENTA_KG) {
-    return createGuidedError(
-      'El peso no puede superar 99.999 kg.',
-      'Peso fuera de rango.',
-      'Una venta no puede superar ese máximo por operación.',
-      'Reduce los kilos para continuar.',
-    );
-  }
-
   return createGuidedError(
     `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${lote.codigo}.`,
     'Cantidad inválida',
@@ -812,11 +800,6 @@ export default function Ventas() {
         return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
       if (l.cantidad < PESO_MINIMO_KG)
         return `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${l.codigo}.`;
-      if (
-        l.cantidad > PESO_MAXIMO_VENTA_KG &&
-        !esPesoRegistradoCompleto(l, l.cantidad)
-      )
-        return 'El peso no puede superar 99.999 kg.';
       if (l.cantidad > getDisponibleVenta(l))
         return `La cantidad supera el disponible en ${l.codigo}.`;
       if (
@@ -849,8 +832,6 @@ export default function Ventas() {
       const cantidad = toNum(lote.cantidadKg);
       return (
         cantidad < PESO_MINIMO_KG ||
-        (cantidad > PESO_MAXIMO_VENTA_KG &&
-          !esPesoRegistradoCompleto(lote, cantidad)) ||
         cantidad > getDisponibleVenta(lote) ||
         toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
         toNum(lote.precioKg) > precioMaximoVentaPermitido ||
@@ -1126,7 +1107,10 @@ export default function Ventas() {
                 precioMaximoVentaPermitido,
                 l.precioKg,
               )
-            : sanitizeDecimalVentaInput(valor, PESO_MAXIMO_VENTA_KG);
+            : sanitizeDecimalVentaInput(
+                valor,
+                campo === 'pesoVerificadoKg' ? l.disponibleKg : getDisponibleVenta(l),
+              );
 
         return { ...l, [campo]: normalizado };
       }),
@@ -1475,11 +1459,8 @@ export default function Ventas() {
           <>
             {paso === 2 ? (
               <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[11px] font-medium text-slate-500">
-                  Seleccionar café
-                </p>
-                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
-                  Como deseas realizar la venta?
+                <h2 className="text-[1.3rem] font-semibold text-[#102d92]">
+                  ¿Cómo deseas realizar la venta?
                 </h2>
 
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
@@ -1690,6 +1671,7 @@ export default function Ventas() {
                                   type="text"
                                   inputMode="numeric"
                                   pattern="[0-9]*"
+                                  maxLength={6}
                                   value={precioTipo}
                                   onChange={(event) => {
                                     const raw = sanitizeIntegerVentaInput(
@@ -1740,9 +1722,6 @@ export default function Ventas() {
                       const cantidadIngresada = lote.cantidadKg.trim() !== '';
                       const precioIngresado = lote.precioKg.trim() !== '';
                       const disponibleVenta = getDisponibleVenta(lote);
-                      const cantidadSuperaMaximo =
-                        cantidad > PESO_MAXIMO_VENTA_KG &&
-                        !esPesoRegistradoCompleto(lote, cantidad);
                       const ajustePesoKg = round2(
                         lote.disponibleKg - disponibleVenta,
                       );
@@ -1752,7 +1731,6 @@ export default function Ventas() {
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
                         (cantidad < PESO_MINIMO_KG ||
-                          cantidadSuperaMaximo ||
                           cantidad > disponibleVenta);
                       const precioInvalido =
                         modoVenta === 'PARCIAL' &&
@@ -1762,11 +1740,9 @@ export default function Ventas() {
                       const cantidadErrorTexto =
                         cantidadInvalida && cantidad < PESO_MINIMO_KG
                           ? `Mínimo ${PESO_MINIMO_KG} kg.`
-                          : cantidadInvalida && cantidadSuperaMaximo
-                            ? 'Máximo 99.999 kg.'
-                            : cantidadInvalida
-                              ? `Disponible: ${kg(disponibleVenta)}.`
-                              : '';
+                          : cantidadInvalida
+                            ? `Disponible: ${kg(disponibleVenta)}.`
+                            : '';
                       const precioErrorTexto =
                         precioInvalido && toNum(lote.precioKg) < PRECIO_MINIMO_KG
                           ? 'Mínimo $1.000/kg.'
@@ -1833,15 +1809,9 @@ export default function Ventas() {
                                   id={`peso-${lote.id}`}
                                   type="range"
                                   min={0}
-                                  max={Math.min(
-                                    lote.disponibleKg,
-                                    PESO_MAXIMO_VENTA_KG,
-                                  )}
+                                  max={lote.disponibleKg}
                                   step="0.1"
-                                  value={Math.min(
-                                    disponibleVenta,
-                                    PESO_MAXIMO_VENTA_KG,
-                                  )}
+                                  value={disponibleVenta}
                                   onChange={(event) =>
                                     updateLote(
                                       lote.id,
@@ -1859,6 +1829,7 @@ export default function Ventas() {
                                   <input
                                     type="text"
                                     inputMode="decimal"
+                                    maxLength={12}
                                     value={lote.pesoVerificadoKg}
                                     onChange={(event) =>
                                       updateLote(
@@ -1899,6 +1870,7 @@ export default function Ventas() {
                                 <input
                                   type="text"
                                   inputMode="decimal"
+                                  maxLength={12}
                                   value={lote.cantidadKg}
                                   onChange={(event) =>
                                     updateLote(
@@ -1918,6 +1890,7 @@ export default function Ventas() {
                                   type="text"
                                   inputMode="numeric"
                                   pattern="[0-9]*"
+                                  maxLength={6}
                                   value={lote.precioKg}
                                   onChange={(event) =>
                                     updateLote(
@@ -1964,7 +1937,7 @@ export default function Ventas() {
                                 />
                               ) : null}
                               <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
-                                <p className="pl-1">Máx. 99.999 kg</p>
+                                <p className="pl-1">Máx. disponible</p>
                                 <p className="pr-1 text-right">
                                   Máx. $100.000/kg
                                 </p>
@@ -2012,15 +1985,13 @@ export default function Ventas() {
                         : 'bg-[#1f3fa7]'
                     }`}
                   >
-                    Siguiente Paso
-                    <ArrowRight size={22} />
+                    Siguiente paso
                   </button>
                   <button
                     type="button"
                     onClick={anterior}
                     className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
                   >
-                    <ArrowLeft size={16} />
                     Regresar
                   </button>
                 </div>
@@ -2076,9 +2047,11 @@ export default function Ventas() {
                       <input
                         type="text"
                         value={busquedaCliente}
+                        maxLength={60}
                         onChange={(event) => {
-                          setBusquedaCliente(event.target.value);
-                          setBusquedaAplicada(event.target.value.trim());
+                          const busqueda = event.target.value.slice(0, 60);
+                          setBusquedaCliente(busqueda);
+                          setBusquedaAplicada(busqueda.trim());
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
@@ -2375,10 +2348,7 @@ export default function Ventas() {
                         Guardando venta...
                       </>
                     ) : (
-                      <>
-                        Confirmar venta
-                        <ArrowRight size={16} />
-                      </>
+                      'Confirmar venta'
                     )}
                   </button>
                 </div>

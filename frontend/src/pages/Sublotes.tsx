@@ -364,7 +364,7 @@ function getSublotesGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'La humedad no es valida.',
-      'Debes escribir un numero entre 0 y 100.',
+      'Debes escribir un numero entre 8 y 14.',
       'Revisa el valor e intenta de nuevo.',
     );
   }
@@ -781,9 +781,9 @@ export default function Sublotes() {
     if (editModal.field === 'humedad') {
       if (
         parsed !== null &&
-        (!Number.isFinite(parsed) || parsed < 0 || parsed > 100)
+        (!Number.isFinite(parsed) || parsed < 8 || parsed > 14)
       ) {
-        setError('La humedad no es valida. Debe estar entre 0 y 100.');
+        setError('La humedad no es valida. Debe estar entre 8 y 14.');
         return;
       }
 

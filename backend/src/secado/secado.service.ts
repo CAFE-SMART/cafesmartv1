@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import {
   Prisma,
   TipoMovimientoInventario,
@@ -10,6 +11,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
+import { CrearSecadoDto } from './dto/crear-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 
@@ -23,6 +25,207 @@ type FuenteSecado = {
 @Injectable()
 export class SecadoService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async crearSecado(userId: string, dto: CrearSecadoDto) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { organizacionId: true },
+        });
+
+        if (!user?.organizacionId) {
+          throw new BadRequestException(
+            apiError('ORGANIZACION_REQUERIDA', 'Usuario sin organizacion.'),
+          );
+        }
+
+        const organizacionId = user.organizacionId;
+        const pesoSalida = this.redondear(dto.pesoSalida);
+        const sublote = await tx.sublote.findFirst({
+          where: {
+            id: dto.subloteId,
+            deletedAt: null,
+            compra: {
+              organizacionId,
+              deletedAt: null,
+            },
+          },
+          select: {
+            id: true,
+            pesoActual: true,
+            pesoInicial: true,
+            precioKg: true,
+            costoTotal: true,
+            compraId: true,
+            tipoCafeId: true,
+            calidadId: true,
+            deviceId: true,
+          },
+        });
+
+        if (!sublote) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+              'El sublote origen no esta disponible para secado.',
+            ),
+          );
+        }
+
+        const pesoEntrada = this.redondear(Number(sublote.pesoActual));
+
+        if (pesoEntrada <= 0) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_ENTRADA_INVALIDA',
+              'El sublote origen no tiene peso disponible para secado.',
+              { details: { subloteId: sublote.id, disponibleKg: pesoEntrada } },
+            ),
+          );
+        }
+
+        if (pesoSalida > pesoEntrada) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SALIDA_MAYOR_ENTRADA',
+              'La salida no puede superar el peso disponible del sublote.',
+              {
+                details: {
+                  subloteId: sublote.id,
+                  disponibleKg: pesoEntrada,
+                  outputKg: pesoSalida,
+                },
+              },
+            ),
+          );
+        }
+
+        const [tipoSeco, calidadSalida] = await Promise.all([
+          tx.tipoCafe.findUnique({
+            where: { nombre: 'SECO' },
+            select: { id: true },
+          }),
+          tx.calidad.findUnique({
+            where: { nombre: dto.calidadSalida },
+            select: { id: true, nombre: true },
+          }),
+        ]);
+
+        if (!tipoSeco || !calidadSalida) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_CATALOGO_INVALIDO',
+              'No encontramos los catalogos necesarios para crear el cafe seco.',
+            ),
+          );
+        }
+
+        const updated = await tx.sublote.updateMany({
+          where: {
+            id: sublote.id,
+            deletedAt: null,
+            pesoActual: { gte: pesoEntrada },
+            compra: {
+              organizacionId,
+              deletedAt: null,
+            },
+          },
+          data: {
+            pesoActual: {
+              decrement: pesoEntrada,
+            },
+          },
+        });
+
+        if (updated.count === 0) {
+          throw new ConflictException(
+            apiError(
+              'SECADO_INVENTARIO_INSUFICIENTE',
+              'No hay suficiente cafe verde para completar el secado.',
+            ),
+          );
+        }
+
+        await this.actualizarInventario(
+          tx,
+          organizacionId,
+          sublote.tipoCafeId,
+          sublote.calidadId,
+          -pesoEntrada,
+        );
+
+        const loteSalida = await this.asegurarLote(
+          tx,
+          organizacionId,
+          tipoSeco.id,
+          calidadSalida.id,
+          `SECO ${calidadSalida.nombre}`,
+        );
+        const costoDisponible = this.calcularCostoDisponible(sublote);
+        const precioKgSalida = this.redondear(costoDisponible / pesoSalida);
+        const subloteSeco = await tx.sublote.create({
+          data: {
+            compraId: sublote.compraId,
+            tipoCafeId: tipoSeco.id,
+            calidadId: calidadSalida.id,
+            idLote: loteSalida.id,
+            pesoInicial: pesoSalida,
+            pesoActual: pesoSalida,
+            precioKg: precioKgSalida,
+            costoTotal: this.redondear(precioKgSalida * pesoSalida),
+            humedad: null,
+            deviceId: sublote.deviceId,
+            localId: `secado:${sublote.id}:${randomUUID()}`,
+          },
+        });
+
+        await this.actualizarInventario(
+          tx,
+          organizacionId,
+          tipoSeco.id,
+          calidadSalida.id,
+          pesoSalida,
+        );
+
+        await tx.inventarioMovimiento.createMany({
+          data: [
+            {
+              organizacionId,
+              usuarioId: userId,
+              tipoCafeId: sublote.tipoCafeId,
+              calidadId: sublote.calidadId,
+              subloteId: sublote.id,
+              cantidad: -pesoEntrada,
+              tipoMovimiento: TipoMovimientoInventario.SECADO,
+              referenciaTipo: TipoReferenciaInventario.SECADO,
+              referenciaId: sublote.id,
+            },
+            {
+              organizacionId,
+              usuarioId: userId,
+              tipoCafeId: tipoSeco.id,
+              calidadId: calidadSalida.id,
+              subloteId: subloteSeco.id,
+              cantidad: pesoSalida,
+              tipoMovimiento: TipoMovimientoInventario.SECADO,
+              referenciaTipo: TipoReferenciaInventario.SECADO,
+              referenciaId: sublote.id,
+            },
+          ],
+        });
+
+        return {
+          subloteOrigenId: sublote.id,
+          subloteSeco,
+          pesoEntradaKg: pesoEntrada,
+          pesoSalidaKg: pesoSalida,
+          mermaKg: this.redondear(pesoEntrada - pesoSalida),
+        };
+      },
+      { maxWait: 10000, timeout: 25000 },
+    );
+  }
 
   async transformarSecado(userId: string, dto: TransformarSecadoDto) {
     const organizacionId = await this.getOrganizacionId(userId);
@@ -398,6 +601,22 @@ export class SecadoService {
     }
 
     return pesoTotal > 0 ? this.redondear(costoTotal / pesoTotal) : 0;
+  }
+
+  private calcularCostoDisponible(sublote: {
+    pesoInicial: Prisma.Decimal;
+    pesoActual: Prisma.Decimal;
+    precioKg: Prisma.Decimal;
+    costoTotal: Prisma.Decimal;
+  }): number {
+    const pesoInicial = Number(sublote.pesoInicial);
+    const costoTotal = Number(sublote.costoTotal);
+    const precioKg =
+      pesoInicial > 0 && costoTotal > 0
+        ? costoTotal / pesoInicial
+        : Number(sublote.precioKg);
+
+    return this.redondear(precioKg * Number(sublote.pesoActual));
   }
 
   private async asegurarLote(

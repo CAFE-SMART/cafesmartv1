@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import API_URL from '../config/api';
 
+const SUPPORT_MESSAGE_MAX_LENGTH = 300;
+
 type SystemSaveErrorProps = {
   operation: string;
   error: unknown;
@@ -156,16 +158,25 @@ export function SystemSaveError({
             ) : (
               <>
                 <p className="mt-3 text-base leading-6 text-slate-600">
-                  Escribe una frase breve. El sistema enviará automáticamente el
-                  contexto del error sin mostrártelo.
+                  Cuéntanos la acción exacta, el dato que estabas guardando y si
+                  ya intentaste reintentar. Adjuntaremos el contexto técnico del
+                  error automáticamente.
                 </p>
                 <textarea
                   value={supportText}
-                  onChange={(event) => setSupportText(event.target.value)}
+                  maxLength={SUPPORT_MESSAGE_MAX_LENGTH}
+                  onChange={(event) =>
+                    setSupportText(
+                      event.target.value.slice(0, SUPPORT_MESSAGE_MAX_LENGTH),
+                    )
+                  }
                   rows={4}
                   className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#102d92]"
-                  placeholder="Ej. Estaba registrando una compra y al guardar apareció el error."
+                  placeholder="Ej. Guardaba una compra de 125 kg para Juan Perez y falló al confirmar."
                 />
+                <p className="mt-1 text-right text-xs font-semibold text-slate-400">
+                  {supportText.length}/{SUPPORT_MESSAGE_MAX_LENGTH}
+                </p>
                 <button
                   type="button"
                   onClick={() => void submitSupport()}

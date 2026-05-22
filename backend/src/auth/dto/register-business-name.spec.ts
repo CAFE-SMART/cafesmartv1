@@ -19,16 +19,15 @@ const baseGoogleRegister = {
 };
 
 describe('registro nombreOrganizacion', () => {
-  it('acepta nombres cortos y nombres comerciales comunes', async () => {
+  it('acepta nombres con letras, espacios y maximo cinco numeros', async () => {
     for (const nombreOrganizacion of [
       'C',
       'JR',
       '3M',
       'D1',
       'Café Los Alpes',
-      "Cooperativa O'Campo",
-      'Compraventa JR & Asociados',
-      'Café Ruta-24',
+      'Compraventa JR Asociados',
+      'Cafe Ruta 12345',
     ]) {
       const dto = plainToInstance(RegisterDto, {
         ...baseRegister,
@@ -46,6 +45,8 @@ describe('registro nombreOrganizacion', () => {
       '---',
       '@@@@',
       '""""',
+      'Cafe Smart!',
+      'Cafe Ruta 123456',
       '999999999',
       '123456',
       '43252566362232626',
@@ -83,5 +84,58 @@ describe('registro nombreOrganizacion', () => {
         matches: 'Ingresa un nombre de negocio válido.',
       }),
     );
+  });
+
+  it('exige telefono del administrador con 10 digitos y que empiece por 3', async () => {
+    for (const telefono of [
+      '3001234567',
+      '3120000000',
+    ]) {
+      const dto = plainToInstance(RegisterDto, {
+        ...baseRegister,
+        telefono,
+      });
+
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    }
+
+    for (const telefono of [
+      '+57 300 123 4567',
+      '2001234567',
+      '30012345678',
+      '300123456',
+      '300abc4567',
+    ]) {
+      const dto = plainToInstance(RegisterDto, {
+        ...baseRegister,
+        telefono,
+      });
+      const errors = await validate(dto);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0].property).toBe('telefono');
+    }
+  });
+
+  it('rechaza numeros y caracteres especiales en el nombre del administrador', async () => {
+    for (const nombre of ['Ana Perez', 'María Fernanda']) {
+      const dto = plainToInstance(RegisterDto, {
+        ...baseRegister,
+        nombre,
+      });
+
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    }
+
+    for (const nombre of ['Ana Perez 2', 'Ana-Perez', 'Ana.Perez']) {
+      const dto = plainToInstance(RegisterDto, {
+        ...baseRegister,
+        nombre,
+      });
+      const errors = await validate(dto);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0].property).toBe('nombre');
+    }
   });
 });

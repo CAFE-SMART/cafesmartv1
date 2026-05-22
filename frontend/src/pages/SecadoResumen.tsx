@@ -5,8 +5,13 @@ import {
   finalizeSecado,
   getSecadoSession,
   removeSecadoSession,
+  type SecadoSubloteSeleccionado,
 } from '../utils/secadoFlow';
-import { transformarSecado } from '../services/secadoService';
+import {
+  crearSecado,
+  transformarSecado,
+  type TransformarSecadoPayload,
+} from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 import {
@@ -57,6 +62,33 @@ function getSecadoPersistGuidance(message: string) {
   );
 }
 
+async function persistirSecadoRemoto(
+  payload: TransformarSecadoPayload,
+  fuentes: SecadoSubloteSeleccionado[],
+): Promise<void> {
+  const fuente = fuentes[0];
+  const esSubloteCompleto =
+    fuentes.length === 1 &&
+    fuente &&
+    Number.isFinite(fuente.pesoDisponible) &&
+    Math.abs((fuente.pesoDisponible ?? 0) - fuente.pesoActual) < 0.01;
+
+  if (
+    esSubloteCompleto &&
+    payload.fuentes.length === 1 &&
+    payload.salidas.length === 1
+  ) {
+    await crearSecado({
+      subloteId: payload.fuentes[0].id,
+      pesoSalida: payload.salidas[0].pesoKg,
+      calidadSalida: payload.salidas[0].calidad,
+    });
+    return;
+  }
+
+  await transformarSecado(payload);
+}
+
 export default function SecadoResumen() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -83,31 +115,34 @@ export default function SecadoResumen() {
       setPersistError(null);
 
       try {
-        await transformarSecado({
-          sessionId: finalized.id,
-          deviceId: await obtenerDeviceId(),
-          fuentes: finalized.sublotes.map((sublote) => ({
-            id: sublote.id,
-            pesoKg: sublote.pesoActual,
-          })),
-          salidas: [
-            {
-              calidad: 'BUENO',
-              pesoKg: finalized.outputBuenoKg,
-              humedad: finalized.outputBuenoHumedad,
-            },
-            {
-              calidad: 'REGULAR',
-              pesoKg: finalized.outputRegularKg,
-              humedad: finalized.outputRegularHumedad,
-            },
-            {
-              calidad: 'MALO',
-              pesoKg: finalized.outputMaloKg ?? 0,
-              humedad: finalized.outputMaloHumedad ?? null,
-            },
-          ].filter((salida) => salida.pesoKg > 0),
-        });
+        await persistirSecadoRemoto(
+          {
+            sessionId: finalized.id,
+            deviceId: await obtenerDeviceId(),
+            fuentes: finalized.sublotes.map((sublote) => ({
+              id: sublote.id,
+              pesoKg: sublote.pesoActual,
+            })),
+            salidas: [
+              {
+                calidad: 'BUENO',
+                pesoKg: finalized.outputBuenoKg,
+                humedad: finalized.outputBuenoHumedad,
+              },
+              {
+                calidad: 'REGULAR',
+                pesoKg: finalized.outputRegularKg,
+                humedad: finalized.outputRegularHumedad,
+              },
+              {
+                calidad: 'MALO',
+                pesoKg: finalized.outputMaloKg ?? 0,
+                humedad: finalized.outputMaloHumedad ?? null,
+              },
+            ].filter((salida) => salida.pesoKg > 0),
+          },
+          finalized.sublotes,
+        );
 
         removeSecadoSession(finalized.id);
         setPersisted(true);

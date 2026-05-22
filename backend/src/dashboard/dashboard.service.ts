@@ -43,7 +43,40 @@ type DashboardSummaryResponse = {
   movimientosRecientes: DashboardMovimiento[];
 };
 
+type DashboardInicioBodegaItem = {
+  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
+  tipo: 'Verde' | 'Seco';
+  calidad: 'Bueno' | 'Regular';
+  tipoCafeId: string;
+  calidadId: string;
+  totalKg: number;
+  lots: number;
+  averageDays: number;
+};
+
+type DashboardInicioResponse = Pick<
+  DashboardSummaryResponse,
+  | 'comprasHoy'
+  | 'ventasHoy'
+  | 'gastosHoy'
+  | 'kgCompradosHoy'
+  | 'totalComprasHoy'
+  | 'totalVentasHoy'
+  | 'totalGastosHoy'
+  | 'totalProductores'
+  | 'kgActual'
+  | 'kgCapacidad'
+  | 'inventarioPorTipo'
+> & {
+  inventarioBodega: DashboardInicioBodegaItem[];
+};
+
 const LIMITE_MOVIMIENTOS_RECIENTES = 50;
+const DASHBOARD_INICIO_CACHE_MS = 20000;
+const dashboardInicioCache = new Map<
+  string,
+  { expiresAt: number; data: DashboardInicioResponse }
+>();
 
 @Injectable()
 export class DashboardService {
@@ -51,6 +84,23 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly parametrosService: ParametrosService,
   ) {}
+
+  async obtenerInicio(userId: string): Promise<DashboardInicioResponse> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+    const cached = dashboardInicioCache.get(organizacionId);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const data = await this.calcularInicio(organizacionId);
+    dashboardInicioCache.set(organizacionId, {
+      data,
+      expiresAt: Date.now() + DASHBOARD_INICIO_CACHE_MS,
+    });
+
+    return data;
+  }
 
   async obtenerResumen(userId: string): Promise<DashboardSummaryResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
@@ -279,9 +329,12 @@ export class DashboardService {
         },
       }),
     ]);
-    const kgCapacidad = await this.obtenerCapacidadBodegaKg(organizacionId);
-    const resumenFinanciero =
-      await this.obtenerResumenFinanciero(organizacionId);
+    const [kgCapacidad, resumenInventario, resumenFinanciero] =
+      await Promise.all([
+        this.obtenerCapacidadBodegaKg(organizacionId),
+        this.obtenerResumenInventario(organizacionId),
+        this.obtenerResumenFinanciero(organizacionId),
+      ]);
 
     const movimientosCompras = comprasRecientes.map((compra) => ({
       id: compra.id,
@@ -358,13 +411,224 @@ export class DashboardService {
         totalGastosAcumulado._sum.montoGasto ?? 0,
       ),
       totalProductores,
-      kgActual: resumenFinanciero.kgActual,
+      kgActual: resumenInventario.kgActual,
       kgCapacidad,
-      inventarioPorTipo: resumenFinanciero.inventarioPorTipo,
+      inventarioPorTipo: resumenInventario.inventarioPorTipo,
       utilidadTotalAcumulada: resumenFinanciero.utilidadTotalAcumulada,
       mermaTotalKg: resumenFinanciero.mermaTotalKg,
       movimientosRecientes,
     };
+  }
+
+  private async calcularInicio(
+    organizacionId: string,
+  ): Promise<DashboardInicioResponse> {
+    const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
+
+    const [
+      comprasHoy,
+      ventasHoy,
+      gastosHoy,
+      kgCompradosHoy,
+      totalComprasHoy,
+      totalVentasHoy,
+      totalGastosHoy,
+      totalProductores,
+      resumenInventario,
+      kgCapacidad,
+      inventarioBodega,
+    ] = await Promise.all([
+      this.prisma.compra.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.venta.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.gastoOperativo.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.sublote.aggregate({
+        _sum: { pesoInicial: true },
+        where: {
+          deletedAt: null,
+          compra: {
+            deletedAt: null,
+            organizacionId,
+            fecha: { gte: inicioDia, lt: finDia },
+          },
+        },
+      }),
+      this.prisma.compra.aggregate({
+        _sum: { totalCompra: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.venta.aggregate({
+        _sum: { totalVenta: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fecha: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.gastoOperativo.aggregate({
+        _sum: { montoGasto: true },
+        where: {
+          organizacionId,
+          deletedAt: null,
+          fechaGasto: { gte: inicioDia, lt: finDia },
+        },
+      }),
+      this.prisma.productor.count({
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+      }),
+      this.obtenerResumenInventario(organizacionId),
+      this.obtenerCapacidadBodegaKg(organizacionId),
+      this.obtenerInventarioBodegaInicio(organizacionId),
+    ]);
+
+    return {
+      comprasHoy,
+      ventasHoy,
+      gastosHoy,
+      kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
+      totalComprasHoy: Number(totalComprasHoy._sum.totalCompra ?? 0),
+      totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
+      totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
+      totalProductores,
+      kgActual: resumenInventario.kgActual,
+      kgCapacidad,
+      inventarioPorTipo: resumenInventario.inventarioPorTipo,
+      inventarioBodega,
+    };
+  }
+
+  private async obtenerResumenInventario(organizacionId: string) {
+    const inventarios = await this.prisma.inventario.findMany({
+      where: { organizacionId },
+      select: {
+        pesoTotal: true,
+        tipoCafeId: true,
+        tipoCafe: {
+          select: { nombre: true },
+        },
+      },
+    });
+
+    const inventarioPorTipoMap = new Map<
+      string,
+      { tipoCafeId: string; tipoCafe: string; kgDisponible: number }
+    >();
+    let kgActual = 0;
+
+    for (const item of inventarios) {
+      const kg = Number(item.pesoTotal);
+      kgActual += kg;
+      const current = inventarioPorTipoMap.get(item.tipoCafeId) ?? {
+        tipoCafeId: item.tipoCafeId,
+        tipoCafe: item.tipoCafe.nombre,
+        kgDisponible: 0,
+      };
+      current.kgDisponible += kg;
+      inventarioPorTipoMap.set(item.tipoCafeId, current);
+    }
+
+    return {
+      kgActual,
+      inventarioPorTipo: [...inventarioPorTipoMap.values()],
+    };
+  }
+
+  private async obtenerInventarioBodegaInicio(
+    organizacionId: string,
+  ): Promise<DashboardInicioBodegaItem[]> {
+    const sublotes = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        pesoActual: { gt: 0 },
+        tipoCafe: { nombre: { in: ['VERDE', 'SECO'] } },
+        calidad: { nombre: { in: ['BUENO', 'REGULAR'] } },
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        pesoActual: true,
+        tipoCafeId: true,
+        calidadId: true,
+        tipoCafe: { select: { nombre: true } },
+        calidad: { select: { nombre: true } },
+        compra: { select: { fecha: true } },
+        creadoEn: true,
+      },
+    });
+
+    const map = new Map<
+      DashboardInicioBodegaItem['key'],
+      DashboardInicioBodegaItem & { dayWeight: number }
+    >();
+
+    for (const sublote of sublotes) {
+      const tipoKey = sublote.tipoCafe.nombre.trim().toUpperCase();
+      const calidadKey = sublote.calidad.nombre.trim().toUpperCase();
+      const key = `${tipoKey}_${calidadKey}` as DashboardInicioBodegaItem['key'];
+
+      if (
+        key !== 'VERDE_BUENO' &&
+        key !== 'VERDE_REGULAR' &&
+        key !== 'SECO_BUENO'
+      ) {
+        continue;
+      }
+
+      const totalKg = Number(sublote.pesoActual);
+      const days = this.daysSinceBogota(sublote.compra.fecha ?? sublote.creadoEn);
+      const current = map.get(key) ?? {
+        key,
+        tipo: tipoKey === 'SECO' ? 'Seco' : 'Verde',
+        calidad: calidadKey === 'REGULAR' ? 'Regular' : 'Bueno',
+        tipoCafeId: sublote.tipoCafeId,
+        calidadId: sublote.calidadId,
+        totalKg: 0,
+        lots: 0,
+        averageDays: 0,
+        dayWeight: 0,
+      };
+
+      current.totalKg += totalKg;
+      current.lots += 1;
+      current.dayWeight += days;
+      map.set(key, current);
+    }
+
+    return [...map.values()]
+      .map(({ dayWeight, ...item }) => ({
+        ...item,
+        averageDays: item.lots > 0 ? Math.round(dayWeight / item.lots) : 0,
+      }))
+      .sort((a, b) => {
+        if (b.averageDays !== a.averageDays) return b.averageDays - a.averageDays;
+        return b.totalKg - a.totalKg;
+      });
   }
 
   private async obtenerResumenFinanciero(organizacionId: string) {
@@ -627,6 +891,31 @@ export class DashboardService {
     const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
 
     return { inicioDia, finDia };
+  }
+
+  private daysSinceBogota(value: Date): number {
+    const { inicioDia } = this.obtenerRangoHoyBogota();
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const year = Number(dateParts.find((parte) => parte.type === 'year')?.value);
+    const month = Number(
+      dateParts.find((parte) => parte.type === 'month')?.value,
+    );
+    const day = Number(dateParts.find((parte) => parte.type === 'day')?.value);
+    const target = new Date(
+      `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00-05:00`,
+    );
+
+    if (Number.isNaN(target.getTime())) return 0;
+
+    return Math.max(
+      0,
+      Math.floor((inicioDia.getTime() - target.getTime()) / 86400000),
+    );
   }
 
   private obtenerRangoSemanaBogota(): {

@@ -15,6 +15,9 @@ import { authService, type AuthError } from '../services/authService';
 import { useUser } from '../context/UserContext';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 
+const EMAIL_MAX_LENGTH = 70;
+const PASSWORD_MAX_LENGTH = 72;
+
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -111,6 +114,9 @@ export default function Login() {
     if (!email.trim()) {
       nextEmailError = 'Escribe tu correo.';
       hasValidationError = true;
+    } else if (email.trim().length > EMAIL_MAX_LENGTH) {
+      nextEmailError = `El correo no puede superar ${EMAIL_MAX_LENGTH} caracteres.`;
+      hasValidationError = true;
     } else if (!isValidEmail(email)) {
       nextEmailError = 'Correo invalido.';
       hasValidationError = true;
@@ -118,6 +124,9 @@ export default function Login() {
 
     if (!password.trim()) {
       nextPasswordError = 'Escribe tu contrase\u00f1a.';
+      hasValidationError = true;
+    } else if (password.length > PASSWORD_MAX_LENGTH) {
+      nextPasswordError = `La contrase\u00f1a no puede superar ${PASSWORD_MAX_LENGTH} caracteres.`;
       hasValidationError = true;
     }
 
@@ -291,12 +300,13 @@ export default function Login() {
                 label="Correo electronico"
                 value={email}
                 onChange={(value) => {
-                  setEmail(value);
+                  setEmail(value.slice(0, EMAIL_MAX_LENGTH));
                   setEmailFieldError(null);
                 }}
                 placeholder="ejemplo@correo.com"
                 type="email"
                 autoComplete="email"
+                maxLength={EMAIL_MAX_LENGTH}
                 error={emailFieldError}
                 icon={<Mail size={17} />}
               />
@@ -334,11 +344,14 @@ export default function Login() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(event) => {
-                      setPassword(event.target.value);
+                      setPassword(
+                        event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                      );
                       setPasswordFieldError(null);
                     }}
                     placeholder="********"
                     autoComplete="current-password"
+                    maxLength={PASSWORD_MAX_LENGTH}
                     className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                   />
                   <button
@@ -457,6 +470,7 @@ const TextField = React.forwardRef<
     placeholder: string;
     type?: string;
     autoComplete?: string;
+    maxLength?: number;
     error?: string | null;
     icon: React.ReactNode;
   }
@@ -469,6 +483,7 @@ const TextField = React.forwardRef<
     placeholder,
     type = 'text',
     autoComplete,
+    maxLength,
     error,
     icon,
   },
@@ -498,6 +513,7 @@ const TextField = React.forwardRef<
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          maxLength={maxLength}
           className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
         />
       </div>

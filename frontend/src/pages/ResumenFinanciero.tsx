@@ -449,6 +449,7 @@ export default function ResumenFinanciero() {
             </p>
             <input
               type="password"
+              maxLength={72}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
