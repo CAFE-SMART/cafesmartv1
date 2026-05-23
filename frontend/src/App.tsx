@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { CafeSmartErrorState } from './components/CafeSmartErrorState';
+import { SyncQueueRunner } from './components/SyncQueueRunner';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
@@ -127,25 +128,62 @@ function PrivateRouteHistoryTracker() {
 }
 
 function GlobalOfflineNotice() {
-  const { isOnline } = useCloudStatus();
+  const { isOnline, backendReachable, isSyncing, reconnectedAt } =
+    useCloudStatus();
   const location = useLocation();
+  const [showReconnectedNotice, setShowReconnectedNotice] = useState(false);
 
   const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
 
-  if (isOnline || isSubloteDetail) {
+  useEffect(() => {
+    if (!reconnectedAt) return undefined;
+    setShowReconnectedNotice(true);
+    const timeout = window.setTimeout(() => setShowReconnectedNotice(false), 5200);
+    return () => window.clearTimeout(timeout);
+  }, [reconnectedAt]);
+
+  if (isSubloteDetail) {
     return null;
   }
 
+  const isOffline = !isOnline || backendReachable === false;
+
+  if (!isOffline && !showReconnectedNotice && !isSyncing) return null;
+
   return (
-    <div className="border-b border-[#ececec] bg-white px-4 py-3">
+    <div className="border-b border-[#dbe5fb] bg-white px-4 py-3">
       <div
         role="status"
         aria-live="polite"
-        className="mx-auto max-w-[390px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#4b5563] whitespace-pre-line"
+        className={`mx-auto max-w-[390px] rounded-[14px] border px-4 py-3 text-[12px] leading-5 whitespace-pre-line ${
+          isOffline
+            ? 'border-amber-200 bg-amber-50 text-amber-900'
+            : isSyncing
+              ? 'border-sky-200 bg-sky-50 text-sky-900'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+        }`}
       >
-        Para refrescar los datos necesitas conexión a internet.
-        {'\n'}
-        Tus cambios están guardados y se sincronizarán automáticamente.
+        {isOffline ? (
+          <>
+            <strong>Sin conexión</strong>
+            {'\n'}
+            Puedes consultar información guardada en este dispositivo. Algunas
+            acciones estarán disponibles cuando vuelvas a tener internet.
+          </>
+        ) : isSyncing ? (
+          <>
+            <strong>Conexión restablecida</strong>
+            {'\n'}
+            Estamos sincronizando tus cambios pendientes.
+          </>
+        ) : (
+          <>
+            <strong>Conexión restablecida</strong>
+            {'\n'}
+            Ya puedes finalizar los borradores pendientes para guardarlos en la
+            nube.
+          </>
+        )}
       </div>
     </div>
   );
@@ -176,6 +214,7 @@ function App() {
               Saltar al contenido principal
             </a>
             <GlobalOfflineNotice />
+            <SyncQueueRunner />
             <div id="app-content">
               <AppRoutes />
             </div>

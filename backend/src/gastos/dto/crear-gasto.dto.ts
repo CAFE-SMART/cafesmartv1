@@ -53,6 +53,10 @@ export class CrearGastoDto {
 
   @IsOptional()
   @IsString()
+  clientMutationId?: string;
+
+  @IsOptional()
+  @IsString()
   syncStatus?: string;
 
   // ── Asociación a sublotes (opcional) ─────────────────────────

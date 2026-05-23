@@ -1,4 +1,5 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
+import { getOfflineCache, saveOfflineCache } from './offlineCacheService';
 
 const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
@@ -142,6 +143,8 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const dedupeKey = canDedupe
     ? `${token ?? 'anonymous'}::${endpoint}`
     : null;
+  const offlineCacheKey =
+    method === 'GET' ? `${token ?? 'anonymous'}::${endpoint}` : null;
 
   if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
     return inFlightGetRequests.get(dedupeKey);
@@ -193,6 +196,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
           });
         }
 
+        if (offlineCacheKey) {
+          saveOfflineCache(offlineCacheKey, data);
+        }
+
         return data;
       } catch (error) {
         ultimoError = error;
@@ -200,6 +207,13 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         if (!(error instanceof TypeError)) {
           throw error;
         }
+      }
+    }
+
+    if (offlineCacheKey) {
+      const cached = getOfflineCache<unknown>(offlineCacheKey);
+      if (cached !== null) {
+        return cached;
       }
     }
 

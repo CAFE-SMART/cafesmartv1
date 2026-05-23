@@ -87,6 +87,10 @@ export class CreateCompraDto {
   @IsNotEmpty({ message: 'localId de la compra es obligatorio' })
   localId: string;
 
+  @IsOptional()
+  @IsString({ message: 'clientMutationId de la compra debe ser un string' })
+  clientMutationId?: string;
+
   @IsArray({ message: 'sublotes debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'Debe incluir al menos un sublote' })
   @ValidateNested({ each: true })

@@ -75,6 +75,16 @@ import {
   startSecadoWithWeights,
 } from '../utils/secadoFlow';
 import {
+  deleteSyncOperation,
+  getSyncQueue,
+  getSyncQueueSummary,
+  retryOperation,
+  syncAllPending,
+  SYNC_QUEUE_EVENT,
+  type SyncOperation,
+  type SyncQueueSummary,
+} from '../services/syncQueueService';
+import {
   formatCoffeeFullName,
   formatSubloteVisualCode,
   getCoffeeCodePrefix,
@@ -502,6 +512,12 @@ export default function Ajustes() {
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [mostrarConfirmacionCerrarSesion, setMostrarConfirmacionCerrarSesion] =
     useState(false);
+  const [syncQueue, setSyncQueue] = useState<SyncOperation[]>(() =>
+    getSyncQueue(),
+  );
+  const [syncSummary, setSyncSummary] = useState<SyncQueueSummary>(() =>
+    getSyncQueueSummary(),
+  );
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
 
   const clearFeedback = () => {
@@ -515,6 +531,17 @@ export default function Ajustes() {
     const timeout = window.setTimeout(() => setSuccess(null), 3000);
     return () => window.clearTimeout(timeout);
   }, [success]);
+
+  useEffect(() => {
+    const refreshSyncQueue = () => {
+      setSyncQueue(getSyncQueue());
+      setSyncSummary(getSyncQueueSummary());
+    };
+
+    window.addEventListener(SYNC_QUEUE_EVENT, refreshSyncQueue);
+    refreshSyncQueue();
+    return () => window.removeEventListener(SYNC_QUEUE_EVENT, refreshSyncQueue);
+  }, []);
 
   useEffect(() => {
     if (!limitNotice) return undefined;
@@ -1969,6 +1996,111 @@ export default function Ajustes() {
             </section>
             </div>
           ) : null}
+        </section>
+
+        <section className="rounded-[18px] border border-[#dbe5ff] bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Sincronización pendiente
+              </p>
+              <h2 className="mt-1 text-base font-black text-slate-950">
+                {syncSummary.pendientes} pendientes · {syncSummary.errores} con error
+              </h2>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Las compras y gastos guardados sin conexión se sincronizan uno
+                por uno cuando vuelve internet.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void syncAllPending()}
+              disabled={syncSummary.pendientes === 0}
+              className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-[#f8faff] px-3 text-xs font-black text-[#102d92] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reintentar
+            </button>
+          </div>
+
+          {syncQueue.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {syncQueue.slice(0, 4).map((operation) => (
+                <div
+                  key={operation.idLocal}
+                  className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-900">
+                        {operation.modulo === 'COMPRA'
+                          ? 'Compra'
+                          : operation.modulo === 'GASTO'
+                            ? 'Gasto'
+                            : operation.modulo}
+                      </p>
+                      <p className="text-[11px] font-semibold text-slate-500">
+                        {new Date(operation.creadoEn).toLocaleString('es-CO', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
+                        operation.estado === 'SINCRONIZADO'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : operation.estado === 'ERROR'
+                            ? 'bg-rose-50 text-rose-700'
+                            : operation.estado === 'SINCRONIZANDO'
+                              ? 'bg-sky-50 text-sky-700'
+                              : 'bg-amber-50 text-amber-700'
+                      }`}
+                    >
+                      {operation.estado === 'PENDIENTE'
+                        ? 'Pendiente'
+                        : operation.estado === 'SINCRONIZANDO'
+                          ? 'Sincronizando'
+                          : operation.estado === 'SINCRONIZADO'
+                            ? 'Sincronizado'
+                            : 'Error'}
+                    </span>
+                  </div>
+                  {operation.error ? (
+                    <p className="mt-2 text-[11px] font-semibold leading-4 text-rose-700">
+                      {operation.error}
+                    </p>
+                  ) : null}
+                  {operation.estado === 'ERROR' ? (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          retryOperation(operation.idLocal);
+                          void syncAllPending();
+                        }}
+                        className="rounded-[10px] bg-[#102d92] px-3 py-1.5 text-[11px] font-black text-white"
+                      >
+                        Reintentar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteSyncOperation(operation.idLocal)}
+                        className="rounded-[10px] border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-black text-rose-700"
+                      >
+                        Eliminar local
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-[14px] bg-[#f8faff] px-3 py-3 text-xs font-semibold text-slate-500">
+              No hay operaciones pendientes en este dispositivo.
+            </p>
+          )}
         </section>
 
         <section className="space-y-3">

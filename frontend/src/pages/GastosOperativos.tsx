@@ -24,11 +24,14 @@ import { AccessibleModal } from '../components/AccessibleModal';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   listarCompras,
   type CompraListadoItem,
 } from '../services/comprasService';
 import { crearGasto, type CrearGastoPayload } from '../services/gastosService';
+import { createOfflineDraft } from '../services/offlineDraftService';
+import { addSyncOperation } from '../services/syncQueueService';
 import {
   BUSINESS_MIN_DATE_VALUE,
   getTodayLocalDateValue,
@@ -438,6 +441,7 @@ function GastoDatePicker({
 
 export default function GastosOperativos() {
   const navigate = useNavigate();
+  const { isOffline } = useNetworkStatus();
 
   const [concepto, setConcepto] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -470,6 +474,7 @@ export default function GastosOperativos() {
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [offlineDraftSaved, setOfflineDraftSaved] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState<GuidanceMessage | null>(
     null,
   );
@@ -828,7 +833,42 @@ export default function GastosOperativos() {
         subloteIds: aplicaA === 'SUBLOTES' ? sublotesSeleccionados : undefined,
       };
 
+      if (isOffline) {
+        const clientMutationId = payload.localId ?? generarId();
+        addSyncOperation({
+          idLocal: clientMutationId,
+          clientMutationId,
+          deviceId: payload.deviceId ?? (await obtenerDeviceId()),
+          modulo: 'GASTO',
+          endpoint: '/gastos',
+          method: 'POST',
+          payload: {
+            ...payload,
+            localId: clientMutationId,
+          },
+        });
+        await createOfflineDraft('GASTO', {
+          ...payload,
+          localId: clientMutationId,
+          createdAt: new Date().toISOString(),
+          formState: {
+            concepto,
+            descripcion,
+            montoStr,
+            fecha,
+            tipoGasto,
+            estadoPago,
+            aplicaA,
+            sublotesSeleccionados,
+          },
+        });
+        setOfflineDraftSaved(true);
+        setShowSuccessModal(true);
+        return;
+      }
+
       await crearGasto(payload);
+      setOfflineDraftSaved(false);
       window.localStorage.removeItem(GASTO_DRAFT_STORAGE_KEY);
       setFieldErrors({});
       setFloatingNotice(null);
@@ -908,17 +948,30 @@ export default function GastosOperativos() {
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[430px] items-center">
           <CafeSmartErrorState
             variant="success"
-            title="Gasto registrado con éxito"
-            message="El gasto fue guardado correctamente en el sistema."
-            primaryLabel="Registrar otro gasto"
-            secondaryLabel="Ver gastos"
+            title={
+              offlineDraftSaved
+                ? 'Borrador guardado'
+                : 'Gasto registrado con éxito'
+            }
+            message={
+              offlineDraftSaved
+                ? 'Tu información quedó guardada en este dispositivo. Finaliza el gasto cuando vuelvas a tener conexión.'
+                : 'El gasto fue guardado correctamente en el sistema.'
+            }
+            primaryLabel={offlineDraftSaved ? 'Volver al formulario' : 'Registrar otro gasto'}
+            secondaryLabel={offlineDraftSaved ? 'Ir al inicio' : 'Ver gastos'}
             onPrimary={() => {
               setShowSuccessModal(false);
+              setOfflineDraftSaved(false);
               resetForm();
             }}
-            onSecondary={() => navigate('/gastos')}
+            onSecondary={() => navigate(offlineDraftSaved ? '/inicio' : '/gastos')}
             primaryBusy={saving}
-            info="El movimiento quedó disponible en tus gastos operativos."
+            info={
+              offlineDraftSaved
+                ? 'Guardado en este dispositivo. Pendiente de conexión para enviarse a la nube.'
+                : 'El movimiento quedó disponible en tus gastos operativos.'
+            }
           />
         </div>
       </div>

@@ -34,6 +34,7 @@ import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../components/TransactionSuccessScreen';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   createGuidedError,
   InlineGuidedError,
@@ -48,6 +49,8 @@ import {
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
+import { createOfflineDraft } from '../services/offlineDraftService';
+import { addSyncOperation } from '../services/syncQueueService';
 import {
   guardarConfiguracionBodega,
   obtenerConfiguracionBodega,
@@ -2201,6 +2204,7 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
 
 export default function Compras() {
   const navigate = useNavigate();
+  const { isOffline } = useNetworkStatus();
   const savingRef = useRef(false);
   const compraLocalIdRef = useRef<string | null>(null);
   const latestCompraDraftRef = useRef<
@@ -3570,6 +3574,48 @@ export default function Compras() {
 
     try {
       const payload = await construirPayloadCompra();
+
+      if (isOffline) {
+        addSyncOperation({
+          idLocal: payload.localId,
+          clientMutationId: payload.localId,
+          deviceId: payload.deviceId,
+          modulo: 'COMPRA',
+          endpoint: '/compras',
+          method: 'POST',
+          payload,
+        });
+        await createOfflineDraft('COMPRA', {
+          ...payload,
+          idLocal: payload.localId,
+          createdAt: new Date().toISOString(),
+          formState: {
+            step,
+            fecha,
+            sublotes,
+            subloteActivoId,
+            productorSeleccionado,
+            productorSelectionMode,
+          },
+        });
+        latestCompraDraftRef.current = {
+          version: 1,
+          savedAt: Date.now(),
+          step,
+          fecha,
+          sublotes,
+          subloteActivoId,
+          productorSeleccionado,
+          productorSelectionMode,
+          compraLocalId: payload.localId,
+        };
+        setMostrarModalConfirmar(false);
+        setCatalogosFeedback(
+          'Borrador guardado. Tu información quedó guardada en este dispositivo.',
+        );
+        return;
+      }
+
       const respuesta = await crearCompra(payload);
       setCompraGuardada({
         fecha: respuesta.compra.fecha,

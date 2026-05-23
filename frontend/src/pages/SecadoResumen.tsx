@@ -14,6 +14,8 @@ import { getCoffeeCodePrefix } from '../utils/coffeeCodes';
 import { transformarSecado } from '../services/secadoService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { createOfflineDraft } from '../services/offlineDraftService';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -47,6 +49,10 @@ function getSecadoPersistErrorMessage(error: unknown) {
     return 'No se pudo continuar con este secado. La sesión guardada no es consistente. Inicia el proceso nuevamente.';
   }
 
+  if (error.message.includes('No tienes conexión')) {
+    return 'No tienes conexión. El secado quedó guardado en este dispositivo y podrás finalizarlo cuando vuelvas a tener internet.';
+  }
+
   if (error.message.includes('Esta opcion aún no esta disponible')) {
     return 'No pudimos actualizar el inventario del secado. Vuelve a intentarlo.';
   }
@@ -68,6 +74,7 @@ function formatOriginCodes(session: NonNullable<ReturnType<typeof getSecadoSessi
 
 export default function SecadoResumen() {
   const navigate = useNavigate();
+  const { isOffline } = useNetworkStatus();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [session, setSession] = useState(() =>
     sessionId ? getSecadoSession(sessionId) : null,
@@ -137,6 +144,20 @@ export default function SecadoResumen() {
           });
         }
 
+        if (isOffline) {
+          await createOfflineDraft('SECADO', {
+            sessionId: finalized.id,
+            deviceId: await obtenerDeviceId(),
+            fuentes,
+            salidas,
+            session: finalized,
+            createdAt: new Date().toISOString(),
+          });
+          throw new Error(
+            'No tienes conexión. Guarda este secado como borrador y finalízalo cuando vuelvas a tener internet.',
+          );
+        }
+
         await transformarSecado({
           sessionId: finalized.id,
           deviceId: await obtenerDeviceId(),
@@ -155,7 +176,7 @@ export default function SecadoResumen() {
     };
 
     void persistir();
-  }, [persistRetry, sessionId]);
+  }, [isOffline, persistRetry, sessionId]);
 
   const totalEntrada = useMemo(
     () =>

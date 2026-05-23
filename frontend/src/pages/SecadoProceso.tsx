@@ -423,7 +423,7 @@ function getSecadoGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'La salida supera la entrada.',
-      'El peso seco no puede ser mayor que el cafe que entro al secado.',
+      'El peso seco no puede ser mayor que el entro al secado.',
       'Ajusta los kilos de salida.',
     );
   }

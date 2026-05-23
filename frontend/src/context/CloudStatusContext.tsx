@@ -29,6 +29,8 @@ type CloudStatusValue = {
   isOnline: boolean;
   backendReachable: boolean | null;
   isSyncing: boolean;
+  wasOffline: boolean;
+  reconnectedAt: number | null;
   lastSyncAt: number | null;
   refreshHealth: () => Promise<void>;
 };
@@ -59,10 +61,15 @@ export function CloudStatusProvider({
     null,
   );
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [wasOffline, setWasOffline] = useState(false);
+  const [reconnectedAt, setReconnectedAt] = useState<number | null>(null);
   const clearEventTimerRef = useRef<number | null>(null);
 
   const refreshHealth = useCallback(async () => {
-    if (!isOnline) {
+    const browserOnline =
+      typeof navigator === 'undefined' ? isOnline : navigator.onLine;
+
+    if (!browserOnline) {
       setBackendReachable(false);
       return;
     }
@@ -73,21 +80,29 @@ export function CloudStatusProvider({
     try {
       const ok = await pingBackend(controller.signal);
       setBackendReachable(ok);
+      if (ok && wasOffline) {
+        setReconnectedAt(Date.now());
+      }
     } catch {
       setBackendReachable(false);
+      setWasOffline(true);
     } finally {
       window.clearTimeout(timeoutId);
     }
-  }, [isOnline]);
+  }, [isOnline, wasOffline]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      if (wasOffline) {
+        setReconnectedAt(Date.now());
+      }
       void refreshHealth();
     };
 
     const handleOffline = () => {
       setIsOnline(false);
+      setWasOffline(true);
       setBackendReachable(false);
     };
 
@@ -123,7 +138,7 @@ export function CloudStatusProvider({
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [refreshHealth]);
+  }, [refreshHealth, wasOffline]);
 
   useEffect(() => {
     const handleCloudEvent = (event: Event) => {
@@ -174,6 +189,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: false,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -187,6 +204,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: true,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -200,6 +219,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: false,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -214,6 +235,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: false,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -227,6 +250,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: false,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -241,6 +266,8 @@ export function CloudStatusProvider({
         isOnline,
         backendReachable,
         isSyncing: false,
+        wasOffline,
+        reconnectedAt,
         lastSyncAt,
         refreshHealth,
       };
@@ -253,10 +280,20 @@ export function CloudStatusProvider({
       isOnline,
       backendReachable,
       isSyncing: false,
+      wasOffline,
+      reconnectedAt,
       lastSyncAt,
       refreshHealth,
     };
-  }, [backendReachable, isOnline, lastEvent, lastSyncAt, refreshHealth]);
+  }, [
+    backendReachable,
+    isOnline,
+    lastEvent,
+    lastSyncAt,
+    reconnectedAt,
+    refreshHealth,
+    wasOffline,
+  ]);
 
   return (
     <CloudStatusContext.Provider value={value}>

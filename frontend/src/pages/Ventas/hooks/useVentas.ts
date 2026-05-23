@@ -5,7 +5,9 @@ import { listarClientes } from '../../../services/clientesService';
 import { obtenerLotes, obtenerDetalleLote, guardarPesosSublotes } from '../../../services/lotesService';
 import { crearVenta, listarVentas } from '../../../services/ventasService';
 import { obtenerConfiguracionBodega, type ConfiguracionBodega } from '../../../services/bodegaApi';
+import { createOfflineDraft } from '../../../services/offlineDraftService';
 import { obtenerDeviceId } from '../../../utils/deviceId';
+import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { getTodayLocalDateValue, validateBusinessDateRange, toIsoDateAtUtcNoon } from '../../../utils/date';
 import { PRECIO_MINIMO_KG } from '../../../utils/businessRules';
 import { VENTA_DRAFT_STORAGE_KEY, VENTA_FILTRO_TODOS } from '../constants';
@@ -41,6 +43,7 @@ async function clearVentaDraft() {
 
 export function useVentas() {
   const navigate = useNavigate();
+  const { isOffline } = useNetworkStatus();
   const [cargando, setCargando] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guardandoVenta, setGuardandoVenta] = React.useState(false);
@@ -547,6 +550,32 @@ export function useVentas() {
     setSubmitError(null);
     setRegistroErrorMensaje(null);
     try {
+      if (isOffline) {
+        await createOfflineDraft('VENTA', {
+          localId: ventaLocalIdRef.current,
+          createdAt: new Date().toISOString(),
+          formState: {
+            paso,
+            clienteMetodo,
+            clienteSeleccionado,
+            fechaVenta,
+            modoVenta,
+            lotesVenta,
+            preciosVentaTotal,
+            ajustesVentaParcialConfirmados,
+          },
+          resumen: {
+            totalKg,
+            totalEstimado,
+          },
+        });
+        setMostrarModalConfirmar(false);
+        setSubmitError(
+          'Borrador guardado. Tu información quedó guardada en este dispositivo y podrás finalizar la venta cuando vuelva la conexión.',
+        );
+        return;
+      }
+
       const detalles = [] as Array<{ subloteId: string; pesoVendido: number; precioKg: number }>;
       const desgloseFIFO: VentaFifoItem[] = [];
       type PoolEntry = {
@@ -666,7 +695,23 @@ export function useVentas() {
       setGuardandoVenta(false);
       setBotonConfirmarPresionado(false);
     }
-  }, [cargarLotes, clienteSeleccionado, guardandoVenta, lotesConCantidad, fechaVenta, totalEstimado, totalKg, validarPasoVenta]);
+  }, [
+    ajustesVentaParcialConfirmados,
+    cargarLotes,
+    clienteMetodo,
+    clienteSeleccionado,
+    fechaVenta,
+    guardandoVenta,
+    isOffline,
+    lotesConCantidad,
+    lotesVenta,
+    modoVenta,
+    paso,
+    preciosVentaTotal,
+    totalEstimado,
+    totalKg,
+    validarPasoVenta,
+  ]);
 
   const reiniciar = React.useCallback(() => {
     void clearVentaDraft();
