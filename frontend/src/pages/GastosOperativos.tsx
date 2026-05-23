@@ -22,7 +22,7 @@ import {
 import { ApiRequestError } from '../services/apiService';
 import { AccessibleModal } from '../components/AccessibleModal';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
-import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
+import { InternalLoadingScreen } from '../components/InternalLoadingScreen';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
@@ -1460,12 +1460,12 @@ export default function GastosOperativos() {
 
       {saving || botonGuardarPresionado ? (
         <div className="fixed inset-0 z-50">
-          <CafeSmartProcessingScreen
+          <InternalLoadingScreen
             title="Registrando gasto..."
-            subtitle="Estamos guardando la información."
-            helperText="Esto puede tardar unos segundos."
-            trustTitle="Registro seguro"
-            trustText="Tu gasto operativo se está procesando de forma segura."
+            description="Estamos guardando la información."
+            warningText="Esto puede tardar unos segundos."
+            securityTitle="Registro seguro"
+            securityDescription="Tu gasto operativo se está procesando de forma segura."
           />
         </div>
       ) : null}

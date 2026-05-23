@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { CafeSmartProcessingScreen } from '../../../components/CafeSmartProcessingScreen';
+import { InternalLoadingScreen } from '../../../components/InternalLoadingScreen';
 
 interface LoadingCardProps {
   text?: string;
@@ -13,12 +13,12 @@ export function LoadingCard({
 }: LoadingCardProps) {
   if (mode === 'page') {
     return (
-      <CafeSmartProcessingScreen
+      <InternalLoadingScreen
         title={text}
-        subtitle="Estamos preparando la información de ventas."
-        helperText="Esto puede tardar unos segundos."
-        trustTitle="Carga segura"
-        trustText="Tus datos se mantienen protegidos mientras actualizamos la vista."
+        description="Estamos preparando la información de ventas."
+        warningText="Esto puede tardar unos segundos."
+        securityTitle="Carga segura"
+        securityDescription="Tus datos se mantienen protegidos mientras actualizamos la vista."
       />
     );
   }

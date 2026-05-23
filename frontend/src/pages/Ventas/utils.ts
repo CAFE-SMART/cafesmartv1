@@ -490,11 +490,11 @@ export function getVentaSubmitMessage(error: unknown) {
       error.code === 'INSUFFICIENT_STOCK' ||
       error.code === 'VENTA_INVENTARIO_INSUFICIENTE'
     ) {
-      return 'No hay suficiente inventario para realizar la venta';
+      return 'La cantidad supera el inventario disponible.';
     }
 
     if (error.code === 'VENTA_CANTIDAD_INVALIDA') {
-      return 'La cantidad a vender debe ser mayor a 0.';
+      return 'Ingresa una cantidad mayor a 0.';
     }
 
     if (error.code === 'VENTA_PRECIO_INVALIDO') {
@@ -546,7 +546,7 @@ export function getCantidadLoteGuidance(
 
   return createGuidedError(
     `La cantidad debe ser mayor a 0 en ${lote.codigo}.`,
-    'Cantidad invalida',
+    'Cantidad inválida',
     'Ingresa una cantidad mayor a 0.',
     `Disponible: ${kg(disponible)}.`,
   );

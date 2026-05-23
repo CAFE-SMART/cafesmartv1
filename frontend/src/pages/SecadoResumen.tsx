@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
-import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
+import { InternalLoadingScreen } from '../components/InternalLoadingScreen';
 import {
   finalizeSecado,
   getSecadoAvailableKg,
@@ -286,13 +286,13 @@ export default function SecadoResumen() {
 
       {persisting ? (
         <div className="fixed inset-0 z-50">
-          <CafeSmartProcessingScreen
+          <InternalLoadingScreen
             variant="drying"
             title="Procesando secado..."
-            subtitle="Estamos registrando el resultado del secado."
-            helperText="Esto puede tardar unos segundos."
-            trustTitle="Tu información está segura"
-            trustText="El inventario se actualizará al terminar."
+            description="Estamos registrando el resultado del secado."
+            warningText="Esto puede tardar unos segundos."
+            securityTitle="Tu información está segura"
+            securityDescription="El inventario se actualizará al terminar."
           />
         </div>
       ) : null}

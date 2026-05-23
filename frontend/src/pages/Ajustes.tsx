@@ -78,6 +78,7 @@ import {
   deleteSyncOperation,
   getSyncQueue,
   getSyncQueueSummary,
+  clearSyncedOperations,
   retryOperation,
   syncAllPending,
   SYNC_QUEUE_EVENT,
@@ -115,12 +116,16 @@ import {
   validatePersonName,
 } from '../utils/personValidation';
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 type ProfileSettings = {
   nombre: string;
   correo: string;
   telefono: string;
 };
+
+const OFFLINE_BLOCKED_ACTION_MESSAGE =
+  'Esta acción necesita conexión. Puedes guardar un borrador y finalizarlo cuando vuelvas a tener internet.';
 
 type CompanySettings = {
   nombreEmpresa: string;
@@ -422,6 +427,7 @@ export default function Ajustes() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, token, hasCompany, setSession, logout } = useUser();
+  const { isOffline } = useNetworkStatus();
 
   const initialConfig = useMemo(
     () => ({
@@ -932,6 +938,12 @@ export default function Ajustes() {
 
   const guardarPerfil = async () => {
     clearFeedback();
+    if (isOffline) {
+      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      setFloatingError(getAjustesGuidance(OFFLINE_BLOCKED_ACTION_MESSAGE));
+      return;
+    }
+
     const telefono = sanitizeDigits(profile.telefono, 10);
     const nextErrors: ProfileErrors = {};
     const nombreError = validateProfileName(profile.nombre);
@@ -1012,6 +1024,12 @@ export default function Ajustes() {
 
   const guardarEmpresa = async () => {
     clearFeedback();
+    if (isOffline) {
+      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      setFloatingError(getAjustesGuidance(OFFLINE_BLOCKED_ACTION_MESSAGE));
+      return;
+    }
+
     const companyNameValidation = validateCompanyName(company.nombreEmpresa);
     const businessNameError = companyNameValidation.isValid
       ? validateBusinessName(company.nombreEmpresa)
@@ -1054,6 +1072,11 @@ export default function Ajustes() {
 
   const guardarPersonaAdmin = async () => {
     if (!peopleMode || !peopleEditing) return;
+    if (isOffline) {
+      setPeopleError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      return;
+    }
+
     const tipoDocumento = peopleForm.tipoDocumento || 'CEDULA';
     const nombreValidation =
       tipoDocumento === 'NIT'
@@ -1124,6 +1147,11 @@ export default function Ajustes() {
   const guardarBodega = async () => {
     const capacidad = Number(capacidadKg);
     clearFeedback();
+
+    if (isOffline) {
+      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      return;
+    }
 
     if (!nombreBodega.trim()) {
       const message = 'Escribe un nombre para la bodega.';
@@ -1355,6 +1383,10 @@ export default function Ajustes() {
 
   const guardarPersona = async () => {
     if (!peopleMode || !peopleEditing) return;
+    if (isOffline) {
+      setPeopleFormError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      return;
+    }
 
     const tipoDocumento = peopleForm.tipoDocumento;
     const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
@@ -1464,6 +1496,11 @@ export default function Ajustes() {
 
   const eliminarPersona = async (item: PeopleAdminItem) => {
     setPeopleError(null);
+    if (isOffline) {
+      setPeopleError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      return;
+    }
+
     setPeopleLoading(true);
     try {
       if (item.contactType === 'cliente') {
@@ -2014,13 +2051,29 @@ export default function Ajustes() {
             </div>
             <button
               type="button"
-              onClick={() => void syncAllPending()}
-              disabled={syncSummary.pendientes === 0}
+              onClick={() => {
+                if (isOffline) {
+                  setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+                  return;
+                }
+                void syncAllPending();
+              }}
+              disabled={syncSummary.pendientes === 0 || isOffline}
               className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-[#f8faff] px-3 text-xs font-black text-[#102d92] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Reintentar
             </button>
           </div>
+
+          {syncSummary.sincronizados > 0 ? (
+            <button
+              type="button"
+              onClick={clearSyncedOperations}
+              className="mt-3 inline-flex min-h-[34px] items-center justify-center rounded-[11px] border border-[#dbe5f7] bg-white px-3 text-[11px] font-black text-[#334b85]"
+            >
+              Limpiar sincronizados
+            </button>
+          ) : null}
 
           {syncQueue.length > 0 ? (
             <div className="mt-3 space-y-2">
@@ -2077,6 +2130,10 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (isOffline) {
+                            setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+                            return;
+                          }
                           retryOperation(operation.idLocal);
                           void syncAllPending();
                         }}

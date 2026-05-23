@@ -7,6 +7,7 @@ export const AUTH_STORAGE_KEYS = {
   rememberSession: 'auth_remember_session',
   rememberedEmail: 'auth_remembered_email',
   rememberedName: 'auth_remembered_name',
+  lastSession: 'auth_last_session',
 } as const;
 
 const runtimeAuthStorage = new Map<string, string>();

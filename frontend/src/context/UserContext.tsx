@@ -13,6 +13,7 @@ import {
   setRuntimeAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
+import { authSessionService } from '../services/authSessionService';
 import { parseJwtPayload } from '../utils/jwt';
 
 type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO';
@@ -98,6 +99,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       if (storedRememberSession === 'true') {
         await clearAuthStorage();
+        await authSessionService.clearLastSession();
         setUser(null);
         setToken(null);
         setHasCompany(false);
@@ -118,6 +120,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       if (isExpired) {
         await clearAuthStorage();
+        await authSessionService.clearLastSession();
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem(
             SESSION_EXPIRED_MESSAGE_KEY,
@@ -208,6 +211,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         AUTH_STORAGE_KEYS.hasCompany,
         String(nextHasCompany),
       );
+      await authSessionService.saveLastSession({
+        accessToken: data.token,
+        user: data.user,
+        hasCompany: nextHasCompany,
+        lastLoginAt: Date.now(),
+        offlineAllowed: true,
+        loggedOutManually: false,
+      });
       return;
     }
 
@@ -216,6 +227,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany)),
       removeAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession),
+      authSessionService.saveLastSession({
+        accessToken: data.token,
+        user: data.user,
+        hasCompany: nextHasCompany,
+        lastLoginAt: Date.now(),
+        offlineAllowed: true,
+        loggedOutManually: false,
+      }),
     ]);
   };
 
@@ -231,6 +250,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
+    await authSessionService.clearLastSession();
     await clearAuthStorage();
   };
 
@@ -243,6 +263,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
     }
 
+    await authSessionService.disableOfflineAccess();
     await clearAuthStorage();
   };
 

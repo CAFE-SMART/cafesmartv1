@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { CafeSmartErrorState } from './components/CafeSmartErrorState';
+import { InternalLoadingScreen } from './components/InternalLoadingScreen';
 import { SyncQueueRunner } from './components/SyncQueueRunner';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
@@ -134,6 +135,7 @@ function GlobalOfflineNotice() {
   const [showReconnectedNotice, setShowReconnectedNotice] = useState(false);
 
   const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
+  const isAuthFlow = isPublicRoute(location.pathname);
 
   useEffect(() => {
     if (!reconnectedAt) return undefined;
@@ -142,7 +144,7 @@ function GlobalOfflineNotice() {
     return () => window.clearTimeout(timeout);
   }, [reconnectedAt]);
 
-  if (isSubloteDetail) {
+  if (isSubloteDetail || isAuthFlow) {
     return null;
   }
 
@@ -167,8 +169,8 @@ function GlobalOfflineNotice() {
           <>
             <strong>Sin conexión</strong>
             {'\n'}
-            Puedes consultar información guardada en este dispositivo. Algunas
-            acciones estarán disponibles cuando vuelvas a tener internet.
+            Estás usando información guardada en este dispositivo. Algunas
+            acciones estarán limitadas.
           </>
         ) : isSyncing ? (
           <>
@@ -185,6 +187,24 @@ function GlobalOfflineNotice() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function GlobalSyncOverlay() {
+  const { isSyncing } = useCloudStatus();
+
+  if (!isSyncing) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120]">
+      <InternalLoadingScreen
+        title="Sincronizando datos"
+        description="Estamos guardando tus registros pendientes en la nube."
+        warningText="No cierres la aplicación durante la sincronización."
+        securityTitle="Tus datos están protegidos"
+        securityDescription="Validamos cada registro antes de guardarlo en la nube."
+      />
     </div>
   );
 }
@@ -215,6 +235,7 @@ function App() {
             </a>
             <GlobalOfflineNotice />
             <SyncQueueRunner />
+            <GlobalSyncOverlay />
             <div id="app-content">
               <AppRoutes />
             </div>

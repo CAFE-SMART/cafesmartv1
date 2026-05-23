@@ -46,6 +46,42 @@ const TECHNICAL_ERROR_PATTERN =
 const TECHNICAL_ERROR_WORDS =
   /api|autenticaci[oó]n fallida|backend|base de datos|conexi[oó]n rechazada|database|endpoint|error interno|error\s*500|exception|fallo del sistema|fetch failed|internal server|localhost|prisma|request|server|servidor|stack|terminal|timeout|token/i;
 
+const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
+  INSUFFICIENT_STOCK: 'La cantidad supera el inventario disponible.',
+  VENTA_INVENTARIO_INSUFICIENTE: 'La cantidad supera el inventario disponible.',
+  VENTA_CANTIDAD_INVALIDA: 'Ingresa una cantidad mayor a 0.',
+  VENTA_PRECIO_INVALIDO: 'El precio por kg debe ser mínimo $1,000.',
+  VENTA_SUBLOTE_INVALIDO: 'El sublote seleccionado no está disponible para la venta.',
+  COMPRA_PESO_INVALIDO: 'Ingresa un peso mayor a 0 kg.',
+  COMPRA_PRECIO_INVALIDO: 'Ingresa un precio válido por kg.',
+  COMPRA_PRECIO_ALTO: 'Revisa el precio ingresado. Parece demasiado alto.',
+  SECADO_PESO_INVALIDO: 'Ingresa un peso válido.',
+  SECADO_PESO_EXCEDIDO: 'El peso supera el disponible para secado.',
+  SECADO_MONTO_INVALIDO: 'Ingresa un valor válido.',
+  SECADO_MONTO_MAXIMO: 'El monto supera el máximo permitido.',
+  BODEGA_CAPACIDAD_INVALIDA: 'La capacidad debe ser mayor que 0.',
+  BODEGA_CAPACIDAD_MENOR_INVENTARIO:
+    'La capacidad no puede ser menor al inventario actual.',
+};
+
+const SPECIFIC_FIELD_MESSAGES: Record<string, string> = {
+  cantidad: 'Ingresa una cantidad mayor a 0.',
+  cantidadkg: 'Ingresa una cantidad mayor a 0.',
+  precio: 'Ingresa un precio válido por kg.',
+  preciokg: 'Ingresa un precio válido por kg.',
+  precio_kilo: 'Ingresa un precio válido por kg.',
+  peso: 'Ingresa un peso mayor a 0 kg.',
+  pesokg: 'Ingresa un peso mayor a 0 kg.',
+  capacidad: 'La capacidad debe ser mayor que 0.',
+  monto: 'Ingresa un valor válido.',
+  valor: 'Ingresa un valor válido.',
+  humedad: 'Ingresa una humedad válida.',
+  factor: 'Ingresa un factor válido.',
+  documento: 'Ingresa solo números.',
+  telefono: 'Ingresa solo números.',
+  teléfono: 'Ingresa solo números.',
+};
+
 export function limpiarMensajeTecnico(message: unknown) {
   const texto = normalizarMensaje(message);
 
@@ -56,29 +92,57 @@ export function limpiarMensajeTecnico(message: unknown) {
   return texto;
 }
 
-export function traducirMensajeError(message: unknown, status = 0) {
-  const texto = limpiarMensajeTecnico(message);
+function normalizarClave(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase();
+}
 
+function mensajePorStatus(status = 0) {
   if (status >= 500) {
     return 'Ocurrió un problema temporal. Intenta nuevamente.';
   }
 
-  if (!texto) {
-    if (status === 401) {
-      return 'Tu sesión expiró. Ingresa nuevamente.';
-    }
-
-    if (status === 403) {
-      return 'No tienes acceso a esta opción.';
-    }
-
-    if (status === 404) {
-      return 'No encontramos la información solicitada. Verifica e intenta nuevamente.';
-    }
-
-    return 'No pudimos procesarlo. Intenta de nuevo.';
+  if (status === 401) {
+    return 'Tu sesión expiró. Ingresa nuevamente.';
   }
 
+  if (status === 403) {
+    return 'No tienes acceso a esta opción.';
+  }
+
+  if (status === 404) {
+    return 'No encontramos la información solicitada.';
+  }
+
+  return '';
+}
+
+export function getUserFriendlyErrorMessage(error: {
+  code?: string | null;
+  field?: string | null;
+  message?: unknown;
+  status?: number;
+}) {
+  const status = error.status ?? 0;
+
+  if (status >= 500 || status === 401 || status === 403 || status === 404) {
+    return mensajePorStatus(status);
+  }
+
+  const code = error.code?.trim();
+  if (code && SPECIFIC_CODE_MESSAGES[code]) {
+    return SPECIFIC_CODE_MESSAGES[code];
+  }
+
+  const fieldKey = normalizarClave(error.field);
+  if (fieldKey && SPECIFIC_FIELD_MESSAGES[fieldKey]) {
+    return SPECIFIC_FIELD_MESSAGES[fieldKey];
+  }
+
+  const texto = limpiarMensajeTecnico(error.message);
   const mapa: Record<string, string> = {
     'Internal server error':
       'Ocurrió un problema temporal. Intenta nuevamente.',
@@ -90,7 +154,15 @@ export function traducirMensajeError(message: unknown, status = 0) {
     'Failed to fetch': 'Revisa la conexión a internet y vuelve a intentarlo.',
   };
 
-  return mapa[texto] || texto;
+  if (texto) {
+    return mapa[texto] || texto;
+  }
+
+  return mensajePorStatus(status) || 'No pudimos procesarlo. Intenta de nuevo.';
+}
+
+export function traducirMensajeError(message: unknown, status = 0) {
+  return getUserFriendlyErrorMessage({ message, status });
 }
 
 function construirBasesApi() {
@@ -177,7 +249,12 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          const mensaje = traducirMensajeError(data?.message, response.status);
+          const mensaje = getUserFriendlyErrorMessage({
+            code: typeof data?.code === 'string' ? data.code : null,
+            field: typeof data?.field === 'string' ? data.field : null,
+            message: data?.message,
+            status: response.status,
+          });
           throw new ApiRequestError(mensaje || 'No pudimos procesarlo.', {
             status: response.status,
             code: typeof data?.code === 'string' ? data.code : null,

@@ -32,7 +32,7 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
-import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
+import { InternalLoadingScreen } from '../components/InternalLoadingScreen';
 import { TransactionSuccessScreen } from '../components/TransactionSuccessScreen';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
@@ -3679,12 +3679,12 @@ export default function Compras() {
 
   if (saving) {
     return (
-      <CafeSmartProcessingScreen
+      <InternalLoadingScreen
         title="Guardando compra"
-        subtitle="Espera un momento. Estamos registrando la compra."
-        helperText="No cierres la aplicación durante el registro."
-        trustTitle="Tus datos están protegidos"
-        trustText="Estamos validando y guardando la compra de forma segura."
+        description="Espera un momento. Estamos registrando la compra."
+        warningText="No cierres la aplicación durante el registro."
+        securityTitle="Tus datos están protegidos"
+        securityDescription="Estamos validando y guardando la compra de forma segura."
       />
     );
   }

@@ -7,6 +7,7 @@ type CafeSmartProcessingScreenProps = {
   helperText: string;
   trustTitle: string;
   trustText: string;
+  showSpinner?: boolean;
   variant?: 'purchase' | 'drying';
 };
 
@@ -316,6 +317,7 @@ export function CafeSmartProcessingScreen({
   helperText,
   trustTitle,
   trustText,
+  showSpinner = true,
   variant = 'purchase',
 }: CafeSmartProcessingScreenProps) {
   return (
@@ -351,8 +353,10 @@ export function CafeSmartProcessingScreen({
         </div>
 
         <div className="mt-7 animate-[cafesmartFadeUp_420ms_ease-out_260ms_both]">
-          <div className="mx-auto h-12 w-12 rounded-full border-[4px] border-blue-100 border-t-[#1683f7] animate-[cafesmartSpin_850ms_linear_infinite]" />
-          <p className="mt-4 text-sm font-semibold leading-6 text-slate-500">
+          {showSpinner ? (
+            <div className="mx-auto h-12 w-12 rounded-full border-[4px] border-blue-100 border-t-[#1683f7] animate-[cafesmartSpin_850ms_linear_infinite]" />
+          ) : null}
+          <p className={`${showSpinner ? 'mt-4' : ''} text-sm font-semibold leading-6 text-slate-500`}>
             {helperText}
           </p>
         </div>

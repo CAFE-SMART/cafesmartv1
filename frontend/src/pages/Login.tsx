@@ -19,6 +19,8 @@ import {
   saveRememberedAccount,
 } from '../storage/authStorage';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
+import { useCloudStatus } from '../context/CloudStatusContext';
+import { authSessionService } from '../services/authSessionService';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -217,6 +219,8 @@ export default function Login() {
 
   const navigate = useNavigate();
   const { setSession, token, hasCompany, hydrated } = useUser();
+  const { isOnline, backendReachable } = useCloudStatus();
+  const isOffline = !isOnline || backendReachable === false;
 
   useEffect(() => {
     if (!hydrated || !token) {
@@ -467,6 +471,34 @@ export default function Login() {
     setRememberedAccountName('');
   };
 
+  const enterOfflineMode = async () => {
+    const offlineEntry = await authSessionService.canEnterOffline(email);
+
+    if (!offlineEntry.canEnter) {
+      if (offlineEntry.reason === 'missing') {
+        setError('Necesitas internet para iniciar sesión por primera vez en este dispositivo.');
+      } else if (offlineEntry.reason === 'email_mismatch') {
+        setError('Esta cuenta no tiene una sesión guardada en este dispositivo.');
+      } else if (offlineEntry.reason === 'disabled') {
+        setError('Conéctate a internet para iniciar sesión nuevamente.');
+      } else {
+        setError('No pudimos validar tu sesión guardada. Conéctate a internet para iniciar sesión nuevamente.');
+      }
+      setPassword('');
+      return false;
+    }
+
+    await setSession({
+      user: offlineEntry.session.user,
+      token: offlineEntry.session.accessToken,
+      hasCompany: offlineEntry.session.hasCompany,
+      persist: false,
+    });
+    clearLoginDraft();
+    navigate(offlineEntry.session.hasCompany ? '/inicio' : '/crear-empresa');
+    return true;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailTouched(true);
@@ -474,6 +506,16 @@ export default function Login() {
     setEmailFieldError(null);
     setEmailFieldTone('assist');
     setPasswordFieldError(null);
+
+    if (isOffline) {
+      setLoading(true);
+      try {
+        await enterOfflineMode();
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     let hasValidationError = false;
     let nextEmailError: string | null = null;
@@ -554,8 +596,10 @@ export default function Login() {
         setPassword('');
         setError(null);
       } else if (authError.code === 'OFFLINE' || authError.status === 0) {
-        setError('No pudimos conectarnos. Revisa tu internet e intenta nuevamente.');
-        setPasswordFieldError(null);
+        const enteredOffline = await enterOfflineMode();
+        if (!enteredOffline) {
+          setPasswordFieldError(null);
+        }
       } else if ((authError.status ?? 0) >= 500) {
         setError('No pudimos iniciar sesión en este momento.');
         setPasswordFieldError(null);
@@ -668,6 +712,19 @@ export default function Login() {
 
           {error ? (
             <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
+          ) : null}
+
+          {isOffline ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-900"
+            >
+              <p className="font-bold">Sin conexión</p>
+              <p className="font-medium">
+                Puedes ingresar solo si ya tenías una sesión guardada en este dispositivo.
+              </p>
+            </div>
           ) : null}
 
           {recoveryNotice ? (

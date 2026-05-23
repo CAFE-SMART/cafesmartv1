@@ -7,7 +7,7 @@ export type SyncStatus =
   | 'SINCRONIZADO'
   | 'ERROR';
 
-export type SyncModule = 'COMPRA' | 'VENTA' | 'GASTO' | 'SECADO';
+export type SyncModule = 'COMPRA' | 'VENTA' | 'GASTO' | 'SECADO' | 'INVENTARIO';
 
 export type SyncOperation = {
   idLocal: string;
@@ -47,11 +47,37 @@ function notifyQueueUpdated() {
 }
 
 function normalizeError(error: unknown) {
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+
   if (error instanceof Error && error.message.trim()) {
     return error.message.trim();
   }
 
   return 'No pudimos sincronizar este registro. Revisa los datos e intenta nuevamente.';
+}
+
+function getModuleErrorMessage(operation: SyncOperation, error: unknown) {
+  const message = normalizeError(error);
+
+  if (operation.modulo === 'COMPRA') {
+    return `No pudimos sincronizar esta compra. ${message || 'Revisa los datos obligatorios o la capacidad de bodega.'}`;
+  }
+
+  if (operation.modulo === 'GASTO') {
+    return `No pudimos sincronizar este gasto. ${message || 'Revisa el valor y la fecha antes de intentarlo nuevamente.'}`;
+  }
+
+  if (operation.modulo === 'VENTA') {
+    return 'No pudimos sincronizar esta venta. El inventario disponible cambió mientras estabas sin conexión.';
+  }
+
+  if (operation.modulo === 'SECADO') {
+    return 'No pudimos sincronizar este secado. Uno de los sublotes ya no tiene el peso disponible.';
+  }
+
+  return message;
 }
 
 function readQueue(): SyncOperation[] {
@@ -102,6 +128,12 @@ export function addSyncOperation(
   return next;
 }
 
+export const addOperation = addSyncOperation;
+
+export function getAllOperations() {
+  return getSyncQueue();
+}
+
 export function getSyncQueue() {
   return readQueue().sort(
     (a, b) => new Date(a.creadoEn).getTime() - new Date(b.creadoEn).getTime(),
@@ -123,6 +155,10 @@ export function getSyncQueueSummary(): SyncQueueSummary {
 
 export function getPendingOperations() {
   return getSyncQueue().filter((item) => item.estado === 'PENDIENTE');
+}
+
+export function getErrorOperations() {
+  return getSyncQueue().filter((item) => item.estado === 'ERROR');
 }
 
 function updateOperation(
@@ -179,6 +215,8 @@ export function deleteSyncOperation(idLocal: string) {
   writeQueue(readQueue().filter((operation) => operation.idLocal !== idLocal));
 }
 
+export const deleteOperation = deleteSyncOperation;
+
 export function removeSynced({ olderThanMs = 1000 * 60 * 60 * 24 * 3 } = {}) {
   const threshold = Date.now() - olderThanMs;
   writeQueue(
@@ -188,6 +226,10 @@ export function removeSynced({ olderThanMs = 1000 * 60 * 60 * 24 * 3 } = {}) {
       return new Date(operation.sincronizadoEn).getTime() >= threshold;
     }),
   );
+}
+
+export function clearSyncedOperations() {
+  writeQueue(readQueue().filter((operation) => operation.estado !== 'SINCRONIZADO'));
 }
 
 async function syncOperation(operation: SyncOperation) {
@@ -208,7 +250,7 @@ async function syncOperation(operation: SyncOperation) {
     markSynced(operation.idLocal, response);
     return { ok: true as const };
   } catch (error) {
-    markError(operation.idLocal, error);
+    markError(operation.idLocal, getModuleErrorMessage(operation, error));
     return { ok: false as const, error };
   }
 }
