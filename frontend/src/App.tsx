@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { X } from 'lucide-react';
 import AppRoutes from './routes/AppRoutes';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { CafeSmartErrorState } from './components/CafeSmartErrorState';
+import { AppFeedbackMessage } from './components/AppFeedbackMessage';
 import { InternalLoadingScreen } from './components/InternalLoadingScreen';
 import { SyncQueueRunner } from './components/SyncQueueRunner';
 import { useCloudStatus } from './context/CloudStatusContext';
@@ -20,6 +22,7 @@ type ErrorBoundaryState = {
 const BOOT_SPLASH_VISIBLE_MS = 2200;
 const PRIVATE_ROUTE_CURRENT_KEY = 'cafeSmart:currentPrivateRoute';
 const PRIVATE_ROUTE_PREVIOUS_KEY = 'cafeSmart:previousPrivateRoute';
+const DISMISSED_CONNECTION_ALERT_KEY = 'cafesmart:dismissed-connection-alert';
 
 const isPublicRoute = (path: string) =>
   path === '/' ||
@@ -133,6 +136,11 @@ function GlobalOfflineNotice() {
     useCloudStatus();
   const location = useLocation();
   const [showReconnectedNotice, setShowReconnectedNotice] = useState(false);
+  const [dismissedAlert, setDismissedAlert] = useState<string | null>(() =>
+    typeof window === 'undefined'
+      ? null
+      : window.sessionStorage.getItem(DISMISSED_CONNECTION_ALERT_KEY),
+  );
 
   const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
   const isAuthFlow = isPublicRoute(location.pathname);
@@ -148,44 +156,69 @@ function GlobalOfflineNotice() {
     return null;
   }
 
-  const isOffline = !isOnline || backendReachable === false;
+  const hasNoInternet = !isOnline;
+  const backendUnavailable = isOnline && backendReachable === false;
 
-  if (!isOffline && !showReconnectedNotice && !isSyncing) return null;
+  if (!hasNoInternet && !backendUnavailable && !showReconnectedNotice && !isSyncing) return null;
+
+  const notice = hasNoInternet
+    ? {
+        key: 'offline',
+        variant: 'warning' as const,
+        title: 'Sin conexión',
+        description: 'Estás usando información guardada en este dispositivo.',
+      }
+    : backendUnavailable
+      ? {
+          key: 'server-unavailable',
+          variant: 'error' as const,
+          title: 'No pudimos conectar con el servidor',
+          description: 'Revisa que el servidor esté encendido o intenta nuevamente.',
+        }
+      : isSyncing
+        ? {
+            key: 'syncing',
+            variant: 'info' as const,
+            title: 'Conexión restablecida',
+            description: 'Estamos sincronizando tus cambios pendientes.',
+          }
+        : {
+            key: 'reconnected',
+            variant: 'success' as const,
+            title: 'Conexión restablecida',
+            description: 'Ya puedes sincronizar los cambios pendientes.',
+          };
+
+  if (dismissedAlert === notice.key) return null;
+
+  const dismissAlert = () => {
+    window.sessionStorage.setItem(DISMISSED_CONNECTION_ALERT_KEY, notice.key);
+    setDismissedAlert(notice.key);
+  };
 
   return (
-    <div className="border-b border-[#dbe5fb] bg-white px-4 py-3">
-      <div
-        role="status"
-        aria-live="polite"
-        className={`mx-auto max-w-[390px] rounded-[14px] border px-4 py-3 text-[12px] leading-5 whitespace-pre-line ${
-          isOffline
-            ? 'border-amber-200 bg-amber-50 text-amber-900'
-            : isSyncing
-              ? 'border-sky-200 bg-sky-50 text-sky-900'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-        }`}
-      >
-        {isOffline ? (
-          <>
-            <strong>Sin conexión</strong>
-            {'\n'}
-            Estás usando información guardada en este dispositivo. Algunas
-            acciones estarán limitadas.
-          </>
-        ) : isSyncing ? (
-          <>
-            <strong>Conexión restablecida</strong>
-            {'\n'}
-            Estamos sincronizando tus cambios pendientes.
-          </>
-        ) : (
-          <>
-            <strong>Conexión restablecida</strong>
-            {'\n'}
-            Ya puedes finalizar los borradores pendientes para guardarlos en la
-            nube.
-          </>
-        )}
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[80] px-4 sm:bottom-[calc(env(safe-area-inset-bottom)+20px)]">
+      <div className="mx-auto max-w-[430px]">
+        <AppFeedbackMessage
+          variant={notice.variant}
+          title={notice.title}
+          description={notice.description}
+          role="status"
+          aria-live="polite"
+          autoClose={!hasNoInternet && !backendUnavailable}
+          duration={isSyncing ? 3200 : 4200}
+          className="pointer-events-auto shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+          action={
+            <button
+              type="button"
+              onClick={dismissAlert}
+              aria-label="Cerrar alerta de conexión"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          }
+        />
       </div>
     </div>
   );

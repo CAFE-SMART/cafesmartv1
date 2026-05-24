@@ -5,12 +5,15 @@ import { Capacitor } from '@capacitor/core';
 import App from './App';
 import { CloudStatusProvider } from './context/CloudStatusContext';
 import { UserProvider } from './context/UserContext';
+import { registerServiceWorker } from './services/pwaService';
 import './index.css';
 
 const googleClientId =
   (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
 const shouldLoadGoogleIdentityScript =
   Boolean(googleClientId) && Capacitor.getPlatform() !== 'android';
+
+registerServiceWorker();
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (

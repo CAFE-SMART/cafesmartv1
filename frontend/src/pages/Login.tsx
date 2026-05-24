@@ -221,6 +221,7 @@ export default function Login() {
   const { setSession, token, hasCompany, hydrated } = useUser();
   const { isOnline, backendReachable } = useCloudStatus();
   const isOffline = !isOnline || backendReachable === false;
+  const canUseGoogleAuth = isGoogleAuthEnabled && !isOffline;
 
   useEffect(() => {
     if (!hydrated || !token) {
@@ -474,6 +475,17 @@ export default function Login() {
   const enterOfflineMode = async () => {
     const offlineEntry = await authSessionService.canEnterOffline(email);
 
+    if (import.meta.env.DEV) {
+      if (!offlineEntry.canEnter && offlineEntry.reason === 'disabled') {
+        console.info('[offline-login] disabled', offlineEntry.diagnostics);
+      } else {
+        console.info(
+          '[offline-login]',
+          offlineEntry.canEnter ? 'valid' : offlineEntry.reason,
+        );
+      }
+    }
+
     if (!offlineEntry.canEnter) {
       if (offlineEntry.reason === 'missing') {
         setError('Necesitas internet para iniciar sesión por primera vez en este dispositivo.');
@@ -493,6 +505,7 @@ export default function Login() {
       token: offlineEntry.session.accessToken,
       hasCompany: offlineEntry.session.hasCompany,
       persist: false,
+      offline: true,
     });
     clearLoginDraft();
     navigate(offlineEntry.session.hasCompany ? '/inicio' : '/crear-empresa');
@@ -545,21 +558,38 @@ export default function Login() {
     try {
       const data = await authService.login(email, password);
       const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+      const userSession = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        organizacionId: data.user.organizacionId ?? null,
+        nombreOrganizacion: data.user.nombreOrganizacion ?? null,
+        tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+        otroTipoDetalle: data.user.otroTipoDetalle ?? null,
+      };
 
       await setSession({
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.name,
-          organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
-          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
-          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
-        },
+        user: userSession,
         token: data.access_token,
         hasCompany: nextHasCompany,
         persist: false,
       });
+      const reactivatedSession = await authSessionService.reactivateOfflineAccess({
+        accessToken: data.access_token,
+        user: userSession,
+        hasCompany: nextHasCompany,
+        lastLoginAt: Date.now(),
+        offlineAllowed: true,
+        loggedOutManually: false,
+      });
+      if (import.meta.env.DEV) {
+        console.info('[offline-login] session saved', {
+          email: userSession.email.trim().toLowerCase(),
+          offlineAllowed: true,
+          loggedOutManually: false,
+          source: reactivatedSession.source,
+        });
+      }
       await syncRememberedAccount({
         email: data.user.email || email.trim(),
         name: data.user.name,
@@ -595,7 +625,11 @@ export default function Login() {
         setPasswordFieldError(message);
         setPassword('');
         setError(null);
-      } else if (authError.code === 'OFFLINE' || authError.status === 0) {
+      } else if (
+        authError.code === 'OFFLINE' ||
+        authError.status === 0 ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+      ) {
         const enteredOffline = await enterOfflineMode();
         if (!enteredOffline) {
           setPasswordFieldError(null);
@@ -630,21 +664,38 @@ export default function Login() {
     try {
       const data = await authService.loginWithGoogle(idToken);
       const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+      const userSession = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        organizacionId: data.user.organizacionId ?? null,
+        nombreOrganizacion: data.user.nombreOrganizacion ?? null,
+        tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+        otroTipoDetalle: data.user.otroTipoDetalle ?? null,
+      };
 
       await setSession({
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.name,
-          organizacionId: data.user.organizacionId ?? null,
-          nombreOrganizacion: data.user.nombreOrganizacion ?? null,
-          tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
-          otroTipoDetalle: data.user.otroTipoDetalle ?? null,
-        },
+        user: userSession,
         token: data.access_token,
         hasCompany: nextHasCompany,
         persist: false,
       });
+      const reactivatedSession = await authSessionService.reactivateOfflineAccess({
+        accessToken: data.access_token,
+        user: userSession,
+        hasCompany: nextHasCompany,
+        lastLoginAt: Date.now(),
+        offlineAllowed: true,
+        loggedOutManually: false,
+      });
+      if (import.meta.env.DEV) {
+        console.info('[offline-login] session saved', {
+          email: userSession.email.trim().toLowerCase(),
+          offlineAllowed: true,
+          loggedOutManually: false,
+          source: reactivatedSession.source,
+        });
+      }
       await syncRememberedAccount({
         email: data.user.email,
         name: data.user.name,
@@ -916,7 +967,7 @@ Correo electrónico
             </button>
           </form>
 
-          {isGoogleAuthEnabled && (
+          {canUseGoogleAuth && (
             <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center animate-[cafesmartFadeUp_420ms_ease-out_320ms_both]">
               <div className="flex-1 border-t border-gray-200"></div>
               <span className="px-4 text-sm font-semibold text-gray-500">
@@ -926,7 +977,7 @@ Correo electrónico
             </div>
           )}
 
-          {isGoogleAuthEnabled && googleLoading && (
+          {canUseGoogleAuth && googleLoading && (
             <div className="mb-6 flex flex-col items-center justify-center py-8 animate-[cafesmartFadeUp_420ms_ease-out_360ms_both]">
               <div className="relative w-16 h-16 mb-4">
                 <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
@@ -940,7 +991,7 @@ Correo electrónico
             </div>
           )}
 
-          {isGoogleAuthEnabled && !googleLoading && (
+          {canUseGoogleAuth && !googleLoading && (
             <div className="mb-5 sm:mb-6 w-full animate-[cafesmartFadeUp_420ms_ease-out_380ms_both]">
               <div
                 ref={googleButtonRef}

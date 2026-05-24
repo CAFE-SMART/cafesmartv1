@@ -38,9 +38,11 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
+import { useCloudStatus } from '../context/CloudStatusContext';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
+import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import {
   applySecadoToLots,
   getActiveSecadoSessions,
@@ -70,6 +72,11 @@ const TYPE_ORDER = [
   'PASILLA',
 ] as const;
 const BULTO_KG = 40.7;
+const INVENTORY_LIST_CACHE_KEY = 'inventory_list';
+const INVENTORY_SUMMARY_CACHE_KEY = 'inventory_summary';
+const WAREHOUSE_CAPACITY_CACHE_KEY = 'warehouse_capacity';
+const INVENTORY_FILTERS_CACHE_KEY = 'inventory_filters';
+const DASHBOARD_INVENTORY_SUMMARY_CACHE_KEY = 'dashboard_inventory_summary';
 const QUALITY_SECTIONS = [
   { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
   { key: 'REGULAR', title: 'REGULAR', dot: 'bg-[#f6b81a]' },
@@ -200,6 +207,15 @@ type InventarioError = {
   titulo: string;
   mensaje: string;
   detalle: string;
+};
+
+type CachedInventoryData = {
+  lots: LoteResumen[];
+  bodegaConfig: {
+    nombreBodega: string;
+    capacidadKg: number | null;
+  };
+  savedAt: string;
 };
 
 function EmptyInventoryAnimations() {
@@ -354,9 +370,35 @@ function traducirErrorInventario(error: unknown): InventarioError {
 
   return {
     titulo: 'Tuvimos un problema',
-    mensaje: 'No pudimos cargar la información del inventario en este momento.',
+    mensaje: 'No pudimos completar la acción.',
     detalle: 'Intenta nuevamente en unos segundos.',
   };
+}
+
+function OfflineInventoryEmptyState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section className="flex min-h-[calc(100vh-180px)] items-center justify-center px-5 py-10 text-center">
+      <div className="w-full max-w-[390px] rounded-[24px] border border-[#dbe5f6] bg-white p-6 shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-amber-50 text-amber-700">
+          <WifiOff size={24} strokeWidth={2.4} />
+        </div>
+        <h2 className="mt-5 text-xl font-black text-slate-950">
+          No hay información guardada
+        </h2>
+        <p className="mx-auto mt-3 max-w-[300px] text-sm font-semibold leading-6 text-slate-500">
+          Conéctate a internet una vez para cargar tu inventario y poder
+          consultarlo sin conexión.
+        </p>
+        <RefreshButton
+          onClick={onRetry}
+          aria-label="Reintentar carga de inventario"
+          className="mt-5 w-full"
+        >
+          Reintentar
+        </RefreshButton>
+      </div>
+    </section>
+  );
 }
 
 function CapacityRing({
@@ -685,6 +727,7 @@ function SecadoProcessCard({
 export default function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const locationState = (location.state ?? null) as {
     preferredTypeKey?: string;
     activeSecadoId?: string;
@@ -694,6 +737,8 @@ export default function Inventario() {
   const [lots, setLots] = useState<LoteResumen[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<InventarioError | null>(null);
+  const [usingCachedInventory, setUsingCachedInventory] = useState(false);
+  const [offlineCacheMissing, setOfflineCacheMissing] = useState(false);
   const [typeKey, setTypeKey] = useState('');
   const [qualityFilterKey, setQualityFilterKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
@@ -744,23 +789,94 @@ export default function Inventario() {
     setShowBodegaEditor(false);
   };
 
+  const loadCachedInventory = async () => {
+    const [cachedInventory, cachedWarehouse] = await Promise.all([
+      getOfflineCache<CachedInventoryData>(INVENTORY_SUMMARY_CACHE_KEY),
+      getOfflineCache<CachedInventoryData['bodegaConfig']>(WAREHOUSE_CAPACITY_CACHE_KEY),
+    ]);
+
+    if (!cachedInventory) {
+      setLots([]);
+      setUsingCachedInventory(false);
+      setOfflineCacheMissing(true);
+      setError(null);
+      return false;
+    }
+
+    setLots(cachedInventory.lots);
+    setBodegaConfig(cachedWarehouse ?? cachedInventory.bodegaConfig);
+    setUsingCachedInventory(true);
+    setOfflineCacheMissing(false);
+    setError(null);
+    return true;
+  };
+
+  const cacheInventory = async (
+    nextLots: LoteResumen[],
+    nextBodegaConfig: CachedInventoryData['bodegaConfig'],
+  ) => {
+    const payload: CachedInventoryData = {
+      lots: nextLots,
+      bodegaConfig: nextBodegaConfig,
+      savedAt: new Date().toISOString(),
+    };
+
+    await Promise.all([
+      saveOfflineCache(INVENTORY_SUMMARY_CACHE_KEY, payload),
+      saveOfflineCache(INVENTORY_LIST_CACHE_KEY, nextLots),
+      saveOfflineCache(WAREHOUSE_CAPACITY_CACHE_KEY, nextBodegaConfig),
+      saveOfflineCache(INVENTORY_FILTERS_CACHE_KEY, {
+        sortKey,
+        typeKey,
+        qualityFilterKey,
+      }),
+      saveOfflineCache(DASHBOARD_INVENTORY_SUMMARY_CACHE_KEY, {
+        totalKg: nextLots.reduce((sum, lot) => sum + lot.pesoActual, 0),
+        lotes: nextLots.length,
+        capacidadKg: nextBodegaConfig.capacidadKg,
+        savedAt: payload.savedAt,
+      }),
+    ]);
+  };
+
   const loadLots = async () => {
     setLoading(true);
     setError(null);
 
     try {
+      if (!isOnline) {
+        await loadCachedInventory();
+        return;
+      }
+
       const [data, config] = await Promise.all([
         obtenerLotes(),
         obtenerConfiguracionBodega(),
       ]);
 
-      setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
-      setBodegaConfig({
+      const nextLots = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data;
+      const nextBodegaConfig = {
         nombreBodega: config.nombreBodega,
         capacidadKg: config.capacidadKg,
-      });
+      };
+
+      setLots(nextLots);
+      setBodegaConfig(nextBodegaConfig);
+      setUsingCachedInventory(false);
+      setOfflineCacheMissing(false);
+      void cacheInventory(nextLots, nextBodegaConfig);
     } catch (err) {
-      setError(traducirErrorInventario(err));
+      setUsingCachedInventory(false);
+      setOfflineCacheMissing(false);
+      setError(
+        backendReachable === false
+          ? {
+              titulo: 'No pudimos conectar con el servidor',
+              mensaje: 'Revisa que el servidor esté encendido o intenta nuevamente.',
+              detalle: 'Intenta nuevamente en unos segundos.',
+            }
+          : traducirErrorInventario(err),
+      );
       setLots([]);
     } finally {
       setLoading(false);
@@ -769,7 +885,7 @@ export default function Inventario() {
 
   useEffect(() => {
     void loadLots();
-  }, []);
+  }, [isOnline, backendReachable]);
 
   const availableTypes = useMemo(() => {
     const map = new Map<string, { key: string; name: string }>();
@@ -994,7 +1110,10 @@ export default function Inventario() {
     ENABLE_SECADO_PROTOTYPE &&
     (activeSecadoSessions.length > 0 ||
       lots.some((lot) => getGeneralCoffeeTypeKey(lot.tipoCafe) === 'VERDE'));
-  const showGlobalEmptyState = !loading && !error && lots.length === 0;
+  const showOfflineEmptyState = !loading && offlineCacheMissing;
+  const showInventoryContent = !error && !showOfflineEmptyState;
+  const showGlobalEmptyState =
+    !loading && showInventoryContent && lots.length === 0;
 
   return (
     <div
@@ -1009,14 +1128,31 @@ export default function Inventario() {
             : 'flex-col gap-5'
         }`}
       >
-        {!showGlobalEmptyState ? (
+        {showOfflineEmptyState ? (
+          <OfflineInventoryEmptyState
+            onRetry={() => {
+              void Promise.allSettled([loadLots(), refreshHealth()]);
+            }}
+          />
+        ) : null}
+
+        {showInventoryContent && usingCachedInventory ? (
+          <AppFeedbackMessage
+            variant="info"
+            title="Información guardada"
+            description="Estos datos corresponden a la última información disponible en este dispositivo."
+            autoClose={false}
+          />
+        ) : null}
+
+        {showInventoryContent && !showGlobalEmptyState ? (
           <CapacityRing
             totalKg={totalKg}
             capacityKg={bodegaConfig.capacidadKg}
           />
         ) : null}
 
-        {!showGlobalEmptyState && capacityAlert && !capacityAlertClosed ? (
+        {showInventoryContent && !showGlobalEmptyState && capacityAlert && !capacityAlertClosed ? (
           <div className="relative">
             <AppFeedbackMessage
               variant={capacityAlert.variant}
@@ -1057,7 +1193,7 @@ export default function Inventario() {
           </div>
         ) : null}
 
-        {!showGlobalEmptyState ? (
+        {showInventoryContent && !showGlobalEmptyState ? (
           <section className="rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm">
             <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
@@ -1115,7 +1251,7 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {showGlobalEmptyState ? (
+        {showInventoryContent && showGlobalEmptyState ? (
           <section className="relative min-h-[calc(100vh-112px)] w-full overflow-hidden bg-[radial-gradient(circle_at_50%_14%,rgba(47,128,237,0.13),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#edf6ff_100%)] px-5 pb-28 pt-8 text-center text-[#07153b]">
             <EmptyInventoryAnimations />
             <div className="pointer-events-none absolute left-6 top-10 h-20 w-20 rounded-full bg-[#e6f3ff]/70 blur-2xl" />
@@ -1152,7 +1288,7 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {typeKey === '' && !showGlobalEmptyState ? (
+        {showInventoryContent && typeKey === '' && !showGlobalEmptyState ? (
           <section className="space-y-3">
             <div className="grid gap-3">
               {typeSummaries.map((group) => (
@@ -1182,7 +1318,8 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {!showGlobalEmptyState &&
+        {showInventoryContent &&
+        !showGlobalEmptyState &&
         canOpenSecadoProcess &&
         typeKey === 'VERDE' ? (
           <button
@@ -1208,7 +1345,7 @@ export default function Inventario() {
           </button>
         ) : null}
 
-        {typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
+        {showInventoryContent && typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1255,7 +1392,9 @@ export default function Inventario() {
               {error.detalle}
             </p>
             <RefreshButton
-              onClick={() => void loadLots()}
+              onClick={() => {
+                void Promise.allSettled([loadLots(), refreshHealth()]);
+              }}
               aria-label="Reintentar"
               className="mt-4 w-full"
             >

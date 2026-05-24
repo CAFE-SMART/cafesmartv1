@@ -228,10 +228,10 @@ export function CloudStatusProvider({
 
     if (!backendReachable) {
       return {
-        tone: 'offline',
-        title: 'Sin conexión',
+        tone: 'error',
+        title: 'No pudimos conectar con el servidor',
         detail:
-          'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
+          'Revisa que el servidor esté encendido o intenta nuevamente.',
         isOnline,
         backendReachable,
         isSyncing: false,

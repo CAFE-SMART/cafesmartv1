@@ -1,7 +1,6 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
+import { getApiBaseUrlCandidates } from '../config/api';
 import { getOfflineCache, saveOfflineCache } from './offlineCacheService';
-
-const HOSTS_LOCALES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 type ApiErrorDetails = Record<string, string[]>;
 
@@ -166,36 +165,7 @@ export function traducirMensajeError(message: unknown, status = 0) {
 }
 
 function construirBasesApi() {
-  const apiBaseConfigurada =
-    (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-    'http://localhost:3000';
-
-  const candidatas = [apiBaseConfigurada.replace(/\/$/, '')];
-
-  if (typeof window === 'undefined') {
-    return candidatas;
-  }
-
-  try {
-    const urlConfigurada = new URL(apiBaseConfigurada);
-    const hostActual = window.location.hostname?.trim();
-
-    if (
-      hostActual &&
-      !HOSTS_LOCALES.has(hostActual) &&
-      HOSTS_LOCALES.has(urlConfigurada.hostname)
-    ) {
-      candidatas.push(
-        `${urlConfigurada.protocol}//${hostActual}${
-          urlConfigurada.port ? `:${urlConfigurada.port}` : ''
-        }`,
-      );
-    }
-  } catch {
-    return candidatas;
-  }
-
-  return [...new Set(candidatas)];
+  return getApiBaseUrlCandidates();
 }
 
 function traducirErrorConexion(error: unknown) {
@@ -274,7 +244,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         }
 
         if (offlineCacheKey) {
-          saveOfflineCache(offlineCacheKey, data);
+          void saveOfflineCache(offlineCacheKey, data);
         }
 
         return data;
@@ -288,7 +258,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     }
 
     if (offlineCacheKey) {
-      const cached = getOfflineCache<unknown>(offlineCacheKey);
+      const cached = await getOfflineCache<unknown>(offlineCacheKey);
       if (cached !== null) {
         return cached;
       }

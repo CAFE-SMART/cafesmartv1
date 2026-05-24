@@ -1,4 +1,5 @@
 import { obtenerDeviceId } from '../utils/deviceId';
+import { setOfflineRecord } from './offlineDb';
 
 export type OfflineDraftStatus = 'BORRADOR' | 'LISTO_PARA_ENVIAR' | 'ERROR';
 
@@ -49,6 +50,7 @@ function readAll(): OfflineDraft[] {
 function writeAll(drafts: OfflineDraft[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(OFFLINE_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+  void setOfflineRecord('offlineDrafts', 'all', drafts);
 }
 
 export async function createOfflineDraft(

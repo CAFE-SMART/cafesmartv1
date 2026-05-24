@@ -43,13 +43,26 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = Number(configService.get('PORT') ?? 3000);
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+  const localDevOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+    'http://192.168.100.7:5173',
+    'http://192.168.100.7:4173',
+  ];
   const corsOrigins = (configService.get<string>('CORS_ORIGINS') ?? '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+  const allowedCorsOrigins =
+    nodeEnv === 'production'
+      ? corsOrigins
+      : Array.from(new Set([...corsOrigins, ...localDevOrigins]));
 
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : nodeEnv !== 'production',
+    origin:
+      allowedCorsOrigins.length > 0 ? allowedCorsOrigins : nodeEnv !== 'production',
   });
   app.useGlobalFilters(new HttpExceptionFilter());
 

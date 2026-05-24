@@ -1,0 +1,10 @@
+{
+  "name": "CafeSmart",
+  "short_name": "CafeSmart",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#102d92",
+  "description": "Gestion inteligente de cafe con soporte offline limitado."
+}

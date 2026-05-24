@@ -50,6 +50,7 @@ import {
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 import { createOfflineDraft } from '../services/offlineDraftService';
+import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { addSyncOperation } from '../services/syncQueueService';
 import {
   guardarConfiguracionBodega,
@@ -187,6 +188,11 @@ const PRODUCTOR_FORM_EMPTY: ProductorForm = {
   tipoDocumento: '',
 };
 const COMPRA_DRAFT_STORAGE_KEY = 'cafe-smart:compra-draft:v1';
+const CATALOG_TIPOS_CAFE_CACHE_KEY = 'catalog_tipos_cafe';
+const CATALOG_CALIDADES_CACHE_KEY = 'catalog_calidades';
+const CATALOG_PRODUCTORES_CACHE_KEY = 'catalog_productores';
+const WAREHOUSE_CAPACITY_CACHE_KEY = 'warehouse_capacity';
+const COMPRAS_RECIENTES_CACHE_KEY = 'compras_recent';
 
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
@@ -2370,6 +2376,40 @@ export default function Compras() {
     setCatalogosFeedback(null);
     setMostrarErrorFormulario(false);
     try {
+      if (isOffline) {
+        const [tiposCafe, calidades, productoresData, comprasData, bodegaData] =
+          await Promise.all([
+            getOfflineCache<CatalogoItem[]>(CATALOG_TIPOS_CAFE_CACHE_KEY),
+            getOfflineCache<CatalogoItem[]>(CATALOG_CALIDADES_CACHE_KEY),
+            getOfflineCache<ProductorItem[]>(CATALOG_PRODUCTORES_CACHE_KEY),
+            getOfflineCache<CompraListadoItem[]>(COMPRAS_RECIENTES_CACHE_KEY),
+            getOfflineCache<{ capacidadKg?: number | null }>(
+              WAREHOUSE_CAPACITY_CACHE_KEY,
+            ),
+          ]);
+
+        if (!tiposCafe?.length || !calidades?.length || !productoresData?.length) {
+          setCatalogosError(
+            'No hay información guardada. Conéctate a internet una vez para cargar los datos necesarios.',
+          );
+          return;
+        }
+
+        const comprasCacheadas = comprasData ?? [];
+        setCatalogos({ tiposCafe, calidades });
+        setProductores(
+          dedupeProductorOptions(productoresData.map(mapProductorToOption)),
+        );
+        setComprasRealizadas(comprasCacheadas);
+        setBodegaBloqueada(
+          bodegaData
+            ? resolverBodegaBloqueada(bodegaData.capacidadKg ?? null, comprasCacheadas)
+            : null,
+        );
+        setCatalogosFeedback('Información guardada en este dispositivo.');
+        return;
+      }
+
       const [catalogosData, productoresData, comprasData, bodegaData] = await Promise.all([
         obtenerCatalogosCompra(),
         listarProductores(),
@@ -2384,10 +2424,19 @@ export default function Compras() {
       setBodegaBloqueada(
         resolverBodegaBloqueada(bodegaData.capacidadKg, comprasData),
       );
+      void saveOfflineCache(CATALOG_TIPOS_CAFE_CACHE_KEY, catalogosData.tiposCafe);
+      void saveOfflineCache(CATALOG_CALIDADES_CACHE_KEY, catalogosData.calidades);
+      void saveOfflineCache(CATALOG_PRODUCTORES_CACHE_KEY, productoresData);
+      void saveOfflineCache(COMPRAS_RECIENTES_CACHE_KEY, comprasData);
+      void saveOfflineCache(WAREHOUSE_CAPACITY_CACHE_KEY, bodegaData);
       setCatalogosFeedback('Opciones cargadas.');
     } catch (err) {
       console.warn('No se pudo cargar toda la informacion de compras:', err);
-      setCatalogosError('No pudimos cargar las opciones.');
+      setCatalogosError(
+        isOffline
+          ? 'No hay información guardada. Conéctate a internet una vez para cargar los datos necesarios.'
+          : 'No pudimos cargar las opciones.',
+      );
     } finally {
       setLoading(false);
     }
@@ -3298,7 +3347,12 @@ export default function Compras() {
   };
 
   useEffect(() => {
-    if (step !== 2 || !fechaCompraValidacion.isValid) {
+    if (step !== 2 || !fechaCompraValidacion.isValid || isOffline) {
+      if (isOffline) {
+        setCheckingCapacidadPreview(false);
+        setCapacidadPrevia(null);
+        setErrorCapacidadCantidad(null);
+      }
       return;
     }
 
@@ -3385,12 +3439,23 @@ export default function Compras() {
   }, [
     fecha,
     fechaCompraValidacion.isValid,
+    isOffline,
     productorSeleccionado,
     step,
     sublotes,
   ]);
 
   const validarCapacidadBodega = async (): Promise<boolean> => {
+    if (isOffline) {
+      setCapacidadPrevia({
+        validada: false,
+        nivel: 'sin_validacion',
+        mensaje:
+          'La capacidad se validará cuando esta compra pendiente se sincronice.',
+      });
+      return true;
+    }
+
     try {
       const payload = await construirPayloadCompra();
       const capacidad = await validarCapacidadCompra(payload);
@@ -3611,7 +3676,7 @@ export default function Compras() {
         };
         setMostrarModalConfirmar(false);
         setCatalogosFeedback(
-          'Borrador guardado. Tu información quedó guardada en este dispositivo.',
+          'Compra guardada en este dispositivo. Se sincronizará cuando vuelvas a tener conexión.',
         );
         return;
       }

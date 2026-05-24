@@ -1,5 +1,6 @@
 import { apiFetch, invalidateApiCache } from './apiService';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
+import { setOfflineRecord } from './offlineDb';
 
 export type SyncStatus =
   | 'PENDIENTE'
@@ -96,6 +97,7 @@ function readQueue(): SyncOperation[] {
 function writeQueue(queue: SyncOperation[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(queue));
+  void setOfflineRecord('syncQueue', 'all', queue);
   notifyQueueUpdated();
 }
 

@@ -1,3 +1,9 @@
+import {
+  deleteOfflineRecord,
+  getOfflineRecord,
+  setOfflineRecord,
+} from './offlineDb';
+
 const OFFLINE_CACHE_PREFIX = 'cafe-smart:offline-cache:v1:';
 const OFFLINE_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 
@@ -10,7 +16,7 @@ function storageKey(key: string) {
   return `${OFFLINE_CACHE_PREFIX}${key}`;
 }
 
-export function saveOfflineCache<T>(key: string, data: T) {
+export async function saveOfflineCache<T>(key: string, data: T) {
   if (typeof window === 'undefined') return;
 
   try {
@@ -18,19 +24,32 @@ export function saveOfflineCache<T>(key: string, data: T) {
       savedAt: new Date().toISOString(),
       data,
     };
+    try {
+      await setOfflineRecord('cachedQueries', storageKey(key), entry);
+    } catch {
+      // localStorage queda como respaldo.
+    }
     window.localStorage.setItem(storageKey(key), JSON.stringify(entry));
   } catch {
     // El cache de lectura nunca debe bloquear el flujo principal.
   }
 }
 
-export function getOfflineCache<T>(key: string): T | null {
+export async function getOfflineCache<T>(key: string): Promise<T | null> {
   if (typeof window === 'undefined') return null;
 
   try {
-    const raw = window.localStorage.getItem(storageKey(key));
-    if (!raw) return null;
-    const entry = JSON.parse(raw) as Partial<OfflineCacheEntry<T>>;
+    let entry = await getOfflineRecord<OfflineCacheEntry<T>>(
+      'cachedQueries',
+      storageKey(key),
+    );
+
+    if (!entry) {
+      const raw = window.localStorage.getItem(storageKey(key));
+      entry = raw ? (JSON.parse(raw) as OfflineCacheEntry<T>) : null;
+    }
+
+    if (!entry) return null;
     if (!entry.savedAt || !('data' in entry)) return null;
 
     const age = Date.now() - new Date(entry.savedAt).getTime();
@@ -42,7 +61,12 @@ export function getOfflineCache<T>(key: string): T | null {
   }
 }
 
-export function clearOfflineCache(key: string) {
+export async function clearOfflineCache(key: string) {
   if (typeof window === 'undefined') return;
+  try {
+    await deleteOfflineRecord('cachedQueries', storageKey(key));
+  } catch {
+    // localStorage queda como respaldo.
+  }
   window.localStorage.removeItem(storageKey(key));
 }

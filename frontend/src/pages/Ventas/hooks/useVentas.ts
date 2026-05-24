@@ -2,10 +2,12 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Preferences } from '@capacitor/preferences';
 import { listarClientes } from '../../../services/clientesService';
-import { obtenerLotes, obtenerDetalleLote, guardarPesosSublotes } from '../../../services/lotesService';
+import { obtenerLotes, obtenerDetalleLote, guardarPesosSublotes, type LoteDetalle, type LoteResumen } from '../../../services/lotesService';
 import { crearVenta, listarVentas } from '../../../services/ventasService';
 import { obtenerConfiguracionBodega, type ConfiguracionBodega } from '../../../services/bodegaApi';
 import { createOfflineDraft } from '../../../services/offlineDraftService';
+import { getOfflineCache, saveOfflineCache } from '../../../services/offlineCacheService';
+import { addSyncOperation } from '../../../services/syncQueueService';
 import { obtenerDeviceId } from '../../../utils/deviceId';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { getTodayLocalDateValue, validateBusinessDateRange, toIsoDateAtUtcNoon } from '../../../utils/date';
@@ -19,6 +21,15 @@ import { sanitizeSearchInput } from '../../../utils/inputLimits';
 import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
 import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, sanitizeDigits as sanitizePersonDigits, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber } from '../../../utils/personValidation';
 import { formatCoffeeFullName, getSubloteDisplayCode } from '../../../utils/coffeeCodes';
+
+const INVENTORY_SUBLOTES_CACHE_KEY = 'inventory_sublotes';
+const CATALOG_CLIENTES_CACHE_KEY = 'catalog_clientes';
+const WAREHOUSE_CAPACITY_CACHE_KEY = 'warehouse_capacity';
+const VENTAS_RECIENTES_CACHE_KEY = 'ventas_recent';
+
+function detalleSublotesCacheKey(tipoCafeId: string, calidadId: string) {
+  return `${INVENTORY_SUBLOTES_CACHE_KEY}:${tipoCafeId}:${calidadId}`;
+}
 
 async function readVentaDraft() {
   try {
@@ -113,6 +124,45 @@ export function useVentas() {
     try {
       setCargando(true);
       setLoadError(null);
+      if (isOffline) {
+        const [lotesCache, clientesCache, bodegaCache, ventasCache] = await Promise.all([
+          getOfflineCache<LoteResumen[]>(INVENTORY_SUBLOTES_CACHE_KEY),
+          getOfflineCache<Awaited<ReturnType<typeof listarClientes>>>(CATALOG_CLIENTES_CACHE_KEY),
+          getOfflineCache<ConfiguracionBodega>(WAREHOUSE_CAPACITY_CACHE_KEY),
+          getOfflineCache<Awaited<ReturnType<typeof listarVentas>>>(VENTAS_RECIENTES_CACHE_KEY),
+        ]);
+
+        if (!lotesCache?.length) {
+          setLotesVenta([]);
+          setClientes(clientesCache?.length ? dedupeClientesOptions(clientesCache.map(mapClienteToOption)) : []);
+          setBodegaConfig(bodegaCache ?? null);
+          setVentasRealizadas([]);
+          setLoadError('No hay inventario guardado. Conéctate a internet una vez para cargar el inventario antes de vender sin conexión.');
+          return;
+        }
+
+        const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
+          ? applySecadoToLots(lotesCache, { includeGeneratedOutputs: false })
+          : lotesCache;
+        setLotesVenta(mkLotes(lotesDisponibles));
+        setClientes(clientesCache?.length ? dedupeClientesOptions(clientesCache.map(mapClienteToOption)) : []);
+        setBodegaConfig(bodegaCache ?? null);
+        if (ventasCache?.registros) {
+          setVentasRealizadas(
+            ventasCache.registros.map((venta) => ({
+              referenciaId: venta.id,
+              fecha: venta.fecha,
+              clienteNombre: venta.clienteNombre,
+              clienteDocumento: venta.clienteDocumento || 'Sin detalle',
+              totalKg: venta.totalKg,
+              totalVenta: venta.totalVenta,
+              items: [],
+            })),
+          );
+        }
+        return;
+      }
+
       const [lotesResult, clientesResult, bodegaResult, ventasResult] = await Promise.allSettled([
         obtenerLotes(),
         listarClientes(),
@@ -127,7 +177,13 @@ export function useVentas() {
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes, { includeGeneratedOutputs: false }) : lotes;
       setLotesVenta(mkLotes(lotesDisponibles));
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
+      void saveOfflineCache(INVENTORY_SUBLOTES_CACHE_KEY, lotesDisponibles);
+      void saveOfflineCache(CATALOG_CLIENTES_CACHE_KEY, clientesData);
+      if (bodegaResult.status === 'fulfilled') {
+        void saveOfflineCache(WAREHOUSE_CAPACITY_CACHE_KEY, bodegaResult.value);
+      }
       if (ventasResult.status === 'fulfilled') {
+        void saveOfflineCache(VENTAS_RECIENTES_CACHE_KEY, ventasResult.value);
         setVentasRealizadas(
           ventasResult.value.registros.map((venta) => ({
             referenciaId: venta.id,
@@ -184,12 +240,28 @@ export function useVentas() {
           })),
         );
       }
+      void Promise.allSettled(
+        lotesDisponibles.map((lote) =>
+          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).then((detalle) =>
+            saveOfflineCache(
+              detalleSublotesCacheKey(lote.tipoCafeId, lote.calidadId),
+              detalle,
+            ),
+          ),
+        ),
+      );
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'No fue posible cargar el inventario para venta.');
+      setLoadError(
+        isOffline
+          ? 'No hay inventario guardado. Conéctate a internet una vez para cargar el inventario antes de vender sin conexión.'
+          : e instanceof Error
+            ? e.message
+            : 'No fue posible cargar el inventario para venta.',
+      );
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [isOffline]);
 
   React.useEffect(() => {
     void cargarLotes();
@@ -532,6 +604,27 @@ export function useVentas() {
     revisionDeleteAlertTimerRef.current = window.setTimeout(() => setRevisionDeleteAlert(null), 4200);
   }, []);
 
+  const cargarDetalleVenta = React.useCallback(
+    async (tipoCafeId: string, calidadId: string) => {
+      const cacheKey = detalleSublotesCacheKey(tipoCafeId, calidadId);
+
+      if (isOffline) {
+        const cached = await getOfflineCache<LoteDetalle>(cacheKey);
+        if (!cached) {
+          throw new Error(
+            'No hay inventario guardado. Conéctate a internet una vez para cargar el inventario antes de vender sin conexión.',
+          );
+        }
+        return cached;
+      }
+
+      const detalle = await obtenerDetalleLote(tipoCafeId, calidadId);
+      void saveOfflineCache(cacheKey, detalle);
+      return detalle;
+    },
+    [isOffline],
+  );
+
   const confirmar = React.useCallback(async () => {
     if (!clienteSeleccionado) {
       setPaso(1);
@@ -551,9 +644,112 @@ export function useVentas() {
     setRegistroErrorMensaje(null);
     try {
       if (isOffline) {
+        const detalles = [] as Array<{ subloteId: string; pesoVendido: number; precioKg: number }>;
+        const desgloseFIFO: VentaFifoItem[] = [];
+        const pools = new Map<
+          string,
+          Array<{
+            subloteId: string;
+            subloteCodigo: string;
+            subloteNombre: string;
+            tipoCafe: string;
+            calidad: string;
+            nombreCafe: string;
+            fifoPosition: number;
+            fechaEntrada: string;
+            costoBase: number | null;
+            disponibleKg: number;
+          }>
+        >();
+
+        for (const lote of lotesConCantidad) {
+          const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
+          if (!pools.has(poolKey)) {
+            const detalleBase = await cargarDetalleVenta(lote.tipoCafeId, lote.calidadId);
+            const detalle = ENABLE_SECADO_PROTOTYPE
+              ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, {
+                  includeGeneratedOutputs: false,
+                })
+              : detalleBase;
+            let pool = [...(detalle?.sublotes ?? [])]
+              .filter((sublote) => sublote.pesoActual > 0)
+              .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime())
+              .map((sublote, index) => ({
+                subloteId: sublote.id,
+                subloteCodigo: getSubloteDisplayCode(sublote, index),
+                subloteNombre: sublote.etiqueta || getSubloteDisplayCode(sublote, index),
+                tipoCafe: sublote.tipoCafe,
+                calidad: sublote.calidad,
+                nombreCafe: formatCoffeeFullName(sublote),
+                fifoPosition: index + 1,
+                fechaEntrada: sublote.fechaIngreso,
+                costoBase: Number.isFinite(sublote.costoPorKg) ? sublote.costoPorKg : null,
+                disponibleKg: round2(sublote.pesoActual),
+              }));
+            const pesoVerificado = getPesoVerificado(lote);
+            const totalPool = round2(pool.reduce((sum, item) => sum + item.disponibleKg, 0));
+            if (pesoVerificado !== null && pesoVerificado < totalPool) {
+              pool = distribuirPesoVerificado(pool, pesoVerificado);
+            }
+            pools.set(poolKey, pool);
+          }
+
+          const pool = pools.get(poolKey) ?? [];
+          let restante = round2(lote.cantidad);
+          for (const entry of pool) {
+            if (restante <= 0) break;
+            if (entry.disponibleKg <= 0) continue;
+            const asignado = round2(Math.min(restante, entry.disponibleKg));
+            if (asignado <= 0) continue;
+            detalles.push({
+              subloteId: entry.subloteId,
+              pesoVendido: asignado,
+              precioKg: round2(lote.precio),
+            });
+            entry.disponibleKg = round2(entry.disponibleKg - asignado);
+            desgloseFIFO.push({
+              groupId: lote.id,
+              subloteId: entry.subloteId,
+              subloteCodigo: entry.subloteCodigo,
+              subloteNombre: entry.subloteNombre,
+              tipoCafe: entry.tipoCafe,
+              calidad: entry.calidad,
+              nombreCafe: entry.nombreCafe,
+              fifoPosition: entry.fifoPosition,
+              pesoAsignado: asignado,
+              pesoRestante: entry.disponibleKg,
+              fechaEntrada: entry.fechaEntrada,
+              costoBase: entry.costoBase,
+            });
+            restante = round2(restante - asignado);
+          }
+          if (restante > 0.001) throw new Error(`La cantidad supera el disponible en ${lote.codigo}.`);
+        }
+
+        const fechaVentaIso = toIsoDateAtUtcNoon(fechaVenta);
+        const deviceId = await obtenerDeviceId();
+        const payload = {
+          ...(fechaVentaIso ? { fecha: fechaVentaIso } : {}),
+          ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
+          deviceId,
+          localId: ventaLocalIdRef.current,
+          detalles,
+        };
+
+        addSyncOperation({
+          idLocal: ventaLocalIdRef.current,
+          clientMutationId: ventaLocalIdRef.current,
+          deviceId,
+          modulo: 'VENTA',
+          endpoint: '/ventas',
+          method: 'POST',
+          payload,
+        });
         await createOfflineDraft('VENTA', {
           localId: ventaLocalIdRef.current,
           createdAt: new Date().toISOString(),
+          syncStatus: 'PENDIENTE',
+          payload,
           formState: {
             paso,
             clienteMetodo,
@@ -569,10 +765,12 @@ export function useVentas() {
             totalEstimado,
           },
         });
+        setVentaFifoBreakdown(desgloseFIFO);
         setMostrarModalConfirmar(false);
         setSubmitError(
-          'Borrador guardado. Tu información quedó guardada en este dispositivo y podrás finalizar la venta cuando vuelva la conexión.',
+          'Venta guardada en este dispositivo. Se validará y descontará del inventario cuando vuelva la conexión.',
         );
+        await clearVentaDraft();
         return;
       }
 
@@ -595,7 +793,7 @@ export function useVentas() {
       for (const lote of lotesConCantidad) {
         const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
         if (!pools.has(poolKey)) {
-          const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+          const detalleBase = await cargarDetalleVenta(lote.tipoCafeId, lote.calidadId);
           const detalle = ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, { includeGeneratedOutputs: false }) : detalleBase;
           let pool = [...(detalle?.sublotes ?? [])]
             .filter((sublote) => sublote.pesoActual > 0)
@@ -697,6 +895,7 @@ export function useVentas() {
     }
   }, [
     ajustesVentaParcialConfirmados,
+    cargarDetalleVenta,
     cargarLotes,
     clienteMetodo,
     clienteSeleccionado,
@@ -1026,7 +1225,7 @@ export function useVentas() {
     void (async () => {
       const breakdown: VentaFifoItem[] = [];
       for (const lote of lotesConCantidad) {
-        const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+        const detalleBase = await cargarDetalleVenta(lote.tipoCafeId, lote.calidadId);
         const detalle = ENABLE_SECADO_PROTOTYPE ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId, { includeGeneratedOutputs: false }) : detalleBase;
         let restante = round2(lote.cantidad);
         const sublotesOrdenados = [...(detalle?.sublotes ?? [])]
@@ -1070,7 +1269,7 @@ export function useVentas() {
     return () => {
       cancelled = true;
     };
-  }, [lotesConCantidad, modoVenta, paso]);
+  }, [cargarDetalleVenta, lotesConCantidad, modoVenta, paso]);
 
   return {
     cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso, botonConfirmarPresionado, intentoPaso1, intentoPaso2,

@@ -47,6 +47,7 @@ type UserSessionInput = {
   token: string;
   hasCompany: boolean;
   persist?: boolean;
+  offline?: boolean;
 };
 
 type UserState = {
@@ -76,6 +77,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [hasCompany, setHasCompany] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState(false);
+  const [offlineSession, setOfflineSession] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -120,7 +122,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       if (isExpired) {
         await clearAuthStorage();
-        await authSessionService.clearLastSession();
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem(
             SESSION_EXPIRED_MESSAGE_KEY,
@@ -169,7 +170,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || offlineSession) {
       return;
     }
 
@@ -191,7 +192,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [token]);
+  }, [offlineSession, token]);
 
   const setSession = async (data: UserSessionInput) => {
     const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
@@ -199,6 +200,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setToken(data.token);
     setHasCompany(nextHasCompany);
+    setOfflineSession(Boolean(data.offline));
 
     if (data.persist === false) {
       await clearAuthStorage();
@@ -242,6 +244,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setToken(null);
     setHasCompany(false);
+    setOfflineSession(false);
 
     if (typeof window !== 'undefined') {
       window.sessionStorage.setItem(
@@ -258,6 +261,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setToken(null);
     setHasCompany(false);
+    setOfflineSession(false);
 
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);

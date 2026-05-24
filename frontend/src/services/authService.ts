@@ -2,12 +2,8 @@
   buildOfflineAuthError,
   mapFriendlyAuthMessage,
 } from '../utils/authMessages';
+import { getApiBaseUrlCandidates } from '../config/api';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  'http://localhost:3000';
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 export type AuthError = {
   message: string;
@@ -67,33 +63,7 @@ function isNetworkFetchError(error: unknown) {
 }
 
 function buildApiBaseCandidates() {
-  const configuredBase = API_BASE_URL.replace(/\/$/, '');
-  const candidates = [configuredBase];
-
-  if (typeof window === 'undefined') {
-    return candidates;
-  }
-
-  try {
-    const configuredUrl = new URL(API_BASE_URL);
-    const currentHost = window.location.hostname?.trim();
-
-    if (
-      currentHost &&
-      !LOCAL_HOSTS.has(currentHost) &&
-      LOCAL_HOSTS.has(configuredUrl.hostname)
-    ) {
-      candidates.push(
-        `${configuredUrl.protocol}//${currentHost}${
-          configuredUrl.port ? `:${configuredUrl.port}` : ''
-        }`,
-      );
-    }
-  } catch {
-    return candidates;
-  }
-
-  return [...new Set(candidates)];
+  return getApiBaseUrlCandidates();
 }
 
 async function postAuth<TResponse>(

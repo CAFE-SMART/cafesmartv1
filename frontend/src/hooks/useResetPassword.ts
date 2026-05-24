@@ -1,9 +1,6 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  'http://localhost:3000';
+import API_BASE_URL from '../config/api';
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 

@@ -21,6 +21,7 @@ import {
 } from '../services/dashboardService';
 import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
+import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -35,6 +36,13 @@ const sectionTitleClass =
   'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
 const cardClass =
   'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
+const DASHBOARD_HOME_CACHE_KEY = 'cached_dashboard_home';
+
+type CachedDashboardHome = {
+  summary: DashboardSummary;
+  lotesBodega: LoteResumen[];
+  savedAt: string;
+};
 
 function formatInteger(value: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -339,17 +347,21 @@ function DashboardLoadingState() {
 
 function DashboardErrorState({
   onRetry,
+  title = 'No pudimos cargar el inicio',
+  message = 'Revisa tu conexión e intenta nuevamente.',
 }: {
   onRetry: () => void;
+  title?: string;
+  message?: string;
 }) {
   return (
     <section className="px-5 pt-6">
       <div className="rounded-[18px] border border-rose-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
         <p className="text-[0.8rem] font-black text-[#1f2937]">
-          No pudimos cargar el inicio
+          {title}
         </p>
         <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
-          Revisa tu conexión e intenta nuevamente.
+          {message}
         </p>
         <RefreshButton
           onClick={onRetry}
@@ -365,9 +377,11 @@ function DashboardErrorState({
 
 export default function Inicio() {
   const navigate = useNavigate();
-  const { tone, refreshHealth } = useCloudStatus();
+  const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [usingCachedDashboard, setUsingCachedDashboard] = useState(false);
+  const [offlineCacheMissing, setOfflineCacheMissing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -385,6 +399,29 @@ export default function Inicio() {
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
   const [alertaBodegaCerrada, setAlertaBodegaCerrada] = useState(false);
 
+  const cargarDashboardDesdeCache = useCallback(async () => {
+    const cachedHome = await getOfflineCache<CachedDashboardHome>(
+      DASHBOARD_HOME_CACHE_KEY,
+    );
+
+    if (!cachedHome) {
+      setSummary(null);
+      setLotesBodega([]);
+      setUsingCachedDashboard(false);
+      setOfflineCacheMissing(true);
+      setError(null);
+      return false;
+    }
+
+    setSummary(cachedHome.summary);
+    setLotesBodega(cachedHome.lotesBodega);
+    setMostrarOnboardingBodega(false);
+    setUsingCachedDashboard(true);
+    setOfflineCacheMissing(false);
+    setError(null);
+    return true;
+  }, []);
+
   const cargarDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       setRefreshing(true);
@@ -393,6 +430,12 @@ export default function Inicio() {
     }
 
     try {
+      const hasNoInternet = !isOnline;
+      if (hasNoInternet) {
+        await cargarDashboardDesdeCache();
+        return;
+      }
+
       const [dashboardResult, lotesResult] = await Promise.allSettled([
         obtenerDashboardSummary(),
         obtenerLotes(),
@@ -400,23 +443,61 @@ export default function Inicio() {
 
       if (dashboardResult.status === 'fulfilled') {
         setSummary(dashboardResult.value);
+        setUsingCachedDashboard(false);
+        setOfflineCacheMissing(false);
         setMostrarOnboardingBodega(
           !dashboardResult.value.kgCapacidad ||
             dashboardResult.value.kgCapacidad <= 0,
         );
         setError(null);
       } else {
-        setError(resolveDashboardErrorMessage(dashboardResult.reason));
+        setUsingCachedDashboard(false);
+        setOfflineCacheMissing(false);
+        setError(
+          backendReachable === false
+            ? 'No pudimos conectar con el servidor'
+            : resolveDashboardErrorMessage(dashboardResult.reason),
+        );
       }
 
       if (lotesResult.status === 'fulfilled') {
-        setLotesBodega(
+        const nextLotes = (
           ENABLE_SECADO_PROTOTYPE
             ? applySecadoToLots(lotesResult.value)
-            : lotesResult.value,
+            : lotesResult.value
         );
+        setLotesBodega(nextLotes);
+
+        if (dashboardResult.status === 'fulfilled') {
+          void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
+            summary: dashboardResult.value,
+            lotesBodega: nextLotes,
+            savedAt: new Date().toISOString(),
+          });
+          void saveOfflineCache('cached_inventory_summary', nextLotes);
+          void saveOfflineCache(
+            'cached_recent_movements',
+            dashboardResult.value.movimientosRecientes,
+          );
+          void saveOfflineCache('cached_financial_summary', {
+            totalComprasHoy: dashboardResult.value.totalComprasHoy,
+            totalVentasHoy: dashboardResult.value.totalVentasHoy,
+            totalGastosHoy: dashboardResult.value.totalGastosHoy,
+            utilidadTotalAcumulada: dashboardResult.value.utilidadTotalAcumulada,
+          });
+          void saveOfflineCache('cached_sync_status', {
+            savedAt: new Date().toISOString(),
+          });
+        }
       } else {
         setLotesBodega([]);
+        if (dashboardResult.status === 'fulfilled') {
+          void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
+            summary: dashboardResult.value,
+            lotesBodega: [],
+            savedAt: new Date().toISOString(),
+          });
+        }
       }
     } finally {
       if (isRefresh) {
@@ -425,7 +506,7 @@ export default function Inicio() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [backendReachable, cargarDashboardDesdeCache, isOnline]);
 
   useEffect(() => {
     void cargarDashboard();
@@ -670,7 +751,7 @@ export default function Inicio() {
     lotesBodega.length === 0;
   const dashboardState = loading
     ? 'loading'
-    : error && !summary
+    : (error || offlineCacheMissing) && !summary
       ? 'error'
       : 'valid';
 
@@ -699,7 +780,11 @@ export default function Inicio() {
                 />
                 <span>{resolveCloudLabel(tone)}</span>
               </div>
-              {dashboardState === 'valid' ? (
+              {usingCachedDashboard ? (
+                <p className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[0.62rem] font-black text-amber-800">
+                  Información guardada en este dispositivo
+                </p>
+              ) : dashboardState === 'valid' ? (
                 <p className="mt-2 text-[0.68rem] font-bold text-[#72809a]">
                   {formatUpdatedAgo(summary?.updatedAt ?? null, now)}
                 </p>
@@ -717,7 +802,23 @@ export default function Inicio() {
         </header>
 
         {dashboardState === 'error' ? (
-          <DashboardErrorState onRetry={() => void handleReload()} />
+          <DashboardErrorState
+            onRetry={() => void handleReload()}
+            title={
+              offlineCacheMissing
+                ? 'No hay información guardada'
+                : error === 'No pudimos conectar con el servidor'
+                  ? 'No pudimos conectar con el servidor'
+                  : 'No pudimos cargar el inicio'
+            }
+            message={
+              offlineCacheMissing
+                ? 'Conéctate a internet una vez para cargar tus datos y poder consultarlos sin conexión.'
+                : error === 'No pudimos conectar con el servidor'
+                  ? 'Revisa que el servidor esté encendido o intenta nuevamente.'
+                  : 'Revisa tu conexión e intenta nuevamente.'
+            }
+          />
         ) : null}
 
         {dashboardState === 'valid' && error ? (
