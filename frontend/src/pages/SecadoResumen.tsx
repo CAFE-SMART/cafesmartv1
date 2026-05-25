@@ -16,6 +16,7 @@ import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { createOfflineDraft } from '../services/offlineDraftService';
+import { addSyncOperation } from '../services/syncQueueService';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -82,6 +83,7 @@ export default function SecadoResumen() {
   const [persisting, setPersisting] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [persisted, setPersisted] = useState(false);
+  const [offlinePending, setOfflinePending] = useState(false);
   const [persistRetry, setPersistRetry] = useState(0);
   const persistStartedRef = useRef(false);
 
@@ -144,23 +146,43 @@ export default function SecadoResumen() {
           });
         }
 
+        const deviceId = await obtenerDeviceId();
+        const payload = {
+          sessionId: finalized.id,
+          deviceId,
+          fuentes,
+          salidas,
+          origen: 'offline',
+        };
+
         if (isOffline) {
+          addSyncOperation({
+            idLocal: finalized.id,
+            clientMutationId: finalized.id,
+            deviceId,
+            modulo: 'SECADO',
+            endpoint: '/secado/transformar',
+            method: 'POST',
+            payload,
+          });
           await createOfflineDraft('SECADO', {
             sessionId: finalized.id,
-            deviceId: await obtenerDeviceId(),
+            deviceId,
             fuentes,
             salidas,
+            payload,
             session: finalized,
             createdAt: new Date().toISOString(),
           });
-          throw new Error(
-            'No tienes conexión. Guarda este secado como borrador y finalízalo cuando vuelvas a tener internet.',
-          );
+          removeSecadoSession(finalized.id);
+          setOfflinePending(true);
+          setPersisted(true);
+          return;
         }
 
         await transformarSecado({
           sessionId: finalized.id,
-          deviceId: await obtenerDeviceId(),
+          deviceId,
           fuentes,
           salidas,
         });
@@ -217,14 +239,22 @@ export default function SecadoResumen() {
       <CafeSmartErrorState
         fullScreen
         variant={persistError ? 'error' : 'success'}
-        title={persistError ? 'No pudimos actualizar el inventario' : 'Secado registrado'}
+        title={
+          persistError
+            ? 'No pudimos actualizar el inventario'
+            : offlinePending
+              ? 'Secado guardado en este dispositivo'
+              : 'Secado registrado'
+        }
         message={
           persistError
             ? persistError
             : persisting
               ? 'Procesando secado...'
-              : persisted
-                ? 'Secado registrado correctamente. El inventario fue actualizado con los pesos transformados.'
+              : offlinePending
+                ? 'Se validará y sincronizará cuando vuelvas a tener conexión.'
+                : persisted
+                  ? 'Secado registrado correctamente. El inventario fue actualizado con los pesos transformados.'
                 : 'Proceso guardado.'
         }
         primaryLabel={persistError ? 'Reintentar actualización' : 'Registrar nuevo secado'}
@@ -252,7 +282,9 @@ export default function SecadoResumen() {
         info={
           persistError
             ? 'El proceso sigue disponible para reintentar la actualización.'
-            : 'El resultado del secado quedó listo para continuar en inventario.'
+            : offlinePending
+              ? 'No se creó inventario seco definitivo. El backend validará pesos y sublotes al sincronizar.'
+              : 'El resultado del secado quedó listo para continuar en inventario.'
         }
       >
         <section className="rounded-[12px] bg-white p-4 text-left shadow-sm">

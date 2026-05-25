@@ -22,6 +22,7 @@ import {
 import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
+import { prepareOfflineData } from '../services/offlinePreparationService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -398,6 +399,12 @@ export default function Inicio() {
   const [bodegaLocalError, setBodegaLocalError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
   const [alertaBodegaCerrada, setAlertaBodegaCerrada] = useState(false);
+  const [preparingOffline, setPreparingOffline] = useState(false);
+  const [offlinePrepFeedback, setOfflinePrepFeedback] = useState<{
+    variant: 'success' | 'error';
+    title: string;
+    description: string;
+  } | null>(null);
 
   const cargarDashboardDesdeCache = useCallback(async () => {
     const cachedHome = await getOfflineCache<CachedDashboardHome>(
@@ -488,6 +495,19 @@ export default function Inicio() {
           void saveOfflineCache('cached_sync_status', {
             savedAt: new Date().toISOString(),
           });
+          void saveOfflineCache('inventory_sublotes', nextLotes);
+          void saveOfflineCache('inventory_summary', {
+            kgActual: dashboardResult.value.kgActual,
+            kgCapacidad: dashboardResult.value.kgCapacidad,
+            inventarioPorTipo: dashboardResult.value.inventarioPorTipo,
+            updatedAt: dashboardResult.value.updatedAt,
+          });
+          void saveOfflineCache('dashboard_inventory_summary', {
+            kgActual: dashboardResult.value.kgActual,
+            kgCapacidad: dashboardResult.value.kgCapacidad,
+            inventarioPorTipo: dashboardResult.value.inventarioPorTipo,
+            updatedAt: dashboardResult.value.updatedAt,
+          });
         }
       } else {
         setLotesBodega([]);
@@ -523,6 +543,30 @@ export default function Inicio() {
   const handleReload = useCallback(async () => {
     await Promise.allSettled([cargarDashboard(true), refreshHealth()]);
   }, [cargarDashboard, refreshHealth]);
+
+  const handlePrepareOffline = useCallback(async () => {
+    setPreparingOffline(true);
+    setOfflinePrepFeedback(null);
+    try {
+      const result = await prepareOfflineData();
+      setOfflinePrepFeedback({
+        variant: 'success',
+        title: 'Datos guardados para uso sin conexión',
+        description:
+          result.savedKeys.length > 0
+            ? 'Catálogos, inventario y resumen quedaron listos en este dispositivo.'
+            : 'No encontramos datos nuevos para guardar, pero el cache existente se mantiene disponible.',
+      });
+    } catch {
+      setOfflinePrepFeedback({
+        variant: 'error',
+        title: 'No pudimos preparar el modo sin conexión',
+        description: 'Revisa la conexión con el servidor e intenta nuevamente.',
+      });
+    } finally {
+      setPreparingOffline(false);
+    }
+  }, []);
 
   const guardarCapacidadInicial = useCallback(async () => {
     const capacidad = Number(capacidadInicialKg);
@@ -830,6 +874,40 @@ export default function Inicio() {
               <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
                 Presiona Recargar para intentarlo de nuevo.
               </p>
+            </div>
+          </section>
+        ) : null}
+
+        {dashboardState === 'valid' ? (
+          <section className="px-5 pb-3">
+            <div className="rounded-[18px] border border-[#dbe2ee] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[0.78rem] font-black text-[#111827]">
+                    Preparar modo sin conexión
+                  </p>
+                  <p className="mt-1 text-[0.66rem] font-semibold leading-5 text-[#65758f]">
+                    Guarda catálogos, inventario y resumen para trabajar offline.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handlePrepareOffline()}
+                  disabled={preparingOffline || !isOnline}
+                  className="inline-flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-[12px] bg-emerald-700 px-3 text-[0.68rem] font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Sparkles size={14} aria-hidden="true" />
+                  {preparingOffline ? 'Guardando' : 'Preparar'}
+                </button>
+              </div>
+              {offlinePrepFeedback ? (
+                <AppFeedbackMessage
+                  className="mt-3"
+                  variant={offlinePrepFeedback.variant}
+                  title={offlinePrepFeedback.title}
+                  description={offlinePrepFeedback.description}
+                />
+              ) : null}
             </div>
           </section>
         ) : null}

@@ -13,6 +13,8 @@ import {
   type LoteDetalle,
   type SubloteDetalle,
 } from '../services/lotesService';
+import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   applySecadoToDetalle,
   createSecadoDraftWithWeights,
@@ -26,6 +28,11 @@ import {
 } from '../utils/coffeeCodes';
 
 const SECADO_SELECTION_DRAFT_PREFIX = 'cafe-smart:secado-seleccion-draft:v1';
+const SECADO_GREEN_SUBLOTES_CACHE_KEY = 'secado_green_sublotes';
+
+function secadoDetalleCacheKey(tipoCafeId: string, calidadId: string) {
+  return `${SECADO_GREEN_SUBLOTES_CACHE_KEY}:${tipoCafeId}:${calidadId}`;
+}
 
 function getSecadoDraftKey(tipoCafeId?: string, calidadId?: string) {
   return `${SECADO_SELECTION_DRAFT_PREFIX}:${tipoCafeId ?? 'na'}:${calidadId ?? 'na'}`;
@@ -101,6 +108,7 @@ function buildDefaultSelectedWeights(sublotes: SubloteDetalle[]) {
 export default function SecadoSeleccion() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOffline } = useNetworkStatus();
   const { tipoCafeId, calidadId } = useParams<{
     tipoCafeId: string;
     calidadId: string;
@@ -135,7 +143,19 @@ export default function SecadoSeleccion() {
       setError(null);
 
       try {
-        const base = await obtenerDetalleLote(tipoCafeId, calidadId);
+        const cacheKey = secadoDetalleCacheKey(tipoCafeId, calidadId);
+        const base = isOffline
+          ? await getOfflineCache<LoteDetalle>(cacheKey)
+          : await obtenerDetalleLote(tipoCafeId, calidadId);
+
+        if (!base) {
+          throw new Error('No hay sublotes guardados para secado.');
+        }
+
+        if (!isOffline) {
+          void saveOfflineCache(cacheKey, base);
+        }
+
         const visual = applySecadoToDetalle(base, tipoCafeId, calidadId);
 
         if (!visual)
@@ -161,14 +181,18 @@ export default function SecadoSeleccion() {
         }
         setActiveSessions(sessions);
       } catch (err) {
-        setError('No pudimos abrir el proceso de secado. Intenta nuevamente.');
+        setError(
+          isOffline
+            ? 'No hay sublotes guardados. Conéctate a internet una vez para cargar los sublotes verdes disponibles antes de iniciar secado sin conexión.'
+            : 'No pudimos abrir el proceso de secado. Intenta nuevamente.',
+        );
       } finally {
         setLoading(false);
       }
     };
 
     void cargar();
-  }, [calidadId, tipoCafeId]);
+  }, [calidadId, isOffline, tipoCafeId]);
 
   useEffect(() => {
     const hasProgress = Object.values(selectedWeights).some((value) => value > 0);
@@ -582,7 +606,7 @@ export default function SecadoSeleccion() {
             disabled={selectedIds.length === 0}
             className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)] disabled:bg-slate-300"
           >
-            Iniciar secado <ChevronRight size={16} />
+            {isOffline ? 'Guardar secado pendiente' : 'Iniciar secado'} <ChevronRight size={16} />
           </button>
         </footer>
       </div>

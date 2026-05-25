@@ -141,6 +141,15 @@ export function useVentas() {
           return;
         }
 
+        if (!clientesCache?.length) {
+          setLotesVenta(mkLotes(lotesCache));
+          setClientes([]);
+          setBodegaConfig(bodegaCache ?? null);
+          setVentasRealizadas([]);
+          setLoadError('No hay clientes guardados. Conéctate a internet una vez para cargar tus clientes antes de registrar ventas sin conexión.');
+          return;
+        }
+
         const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
           ? applySecadoToLots(lotesCache, { includeGeneratedOutputs: false })
           : lotesCache;
@@ -767,9 +776,23 @@ export function useVentas() {
         });
         setVentaFifoBreakdown(desgloseFIFO);
         setMostrarModalConfirmar(false);
-        setSubmitError(
-          'Venta guardada en este dispositivo. Se validará y descontará del inventario cuando vuelva la conexión.',
-        );
+        setVentaGuardada({
+          referenciaId: ventaLocalIdRef.current,
+          pendienteOffline: true,
+          fecha: fechaVentaIso ?? new Date().toISOString(),
+          clienteNombre: clienteSeleccionado.nombre,
+          clienteDocumento: clienteSeleccionado.documento,
+          totalKg,
+          totalVenta: totalEstimado,
+          items: lotesConCantidad.map((item) => ({
+            codigo: item.codigo,
+            tipoCafe: item.tipoCafe,
+            calidad: item.calidad,
+            cantidadKg: item.cantidad,
+            subtotal: item.cantidad * item.precio,
+          })),
+          fifoBreakdown: desgloseFIFO,
+        });
         await clearVentaDraft();
         return;
       }
@@ -1272,7 +1295,7 @@ export function useVentas() {
   }, [cargarDetalleVenta, lotesConCantidad, modoVenta, paso]);
 
   return {
-    cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso, botonConfirmarPresionado, intentoPaso1, intentoPaso2,
+    isOffline, cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso, botonConfirmarPresionado, intentoPaso1, intentoPaso2,
     clienteMetodo, clienteSeleccionado, busquedaCliente, busquedaAplicada, clientes, clientesRecientes, clientesRecientesUsaSimilares, clienteForm, clienteFormErrors, clienteFormError, clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal, busquedaClientesModalDebounced, clientesSortMode, clientesSortDropdownOpen, clienteDocumentoDropdownOpen, nombreMaxToast,
     mostrarModal, mostrarModalClientes, mostrarModalConfirmar, mostrarModalCancelar, mostrarModalBorradorVenta, mostrarHistorialLotesVenta, mostrarDesgloseSublotesVenta, mostrarHistorialVentas,
     modoVenta, fechaVenta, fechaVentaPickerOpen, fechaVentaValidacion, lotesVenta, bodegaConfig, lotesConCantidad, totalKg, totalEstimado, totalDisponibleVenta, busquedaCafeVenta, tipoCafeFiltroVenta, calidadFiltroVenta, tipoCafeFiltroOpen, calidadFiltroOpen, mostrarTodosCafeVenta, tipoCafeFiltroOpciones, calidadFiltroOpciones, lotesVentaParcialFiltrados, lotesVentaParcialVisibles, lotesVentaParcialUsaSimilares, preciosVentaTotal, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, ventaParcialOpenId, ventaParcialAlert, ventaParcialCardAlerts, ajustesVentaParcialConfirmados, hayCantidadParcial, puedeAvanzarPaso2, ventaFifoBreakdown, historialVentaFecha, historialVentaFechaPickerOpen, historialVentaCliente, historialVentaOrden, ventasRealizadas, ventasHistorialFiltradas, historialVentaClientes, borradorVentaPendiente, pasoActual, clienteInvalido, modoInvalido, fechaVentaInvalida, precioTotalInvalido, sinInventario, parcialSinCantidad, parcialSinSeleccion,

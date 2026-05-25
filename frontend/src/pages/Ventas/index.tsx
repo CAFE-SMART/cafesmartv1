@@ -1669,7 +1669,7 @@ export default function Ventas() {
   const [showBodegaVentaInfo, setShowBodegaVentaInfo] = React.useState(false);
   const ventas = useVentas() as any;
   const {
-    cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso,
+    isOffline, cargando, loadError, guardandoVenta, validandoPasoVenta, submitError, registroErrorMensaje, ventaGuardada, paso,
     botonConfirmarPresionado, intentoPaso1, intentoPaso2, clienteMetodo, clienteSeleccionado,
     busquedaCliente, clientes, clientesRecientes, clientesRecientesUsaSimilares, clienteForm, clienteFormErrors, clienteFormError,
     clienteEditando, clienteDetalle, sinClientesRegistrados, clientesSearchRef, busquedaClientesModal,
@@ -1878,9 +1878,17 @@ export default function Ventas() {
     return (
       <div>
         <TransactionSuccessScreen
-          title="Venta registrada con éxito"
-          message="La venta fue guardada correctamente en el sistema."
-          info="El movimiento quedó disponible en tus registros de venta."
+          title={ventaGuardada.pendienteOffline ? 'Venta guardada en este dispositivo' : 'Venta registrada con éxito'}
+          message={
+            ventaGuardada.pendienteOffline
+              ? 'Se validará y descontará del inventario cuando vuelva la conexión.'
+              : 'La venta fue guardada correctamente en el sistema.'
+          }
+          info={
+            ventaGuardada.pendienteOffline
+              ? 'No se descontó inventario real. El backend validará la venta al sincronizar.'
+              : 'El movimiento quedó disponible en tus registros de venta.'
+          }
           totalLabel="Total vendido"
           totalValue={money(ventaGuardada.totalVenta)}
           primaryLabel="Registrar otra venta"
@@ -2127,8 +2135,19 @@ export default function Ventas() {
     return (
       <CafeSmartErrorState
         fullScreen
-        title="No se pudo cargar el inventario"
-        message="Revisa tu conexión e intenta de nuevo."
+        title={
+          loadError.includes('No hay inventario guardado')
+            ? 'No hay inventario guardado'
+            : loadError.includes('No hay clientes guardados')
+              ? 'No hay clientes guardados'
+              : 'No se pudo cargar el inventario'
+        }
+        message={
+          loadError.includes('No hay inventario guardado') ||
+          loadError.includes('No hay clientes guardados')
+            ? loadError
+            : 'Revisa tu conexión e intenta de nuevo.'
+        }
         primaryLabel="Reintentar"
         secondaryLabel="Volver a inicio"
         onPrimary={() => void cargarLotes()}
@@ -3203,7 +3222,7 @@ export default function Ventas() {
                       </>
                     ) : (
                       <>
-                        Registrar venta
+                        {isOffline ? 'Guardar venta pendiente' : 'Registrar venta'}
                         <ArrowRight size={16} />
                       </>
                     )}
@@ -3738,6 +3757,7 @@ export default function Ventas() {
         mostrar={mostrarModalConfirmar}
         guardando={guardandoVenta}
         presionado={botonConfirmarPresionado}
+        offline={Boolean(isOffline)}
         onCancel={() => setMostrarModalConfirmar(false)}
         onConfirm={() => {
           setMostrarModalConfirmar(false);

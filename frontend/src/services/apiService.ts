@@ -46,6 +46,10 @@ const TECHNICAL_ERROR_WORDS =
   /api|autenticaci[oó]n fallida|backend|base de datos|conexi[oó]n rechazada|database|endpoint|error interno|error\s*500|exception|fallo del sistema|fetch failed|internal server|localhost|prisma|request|server|servidor|stack|terminal|timeout|token/i;
 
 const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
+  AI_SERVICE_NOT_CONFIGURED:
+    'No pude conectar con el asistente. Revisa la configuración del servicio de IA.',
+  AI_PROVIDER_ERROR:
+    'No pude generar una respuesta en este momento. Intenta nuevamente.',
   INSUFFICIENT_STOCK: 'La cantidad supera el inventario disponible.',
   VENTA_INVENTARIO_INSUFICIENTE: 'La cantidad supera el inventario disponible.',
   VENTA_CANTIDAD_INVALIDA: 'Ingresa una cantidad mayor a 0.',
@@ -126,12 +130,16 @@ export function getUserFriendlyErrorMessage(error: {
   status?: number;
 }) {
   const status = error.status ?? 0;
+  const code = error.code?.trim();
+
+  if (code === 'AI_SERVICE_NOT_CONFIGURED') {
+    return SPECIFIC_CODE_MESSAGES[code];
+  }
 
   if (status >= 500 || status === 401 || status === 403 || status === 404) {
     return mensajePorStatus(status);
   }
 
-  const code = error.code?.trim();
   if (code && SPECIFIC_CODE_MESSAGES[code]) {
     return SPECIFIC_CODE_MESSAGES[code];
   }

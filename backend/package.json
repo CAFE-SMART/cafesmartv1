@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "build:clean": "pnpm exec prisma generate && pnpm run build",
+    "build:clean": "pnpm exec prisma generate && pnpm build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main.js",

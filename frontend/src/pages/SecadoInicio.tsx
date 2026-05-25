@@ -22,6 +22,8 @@ import {
   type LoteResumen,
   type SubloteDetalle,
 } from '../services/lotesService';
+import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   applySecadoToDetalle,
   applySecadoToLots,
@@ -49,6 +51,12 @@ type SecadoDraft = {
 };
 
 const SECADO_DRAFT_STORAGE_KEY = 'cafe-smart:secado-draft:v1';
+const INVENTORY_SUBLOTES_CACHE_KEY = 'inventory_sublotes';
+const SECADO_GREEN_SUBLOTES_CACHE_KEY = 'secado_green_sublotes';
+
+function secadoDetalleCacheKey(tipoCafeId: string, calidadId: string) {
+  return `${SECADO_GREEN_SUBLOTES_CACHE_KEY}:${tipoCafeId}:${calidadId}`;
+}
 
 const QUALITY_OPTIONS: Array<{ value: SecadoQualityFilter; label: string }> = [
   { value: 'BUENO', label: 'Bueno' },
@@ -251,6 +259,7 @@ function formatDate(value: string) {
 export default function SecadoInicio() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOffline } = useNetworkStatus();
   const locationState = location.state as {
     secadoView?: SecadoView;
     from?: string;
@@ -314,14 +323,38 @@ export default function SecadoInicio() {
     setPendingSessions(pendientes);
 
     try {
-      const data = await obtenerLotes();
+      const data = isOffline
+        ? (await getOfflineCache<LoteResumen[]>(SECADO_GREEN_SUBLOTES_CACHE_KEY)) ??
+          (await getOfflineCache<LoteResumen[]>(INVENTORY_SUBLOTES_CACHE_KEY))
+        : await obtenerLotes();
+
+      if (!data?.length) {
+        setLotes([]);
+        setSelectedId(null);
+        setError(
+          isOffline
+            ? 'No hay sublotes guardados. Conéctate a internet una vez para cargar los sublotes verdes disponibles antes de iniciar secado sin conexión.'
+            : 'No hay café verde disponible para secado.',
+        );
+        return;
+      }
+
       const lotesVisuales = applySecadoToLots(data);
       const verdesDisponibles = lotesVisuales.filter(
         (lote) =>
           keyOf(lote.tipoCafe) === 'VERDE' &&
           lote.pesoActual > 0,
       );
+      if (!isOffline) {
+        void saveOfflineCache(INVENTORY_SUBLOTES_CACHE_KEY, data);
+        void saveOfflineCache(SECADO_GREEN_SUBLOTES_CACHE_KEY, verdesDisponibles);
+      }
       setLotes(verdesDisponibles);
+      if (isOffline && verdesDisponibles.length > 0) {
+        setError('Estás usando sublotes guardados en este dispositivo.');
+      } else if (isOffline) {
+        setError('No hay café verde guardado para secado.');
+      }
       setSelectedId((current) => {
         if (current && verdesDisponibles.some((lote) => lote.id === current)) {
           return current;
@@ -334,7 +367,11 @@ export default function SecadoInicio() {
         );
       });
     } catch (err) {
-      setError('No pudimos cargar el flujo de secado. Intenta nuevamente.');
+      setError(
+        isOffline
+          ? 'No hay sublotes guardados. Conéctate a internet una vez para cargar los sublotes verdes disponibles antes de iniciar secado sin conexión.'
+          : 'No pudimos cargar el flujo de secado. Intenta nuevamente.',
+      );
     } finally {
       setLoading(false);
     }
@@ -414,7 +451,16 @@ export default function SecadoInicio() {
         ];
         const detalles = await Promise.all(
           gruposUnicos.map(async (lote) => {
-            const base = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+            const cacheKey = secadoDetalleCacheKey(lote.tipoCafeId, lote.calidadId);
+            const base = isOffline
+              ? await getOfflineCache<LoteDetalle>(cacheKey)
+              : await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
+            if (!base) {
+              throw new Error('No hay sublotes guardados para esa calidad.');
+            }
+            if (!isOffline) {
+              void saveOfflineCache(cacheKey, base);
+            }
             return applySecadoToDetalle(base, lote.tipoCafeId, lote.calidadId);
           }),
         );
@@ -448,7 +494,11 @@ export default function SecadoInicio() {
         if (!cancelled) {
           setDetalle(null);
           setSelectedWeights({});
-          setError('No pudimos cargar la información. Verifica tu conexión o vuelve a intentarlo.');
+          setError(
+            isOffline
+              ? 'No hay sublotes guardados. Conéctate a internet una vez para cargar los sublotes verdes disponibles antes de iniciar secado sin conexión.'
+              : 'No pudimos cargar la información. Verifica tu conexión o vuelve a intentarlo.',
+          );
         }
       } finally {
         if (!cancelled) setDetailLoading(false);
@@ -458,7 +508,7 @@ export default function SecadoInicio() {
     return () => {
       cancelled = true;
     };
-  }, [draftWeightsToRestore, lotesCalidadSeleccionada, qualityFilter, view]);
+  }, [draftWeightsToRestore, isOffline, lotesCalidadSeleccionada, qualityFilter, view]);
 
   const availableSublotes = useMemo(
     () =>
@@ -901,7 +951,11 @@ export default function SecadoInicio() {
             </section>
 
             {error ? (
-              <AppFeedbackMessage variant="error" description={error} />
+              <AppFeedbackMessage
+                variant={error.includes('guardados en este dispositivo') ? 'info' : 'error'}
+                title={error.includes('guardados en este dispositivo') ? 'Sin conexión' : undefined}
+                description={error}
+              />
             ) : null}
 
             {loading || detailLoading ? (
@@ -1023,7 +1077,7 @@ export default function SecadoInicio() {
                 disabled={selectedIds.length === 0 || detailLoading || loading}
                 className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] disabled:cursor-not-allowed disabled:bg-[#9fb2d9] disabled:shadow-none"
               >
-                Iniciar secado
+                {isOffline ? 'Guardar secado pendiente' : 'Iniciar secado'}
               </button>
             </section>
           </>

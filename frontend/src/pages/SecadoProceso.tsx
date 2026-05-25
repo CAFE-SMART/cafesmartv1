@@ -34,6 +34,7 @@ import { crearGasto } from '../services/gastosService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -510,6 +511,7 @@ function formatMoneyInput(value: string) {
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOffline } = useNetworkStatus();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
@@ -998,7 +1000,7 @@ export default function SecadoProceso() {
               onClick={iniciarProceso}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] text-xs font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f]"
             >
-              Iniciar proceso <Play size={15} fill="currentColor" />
+              {isOffline ? 'Guardar proceso pendiente' : 'Iniciar proceso'} <Play size={15} fill="currentColor" />
             </button>
           </main>
         ) : null}
@@ -1037,7 +1039,7 @@ export default function SecadoProceso() {
                   onClick={() => setStep('finish')}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#102d92] px-3 text-xs font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f]"
                 >
-                  Finalizar secado <CheckCircle2 size={16} />
+                  {isOffline ? 'Guardar secado pendiente' : 'Finalizar secado'} <CheckCircle2 size={16} />
                 </button>
                 <button
                   type="button"
@@ -1203,7 +1205,7 @@ export default function SecadoProceso() {
                 className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
               >
               <CheckCircle2 size={16} />
-              Finalizar secado
+              {isOffline ? 'Guardar secado pendiente' : 'Finalizar secado'}
             </button>
           </main>
         ) : null}

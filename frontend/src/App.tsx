@@ -7,6 +7,7 @@ import { CafeSmartErrorState } from './components/CafeSmartErrorState';
 import { AppFeedbackMessage } from './components/AppFeedbackMessage';
 import { InternalLoadingScreen } from './components/InternalLoadingScreen';
 import { SyncQueueRunner } from './components/SyncQueueRunner';
+import { AiFloatingButton } from './components/ai/AiFloatingButton';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
@@ -50,7 +51,9 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
 
   private handleRetry = () => {
     this.setState({ hasError: false }, () => {
-      window.location.reload();
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.history.replaceState(null, '', currentPath);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     });
   };
 
@@ -58,11 +61,6 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     const path = window.location.pathname;
     const inAuthFlow = isPublicRoute(path);
     const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
-
-    if (!token && inAuthFlow) {
-      window.location.assign('/login');
-      return;
-    }
 
     if (path.startsWith('/ventas')) {
       window.location.assign('/ventas');
@@ -89,21 +87,19 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
           }
           message={
             isOffline
-              ? 'Revisa tu conexión a internet e intenta nuevamente.'
+              ? 'Estás sin conexión. Intentaremos usar información guardada en este dispositivo.'
               : inAuthFlow
                 ? 'Puedes volver al login o intentar cargar nuevamente.'
                 : 'Puedes ir al inicio o intentar cargar la pantalla otra vez.'
           }
           primaryLabel="Reintentar"
           secondaryLabel={
-            inAuthFlow
-              ? 'Volver al login'
-              : inVentasFlow
+            inVentasFlow
                 ? 'Volver a ventas'
                 : 'Volver al inicio'
           }
           onPrimary={this.handleRetry}
-          onSecondary={this.handleGoHome}
+          onSecondary={inAuthFlow ? undefined : this.handleGoHome}
         />
       );
     }
@@ -269,6 +265,7 @@ function App() {
             <GlobalOfflineNotice />
             <SyncQueueRunner />
             <GlobalSyncOverlay />
+            <AiFloatingButton />
             <div id="app-content">
               <AppRoutes />
             </div>

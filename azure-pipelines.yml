@@ -12,7 +12,7 @@ steps:
 
   # Instalar pnpm
   - script: |
-      npm install -g pnpm
+      corepack enable pnpm
     displayName: 'Install pnpm'
 
   # Instalar dependencias
@@ -22,15 +22,15 @@ steps:
 
   # Ejecutar lint
   - script: |
-      pnpm run lint
+      pnpm lint
     displayName: 'Run lint'
 
   # Ejecutar tests
   - script: |
-      pnpm run test
+      pnpm test
     displayName: 'Run tests'
 
   # Build
   - script: |
-      pnpm run build
+      pnpm build
     displayName: 'Build project'

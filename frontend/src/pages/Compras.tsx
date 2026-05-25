@@ -2388,7 +2388,7 @@ export default function Compras() {
             ),
           ]);
 
-        if (!tiposCafe?.length || !calidades?.length || !productoresData?.length) {
+        if (!tiposCafe?.length || !calidades?.length) {
           setCatalogosError(
             'No hay información guardada. Conéctate a internet una vez para cargar los datos necesarios.',
           );
@@ -2398,7 +2398,7 @@ export default function Compras() {
         const comprasCacheadas = comprasData ?? [];
         setCatalogos({ tiposCafe, calidades });
         setProductores(
-          dedupeProductorOptions(productoresData.map(mapProductorToOption)),
+          dedupeProductorOptions((productoresData ?? []).map(mapProductorToOption)),
         );
         setComprasRealizadas(comprasCacheadas);
         setBodegaBloqueada(
@@ -2657,6 +2657,8 @@ export default function Compras() {
     () => ordenarCatalogos(catalogos.calidades, ORDEN_CALIDADES),
     [catalogos.calidades],
   );
+  const catalogosOfflineFaltantes =
+    isOffline && Boolean(catalogosError) && (tiposCafe.length === 0 || calidades.length === 0);
   const nombreTipoCafePorId = useMemo(
     () => new Map(tiposCafe.map((item) => [item.id, item.nombre])),
     [tiposCafe],
@@ -3296,7 +3298,9 @@ export default function Compras() {
 
       if (catalogosError && (tiposCafe.length === 0 || calidades.length === 0)) {
         mostrarErrorPaso(
-          'No pudimos continuar. Revisa la información o vuelve a intentarlo.',
+          isOffline
+            ? 'No hay catálogos guardados. Conéctate a internet una vez para cargar tipos de café, calidades y productores.'
+            : 'No pudimos continuar. Revisa la información o vuelve a intentarlo.',
           2,
         );
         return;
@@ -4196,6 +4200,33 @@ export default function Compras() {
                     ) : null}
                   </div>
 
+                  {catalogosOfflineFaltantes ? (
+                    <AppFeedbackMessage
+                      variant="warning"
+                      title="No hay catálogos guardados"
+                      description="Conéctate a internet una vez para cargar tipos de café, calidades y productores."
+                      className="mt-4"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void cargarTodo()}
+                          disabled={loading}
+                          className="inline-flex min-h-[38px] items-center rounded-[12px] bg-[#102d92] px-3 py-2 text-sm font-black text-white transition hover:bg-[#18358f] disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {loading ? 'Cargando...' : 'Reintentar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/inicio')}
+                          className="inline-flex min-h-[38px] items-center rounded-[12px] border border-amber-200 bg-white px-3 py-2 text-sm font-black text-amber-800 transition hover:bg-amber-50"
+                        >
+                          Volver
+                        </button>
+                      </div>
+                    </AppFeedbackMessage>
+                  ) : null}
+
                   <div className="mt-5">
                     <p className="mb-2.5 text-[0.98rem] font-black text-slate-800">
                       Tipo de café
@@ -4226,11 +4257,15 @@ export default function Compras() {
                         <p className="font-black text-slate-900">Cargando tipos de café...</p>
                         <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
                       </div>
-                    ) : catalogosError && tiposCafe.length === 0 ? (
+                    ) : catalogosError && tiposCafe.length === 0 && !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
-                        variant="error"
-                        title="No pudimos continuar"
-                        description="Revisa la información o vuelve a intentarlo."
+                        variant={isOffline ? 'warning' : 'error'}
+                        title={isOffline ? 'No hay información guardada' : 'No pudimos continuar'}
+                        description={
+                          isOffline
+                            ? 'Conéctate a internet una vez para cargar tipos de café, calidades y productores antes de registrar compras sin conexión.'
+                            : 'Revisa la información o vuelve a intentarlo.'
+                        }
                         className="mt-3"
                       >
                         <div className="flex flex-wrap gap-2">
@@ -4251,7 +4286,7 @@ export default function Compras() {
                           </button>
                         </div>
                       </AppFeedbackMessage>
-                    ) : catalogosFeedback ? (
+                    ) : catalogosFeedback && !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
                         variant="success"
                         description={catalogosFeedback}
@@ -4316,11 +4351,15 @@ export default function Compras() {
                         <p className="font-black text-slate-900">Cargando calidades...</p>
                         <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
                       </div>
-                    ) : catalogosError && calidades.length === 0 ? (
+                    ) : catalogosError && calidades.length === 0 && !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
-                        variant="error"
-                        title="No pudimos continuar"
-                        description="Revisa la información o vuelve a intentarlo."
+                        variant={isOffline ? 'warning' : 'error'}
+                        title={isOffline ? 'No hay información guardada' : 'No pudimos continuar'}
+                        description={
+                          isOffline
+                            ? 'Conéctate a internet una vez para cargar tipos de café, calidades y productores antes de registrar compras sin conexión.'
+                            : 'Revisa la información o vuelve a intentarlo.'
+                        }
                         className="mt-3"
                       >
                         <div className="flex flex-wrap gap-2">
@@ -4341,7 +4380,7 @@ export default function Compras() {
                           </button>
                         </div>
                       </AppFeedbackMessage>
-                    ) : catalogosFeedback ? (
+                    ) : catalogosFeedback && !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
                         variant="success"
                         description={catalogosFeedback}
@@ -4865,7 +4904,9 @@ export default function Compras() {
                 <span className="min-w-0">
                   {checkingConfirmacion
                     ? 'Revisando...'
-                    : 'Registrar compra'}
+                    : isOffline
+                      ? 'Guardar compra pendiente'
+                      : 'Registrar compra'}
                 </span>
               </button>
               <button
@@ -5204,10 +5245,12 @@ export default function Compras() {
                 <Check size={24} />
               </div>
               <h2 className="mt-5 text-[1.72rem] font-semibold leading-tight text-slate-900">
-                ¿Registrar compra?
+                {isOffline ? '¿Guardar compra pendiente?' : '¿Registrar compra?'}
               </h2>
               <p className="mt-3 text-[1rem] font-medium leading-6 text-slate-600">
-                Verifica la información antes de continuar.
+                {isOffline
+                  ? 'Se guardará en este dispositivo y se sincronizará cuando vuelva la conexión.'
+                  : 'Verifica la información antes de continuar.'}
               </p>
             </div>
 
@@ -5252,7 +5295,7 @@ export default function Compras() {
                     <span>Guardando...</span>
                   </>
                 ) : (
-                  'Confirmar compra'
+                  isOffline ? 'Guardar pendiente' : 'Confirmar compra'
                 )}
               </button>
               <button

@@ -256,7 +256,7 @@ try {
 
     if ($needsWebBuild) {
       Invoke-Step "Compilando frontend para Android" {
-        npm run build:android
+        pnpm build:android
       }
     } else {
       Write-Host ""

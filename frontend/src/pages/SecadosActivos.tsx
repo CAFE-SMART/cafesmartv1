@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CircleDashed, Package2, X } from 'lucide-react';
+import { AppFeedbackMessage, type AppFeedbackVariant } from '../components/AppFeedbackMessage';
 import { SmartSelect } from '../components/SmartSelect';
 import {
+  cancelSecadoSession,
   getActiveSecadoSessions,
   getSecadoSelectedKg,
-  removeSecadoSession,
 } from '../utils/secadoFlow';
 import {
   formatCoffeeFullName,
@@ -91,6 +92,11 @@ export default function SecadosActivos() {
   const [interruptionTarget, setInterruptionTarget] =
     useState<ActiveSecadoSession | null>(null);
   const [interruptedVersion, setInterruptedVersion] = useState(0);
+  const [feedback, setFeedback] = useState<{
+    variant: AppFeedbackVariant;
+    title: string;
+    description: string;
+  } | null>(null);
   const handleBack = () => {
     navigate('/inventario/secado/inicio', {
       state: {
@@ -145,6 +151,16 @@ export default function SecadosActivos() {
               estén listos.
             </p>
           </section>
+
+          {feedback ? (
+            <AppFeedbackMessage
+              variant={feedback.variant}
+              title={feedback.title}
+              description={feedback.description}
+              className="mt-4"
+              onClose={() => setFeedback(null)}
+            />
+          ) : null}
 
           <section className="mt-4 rounded-[18px] border border-[#dbe7ff] bg-white p-3 shadow-[0_8px_24px_rgba(47,99,216,0.07)]">
             <div className="grid grid-cols-2 gap-2">
@@ -299,10 +315,10 @@ export default function SecadosActivos() {
               </button>
             </div>
             <h2 id="interrupt-secado-title" className="mt-4 text-lg font-black leading-tight text-slate-950">
-              ¿Está seguro de que desea interrumpir el proceso de secado?
+              ¿Interrumpir secado?
             </h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              El café regresará a su estado de inventario original.
+              El proceso quedará cancelado y podrás iniciarlo nuevamente cuando lo necesites.
             </p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
@@ -310,19 +326,33 @@ export default function SecadosActivos() {
                 onClick={() => setInterruptionTarget(null)}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
               >
-                No
+                Permanecer
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  removeSecadoSession(interruptionTarget.id);
-                  setInterruptionTarget(null);
-                  setShowAll(false);
-                  setInterruptedVersion((version) => version + 1);
+                  try {
+                    cancelSecadoSession(interruptionTarget.id);
+                    setInterruptionTarget(null);
+                    setShowAll(false);
+                    setInterruptedVersion((version) => version + 1);
+                    setFeedback({
+                      variant: 'success',
+                      title: 'Secado interrumpido',
+                      description: 'El proceso fue cancelado correctamente.',
+                    });
+                  } catch {
+                    setInterruptionTarget(null);
+                    setFeedback({
+                      variant: 'error',
+                      title: 'No pudimos interrumpir el secado',
+                      description: 'Intenta nuevamente en unos segundos.',
+                    });
+                  }
                 }}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
               >
-                Sí
+                Interrumpir
               </button>
             </div>
           </section>

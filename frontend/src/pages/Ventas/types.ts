@@ -53,6 +53,7 @@ export type VentaFifoItem = {
 
 export type VentaGuardadaResumen = {
   referenciaId: string;
+  pendienteOffline?: boolean;
   fecha: string;
   clienteNombre: string;
   clienteDocumento: string;

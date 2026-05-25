@@ -270,7 +270,7 @@ Con el emulador encendido, puedes ejecutar la app desde terminal:
 
 ```bash
 cd frontend
-pnpm run build:android
+pnpm build:android
 npx cap sync android
 npx cap run android
 ```
@@ -333,7 +333,7 @@ Luego vuelve a ejecutar:
 
 ```bash
 cd frontend
-pnpm run build:android
+pnpm build:android
 npx cap sync android
 ```
 
@@ -492,7 +492,7 @@ Desde `frontend/`:
 
 ```bash
 cd frontend
-pnpm run build:android
+pnpm build:android
 ```
 
 Este comando genera la carpeta `dist/` usando el modo Android.

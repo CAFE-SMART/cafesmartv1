@@ -5,6 +5,7 @@ interface ModalConfirmacionVentaProps {
   mostrar: boolean;
   guardando: boolean;
   presionado: boolean;
+  offline?: boolean;
   fifoNotice?: string;
   onConfirm: () => void;
   onCancel: () => void;
@@ -14,6 +15,7 @@ export function ModalConfirmacionVenta({
   mostrar,
   guardando,
   presionado,
+  offline = false,
   fifoNotice,
   onConfirm,
   onCancel,
@@ -28,10 +30,12 @@ export function ModalConfirmacionVenta({
           <ReceiptText size={24} />
         </div>
         <h2 className="mt-5 text-[1.8rem] font-black leading-tight text-slate-950">
-          Confirmar venta
+          {offline ? 'Guardar venta pendiente' : 'Confirmar venta'}
         </h2>
         <p className="mt-3 text-base leading-6 text-slate-500">
-          Se registrará esta venta y se descontará del inventario.
+          {offline
+            ? 'Se guardará en este dispositivo y se validará al sincronizar.'
+            : 'Se registrará esta venta y se descontará del inventario.'}
         </p>
         {fifoNotice ? (
           <p className="mt-4 rounded-[14px] border border-[#cfe0ff] bg-[#f4f8ff] px-4 py-3 text-sm font-black leading-5 text-[#102d92]">
@@ -54,7 +58,11 @@ export function ModalConfirmacionVenta({
             disabled={guardando || presionado}
             className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {guardando || presionado ? 'Guardando venta...' : 'Confirmar venta'}
+            {guardando || presionado
+              ? 'Guardando venta...'
+              : offline
+                ? 'Guardar pendiente'
+                : 'Confirmar venta'}
           </button>
         </div>
       </div>

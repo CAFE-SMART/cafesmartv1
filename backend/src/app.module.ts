@@ -18,6 +18,7 @@ import { SupportModule } from './support/support.module';
 import { SecadoModule } from './secado/secado.module';
 import { CreditoModule } from './compras/credito.module';
 import { RequestContextMiddleware } from './common/request-context.middleware';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
     DashboardModule,
     SupportModule,
     SecadoModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

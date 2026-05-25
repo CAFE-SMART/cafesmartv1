@@ -38,6 +38,11 @@ import {
   type SubloteDetalle,
 } from '../services/lotesService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
+import { buildAiContext } from '../services/aiContextService';
+import { getFinancialAnalysis } from '../services/aiService';
+import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
+import { CafeSmartModal } from '../components/common/CafeSmartModal';
+import granitoInteligente from '../assets/granito-inteligente.png';
 import {
   BUSINESS_MIN_DATE_VALUE,
   formatDateLabel,
@@ -913,6 +918,10 @@ export default function ResumenFinanciero() {
   const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
   const [laboratoryAnalysis, setLaboratoryAnalysis] =
     useState<LaboratoryAnalysis | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (refreshing) return;
@@ -985,6 +994,27 @@ export default function ResumenFinanciero() {
       setError('No pudimos validar la contraseña. Intenta nuevamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAnalyzeBusiness = async () => {
+    setAiAnalysisModalOpen(true);
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const builtContext = await buildAiContext();
+      if (!builtContext.hasData) {
+        setAiAnalysis(null);
+        setAiError('No tengo suficiente información guardada para analizar eso todavía.');
+        return;
+      }
+      const analysis = await getFinancialAnalysis(builtContext.context);
+      setAiAnalysis(analysis);
+    } catch {
+      setAiAnalysis(null);
+      setAiError('No pude generar una respuesta en este momento. Intenta nuevamente.');
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -1378,6 +1408,81 @@ export default function ResumenFinanciero() {
                 Actualizado: hoy
               </p>
             </section>
+
+            <section className="mt-4 rounded-[16px] border border-emerald-100 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-blue-50">
+                      <img
+                        src={granitoInteligente}
+                        alt="Asistente inteligente de CaféSmart"
+                        className="h-8 w-8 object-contain"
+                        draggable={false}
+                      />
+                    </span>
+                    <div>
+                      <p className="text-[0.82rem] font-black text-[#111827]">
+                        Análisis inteligente
+                      </p>
+                      <p className="text-[0.62rem] font-semibold leading-4 text-slate-500">
+                        Recibe una explicación clara sobre tus resultados, inventario y movimientos recientes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleAnalyzeBusiness()}
+                  disabled={aiLoading}
+                  className="inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-[10px] bg-emerald-700 px-3 text-[0.62rem] font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {aiLoading ? 'Analizando' : 'Analizar'}
+                </button>
+              </div>
+            </section>
+
+            <CafeSmartModal
+              open={aiAnalysisModalOpen}
+              onClose={() => setAiAnalysisModalOpen(false)}
+              labelledById="ai-financial-analysis-title"
+              title="Análisis inteligente"
+              description="Revisión de tus resultados, inventario y movimientos recientes"
+            >
+              <div className="flex flex-col items-center text-center">
+                <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50">
+                  <img
+                    src={granitoInteligente}
+                    alt="Asistente inteligente de CaféSmart"
+                    className="h-12 w-12 object-contain"
+                    draggable={false}
+                  />
+                </span>
+                {aiLoading ? (
+                  <div className="mt-5 rounded-[16px] bg-slate-50 px-4 py-4 text-sm font-bold text-slate-600" role="status">
+                    Analizando...
+                  </div>
+                ) : aiError ? (
+                  <AppFeedbackMessage
+                    className="mt-5 w-full text-left"
+                    variant="warning"
+                    title="No hay análisis disponible"
+                    description={aiError}
+                  />
+                ) : aiAnalysis ? (
+                  <div className="mt-5 w-full rounded-[16px] bg-emerald-50 px-4 py-4 text-left text-sm font-semibold leading-6 text-emerald-950">
+                    {aiAnalysis}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setAiAnalysisModalOpen(false)}
+                  className="mt-5 inline-flex min-h-[40px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#334b85]"
+                >
+                  Volver
+                </button>
+              </div>
+            </CafeSmartModal>
 
             <section className="mt-4 grid grid-cols-3 gap-3">
               <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">

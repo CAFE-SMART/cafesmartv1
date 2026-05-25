@@ -31,6 +31,8 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
+import { CafeSmartEmptyState } from '../components/common/CafeSmartEmptyState';
+import { CafeSmartModal } from '../components/common/CafeSmartModal';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import {
@@ -2081,27 +2083,13 @@ export default function Ajustes() {
             })}
           </div>
           {syncPanelOpen ? (
-            <section className="overflow-hidden rounded-[18px] border border-[#dbe5ff] bg-white shadow-sm">
-              <div className="px-4 py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-950">
-                      Sincronización offline
-                    </h3>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Revisa registros guardados sin conexión.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSyncPanelOpen(false)}
-                    aria-label="Cerrar sincronización offline"
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
+            <CafeSmartModal
+              open={syncPanelOpen}
+              onClose={() => setSyncPanelOpen(false)}
+              labelledById="sync-offline-title"
+              title="Sincronización offline"
+              description="Revisa registros guardados sin conexión."
+            >
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <div className="rounded-[13px] bg-amber-50 px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">
@@ -2233,17 +2221,12 @@ export default function Ajustes() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[14px] bg-[#f8faff] px-3 py-4">
-                    <p className="text-sm font-black text-slate-900">
-                      Todo está sincronizado
-                    </p>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      No hay operaciones pendientes en este dispositivo.
-                    </p>
-                  </div>
+                  <CafeSmartEmptyState
+                    title="Todo está sincronizado"
+                    description="No hay operaciones pendientes en este dispositivo."
+                  />
                 )}
-              </div>
-            </section>
+            </CafeSmartModal>
           ) : null}
           {secadoPanel ? (
             <section className="overflow-hidden rounded-[18px] border border-[#dbe5ff] bg-white shadow-sm">
