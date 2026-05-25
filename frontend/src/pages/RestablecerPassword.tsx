@@ -37,11 +37,11 @@ type ResetTokenStatus =
 function ResetDecorations() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_5%,rgba(47,99,216,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_58%,#edf5ff_100%)]" />
-      <div className="absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-[#dbeafe]/80 blur-2xl" />
-      <div className="absolute -right-12 top-20 h-36 w-36 rounded-full bg-[#bfdbfe]/60 blur-2xl" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_5%,rgba(47,99,216,0.12),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_58%,#edf5ff_100%)] dark:bg-[radial-gradient(circle_at_50%_5%,rgba(59,130,246,0.18),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_58%,#020617_100%)]" />
+      <div className="absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-[#dbeafe]/80 blur-2xl dark:bg-blue-950/50" />
+      <div className="absolute -right-12 top-20 h-36 w-36 rounded-full bg-[#bfdbfe]/60 blur-2xl dark:bg-slate-800/70" />
       <svg
-        className="absolute inset-x-0 bottom-0 h-32 w-full text-[#bfdbfe]/70"
+        className="absolute inset-x-0 bottom-0 h-32 w-full text-[#bfdbfe]/70 dark:text-slate-800/80"
         viewBox="0 0 430 140"
         preserveAspectRatio="none"
         aria-hidden="true"
@@ -54,10 +54,11 @@ function ResetDecorations() {
           d="M0 96C58 70 119 82 176 105C231 128 279 103 332 92C374 83 402 98 430 112V140H0V96Z"
           fill="#dbeafe"
           opacity="0.68"
+          className="dark:fill-slate-700"
         />
       </svg>
-      <div className="absolute bottom-4 left-5 h-24 w-16 rounded-t-full border-l-4 border-[#93c5fd]/70 opacity-60" />
-      <div className="absolute bottom-4 right-8 h-28 w-20 rounded-t-full border-r-4 border-[#60a5fa]/55 opacity-60" />
+      <div className="absolute bottom-4 left-5 h-24 w-16 rounded-t-full border-l-4 border-[#93c5fd]/70 opacity-60 dark:border-slate-600" />
+      <div className="absolute bottom-4 right-8 h-28 w-20 rounded-t-full border-r-4 border-[#60a5fa]/55 opacity-60 dark:border-slate-500" />
     </div>
   );
 }
@@ -174,17 +175,17 @@ function PasswordField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-2 block text-xs font-black text-[#344054]">
+      <label htmlFor={id} className="mb-2 block text-xs font-black text-slate-700 dark:text-slate-200">
         {label}
       </label>
       <div
-        className={`flex h-[54px] items-center rounded-[14px] border bg-white px-4 shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition ${
+        className={`flex h-[54px] items-center rounded-[14px] border bg-white px-4 text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition dark:bg-slate-900 dark:text-slate-100 ${
           error
-            ? 'border-rose-300 bg-rose-50/60'
-            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+            ? 'border-rose-300 bg-rose-50/60 dark:border-red-700 dark:bg-red-950/35'
+            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10 dark:border-slate-700 dark:focus-within:border-blue-400 dark:focus-within:ring-blue-400/20'
         }`}
       >
-        <Lock size={18} className="mr-3 shrink-0 text-[#8aa0bd]" aria-hidden="true" />
+        <Lock size={18} className="mr-3 shrink-0 text-slate-400 dark:text-slate-300" aria-hidden="true" />
         <input
           id={id}
           type={visible ? 'text' : 'password'}
@@ -200,12 +201,12 @@ function PasswordField({
             ? ({ 'aria-invalid': 'true' } as const)
             : ({ 'aria-invalid': 'false' } as const))}
           aria-describedby={error ? `${id}-error` : undefined}
-          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
         />
         <button
           type="button"
           onClick={onToggleVisibility}
-          className="ml-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#9aa8bc] transition-colors hover:bg-[#f4f6fb] hover:text-[#536178] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15"
+          className="ml-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-[#f4f6fb] hover:text-slate-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
         >
           {visible ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -227,7 +228,11 @@ function PasswordRequirementCard({ password }: { password: string }) {
   const validation = getPasswordValidationState(password);
   const score = validation.strength.score;
   const tone =
-    score <= 3 ? 'text-amber-600' : score === 4 ? 'text-sky-600' : 'text-emerald-600';
+    score <= 3
+      ? 'text-amber-700 dark:text-amber-300'
+      : score === 4
+        ? 'text-sky-700 dark:text-sky-300'
+        : 'text-emerald-700 dark:text-emerald-300';
   const widthClass =
     score <= 0
       ? 'w-0'
@@ -242,7 +247,7 @@ function PasswordRequirementCard({ password }: { password: string }) {
               : 'w-full';
   const barClass =
     score <= 2
-      ? 'bg-slate-300'
+      ? 'bg-slate-300 dark:bg-slate-600'
       : score === 3
         ? 'bg-amber-500'
         : score === 4
@@ -250,18 +255,18 @@ function PasswordRequirementCard({ password }: { password: string }) {
           : 'bg-emerald-500';
 
   return (
-    <div className="mt-3 rounded-[15px] border border-[#e8edf6] bg-white/90 px-3.5 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+    <div className="mt-3 rounded-[15px] border border-slate-200 bg-white px-3.5 py-3 text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.035)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
       <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 text-xs font-black text-[#344054]">
+        <p className="min-w-0 text-xs font-black text-slate-700 dark:text-slate-200">
           Seguridad:
           <span className={`ml-1 ${tone}`}>{validation.strength.label}</span>
         </p>
-        <span className="shrink-0 text-xs font-black text-slate-500">
+        <span className="shrink-0 text-xs font-black text-slate-500 dark:text-slate-300">
           {password.length}/{PASSWORD_MAX_LENGTH}
         </span>
       </div>
       <div
-        className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#e6ebf3]"
+        className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
         aria-hidden="true"
       >
         <div
@@ -273,14 +278,14 @@ function PasswordRequirementCard({ password }: { password: string }) {
           <span
             key={requirement.label}
             className={`inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold leading-4 transition ${
-              requirement.active ? 'text-[#047857]' : 'text-[#7b8798]'
+              requirement.active ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-300'
             }`}
           >
             <span
               className={`inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border ${
                 requirement.active
-                  ? 'border-emerald-500 bg-emerald-500 text-white'
-                  : 'border-[#cbd5e1] bg-white text-transparent'
+                  ? 'border-emerald-500 bg-emerald-500 text-white dark:border-emerald-400 dark:bg-emerald-500'
+                  : 'border-slate-300 bg-white text-transparent dark:border-slate-600 dark:bg-slate-800'
               }`}
               aria-hidden="true"
             >
@@ -416,13 +421,13 @@ export default function RestablecerPassword() {
   }
 
   return (
-    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden px-5 py-7 text-[#07153b]">
+    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f6f7ff] px-5 py-7 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <ResetDecorations />
-      <section className="relative z-10 w-full max-w-[430px] rounded-[28px] border border-[#e6eefb] bg-[#f8fbff]/95 px-5 py-6 shadow-[0_24px_70px_rgba(15,23,42,0.12)] backdrop-blur sm:px-7 sm:py-8">
+      <section className="relative z-10 w-full max-w-[430px] rounded-[28px] border border-[#e6eefb] bg-[#f8fbff]/95 px-5 py-6 text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100 sm:px-7 sm:py-8">
         <button
           type="button"
           onClick={goToLogin}
-          className="mb-5 inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-black text-[#1d4ed8] transition hover:bg-[#eef6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15"
+          className="mb-5 inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-black text-[#1d4ed8] transition hover:bg-[#eef6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15 dark:text-blue-300 dark:hover:bg-slate-800"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Volver al inicio
@@ -433,16 +438,16 @@ export default function RestablecerPassword() {
         </div>
 
         <div className="text-center">
-          <div className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#eaf2ff] text-[#1d4ed8] shadow-[0_18px_38px_rgba(29,78,216,0.16)] ring-1 ring-[#bfdbfe]">
-            <div className="absolute inset-[-10px] rounded-full bg-[#bfdbfe]/45 blur-xl" />
+          <div className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#eaf2ff] text-[#1d4ed8] shadow-[0_18px_38px_rgba(29,78,216,0.16)] ring-1 ring-[#bfdbfe] dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-500/30">
+            <div className="absolute inset-[-10px] rounded-full bg-[#bfdbfe]/45 blur-xl dark:bg-blue-500/20" />
             <span className="relative">
             <Lock size={27} strokeWidth={2.4} aria-hidden="true" />
             </span>
           </div>
-          <h1 className="text-[1.65rem] font-black leading-tight text-[#07153b]">
+          <h1 className="text-[1.65rem] font-black leading-tight text-slate-950 dark:text-slate-100">
             Crear nueva contraseña
           </h1>
-          <p className="mx-auto mt-3 max-w-[330px] text-sm font-semibold leading-6 text-slate-500">
+          <p className="mx-auto mt-3 max-w-[330px] text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
             Ingresa tu nueva clave de acceso para actualizar las credenciales de
             tu cuenta.
           </p>
@@ -487,7 +492,7 @@ export default function RestablecerPassword() {
           <button
             type="submit"
             disabled={isFormInvalid}
-            className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(16,45,146,0.24)] transition-all duration-200 hover:bg-[#18358f] hover:shadow-[0_18px_34px_rgba(16,45,146,0.28)] active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-[#9fb2d9] disabled:shadow-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#284bc1]/20"
+            className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(16,45,146,0.24)] transition-all duration-200 hover:bg-[#18358f] hover:shadow-[0_18px_34px_rgba(16,45,146,0.28)] active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-blue-200 disabled:text-white disabled:shadow-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#284bc1]/20 dark:bg-blue-600 dark:hover:bg-blue-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
           >
             {isSubmitting ? (
               <>

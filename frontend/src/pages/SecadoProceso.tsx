@@ -841,7 +841,7 @@ export default function SecadoProceso() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
+      <div className="cs-workflow-page min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
         <div className="mx-auto w-full max-w-[430px] rounded-[20px] bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-bold">No encontré el secado en proceso.</p>
           <button
@@ -903,7 +903,7 @@ export default function SecadoProceso() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8ff] text-slate-950">
+    <div className="cs-workflow-page min-h-screen bg-[#f6f8ff] text-slate-950">
       <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfdff]">
         <header className="relative flex h-12 items-center justify-center px-4">
           <button

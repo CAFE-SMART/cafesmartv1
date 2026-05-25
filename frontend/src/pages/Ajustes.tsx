@@ -14,12 +14,15 @@ import {
   LifeBuoy,
   Lock,
   LogOut,
+  Monitor,
+  Moon,
   Package2,
   Pencil,
   ScanSearch,
   Save,
   Settings,
   Shield,
+  Sun,
   Trash2,
   UserCircle2,
   X,
@@ -42,6 +45,7 @@ import {
   type GuidedErrorMessage,
 } from '../components/forms/GuidedError';
 import { useUser } from '../context/UserContext';
+import { useTheme, type ThemePreference } from '../theme/themeProvider';
 import { updateRememberedAccountIfCurrent } from '../storage/authStorage';
 import {
   obtenerDetalleLote,
@@ -431,6 +435,7 @@ export default function Ajustes() {
   const location = useLocation();
   const { user, token, hasCompany, setSession, logout } = useUser();
   const { isOffline } = useNetworkStatus();
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const initialConfig = useMemo(
     () => ({
@@ -528,6 +533,7 @@ export default function Ajustes() {
     getSyncQueueSummary(),
   );
   const [syncPanelOpen, setSyncPanelOpen] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
 
   const clearFeedback = () => {
@@ -1651,22 +1657,104 @@ export default function Ajustes() {
     );
   }
 
+  const themeOptions = [
+    {
+      value: 'light' as const,
+      label: 'Claro',
+      description: 'Usa siempre colores claros.',
+      icon: Sun,
+    },
+    {
+      value: 'dark' as const,
+      label: 'Oscuro',
+      description: 'Usa siempre colores oscuros.',
+      icon: Moon,
+    },
+    {
+      value: 'system' as const,
+      label: 'Sistema',
+      description: 'Se adapta automáticamente al dispositivo.',
+      icon: Monitor,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
         <header className="relative flex items-center justify-center py-1">
           <button
             type="button"
             onClick={() => navigate('/inicio')}
             aria-label="Volver al inicio"
-            className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#dce2f1] bg-white text-slate-600"
+            className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#dce2f1] bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-[1.7rem] font-black tracking-tight text-[#121826]">
+          <h1 className="text-[1.7rem] font-black tracking-tight text-[#121826] dark:text-slate-100">
             Ajustes
           </h1>
         </header>
+
+        <CafeSmartModal
+          open={themeModalOpen}
+          onClose={() => setThemeModalOpen(false)}
+          labelledById="theme-modal-title"
+          title="Tema visual"
+          description="Elige cómo quieres ver CaféSmart."
+        >
+          <div className="space-y-3" role="radiogroup" aria-label="Tema visual">
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              const active = theme === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setTheme(option.value)}
+                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
+                    active
+                      ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-slate-300 dark:bg-slate-800'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] ${
+                      active
+                        ? 'bg-[#102d92] text-white dark:bg-slate-100 dark:text-slate-950'
+                        : 'bg-[#eff4ff] text-[#2c57cc] dark:bg-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    <Icon size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-950 dark:text-slate-100">
+                      {option.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                      {option.description}
+                    </span>
+                  </span>
+                  <span
+                    className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
+                      active
+                        ? 'bg-[#102d92] dark:bg-emerald-500'
+                        : 'bg-slate-200 dark:bg-slate-700'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <span
+                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                        active ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </CafeSmartModal>
 
         <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
@@ -2091,27 +2179,27 @@ export default function Ajustes() {
               description="Revisa registros guardados sin conexión."
             >
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-[13px] bg-amber-50 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">
+                  <div className="rounded-[13px] border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-400/60 dark:bg-amber-500/15">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
                       Pendientes
                     </p>
-                    <p className="mt-1 text-lg font-black text-amber-900">
+                    <p className="mt-1 text-lg font-black text-amber-900 dark:text-amber-100">
                       {syncSummary.pendientes}
                     </p>
                   </div>
-                  <div className="rounded-[13px] bg-rose-50 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-rose-700">
+                  <div className="rounded-[13px] border border-red-200 bg-red-50 px-3 py-2 dark:border-red-400/60 dark:bg-red-500/15">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-red-700 dark:text-red-200">
                       Con error
                     </p>
-                    <p className="mt-1 text-lg font-black text-rose-900">
+                    <p className="mt-1 text-lg font-black text-red-900 dark:text-red-100">
                       {syncSummary.errores}
                     </p>
                   </div>
-                  <div className="rounded-[13px] bg-emerald-50 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                  <div className="rounded-[13px] border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-400/60 dark:bg-emerald-500/15">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-200">
                       Sincronizados
                     </p>
-                    <p className="mt-1 text-lg font-black text-emerald-900">
+                    <p className="mt-1 text-lg font-black text-emerald-900 dark:text-emerald-100">
                       {syncSummary.sincronizados}
                     </p>
                   </div>
@@ -2136,7 +2224,7 @@ export default function Ajustes() {
                     type="button"
                     onClick={clearSyncedOperations}
                     disabled={syncSummary.sincronizados === 0}
-                    className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-3 text-xs font-black text-[#334b85] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-3 text-xs font-black text-[#334b85] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     Limpiar sincronizados
                   </button>
@@ -2147,18 +2235,18 @@ export default function Ajustes() {
                     {syncQueue.map((operation) => (
                       <div
                         key={operation.idLocal}
-                        className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2"
+                        className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-slate-900">
+                            <p className="truncate text-sm font-black text-slate-900 dark:text-slate-100">
                               {operation.modulo === 'COMPRA'
                                 ? 'Compra'
                                 : operation.modulo === 'GASTO'
                                   ? 'Gasto'
                                   : operation.modulo}
                             </p>
-                            <p className="text-[11px] font-semibold text-slate-500">
+                            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">
                               {new Date(operation.creadoEn).toLocaleString('es-CO', {
                                 day: '2-digit',
                                 month: 'short',
@@ -2170,12 +2258,12 @@ export default function Ajustes() {
                           <span
                             className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
                               operation.estado === 'SINCRONIZADO'
-                                ? 'bg-emerald-50 text-emerald-700'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-1 dark:ring-emerald-400/40'
                                 : operation.estado === 'ERROR'
-                                  ? 'bg-rose-50 text-rose-700'
+                                  ? 'bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-200 dark:ring-1 dark:ring-red-400/40'
                                   : operation.estado === 'SINCRONIZANDO'
-                                    ? 'bg-sky-50 text-sky-700'
-                                    : 'bg-amber-50 text-amber-700'
+                                    ? 'bg-sky-50 text-sky-700 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-1 dark:ring-blue-400/40'
+                                    : 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-1 dark:ring-amber-400/40'
                             }`}
                           >
                             {operation.estado === 'PENDIENTE'
@@ -2188,7 +2276,7 @@ export default function Ajustes() {
                           </span>
                         </div>
                         {operation.error ? (
-                          <p className="mt-2 text-[11px] font-semibold leading-4 text-rose-700">
+                          <p className="mt-2 text-[11px] font-semibold leading-4 text-red-700 dark:text-red-200">
                             {operation.error}
                           </p>
                         ) : null}
@@ -2211,7 +2299,7 @@ export default function Ajustes() {
                             <button
                               type="button"
                               onClick={() => deleteSyncOperation(operation.idLocal)}
-                              className="rounded-[10px] border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-black text-rose-700"
+                              className="rounded-[10px] border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 dark:border-red-400/50 dark:bg-slate-900 dark:text-red-200"
                             >
                               Eliminar local
                             </button>
@@ -2541,6 +2629,33 @@ export default function Ajustes() {
             </section>
           ) : null}
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Apariencia
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setThemeModalOpen(true)}
+              className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900"
+            >
+              <span className="inline-flex rounded-lg bg-[#eff4ff] p-2 text-[#2c57cc] dark:bg-slate-800 dark:text-slate-100">
+                <Settings size={14} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Tema visual
+                </span>
+                <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
+                  Actual: {theme === 'system' ? 'Sistema' : resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'}
+                </span>
+              </span>
+              <ChevronRight
+                size={14}
+                className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
+              />
+            </button>
+          </div>
+
+          <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Configuración del negocio
           </p>
           <div className="grid grid-cols-2 gap-2.5">
@@ -2553,7 +2668,7 @@ export default function Ajustes() {
                   type="button"
                   onClick={item.onClick}
                   disabled={disabled}
-                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm ${disabled ? 'opacity-75' : ''}`}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${disabled ? 'opacity-75' : ''}`}
                 >
                   <span
                     className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
@@ -2561,16 +2676,16 @@ export default function Ajustes() {
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500">
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
                       {item.description}
                     </span>
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-300"
+                    className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
                   />
                 </button>
               );
@@ -2589,7 +2704,7 @@ export default function Ajustes() {
                   type="button"
                   onClick={item.onClick}
                   disabled={!item.onClick}
-                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm ${!item.onClick ? 'opacity-80' : ''}`}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${!item.onClick ? 'opacity-80' : ''}`}
                 >
                   <span
                     className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
@@ -2597,16 +2712,16 @@ export default function Ajustes() {
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500">
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
                       {item.description}
                     </span>
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-300"
+                    className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
                   />
                 </button>
               );
@@ -2616,16 +2731,16 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Información financiera
           </p>
-          <article className="relative overflow-hidden rounded-[16px] border border-[#dbe5ff] bg-[#f7f9ff] px-4 py-5 text-[#172033] shadow-[0_10px_24px_rgba(42,79,181,0.10)]">
-            <div className="absolute -right-4 -top-6 h-24 w-24 rounded-full bg-[#dbe6ff]/70" />
+          <article className="relative overflow-hidden rounded-[16px] border border-[#dbe5ff] bg-[#f7f9ff] px-4 py-5 text-[#172033] shadow-[0_10px_24px_rgba(42,79,181,0.10)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <div className="absolute -right-4 -top-6 h-24 w-24 rounded-full bg-[#dbe6ff]/70 dark:bg-blue-500/10" />
             <div className="relative z-10 flex flex-col items-center text-center">
-              <span className="inline-flex rounded-full bg-[#eaf0ff] p-2 text-[#2a4fb5]">
+              <span className="inline-flex rounded-full bg-[#eaf0ff] p-2 text-[#2a4fb5] dark:bg-blue-500/15 dark:text-blue-200">
                 <Lock size={15} />
               </span>
-              <p className="mt-3 text-base font-semibold">
+              <p className="mt-3 text-base font-semibold text-slate-900 dark:text-slate-100">
                 Ver resumen financiero
               </p>
-              <p className="mt-1 max-w-[320px] text-xs text-slate-500">
+              <p className="mt-1 max-w-[320px] text-xs text-slate-500 dark:text-slate-300">
                 Consulta ventas, compras y gastos con contraseña de
                 administrador.
               </p>
@@ -2633,7 +2748,7 @@ export default function Ajustes() {
             <button
               type="button"
               onClick={() => navigate('/resumen-financiero')}
-              className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-90 mx-auto"
+              className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-90 mx-auto dark:bg-blue-600"
             >
               Acceder ahora
             </button>

@@ -10,6 +10,21 @@
   --app-section-size: 1rem;
   --app-body-size: 0.98rem;
   --app-caption-size: 0.88rem;
+  --app-bg: #f6f7ff;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f8fafc;
+  --app-border: #e2e8f0;
+  --app-text: #0f172a;
+  --app-text-muted: #64748b;
+}
+
+.dark {
+  --app-bg: #020617;
+  --app-surface: #0f172a;
+  --app-surface-muted: #1e293b;
+  --app-border: #334155;
+  --app-text: #f8fafc;
+  --app-text-muted: #cbd5e1;
 }
 
 * {
@@ -21,9 +36,95 @@ body {
   font-family: var(--app-font-sans);
   font-size: 16px;
   line-height: 1.45;
-  color: #0f172a;
+  color: var(--app-text);
+  background: var(--app-bg);
   min-width: 320px;
   min-height: 100vh;
+}
+
+.dark body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.dark #root {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.dark .bg-white,
+.dark .bg-white\/90,
+.dark .bg-white\/95 {
+  background-color: var(--app-surface);
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-\[\#f6f7ff\],
+.dark .bg-\[\#f8faff\],
+.dark .bg-\[\#f8fbff\],
+.dark .bg-\[\#f4f7fb\],
+.dark .bg-\[\#f7f9fd\],
+.dark .bg-\[\#fbfcff\],
+.dark .bg-\[\#fafbff\],
+.dark .bg-\[\#f3f3fb\],
+.dark .bg-\[\#f7f5ff\] {
+  background-color: var(--app-surface-muted);
+}
+
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-\[\#111827\],
+.dark .text-\[\#121826\],
+.dark .text-\[\#07153b\],
+.dark .text-\[\#0f172a\] {
+  color: var(--app-text);
+}
+
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400,
+.dark .text-\[\#65758f\],
+.dark .text-\[\#6b7890\],
+.dark .text-\[\#334155\] {
+  color: var(--app-text-muted);
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-\[\#e5e9f5\],
+.dark .border-\[\#e6e8f3\],
+.dark .border-\[\#e3e8f2\],
+.dark .border-\[\#dbe2f0\],
+.dark .border-\[\#dce2f1\],
+.dark .border-\[\#d5deee\],
+.dark .border-\[\#d8e0ee\],
+.dark .border-\[\#dde4f1\],
+.dark .border-\[\#e0e6f2\] {
+  border-color: var(--app-border);
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
 }
 
 h1,
@@ -150,6 +251,8 @@ select {
 
 #root {
   min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .page-shell {
@@ -309,4 +412,180 @@ select {
 
 .cafesmart-success-halo {
   animation: cafesmartSuccessHalo 2.8s ease-in-out infinite;
+}
+
+.dark .cs-workflow-page {
+  background: #020617;
+  color: #f8fafc;
+}
+
+.dark .cs-workflow-page [class*='linear-gradient'],
+.dark .cs-workflow-page [class*='radial-gradient'] {
+  background-image:
+    radial-gradient(circle at 50% 12%, rgba(37, 99, 235, 0.16), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #0f172a 58%, #111827 100%);
+}
+
+.dark .cs-workflow-page .bg-white,
+.dark .cs-workflow-page .bg-white\/78,
+.dark .cs-workflow-page .bg-white\/80,
+.dark .cs-workflow-page .bg-white\/85,
+.dark .cs-workflow-page .bg-white\/90,
+.dark .cs-workflow-page .bg-white\/95 {
+  background-color: #111827;
+}
+
+.dark .cs-workflow-page .bg-\[\#fbfdff\],
+.dark .cs-workflow-page .bg-\[\#fbfbfb\],
+.dark .cs-workflow-page .bg-\[\#fbfcff\],
+.dark .cs-workflow-page .bg-\[\#fafafa\],
+.dark .cs-workflow-page .bg-\[\#f8fbff\],
+.dark .cs-workflow-page .bg-\[\#f8faff\],
+.dark .cs-workflow-page .bg-\[\#f8f9ff\],
+.dark .cs-workflow-page .bg-\[\#f8fafc\],
+.dark .cs-workflow-page .bg-\[\#f7f9fc\],
+.dark .cs-workflow-page .bg-\[\#f7f8fe\],
+.dark .cs-workflow-page .bg-\[\#f7f8fd\],
+.dark .cs-workflow-page .bg-\[\#f7f9ff\],
+.dark .cs-workflow-page .bg-\[\#f7faff\],
+.dark .cs-workflow-page .bg-\[\#f4f7ff\],
+.dark .cs-workflow-page .bg-\[\#f4f4f4\],
+.dark .cs-workflow-page .bg-\[\#f6f6f6\],
+.dark .cs-workflow-page .bg-\[\#f6f8ff\],
+.dark .cs-workflow-page .bg-\[\#f7f8fb\],
+.dark .cs-workflow-page .bg-\[\#eef2f6\],
+.dark .cs-workflow-page .bg-\[\#fafbff\],
+.dark .cs-workflow-page .bg-slate-50,
+.dark .cs-workflow-page .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+.dark .cs-workflow-page .bg-\[\#eef4ff\],
+.dark .cs-workflow-page .bg-\[\#eef3ff\],
+.dark .cs-workflow-page .bg-\[\#edf3ff\],
+.dark .cs-workflow-page .bg-\[\#eef6ff\],
+.dark .cs-workflow-page .bg-\[\#eef5ff\] {
+  background-color: rgba(30, 64, 175, 0.32);
+}
+
+.dark .cs-workflow-page .bg-\[\#fff9ef\],
+.dark .cs-workflow-page .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.36);
+}
+
+.dark .cs-workflow-page .bg-rose-50,
+.dark .cs-workflow-page .bg-\[\#fff1f3\] {
+  background-color: rgba(127, 29, 29, 0.38);
+}
+
+.dark .cs-workflow-page .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.36);
+}
+
+.dark .cs-workflow-page .border-slate-100,
+.dark .cs-workflow-page .border-slate-200,
+.dark .cs-workflow-page .border-slate-300,
+.dark .cs-workflow-page .border-\[\#e5e7f2\],
+.dark .cs-workflow-page .border-\[\#e5e9f5\],
+.dark .cs-workflow-page .border-\[\#e3e7f3\],
+.dark .cs-workflow-page .border-\[\#e3e9f5\],
+.dark .cs-workflow-page .border-\[\#e2e7f2\],
+.dark .cs-workflow-page .border-\[\#e2e8f4\],
+.dark .cs-workflow-page .border-\[\#e6ebf5\],
+.dark .cs-workflow-page .border-\[\#dbe1f1\],
+.dark .cs-workflow-page .border-\[\#dbe2f0\],
+.dark .cs-workflow-page .border-\[\#dbe5fb\],
+.dark .cs-workflow-page .border-\[\#dbe7ff\],
+.dark .cs-workflow-page .border-\[\#d8e0ee\],
+.dark .cs-workflow-page .border-\[\#d7dcec\],
+.dark .cs-workflow-page .border-\[\#d5deee\],
+.dark .cs-workflow-page .border-\[\#cad2e2\],
+.dark .cs-workflow-page .border-\[\#cbd6ea\],
+.dark .cs-workflow-page .border-\[\#c7d8ff\],
+.dark .cs-workflow-page .border-\[\#eeeeee\],
+.dark .cs-workflow-page .border-\[\#ececec\],
+.dark .cs-workflow-page .border-\[\#e6e6e6\],
+.dark .cs-workflow-page .border-\[\#e1e1e1\],
+.dark .cs-workflow-page .border-\[\#dcdcdc\],
+.dark .cs-workflow-page .border-\[\#e1e5f0\],
+.dark .cs-workflow-page .border-\[\#e2e6f1\] {
+  border-color: #475569;
+}
+
+.dark .cs-workflow-page .border-\[\#102d92\],
+.dark .cs-workflow-page .border-\[\#1f3fa7\] {
+  border-color: #60a5fa;
+}
+
+.dark .cs-workflow-page .text-slate-950,
+.dark .cs-workflow-page .text-slate-900,
+.dark .cs-workflow-page .text-slate-800,
+.dark .cs-workflow-page .text-\[\#07153b\],
+.dark .cs-workflow-page .text-\[\#08256d\],
+.dark .cs-workflow-page .text-\[\#102d92\],
+.dark .cs-workflow-page .text-\[\#173a8a\],
+.dark .cs-workflow-page .text-\[\#173ea6\],
+.dark .cs-workflow-page .text-\[\#1f3fa7\],
+.dark .cs-workflow-page .text-\[\#002f6c\],
+.dark .cs-workflow-page .text-\[\#111827\],
+.dark .cs-workflow-page .text-\[\#1f1f1f\] {
+  color: #f8fafc;
+}
+
+.dark .cs-workflow-page .text-slate-700,
+.dark .cs-workflow-page .text-slate-600,
+.dark .cs-workflow-page .text-slate-500,
+.dark .cs-workflow-page .text-\[\#40516d\],
+.dark .cs-workflow-page .text-\[\#52657d\],
+.dark .cs-workflow-page .text-\[\#334b85\],
+.dark .cs-workflow-page .text-\[\#375a9c\],
+.dark .cs-workflow-page .text-\[\#4f4f4f\],
+.dark .cs-workflow-page .text-\[\#5a5a5a\],
+.dark .cs-workflow-page .text-\[\#707070\],
+.dark .cs-workflow-page .text-\[\#777777\] {
+  color: #cbd5e1;
+}
+
+.dark .cs-workflow-page input,
+.dark .cs-workflow-page textarea,
+.dark .cs-workflow-page select {
+  background-color: #020617;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.dark .cs-workflow-page input.bg-transparent,
+.dark .cs-workflow-page textarea.bg-transparent {
+  background-color: transparent;
+}
+
+.dark .cs-workflow-page input::placeholder,
+.dark .cs-workflow-page textarea::placeholder {
+  color: #94a3b8;
+}
+
+.dark .cs-workflow-page input:disabled,
+.dark .cs-workflow-page textarea:disabled,
+.dark .cs-workflow-page select:disabled,
+.dark .cs-workflow-page .disabled\:bg-slate-100:disabled {
+  background-color: #1e293b;
+  color: #94a3b8;
+}
+
+.dark .cs-workflow-page .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155;
+}
+
+.dark .cs-workflow-page .shadow-sm,
+.dark .cs-workflow-page [class*='shadow-'] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.36);
+  --tw-shadow: var(--tw-shadow-colored);
+}
+
+.dark .cs-workflow-page button:not(:disabled) {
+  opacity: 1;
+}
+
+.dark .cs-workflow-page .text-transparent {
+  color: transparent;
 }

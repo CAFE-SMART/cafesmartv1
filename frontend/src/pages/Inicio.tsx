@@ -659,28 +659,28 @@ export default function Inicio() {
   const ocupacionVisual = useMemo(() => {
     if (ocupacion.nivel === 'alert') {
       return {
-        card: 'border-[#fecaca] bg-[#fff7f7]',
-        text: 'text-[#b42318]',
+        card: 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/40',
+        text: 'text-red-800 dark:text-red-100',
         bar: 'bg-[#ef4444]',
-        track: 'border-[#fecaca] bg-[#fff1f2]',
-        badge: 'bg-[#fee2e2] text-[#b42318]',
+        track: 'border-red-300 bg-red-100 dark:border-red-700 dark:bg-red-900/50',
+        badge: 'border border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200',
       };
     }
     if (ocupacion.nivel === 'warning') {
       return {
-        card: 'border-[#fde68a] bg-[#fffbeb]',
-        text: 'text-[#b45309]',
+        card: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/35',
+        text: 'text-amber-900 dark:text-amber-100',
         bar: 'bg-[#f59e0b]',
-        track: 'border-[#fcd34d] bg-[#fff7d6]',
-        badge: 'bg-[#fef3c7] text-[#92400e]',
+        track: 'border-amber-300 bg-amber-100 dark:border-amber-700 dark:bg-amber-900/50',
+        badge: 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-200',
       };
     }
     return {
-      card: 'border-[#e6e8f3] bg-white',
-      text: 'text-[#102d92]',
+      card: 'border-[#e6e8f3] bg-white dark:border-slate-700 dark:bg-slate-900',
+      text: 'text-[#102d92] dark:text-blue-200',
       bar: 'bg-[#2563eb]',
-      track: 'border-[#c7d2fe] bg-[#e8efff]',
-      badge: 'bg-[#eef4ff] text-[#102d92]',
+      track: 'border-[#c7d2fe] bg-[#e8efff] dark:border-blue-700 dark:bg-blue-950/35',
+      badge: 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900/50 dark:text-blue-200',
     };
   }, [ocupacion.nivel]);
 
@@ -1122,7 +1122,7 @@ export default function Inicio() {
 
               <div className={`mt-3 rounded-[18px] border p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] ${ocupacionVisual.card}`}>
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-[0.9rem] font-black text-[#1f2937]">
+                  <h2 className="text-[0.9rem] font-black text-[#1f2937] dark:text-slate-100">
                     Ocupaci&oacute;n actual
                   </h2>
                   <span
@@ -1185,7 +1185,7 @@ export default function Inicio() {
                           onClick={() =>
                             navigate(alertaBodega.primaryPath ?? '/ventas')
                           }
-                          className="inline-flex min-h-[32px] items-center rounded-full bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm"
+                          className="inline-flex min-h-[32px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                         >
                           {alertaBodega.primary}
                         </button>
@@ -1195,7 +1195,7 @@ export default function Inicio() {
                       type="button"
                       onClick={() => setAlertaBodegaCerrada(true)}
                       aria-label="Cerrar alerta de capacidad"
-                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
                     >
                       <X size={15} aria-hidden="true" />
                     </button>

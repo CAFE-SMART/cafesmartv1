@@ -217,7 +217,7 @@ export default function SecadoResumen() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
+      <div className="cs-workflow-page min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950">
         <div className="mx-auto w-full max-w-[430px] rounded-[20px] bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-bold">No encontre el resumen de secado.</p>
           <button
@@ -235,7 +235,7 @@ export default function SecadoResumen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fbff] text-slate-950">
+    <div className="cs-workflow-page min-h-screen bg-[#f8fbff] text-slate-950">
       <CafeSmartErrorState
         fullScreen
         variant={persistError ? 'error' : 'success'}

@@ -453,22 +453,22 @@ function CapacityRing({
         : '#102d92';
   const accentTextClass =
     capacityLevel === 'alert'
-      ? 'text-[#b42318]'
+      ? 'text-red-800 dark:text-red-100'
       : capacityLevel === 'warning'
-        ? 'text-[#b45309]'
-        : 'text-[#102d92]';
+        ? 'text-amber-900 dark:text-amber-100'
+        : 'text-[#102d92] dark:text-blue-200';
   const capacityShellClass =
     capacityLevel === 'alert'
-      ? 'border-[#fecaca] bg-[#fff7f7]'
+      ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/40'
       : capacityLevel === 'warning'
-        ? 'border-[#fde68a] bg-[#fffbeb]'
-        : 'border-[#e6e8f3] bg-white';
+        ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/35'
+        : 'border-[#e6e8f3] bg-white dark:border-slate-700 dark:bg-slate-900';
   const capacityBadgeClass =
     capacityLevel === 'alert'
-      ? 'bg-[#fee2e2] text-[#b42318]'
+      ? 'border border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200'
       : capacityLevel === 'warning'
-        ? 'bg-[#fef3c7] text-[#92400e]'
-        : 'bg-[#eef4ff] text-[#102d92]';
+        ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-200'
+        : 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900/50 dark:text-blue-200';
   const capacityStatusLabel =
     capacityLevel === 'alert'
       ? 'Bodega casi llena'
@@ -480,7 +480,7 @@ function CapacityRing({
 
   return (
     <section className={`rounded-[20px] border p-4 shadow-sm ${capacityShellClass}`}>
-      <p className="text-[0.95rem] font-black text-black">
+      <p className="text-[0.95rem] font-black text-slate-950 dark:text-slate-100">
         Resumen de Inventario
       </p>
       <div className="mt-2 flex items-start justify-between gap-3">
@@ -489,13 +489,13 @@ function CapacityRing({
             <p className={`text-[2.1rem] font-black leading-none ${accentTextClass}`}>
               {formatNumber(totalKg)}
             </p>
-            <span className="pb-0.5 text-[1.2rem] font-bold text-slate-400">
+            <span className="pb-0.5 text-[1.2rem] font-bold text-slate-500 dark:text-slate-300">
               / {formatNumber(safeCapacity)} kg
             </span>
           </div>
           <p
             className={`mt-1 text-sm font-bold ${
-              capacityLevel === 'normal' ? 'text-slate-600' : accentTextClass
+              capacityLevel === 'normal' ? 'text-slate-600 dark:text-slate-300' : accentTextClass
             }`}
           >
             Capacidad usada: {displayPercentage}%
@@ -529,7 +529,7 @@ function CapacityRing({
             />
           </svg>
           <div
-            className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${accentTextClass}`}
+            className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${accentTextClass}`}
           >
             <Coffee size={16} />
           </div>
@@ -1117,7 +1117,7 @@ export default function Inventario() {
 
   return (
     <div
-      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
+      className={`cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
         showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
       }`}
     >

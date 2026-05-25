@@ -944,7 +944,7 @@ export default function GastosOperativos() {
 
   if (showSuccessModal) {
     return (
-      <div className="min-h-screen bg-[#eef2f6] px-4 py-6 pb-24 text-slate-900">
+      <div className="cs-workflow-page min-h-screen bg-[#eef2f6] px-4 py-6 pb-24 text-slate-900">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[430px] items-center">
           <CafeSmartErrorState
             variant="success"
@@ -979,7 +979,7 @@ export default function GastosOperativos() {
   }
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 font-sans text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 font-sans text-slate-900">
       <main className="mx-auto max-w-[430px] space-y-3 rounded-[24px] border border-[#dbe2ee] bg-[#fbfbfb] px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <div className="relative min-h-[28px]">
           <button

@@ -71,40 +71,40 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-chat-title"
-      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[110] mx-auto flex max-h-[min(680px,calc(100vh-120px))] max-w-[430px] flex-col overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] sm:right-5 sm:left-auto sm:bottom-[calc(env(safe-area-inset-bottom)+24px)]"
+      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[110] mx-auto flex max-h-[min(680px,calc(100vh-120px))] max-w-[430px] flex-col overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:border-slate-700 dark:bg-slate-900 sm:right-5 sm:left-auto sm:bottom-[calc(env(safe-area-inset-bottom)+24px)]"
     >
-      <header className="flex items-start justify-between gap-3 border-b border-amber-100 bg-amber-50/80 px-4 py-3">
+      <header className="flex items-start justify-between gap-3 border-b border-amber-100 bg-amber-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-600 text-white">
             <Sparkles size={18} aria-hidden="true" />
           </span>
           <div>
-            <h2 id="ai-chat-title" className="text-sm font-semibold text-slate-900">Asistente CaféSmart</h2>
-            <p className="text-xs text-slate-600">Pregúntame sobre tu negocio cafetero</p>
+            <h2 id="ai-chat-title" className="text-sm font-semibold text-slate-900 dark:text-slate-100">Asistente CaféSmart</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-300">Pregúntame sobre tu negocio cafetero</p>
           </div>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Cerrar asistente"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
         >
           <X size={17} aria-hidden="true" />
         </button>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
-        <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           El asistente genera recomendaciones con base en los datos disponibles. Verifica la información antes de tomar decisiones.
         </p>
 
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+            className={`max-w-[86%] whitespace-pre-line break-words rounded-2xl px-3 py-2 text-sm leading-relaxed ${
               message.role === 'user'
                 ? 'ml-auto bg-emerald-700 text-white'
-                : 'bg-stone-100 text-slate-800'
+                : 'bg-stone-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'
             }`}
           >
             {message.content}
@@ -112,7 +112,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
         ))}
 
         {isSending ? (
-          <div className="inline-flex rounded-2xl bg-stone-100 px-3 py-2 text-sm text-slate-600" role="status">
+          <div className="inline-flex rounded-2xl bg-stone-100 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300" role="status">
             Analizando...
           </div>
         ) : null}
@@ -123,7 +123,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
               key={suggestion}
               type="button"
               onClick={() => void sendQuestion(suggestion)}
-              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               {suggestion}
             </button>
@@ -131,7 +131,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-stone-100 p-3">
+      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-stone-100 p-3 dark:border-slate-700">
         <label htmlFor="ai-chat-question" className="sr-only">
           Pregunta para el asistente inteligente
         </label>
@@ -142,7 +142,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
           onChange={(event) => setQuestion(event.target.value)}
           maxLength={500}
           placeholder="Pregunta sobre inventario, ventas o finanzas..."
-          className="min-w-0 flex-1 rounded-full border border-stone-200 px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+          className="min-w-0 flex-1 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
         />
         <button
           type="submit"

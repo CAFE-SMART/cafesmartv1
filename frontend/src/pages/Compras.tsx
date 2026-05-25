@@ -3819,7 +3819,7 @@ export default function Compras() {
 
   if (bodegaBloqueada) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-8 text-slate-900">
+      <main className="cs-workflow-page flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-8 text-slate-900">
         <section
           role="alertdialog"
           aria-labelledby="bodega-llena-title"
@@ -3885,7 +3885,7 @@ export default function Compras() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
       <header className="mx-auto w-full max-w-[430px] px-4 py-4 pt-6">
         <div className="relative flex items-center justify-center">
           <button

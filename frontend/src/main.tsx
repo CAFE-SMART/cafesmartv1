@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Capacitor } from '@capacitor/core';
 import App from './App';
 import { CloudStatusProvider } from './context/CloudStatusContext';
+import { ThemeProvider } from './theme/themeProvider';
 import { UserProvider } from './context/UserContext';
 import { registerServiceWorker } from './services/pwaService';
 import './index.css';
@@ -17,9 +18,11 @@ registerServiceWorker();
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <CloudStatusProvider>
-      <UserProvider>{children}</UserProvider>
-    </CloudStatusProvider>
+    <ThemeProvider>
+      <CloudStatusProvider>
+        <UserProvider>{children}</UserProvider>
+      </CloudStatusProvider>
+    </ThemeProvider>
   );
 }
 

@@ -84,8 +84,10 @@ function isValidEmail(value: string) {
 }
 
 function getFieldClass(hasError: boolean) {
-  return `mt-2 block min-h-[48px] w-full rounded-[15px] border bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2448bd] focus:ring-4 focus:ring-[#2448bd]/12 ${
-    hasError ? 'border-rose-300 bg-rose-50/40' : 'border-[#dce4f2]'
+  return `mt-2 block min-h-[48px] w-full rounded-[15px] border bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2448bd] focus:ring-4 focus:ring-[#2448bd]/12 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-blue-400/20 ${
+    hasError
+      ? 'border-red-300 bg-red-50/40 dark:border-red-400/60 dark:bg-red-500/15'
+      : 'border-[#dce4f2] dark:border-slate-700'
   }`;
 }
 
@@ -210,33 +212,33 @@ export default function ContactoSoporte() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb] px-4 pb-[150px] pt-5 text-slate-950">
+    <div className="min-h-screen bg-[#f4f6fb] px-4 pb-[150px] pt-5 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <main className="mx-auto w-full max-w-[430px]">
         <header className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => navigate('/ajustes')}
             aria-label="Volver a ajustes"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d9e1f0] bg-white text-[#2448bd]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d9e1f0] bg-white text-[#2448bd] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200"
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-[1.45rem] font-black text-slate-950">
+          <h1 className="text-[1.45rem] font-black text-slate-950 dark:text-slate-100">
             Soporte
           </h1>
           <span className="h-11 w-11" aria-hidden="true" />
         </header>
 
-        <section className="mt-4 rounded-[18px] border border-[#dfe6f4] bg-white px-3.5 py-3 shadow-sm">
+        <section className="mt-4 rounded-[18px] border border-[#dfe6f4] bg-white px-3.5 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#edf3ff] text-[#2448bd]">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#edf3ff] text-[#2448bd] dark:bg-blue-500/15 dark:text-blue-200">
               <Headset size={18} />
             </span>
             <div>
-              <h2 className="text-base font-black text-slate-950">
+              <h2 className="text-base font-black text-slate-950 dark:text-slate-100">
                 ¿Necesitas ayuda?
               </h2>
-              <p className="text-xs font-semibold leading-4 text-slate-500">
+              <p className="text-xs font-semibold leading-4 text-slate-500 dark:text-slate-300">
                 Elige una opción y te guiamos.
               </p>
             </div>
@@ -257,20 +259,20 @@ export default function ContactoSoporte() {
                   }
                   setActiveModal(item.id);
                 }}
-                className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[15px] border border-[#dfe6f4] bg-white px-3 py-2.5 text-left shadow-sm transition active:scale-[0.99]"
+                className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[15px] border border-[#dfe6f4] bg-white px-3 py-2.5 text-left shadow-sm transition active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900"
               >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-[#edf3ff] text-[#2448bd]">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-[#edf3ff] text-[#2448bd] dark:bg-blue-500/15 dark:text-blue-200">
                   <Icon size={16} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[0.86rem] font-black text-slate-950">
+                  <span className="block text-[0.86rem] font-black text-slate-950 dark:text-slate-100">
                     {item.title}
                   </span>
-                  <span className="mt-0.5 block text-[0.72rem] font-semibold text-slate-500">
+                  <span className="mt-0.5 block text-[0.72rem] font-semibold text-slate-500 dark:text-slate-300">
                     {item.description}
                   </span>
                 </span>
-                <ChevronRight size={16} className="shrink-0 text-slate-400" />
+                <ChevronRight size={16} className="shrink-0 text-slate-400 dark:text-slate-300" />
               </button>
             );
           })}
@@ -327,17 +329,17 @@ function SupportModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby="support-modal-title"
-        className="flex max-h-[min(82dvh,620px)] w-full max-w-[410px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+        className="flex max-h-[min(82dvh,620px)] w-full max-w-[410px] flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white text-slate-900 shadow-[0_28px_70px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <h2 id="support-modal-title" className="text-base font-black text-slate-950">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+          <h2 id="support-modal-title" className="text-base font-black text-slate-950 dark:text-slate-100">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar soporte"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-300"
           >
             <X size={16} />
           </button>
@@ -376,22 +378,22 @@ function ContactContent() {
     <div className="space-y-3">
       <a
         href="https://wa.me/573000000000?text=Hola%20Caf%C3%A9Smart%2C%20necesito%20ayuda."
-        className="flex items-center gap-3 rounded-[18px] border border-[#dfe6f4] bg-[#fbfcff] p-4 text-left"
+        className="flex items-center gap-3 rounded-[18px] border border-[#dfe6f4] bg-[#fbfcff] p-4 text-left dark:border-slate-700 dark:bg-slate-800"
       >
-        <MessageCircle className="text-[#2448bd]" size={20} />
+        <MessageCircle className="text-[#2448bd] dark:text-blue-200" size={20} />
         <span>
-          <span className="block text-sm font-black text-slate-950">WhatsApp</span>
-          <span className="text-xs font-semibold text-slate-500">Respuesta rápida</span>
+          <span className="block text-sm font-black text-slate-950 dark:text-slate-100">WhatsApp</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-300">Respuesta rápida</span>
         </span>
       </a>
       <a
         href="mailto:soporte@cafesmart.com?subject=Soporte%20Caf%C3%A9Smart"
-        className="flex items-center gap-3 rounded-[18px] border border-[#dfe6f4] bg-[#fbfcff] p-4 text-left"
+        className="flex items-center gap-3 rounded-[18px] border border-[#dfe6f4] bg-[#fbfcff] p-4 text-left dark:border-slate-700 dark:bg-slate-800"
       >
-        <Mail className="text-[#2448bd]" size={20} />
+        <Mail className="text-[#2448bd] dark:text-blue-200" size={20} />
         <span>
-          <span className="block text-sm font-black text-slate-950">Correo</span>
-          <span className="text-xs font-semibold text-slate-500">soporte@cafesmart.com</span>
+          <span className="block text-sm font-black text-slate-950 dark:text-slate-100">Correo</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-300">soporte@cafesmart.com</span>
         </span>
       </a>
     </div>
@@ -425,7 +427,7 @@ function ReportForm({
   return (
     <form className="space-y-4" noValidate onSubmit={onSubmit}>
       {limitNotice ? (
-        <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+        <div className="rounded-[14px] border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 dark:border-amber-400/60 dark:bg-amber-500/15 dark:text-amber-100">
           {limitNotice}
         </div>
       ) : null}
@@ -448,7 +450,7 @@ function ReportForm({
           placeholder="Ej. Laura Gómez"
           className={getFieldClass(Boolean(errors.nombre))}
         />
-        <p className="mt-1 text-right text-xs font-bold text-slate-500">
+        <p className="mt-1 text-right text-xs font-bold text-slate-500 dark:text-slate-300">
           {form.nombre.length}/{SUPPORT_NAME_MAX}
         </p>
       </SupportField>
@@ -470,7 +472,7 @@ function ReportForm({
           onChange={(event) =>
             updateField('tipo', event.target.value as SupportType)
           }
-          className={errors.tipo ? 'border-rose-300 bg-rose-50/40' : ''}
+          className={errors.tipo ? 'border-red-300 bg-red-50/40 dark:border-red-400/60 dark:bg-red-500/15' : ''}
         >
           <option value="">Selecciona una opción</option>
           {supportTypes.map((item) => (
@@ -498,7 +500,7 @@ function ReportForm({
           placeholder="Ej. Estaba registrando una venta y no pude guardar."
           className={`${getFieldClass(Boolean(errors.mensaje))} min-h-[130px] py-3 leading-6`}
         />
-        <p className="mt-1 text-right text-xs font-bold text-slate-500">
+        <p className="mt-1 text-right text-xs font-bold text-slate-500 dark:text-slate-300">
           {form.mensaje.length}/{SUPPORT_MESSAGE_MAX}
         </p>
       </SupportField>
@@ -506,8 +508,8 @@ function ReportForm({
         <div
           className={`rounded-[15px] border px-4 py-3 text-sm font-bold ${
             statusTone === 'error'
-              ? 'border-rose-200 bg-rose-50 text-rose-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/60 dark:bg-red-500/15 dark:text-red-100'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-100'
           }`}
         >
           <p>{statusMessage}</p>
@@ -546,12 +548,12 @@ function SupportField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-black text-slate-900">
+      <label htmlFor={id} className="block text-sm font-black text-slate-900 dark:text-slate-100">
         {label}
       </label>
       {children}
       {error ? (
-        <p className="mt-2 text-xs font-bold text-rose-700">{error}</p>
+        <p className="mt-2 text-xs font-bold text-red-700 dark:text-red-200">{error}</p>
       ) : null}
     </div>
   );
@@ -565,9 +567,9 @@ function InfoCard({
   children: React.ReactNode;
 }) {
   return (
-    <article className="rounded-[18px] border border-[#e6ebf5] bg-[#fbfcff] p-4">
-      <h3 className="text-sm font-black text-slate-950">{title}</h3>
-      <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+    <article className="rounded-[18px] border border-[#e6ebf5] bg-[#fbfcff] p-4 dark:border-slate-700 dark:bg-slate-800">
+      <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">{title}</h3>
+      <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
         {children}
       </p>
     </article>

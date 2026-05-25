@@ -240,7 +240,7 @@ export default function Gastos() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f2fb_100%)] px-4 py-5 pb-[150px] text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f2fb_100%)] px-4 py-5 pb-[150px] text-slate-900">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-5">
         <header className="flex items-center justify-between gap-3">
           <button

@@ -11,7 +11,7 @@ export function AppLoadingScreen({
 }: AppLoadingScreenProps) {
   return (
     <main
-      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-6 py-10 text-[#07153b]"
+      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-6 py-10 text-[#07153b] dark:bg-slate-950 dark:text-slate-100"
       aria-busy="true"
       aria-live="polite"
     >
@@ -44,12 +44,13 @@ export function AppLoadingScreen({
       </style>
 
       <div
-        className="pointer-events-none absolute inset-0 opacity-80"
+        className="pointer-events-none absolute inset-0 opacity-80 dark:hidden"
         style={{
           background:
             'radial-gradient(circle at 78% 18%, rgba(59, 130, 246, 0.08), transparent 30%), linear-gradient(180deg, #ffffff 0%, #f8fbff 58%, #eef5ff 100%)',
         }}
       />
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_78%_18%,rgba(96,165,250,0.12),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_58%,#111827_100%)] opacity-95 dark:block" />
 
       <div className="relative z-10 flex w-full max-w-[430px] flex-col items-center text-center">
         <section className="animate-[appSplashFadeScale_360ms_ease-out_both]">
@@ -58,10 +59,10 @@ export function AppLoadingScreen({
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">
           <div className="mx-auto h-16 w-16 rounded-full border-[5px] border-blue-100 border-t-[#1683f7] animate-[appSplashSpin_900ms_linear_infinite]" />
-          <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b]">
+          <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b] dark:text-slate-100">
             {title}
           </p>
-          <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">
+          <p className="mt-2 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-300">
             {subtitle}
           </p>
         </section>
@@ -74,7 +75,7 @@ export function AppLoadingScreen({
 
 function DecorativeBottom() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[190px] overflow-hidden text-[#88b8ff]">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[190px] overflow-hidden text-[#88b8ff] opacity-100 dark:opacity-45">
       <svg
         className="absolute bottom-0 h-full w-full"
         viewBox="0 0 390 190"

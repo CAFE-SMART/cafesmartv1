@@ -332,7 +332,7 @@ export default function GastosListado() {
     Boolean(filtroFecha) || filtroTipo !== 'TODOS' || orden !== 'recent';
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
       <main className="mx-auto w-full max-w-[430px] rounded-[24px] border border-[#dbe2ee] bg-white px-3 py-3 shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
         <header className="grid min-h-10 grid-cols-[36px_1fr_auto] items-center gap-2">
           <button

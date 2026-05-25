@@ -57,6 +57,10 @@ function ErrorStateAnimations() {
           background: radial-gradient(circle at 50% 16%, rgba(47,128,237,0.09), transparent 30%), linear-gradient(180deg,#ffffff 0%,#f8fbff 60%,#eef5ff 100%);
         }
 
+        .dark .bg-gradient-radial {
+          background: radial-gradient(circle at 50% 16%, rgba(96,165,250,0.13), transparent 30%), linear-gradient(180deg,#020617 0%,#0f172a 60%,#111827 100%);
+        }
+
         .bg-success-glow {
           background: rgba(16,185,129,0.18);
         }
@@ -166,7 +170,7 @@ function StatusIllustration({ variant }: { variant: 'error' | 'success' }) {
       />
       <div className="relative mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-[#eef6ff] shadow-[0_22px_54px_rgba(37,99,235,0.12)]">
         <div
-          className={`flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white ring-1 ${haloClass} ${iconClass}`}
+          className={`flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white ring-1 dark:bg-slate-900 ${haloClass} ${iconClass}`}
         >
           {isSuccess ? (
             <Check size={38} strokeWidth={3} />
@@ -213,7 +217,7 @@ export function CafeSmartErrorState({
   const content = (
     <section
       {...sectionA11yProps}
-      className={`relative z-10 flex w-full max-w-[430px] flex-col items-center overflow-hidden rounded-[30px] border border-[#e6eefb] bg-[#f8fbff] px-5 pb-8 pt-6 text-center text-[#07153b] shadow-[0_28px_80px_rgba(15,23,42,0.14)] ${className}`.trim()}
+      className={`relative z-10 flex w-full max-w-[430px] flex-col items-center overflow-hidden rounded-[30px] border border-[#e6eefb] bg-[#f8fbff] px-5 pb-8 pt-6 text-center text-[#07153b] shadow-[0_28px_80px_rgba(15,23,42,0.14)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${className}`.trim()}
     >
       <div className="relative z-10 animate-[cafesmartFadeScale_280ms_ease-out_both]">
         <CafeSmartLogo size="sm" compact />
@@ -222,10 +226,10 @@ export function CafeSmartErrorState({
       <StatusIllustration variant={variant} />
 
       <div className="relative z-10 mt-7 animate-[cafesmartFadeUp_360ms_ease-out_150ms_both]">
-        <h1 className="text-[1.48rem] font-black leading-tight text-[#07153b]">
+        <h1 className="text-[1.48rem] font-black leading-tight text-[#07153b] dark:text-slate-100">
           {title}
         </h1>
-        <p className="mx-auto mt-3 max-w-[320px] text-sm font-semibold leading-6 text-slate-500">
+        <p className="mx-auto mt-3 max-w-[320px] text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300">
           {message}
         </p>
       </div>
@@ -263,7 +267,7 @@ export function CafeSmartErrorState({
             <button
               type="button"
               onClick={onSecondary}
-              className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#cbd5e1] bg-white/90 px-3 text-center text-[0.82rem] font-black leading-tight text-[#1e3a8a] shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 hover:border-[#93c5fd] hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 sm:px-4 sm:text-sm"
+              className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#cbd5e1] bg-white/90 px-3 text-center text-[0.82rem] font-black leading-tight text-[#1e3a8a] shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 hover:border-[#93c5fd] hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:px-4 sm:text-sm"
             >
               <Home size={17} aria-hidden="true" />
               {secondaryLabel}
@@ -273,12 +277,12 @@ export function CafeSmartErrorState({
         </div>
       ) : null}
 
-      <div className="relative z-10 mt-6 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] animate-[cafesmartFadeUp_360ms_ease-out_290ms_both]">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)]">
+      <div className="relative z-10 mt-6 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] dark:bg-slate-800 dark:ring-1 dark:ring-slate-700 animate-[cafesmartFadeUp_360ms_ease-out_290ms_both]">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)] dark:bg-slate-900 dark:text-sky-300">
           <ShieldCheck size={25} strokeWidth={2.3} aria-hidden="true" />
         </div>
-        <p className="text-[0.8rem] font-semibold leading-5 text-slate-500">
-          <span className="block text-sm font-black text-[#07153b]">
+        <p className="text-[0.8rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
+          <span className="block text-sm font-black text-[#07153b] dark:text-slate-100">
             {isSuccess ? 'Todo quedó listo' : 'Tus datos siguen seguros'}
           </span>
           {resolvedInfo}
@@ -298,7 +302,7 @@ export function CafeSmartErrorState({
   }
 
   return (
-    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7">
+    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 dark:bg-slate-950">
       <ErrorStateAnimations />
       <div
         className="pointer-events-none absolute inset-0 bg-gradient-radial"

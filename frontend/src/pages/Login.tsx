@@ -858,18 +858,18 @@ Correo electrónico
 
             <div>
               <div className="flex justify-between items-center mb-2">
-<label className="block text-sm font-bold text-slate-700">Contraseña</label>
+<label className="block text-sm font-bold text-slate-700 dark:text-slate-200">Contraseña</label>
                 <button
                   type="button"
                   onClick={() => navigate('/recuperar')}
-                  className="text-sm font-semibold text-[#1e3a8a] hover:underline"
+                  className="text-sm font-semibold text-[#1e3a8a] hover:underline dark:text-blue-300"
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <Lock className="h-5 w-5 text-gray-400 dark:text-slate-300" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -877,10 +877,10 @@ Correo electrónico
 
                   aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
 
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider ${
+                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider dark:text-slate-100 dark:placeholder:text-slate-500 ${
                     passwordFieldError
-                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-4 focus:ring-red-100'
-                      : 'border-gray-200 focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10'
+                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-4 focus:ring-red-100 dark:border-red-400/60 dark:bg-red-500/15 dark:focus:ring-red-400/20'
+                      : 'border-gray-200 bg-white focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10 dark:border-slate-700 dark:bg-slate-900 dark:focus:bg-slate-900 dark:focus:ring-blue-400/20'
                   }`}
                   placeholder="********"
                   value={password}
@@ -895,9 +895,9 @@ Correo electrónico
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
+                    <EyeOff className="h-5 w-5 text-gray-400 transition-colors hover:text-gray-600 dark:text-slate-300 dark:hover:text-slate-100" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
+                    <Eye className="h-5 w-5 text-gray-400 transition-colors hover:text-gray-600 dark:text-slate-300 dark:hover:text-slate-100" />
                   )}
                 </button>
               </div>
@@ -915,8 +915,8 @@ Correo electrónico
               onClick={() => setRememberMe((current) => !current)}
               className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
                 rememberMe
-                  ? 'border-[#1e3a8a] bg-[#eef4ff] shadow-[0_8px_24px_rgba(30,58,138,0.12)]'
-                  : 'border-slate-200 bg-slate-50'
+                  ? 'border-[#1e3a8a] bg-[#eef4ff] shadow-[0_8px_24px_rgba(30,58,138,0.12)] dark:border-blue-500/40 dark:bg-slate-900 dark:text-slate-100'
+                  : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
               }`}
               aria-label="Recordar cuenta en este dispositivo"
             >
@@ -924,18 +924,18 @@ Correo electrónico
 
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
-                  rememberMe
-                    ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white'
-                    : 'border-slate-300 bg-white text-transparent'
+                rememberMe
+                    ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white dark:border-blue-500 dark:bg-blue-500'
+                    : 'border-slate-300 bg-white text-transparent dark:border-slate-600 dark:bg-slate-800'
                 }`}
               >
                 <Check size={18} strokeWidth={3} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black text-slate-800">
+                <span className="block text-sm font-black text-slate-800 dark:text-slate-100">
                   Recordar cuenta en este dispositivo
                 </span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
+                <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500 dark:text-slate-300">
                   {rememberMe && (rememberedAccountName || email)
                     ? rememberedAccountName || email
                     : 'Guarda solo tu correo, no inicia sesión automáticamente.'}
@@ -943,7 +943,7 @@ Correo electrónico
               </span>
               <span
                 className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-all ${
-                  rememberMe ? 'bg-[#1e3a8a]' : 'bg-slate-300'
+                  rememberMe ? 'bg-[#1e3a8a] dark:bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
                 <span

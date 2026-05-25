@@ -1033,7 +1033,7 @@ export default function Sublotes() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
+    <div className="cs-workflow-page min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
       <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white">
         <div className="mx-auto grid min-h-[56px] w-full max-w-[430px] grid-cols-[42px_1fr_auto] items-center gap-2 px-3 py-2">
           <button

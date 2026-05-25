@@ -396,7 +396,7 @@ export default function SecadoSeleccion() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f6f6] text-slate-950">
+    <div className="cs-workflow-page min-h-screen bg-[#f6f6f6] text-slate-950">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#fbfbfb]">
         <header className="relative flex h-12 items-center justify-center border-b border-slate-100 px-4">
           <button

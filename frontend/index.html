@@ -5,6 +5,37 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<meta name="theme-color" content="#102d92" />
+		<script>
+			(() => {
+				try {
+					[
+						'theme',
+						'resolvedTheme',
+						'isDark',
+						'darkMode',
+						'themeMode',
+						'cafesmart-theme',
+						'appearance',
+						'color-mode',
+						'cafesmart:theme',
+						'cafesmart:resolved-theme',
+						'cafesmart:dark-mode',
+						'cafesmart:theme-mode',
+						'cafesmart:appearance',
+					].forEach((key) => localStorage.removeItem(key));
+					const preference = localStorage.getItem('cafesmart:theme-preference') || 'system';
+					const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+					const resolved = preference === 'dark' || (preference === 'system' && systemDark);
+					document.documentElement.classList.toggle('dark', resolved);
+					document.documentElement.style.colorScheme = resolved ? 'dark' : 'light';
+					document.documentElement.dataset.theme = resolved ? 'dark' : 'light';
+				} catch {
+					document.documentElement.classList.remove('dark');
+					document.documentElement.dataset.theme = 'light';
+					/* La preferencia visual no debe bloquear la app. */
+				}
+			})();
+		</script>
 		<title>Cafe Smart</title>
 	</head>
 	<body>

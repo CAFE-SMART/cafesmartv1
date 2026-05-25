@@ -6,6 +6,7 @@ import {
   Info,
   type LucideIcon,
 } from 'lucide-react';
+import { feedbackThemeClasses } from '../theme/themeClasses';
 
 export type AppFeedbackVariant = 'success' | 'error' | 'warning' | 'info';
 
@@ -43,45 +44,25 @@ const variantStyles: Record<
   }
 > = {
   success: {
-    border: 'border-emerald-200',
-    bg: 'bg-emerald-50',
-    icon: 'text-emerald-700',
-    iconBg: 'bg-white/85',
-    title: 'text-emerald-900',
-    description: 'text-emerald-800',
+    ...feedbackThemeClasses.success,
     Icon: CheckCircle2,
     defaultRole: 'status',
     defaultLive: 'polite',
   },
   error: {
-    border: 'border-rose-200',
-    bg: 'bg-rose-50',
-    icon: 'text-rose-700',
-    iconBg: 'bg-white/85',
-    title: 'text-rose-900',
-    description: 'text-rose-800',
+    ...feedbackThemeClasses.error,
     Icon: AlertCircle,
     defaultRole: 'alert',
     defaultLive: 'assertive',
   },
   warning: {
-    border: 'border-amber-200',
-    bg: 'bg-amber-50',
-    icon: 'text-amber-700',
-    iconBg: 'bg-white/85',
-    title: 'text-amber-950',
-    description: 'text-amber-800',
+    ...feedbackThemeClasses.warning,
     Icon: AlertTriangle,
     defaultRole: 'status',
     defaultLive: 'polite',
   },
   info: {
-    border: 'border-sky-200',
-    bg: 'bg-sky-50',
-    icon: 'text-sky-700',
-    iconBg: 'bg-white/85',
-    title: 'text-sky-950',
-    description: 'text-sky-800',
+    ...feedbackThemeClasses.info,
     Icon: Info,
     defaultRole: 'status',
     defaultLive: 'polite',

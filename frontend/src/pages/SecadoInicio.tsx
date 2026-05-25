@@ -710,7 +710,7 @@ export default function SecadoInicio() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb] px-4 py-4 pb-[136px] text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[#f7f8fb] px-4 py-4 pb-[136px] text-slate-900">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-3">
         <header className="rounded-[18px] border border-slate-100 bg-white px-4 py-3 shadow-[0_6px_18px_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-3">

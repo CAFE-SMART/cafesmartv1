@@ -127,7 +127,7 @@ export default function SecadosActivos() {
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
 
   return (
-    <div className="min-h-screen bg-[#f6f8ff] text-slate-950">
+    <div className="cs-workflow-page min-h-screen bg-[#f6f8ff] text-slate-950">
       <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfdff]">
         <header className="relative flex h-12 items-center justify-center border-b border-[#dbe7ff] px-4">
           <button

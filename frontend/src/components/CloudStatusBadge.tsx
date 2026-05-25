@@ -8,15 +8,16 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { alertThemes } from '../theme/alertThemes';
 
 const toneClasses = {
-  offline: 'border-rose-200 bg-rose-50 text-rose-800',
-  checking: 'border-sky-200 bg-sky-50 text-sky-800',
-  connected: 'border-sky-200 bg-sky-50 text-sky-800',
-  syncing: 'border-amber-200 bg-amber-50 text-amber-800',
-  synced: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  error: 'border-rose-200 bg-rose-50 text-rose-800',
-  degraded: 'border-amber-200 bg-amber-50 text-amber-800',
+  offline: alertThemes.error.container,
+  checking: alertThemes.info.container,
+  connected: alertThemes.info.container,
+  syncing: alertThemes.warning.container,
+  synced: alertThemes.success.container,
+  error: alertThemes.error.container,
+  degraded: alertThemes.warning.container,
 } as const;
 
 function StatusIcon({ tone }: { tone: keyof typeof toneClasses }) {
@@ -64,7 +65,7 @@ export function CloudStatusBadge({
       title={detail}
       aria-live="polite"
     >
-      <span className="mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[12px] bg-white/85">
+      <span className="mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[12px] bg-white/85 dark:bg-white/10">
         <StatusIcon tone={tone} />
       </span>
       <span className="min-w-0">

@@ -10,7 +10,8 @@ import {
   sanitizeStringArray,
 } from './dto/ai-context.dto';
 
-type AiProvider = 'openai' | 'gemini' | 'mock' | 'none';
+type AiProvider = 'openai' | 'gemini' | 'groq' | 'openrouter' | 'mock' | 'none';
+type ProviderCredentialSource = 'primary' | 'fallback';
 
 export const AI_NOT_CONFIGURED_MESSAGE = 'Servicio de IA no configurado.';
 const AI_NOT_CONFIGURED_RESPONSE = {
@@ -21,9 +22,17 @@ const AI_PROVIDER_ERROR_RESPONSE = {
   code: 'AI_PROVIDER_ERROR',
   message: 'No pude generar una respuesta en este momento.',
 };
+const AI_EMPTY_RESPONSE = {
+  code: 'AI_EMPTY_RESPONSE',
+  message: 'El proveedor de IA no devolvió contenido.',
+};
+const AI_QUOTA_EXCEEDED_RESPONSE = {
+  code: 'AI_QUOTA_EXCEEDED',
+  message: 'La cuota del asistente se agotó por ahora.',
+};
 
 const SYSTEM_PROMPT =
-  'Eres el asistente inteligente de CaféSmart. Ayudas a interpretar inventario, compras, ventas, gastos, secado, utilidad y sincronización offline. Solo puedes responder con base en el contexto resumido recibido. No inventes datos. No solicites ni almacenes datos sensibles. No pidas contraseñas, documentos, teléfonos, correos ni tokens. No puedes modificar información del sistema. Solo puedes explicar, orientar y recomendar. Si faltan datos, responde: "No tengo suficiente información para analizar eso todavía." Si el usuario pide modificar datos, responde: "No puedo realizar esa acción directamente, pero puedo orientarte paso a paso." Responde en español, con tono claro y profesional, en máximo 4 párrafos cortos.';
+  'Eres el asistente inteligente de CaféSmart. Ayudas a interpretar inventario, compras, ventas, gastos, secado, utilidad y sincronización offline. Solo puedes responder con base en el contexto resumido recibido. No inventes datos. No solicites ni almacenes datos sensibles. No pidas contraseñas, documentos, teléfonos, correos ni tokens. No puedes modificar información del sistema. Solo puedes explicar, orientar y recomendar. Si faltan datos, responde: "No tengo suficiente información para analizar eso todavía." Si el usuario pide modificar datos, responde: "No puedo realizar esa acción directamente, pero puedo orientarte paso a paso." Responde en español claro. Da una respuesta completa en 3 a 5 párrafos cortos o en una lista breve. No termines frases incompletas. Evita tecnicismos.';
 
 const SENSITIVE_FIELD_NAMES = new Set([
   'password',
@@ -90,6 +99,7 @@ export class AiService {
       'Contexto resumido disponible:',
       JSON.stringify(context, null, 2),
       'Si el contexto no contiene datos suficientes, dilo claramente sin inventar cifras.',
+      'Para preguntas generales, usa esta estructura: Resumen general, Puntos de atención y Recomendación.',
     ].join('\n\n');
 
     return { answer: await this.callAiProvider(prompt) };
@@ -98,6 +108,7 @@ export class AiService {
   async generateFinancialAnalysis(dto: FinancialAnalysisDto) {
     const context = this.sanitizeContext(dto.context);
     const hasContext = Object.keys(context).length > 0;
+    this.logContextKeys('financial analysis', context);
 
     if (!hasContext) {
       return {
@@ -108,7 +119,8 @@ export class AiService {
 
     const prompt = [
       SYSTEM_PROMPT,
-      'Genera un análisis del negocio con tres bloques breves: Resumen, Puntos de atención y Recomendaciones.',
+      'Genera un análisis completo del negocio con estos encabezados exactos: Resumen general, Puntos de atención y Recomendaciones.',
+      'Usa listas breves cuando ayuden. Si un dato no existe en el contexto, indica que no está disponible. No abras la respuesta con frases genéricas.',
       'Contexto resumido disponible:',
       JSON.stringify(context, null, 2),
       'No inventes valores y avisa si los datos vienen de cache offline.',
@@ -168,14 +180,66 @@ export class AiService {
             pendientesSync: sanitizeNumber(safeContext.offline.pendientesSync),
           }
         : undefined,
+      financiero: (safeContext as { financiero?: Record<string, unknown> }).financiero
+        ? {
+            utilidadEstimada: sanitizeNumber(
+              (safeContext as { financiero?: Record<string, unknown> }).financiero
+                ?.utilidadEstimada,
+            ),
+          }
+        : undefined,
+      bodega: (safeContext as { bodega?: Record<string, unknown> }).bodega
+        ? {
+            capacidadKg: sanitizeNumber(
+              (safeContext as { bodega?: Record<string, unknown> }).bodega
+                ?.capacidadKg,
+            ),
+          }
+        : undefined,
     });
   }
 
   private async callAiProvider(prompt: string) {
-    const provider = (this.configService.get<string>('AI_PROVIDER') ?? 'none').toLowerCase() as AiProvider;
+    const provider = this.getProvider('AI_PROVIDER', 'none');
 
+    try {
+      return await this.callProvider(provider, prompt, 'primary');
+    } catch (error) {
+      if (!this.isQuotaExceededError(error)) {
+        throw error;
+      }
+
+      if (provider === 'gemini') {
+        console.warn('[ai-provider] gemini quota exceeded');
+      }
+
+      const fallbackProvider = this.getProvider('AI_FALLBACK_PROVIDER', 'none');
+      if (fallbackProvider === 'none') {
+        throw error;
+      }
+
+      const fallbackApiKey = this.configService.get<string>('AI_FALLBACK_API_KEY');
+      if (!fallbackApiKey && fallbackProvider !== 'mock') {
+        throw error;
+      }
+
+      console.info('[ai-provider] using fallback provider');
+
+      try {
+        return await this.callProvider(fallbackProvider, prompt, 'fallback');
+      } catch {
+        throw new ServiceUnavailableException(AI_QUOTA_EXCEEDED_RESPONSE);
+      }
+    }
+  }
+
+  private async callProvider(
+    provider: AiProvider,
+    prompt: string,
+    source: ProviderCredentialSource,
+  ) {
     if (provider === 'gemini') {
-      return this.callGemini(prompt);
+      return this.callGemini(prompt, source);
     }
 
     if (provider === 'mock') {
@@ -186,22 +250,29 @@ export class AiService {
       throw new ServiceUnavailableException(AI_NOT_CONFIGURED_RESPONSE);
     }
 
-    return this.callOpenAi(prompt);
+    if (provider === 'openai' || provider === 'groq' || provider === 'openrouter') {
+      return this.callOpenAiCompatible(prompt, provider, source);
+    }
+
+    throw new ServiceUnavailableException(AI_NOT_CONFIGURED_RESPONSE);
   }
 
-  private async callOpenAi(prompt: string) {
+  private async callOpenAiCompatible(
+    prompt: string,
+    provider: Extract<AiProvider, 'openai' | 'groq' | 'openrouter'>,
+    source: ProviderCredentialSource,
+  ) {
     const apiKey =
-      this.configService.get<string>('AI_API_KEY') ??
-      this.configService.get<string>('OPENAI_API_KEY');
+      source === 'fallback'
+        ? this.configService.get<string>('AI_FALLBACK_API_KEY')
+        : this.configService.get<string>('AI_API_KEY') ??
+          this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       throw new ServiceUnavailableException(AI_NOT_CONFIGURED_RESPONSE);
     }
 
-    const model =
-      this.configService.get<string>('AI_MODEL') ??
-      this.configService.get<string>('OPENAI_MODEL') ??
-      'gpt-4o-mini';
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const model = this.getOpenAiCompatibleModel(provider, source);
+    const response = await fetch(this.getOpenAiCompatibleUrl(provider), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -214,12 +285,17 @@ export class AiService {
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 450,
+        max_tokens: 900,
       }),
     });
 
     if (!response.ok) {
-      throw new ServiceUnavailableException(AI_PROVIDER_ERROR_RESPONSE);
+      await this.logProviderError(provider, response);
+      throw new ServiceUnavailableException(
+        response.status === 429
+          ? AI_QUOTA_EXCEEDED_RESPONSE
+          : AI_PROVIDER_ERROR_RESPONSE,
+      );
     }
 
     const data = (await response.json()) as {
@@ -228,36 +304,56 @@ export class AiService {
     return this.normalizeAiText(data.choices?.[0]?.message?.content);
   }
 
-  private async callGemini(prompt: string) {
+  private async callGemini(prompt: string, source: ProviderCredentialSource) {
     const apiKey =
-      this.configService.get<string>('AI_API_KEY') ??
-      this.configService.get<string>('GEMINI_API_KEY');
+      source === 'fallback'
+        ? this.configService.get<string>('AI_FALLBACK_API_KEY')
+        : this.configService.get<string>('AI_API_KEY') ??
+          this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       throw new ServiceUnavailableException(AI_NOT_CONFIGURED_RESPONSE);
     }
 
     const model =
-      this.configService.get<string>('AI_MODEL') ??
-      this.configService.get<string>('GEMINI_MODEL') ??
-      'gemini-2.5-flash';
+      source === 'fallback'
+        ? this.configService.get<string>('AI_FALLBACK_MODEL') ?? 'gemini-2.5-flash'
+        : this.configService.get<string>('AI_MODEL') ??
+          this.configService.get<string>('GEMINI_MODEL') ??
+          'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: `${SYSTEM_PROMPT}\n\n${prompt}` }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 450 },
+        generationConfig: { temperature: 0.4, maxOutputTokens: 900 },
       }),
     });
 
     if (!response.ok) {
-      throw new ServiceUnavailableException(AI_PROVIDER_ERROR_RESPONSE);
+      await this.logProviderError('gemini', response);
+      throw new ServiceUnavailableException(
+        response.status === 429
+          ? AI_QUOTA_EXCEEDED_RESPONSE
+          : AI_PROVIDER_ERROR_RESPONSE,
+      );
     }
 
     const data = (await response.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
-    return this.normalizeAiText(data.candidates?.[0]?.content?.parts?.[0]?.text);
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
+    const answer = parts
+      .map((part) => part.text)
+      .filter((text): text is string => Boolean(text?.trim()))
+      .join('\n')
+      .trim();
+
+    if (!answer) {
+      throw new ServiceUnavailableException(AI_EMPTY_RESPONSE);
+    }
+
+    return this.normalizeAiText(answer);
   }
 
   private async callMock(_prompt: string) {
@@ -265,8 +361,68 @@ export class AiService {
   }
 
   private normalizeAiText(text?: string) {
-    const clean = sanitizeAiText(text, 1600);
-    return clean || 'No pude generar una respuesta en este momento. Intenta nuevamente.';
+    const clean =
+      typeof text === 'string'
+        ? text.replace(/[<>]/g, '').trim().slice(0, 4000)
+        : '';
+    if (!clean) {
+      throw new ServiceUnavailableException(AI_EMPTY_RESPONSE);
+    }
+    return clean;
+  }
+
+  private getProvider(configKey: string, fallback: AiProvider) {
+    const value = (this.configService.get<string>(configKey) ?? fallback)
+      .trim()
+      .toLowerCase();
+    return this.isSupportedProvider(value) ? value : fallback;
+  }
+
+  private isSupportedProvider(value: string): value is AiProvider {
+    return ['openai', 'gemini', 'groq', 'openrouter', 'mock', 'none'].includes(
+      value,
+    );
+  }
+
+  private getOpenAiCompatibleUrl(provider: 'openai' | 'groq' | 'openrouter') {
+    if (provider === 'groq') {
+      return 'https://api.groq.com/openai/v1/chat/completions';
+    }
+
+    if (provider === 'openrouter') {
+      return 'https://openrouter.ai/api/v1/chat/completions';
+    }
+
+    return 'https://api.openai.com/v1/chat/completions';
+  }
+
+  private getOpenAiCompatibleModel(
+    provider: 'openai' | 'groq' | 'openrouter',
+    source: ProviderCredentialSource,
+  ) {
+    if (source === 'fallback') {
+      return (
+        this.configService.get<string>('AI_FALLBACK_MODEL') ??
+        (provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini')
+      );
+    }
+
+    return (
+      this.configService.get<string>('AI_MODEL') ??
+      this.configService.get<string>('OPENAI_MODEL') ??
+      (provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini')
+    );
+  }
+
+  private isQuotaExceededError(error: unknown) {
+    if (!(error instanceof ServiceUnavailableException)) return false;
+    const response = error.getResponse();
+    return (
+      typeof response === 'object' &&
+      response !== null &&
+      'code' in response &&
+      response.code === AI_QUOTA_EXCEEDED_RESPONSE.code
+    );
   }
 
   private isActionRequest(question: string) {
@@ -327,8 +483,35 @@ export class AiService {
   private logSanitization(removed: number) {
     const nodeEnv = this.configService.get<string>('NODE_ENV') ?? 'development';
     if (removed > 0 && nodeEnv !== 'production') {
-      console.info(`[ai-sanitize] sensitive fields removed: ${removed}`);
+      console.info(`[ai-sanitize] removed sensitive fields: ${removed}`);
     }
+  }
+
+  private logContextKeys(label: string, context: Record<string, unknown>) {
+    const nodeEnv = this.configService.get<string>('NODE_ENV') ?? 'development';
+    if (nodeEnv !== 'production') {
+      console.info(
+        `[ai-context] ${label} context keys: ${JSON.stringify(
+          Object.keys(context),
+        )}`,
+      );
+    }
+  }
+
+  private async logProviderError(provider: AiProvider, response: Response) {
+    const nodeEnv = this.configService.get<string>('NODE_ENV') ?? 'development';
+    if (nodeEnv === 'production') return;
+
+    const detail = await response.text().catch(() => '');
+    console.warn(
+      JSON.stringify({
+        event: 'ai_provider_error',
+        provider,
+        status: response.status,
+        statusText: response.statusText,
+        detail: sanitizeAiText(detail, 500),
+      }),
+    );
   }
 
   private compactContext(context: Record<string, unknown>) {

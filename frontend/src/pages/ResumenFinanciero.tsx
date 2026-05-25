@@ -38,10 +38,7 @@ import {
   type SubloteDetalle,
 } from '../services/lotesService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
-import { buildAiContext } from '../services/aiContextService';
-import { getFinancialAnalysis } from '../services/aiService';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
-import { CafeSmartModal } from '../components/common/CafeSmartModal';
 import granitoInteligente from '../assets/granito-inteligente.png';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -651,37 +648,37 @@ function MermaAuditSummaryCard({
       role="dialog"
       aria-modal="true"
       aria-labelledby="merma-audit-title"
-      className="max-h-[92dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-amber-100 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+      className="max-h-[92dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-amber-100 bg-white p-4 text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
             Revisión de merma
           </p>
-          <h2 id="merma-audit-title" className="mt-1 text-lg font-black text-slate-950">
+          <h2 id="merma-audit-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
             Resumen de pérdidas del lote
           </h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           aria-label="Cerrar revisión de merma"
         >
           <X size={16} />
         </button>
       </div>
 
-      <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-3">
-        <span className="inline-flex rounded-full bg-amber-200 px-2.5 py-1 text-[0.62rem] font-black text-amber-900">
+      <div className="mt-4 rounded-[18px] border border-amber-300 bg-amber-50 px-3 py-3 dark:border-amber-400/60 dark:bg-amber-500/15">
+        <span className="inline-flex rounded-full bg-amber-200 px-2.5 py-1 text-[0.62rem] font-black text-amber-900 dark:bg-amber-400/20 dark:text-amber-200">
           Advertencia
         </span>
-        <p className="mt-3 text-sm font-bold leading-6 text-amber-950">
+        <p className="mt-3 text-sm font-bold leading-6 text-amber-950 dark:text-amber-100">
           El lote presenta una pérdida total del {formatPercent(data.totalPercentage)} debido a calidad subestándar del grano.
         </p>
       </div>
 
-      <section className="mt-4 border-y border-slate-200 py-4">
+      <section className="mt-4 border-y border-slate-200 py-4 dark:border-slate-700">
         <div className="grid grid-cols-[120px_1fr] items-center gap-4 max-[360px]:grid-cols-1">
           <MermaDonutChart
             humidityKg={metrics.humidityKg}
@@ -691,10 +688,10 @@ function MermaAuditSummaryCard({
             <div className="flex items-start gap-3">
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#3B82F6]" />
               <div>
-                <p className="text-sm font-black text-slate-950">
+                <p className="text-sm font-black text-slate-950 dark:text-slate-100">
                   Humedad: -{formatKg(metrics.humidityKg)}
                 </p>
-                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
                   {hasHumidity
                     ? `Calculado con humedad real (${metrics.humidityPercentage}% del inventario disponible).`
                     : 'Sin humedad registrada en sublotes disponibles.'}
@@ -702,12 +699,12 @@ function MermaAuditSummaryCard({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#111827]" />
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#111827] dark:bg-slate-200" />
               <div>
-                <p className="text-sm font-black text-slate-950">
+                <p className="text-sm font-black text-slate-950 dark:text-slate-100">
                   Factor: -{formatKg(metrics.factorKg)}
                 </p>
-                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[0.7rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
                   {hasFactor
                     ? `Calculado con factor real (${metrics.factorPercentage}% del inventario disponible).`
                     : 'Sin factor registrado en sublotes disponibles.'}
@@ -716,11 +713,11 @@ function MermaAuditSummaryCard({
             </div>
           </div>
         </div>
-        <div className="mt-4 flex items-start justify-between gap-3 border-t border-slate-200 pt-3">
-          <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-700">
+        <div className="mt-4 flex items-start justify-between gap-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-700 dark:text-slate-300">
             Total kilos descontados
           </p>
-          <p className="text-right text-sm font-black text-slate-950">
+          <p className="text-right text-sm font-black text-slate-950 dark:text-slate-100">
             - {formatKg(hasLaboratoryData ? metrics.humidityKg + metrics.factorKg : metrics.totalKg)}
             {' '}
             ({hasLaboratoryData ? formatPercentRounded(metrics.humidityPercentage + metrics.factorPercentage) : formatPercentRounded(metrics.roundedTotalPercentage)} del inventario)
@@ -728,14 +725,14 @@ function MermaAuditSummaryCard({
         </div>
       </section>
 
-      <article className="border-b border-slate-200 py-4">
-        <p className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-slate-500">
+      <article className="border-b border-slate-200 py-4 dark:border-slate-700">
+        <p className="text-[0.66rem] font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-300">
           Impacto financiero
         </p>
-        <p className="mt-1 text-2xl font-black text-slate-950">
+        <p className="mt-1 text-2xl font-black text-slate-950 dark:text-slate-100">
           {formatCurrencyTight(data.totalValue)}
         </p>
-        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
+        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
           (Descuento total aplicado debido a los parámetros de calidad)
         </p>
       </article>
@@ -744,7 +741,7 @@ function MermaAuditSummaryCard({
         <button
           type="button"
           onClick={onOpenLaboratory}
-          className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         >
           🔍 Ver análisis de laboratorio
         </button>
@@ -792,13 +789,13 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
       role="dialog"
       aria-modal="true"
       aria-labelledby="merma-lab-title"
-      className="flex max-h-[94dvh] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]"
+      className="flex max-h-[94dvh] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
     >
-      <header className="flex shrink-0 items-start gap-3 border-b border-slate-200 px-4 py-4">
+      <header className="flex shrink-0 items-start gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700">
         <button
           type="button"
           onClick={onBack}
-          className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+          className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           aria-label="Volver al resumen de merma"
         >
           <ArrowLeft size={17} />
@@ -807,17 +804,17 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
           <p className="text-xl leading-none" aria-hidden="true">
             🔬
           </p>
-          <h2 id="merma-lab-title" className="mt-2 text-base font-black uppercase tracking-[0.08em] text-slate-950">
+          <h2 id="merma-lab-title" className="mt-2 text-base font-black uppercase tracking-[0.08em] text-slate-950 dark:text-slate-100">
             Análisis de laboratorio
           </h2>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
             Valores calculados con base en el inventario disponible
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           aria-label="Cerrar análisis de laboratorio"
         >
           <X size={16} />
@@ -826,22 +823,22 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {!hasLaboratoryData ? (
-          <article className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
-            <h3 className="text-sm font-black text-slate-950">
+          <article className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4 text-center dark:border-slate-600 dark:bg-slate-800">
+            <h3 className="text-sm font-black text-slate-950 dark:text-slate-100">
               Aún no hay datos de laboratorio suficientes.
             </h3>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
               Registra humedad y factor de rendimiento en los sublotes para generar este análisis.
             </p>
           </article>
         ) : null}
 
         {hasHumidity ? (
-          <article className="rounded-[20px] border border-blue-100 bg-blue-50/60 p-4">
-            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+          <article className="rounded-[20px] border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-400/60 dark:bg-blue-500/15">
+            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950 dark:text-slate-100">
               Humedad promedio: {formatPercent(analysis?.humedadPromedio ?? 0)}
             </h3>
-            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700 dark:text-slate-200">
               <p>Estado: {humidityState}</p>
               <p>
                 Rango ideal: {formatPercent(HUMEDAD_MINIMA_IDEAL)} a {formatPercent(HUMEDAD_MAXIMA_IDEAL)}
@@ -850,27 +847,27 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
                 Resultado comercial: Se estiman {formatKg(metrics.humidityKg)} por exceso de humedad.
               </p>
             </div>
-            <p className="mt-4 rounded-[16px] bg-blue-100/70 px-3 py-3 text-xs font-semibold italic leading-5 text-blue-950">
+            <p className="mt-4 rounded-[16px] bg-blue-100/70 px-3 py-3 text-xs font-semibold italic leading-5 text-blue-950 dark:bg-blue-400/15 dark:text-blue-100">
               Cálculo ponderado sobre {formatKg(analysis?.totalKgInventario ?? 0)} disponibles con datos reales de inventario.
             </p>
           </article>
         ) : null}
 
-        {hasHumidity && hasFactor ? <div className="h-px bg-slate-200" /> : null}
+        {hasHumidity && hasFactor ? <div className="h-px bg-slate-200 dark:bg-slate-700" /> : null}
 
         {hasFactor ? (
-          <article className="rounded-[20px] border border-stone-200 bg-stone-50 p-4">
-            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">
+          <article className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-slate-600 dark:bg-slate-800">
+            <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950 dark:text-slate-100">
               Factor promedio: {analysis?.factorPromedio ?? 0}
             </h3>
-            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700">
+            <div className="mt-3 space-y-2 text-xs font-bold leading-5 text-slate-700 dark:text-slate-200">
               <p>Estado: {factorState}</p>
               <p>Base del mercado: {FACTOR_BASE_MERCADO}</p>
               <p>
                 Resultado comercial: Se estiman {formatKg(metrics.factorKg)} por rendimiento fuera de base.
               </p>
             </div>
-            <p className="mt-4 rounded-[16px] bg-stone-200/60 px-3 py-3 text-xs font-semibold italic leading-5 text-stone-900">
+            <p className="mt-4 rounded-[16px] bg-stone-200/60 px-3 py-3 text-xs font-semibold italic leading-5 text-stone-900 dark:bg-slate-700 dark:text-slate-100">
               Factor calculado con promedio ponderado por kilos disponibles en sublotes activos.
             </p>
           </article>
@@ -918,10 +915,6 @@ export default function ResumenFinanciero() {
   const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
   const [laboratoryAnalysis, setLaboratoryAnalysis] =
     useState<LaboratoryAnalysis | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (refreshing) return;
@@ -997,25 +990,8 @@ export default function ResumenFinanciero() {
     }
   };
 
-  const handleAnalyzeBusiness = async () => {
-    setAiAnalysisModalOpen(true);
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      const builtContext = await buildAiContext();
-      if (!builtContext.hasData) {
-        setAiAnalysis(null);
-        setAiError('No tengo suficiente información guardada para analizar eso todavía.');
-        return;
-      }
-      const analysis = await getFinancialAnalysis(builtContext.context);
-      setAiAnalysis(analysis);
-    } catch {
-      setAiAnalysis(null);
-      setAiError('No pude generar una respuesta en este momento. Intenta nuevamente.');
-    } finally {
-      setAiLoading(false);
-    }
+  const handleAnalyzeBusiness = () => {
+    navigate('/resumen-financiero/analisis-inteligente');
   };
 
   const handleRetryAccess = () => {
@@ -1285,7 +1261,7 @@ export default function ResumenFinanciero() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
       <main className="mx-auto w-full max-w-[430px] py-2">
         <header className="grid min-h-[54px] grid-cols-[44px_1fr_auto] items-center gap-2">
           <button
@@ -1433,56 +1409,13 @@ export default function ResumenFinanciero() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void handleAnalyzeBusiness()}
-                  disabled={aiLoading}
+                  onClick={handleAnalyzeBusiness}
                   className="inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-[10px] bg-emerald-700 px-3 text-[0.62rem] font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {aiLoading ? 'Analizando' : 'Analizar'}
+                  Analizar
                 </button>
               </div>
             </section>
-
-            <CafeSmartModal
-              open={aiAnalysisModalOpen}
-              onClose={() => setAiAnalysisModalOpen(false)}
-              labelledById="ai-financial-analysis-title"
-              title="Análisis inteligente"
-              description="Revisión de tus resultados, inventario y movimientos recientes"
-            >
-              <div className="flex flex-col items-center text-center">
-                <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50">
-                  <img
-                    src={granitoInteligente}
-                    alt="Asistente inteligente de CaféSmart"
-                    className="h-12 w-12 object-contain"
-                    draggable={false}
-                  />
-                </span>
-                {aiLoading ? (
-                  <div className="mt-5 rounded-[16px] bg-slate-50 px-4 py-4 text-sm font-bold text-slate-600" role="status">
-                    Analizando...
-                  </div>
-                ) : aiError ? (
-                  <AppFeedbackMessage
-                    className="mt-5 w-full text-left"
-                    variant="warning"
-                    title="No hay análisis disponible"
-                    description={aiError}
-                  />
-                ) : aiAnalysis ? (
-                  <div className="mt-5 w-full rounded-[16px] bg-emerald-50 px-4 py-4 text-left text-sm font-semibold leading-6 text-emerald-950">
-                    {aiAnalysis}
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setAiAnalysisModalOpen(false)}
-                  className="mt-5 inline-flex min-h-[40px] w-full items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#334b85]"
-                >
-                  Volver
-                </button>
-              </div>
-            </CafeSmartModal>
 
             <section className="mt-4 grid grid-cols-3 gap-3">
               <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
@@ -1866,7 +1799,7 @@ export default function ResumenFinanciero() {
             </section>
 
             {historialActivo ? (
-              <div className="fixed inset-0 z-50 h-[100dvh] bg-[#f7f9fc] text-slate-900">
+              <div className="cs-workflow-page fixed inset-0 z-50 h-[100dvh] bg-[#f7f9fc] text-slate-900">
                 <section className="mx-auto flex h-full w-full max-w-[430px] flex-col overflow-visible bg-white">
                   <header className="relative z-[80] shrink-0 border-b border-slate-100 bg-white px-4 py-4 shadow-sm">
                     <div className="grid grid-cols-[42px_1fr_42px] items-center gap-2">

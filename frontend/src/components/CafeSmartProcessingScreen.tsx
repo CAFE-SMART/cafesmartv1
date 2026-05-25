@@ -322,21 +322,22 @@ export function CafeSmartProcessingScreen({
 }: CafeSmartProcessingScreenProps) {
   return (
     <main
-      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 text-[#07153b]"
+      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 text-[#07153b] dark:bg-slate-950 dark:text-slate-100"
       aria-busy="true"
       aria-live="polite"
     >
       <ProcessingAnimations />
       <div
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 dark:hidden"
         style={{
           background:
             'radial-gradient(circle at 50% 16%, rgba(47,128,237,0.09), transparent 30%), linear-gradient(180deg,#ffffff 0%,#f8fbff 60%,#eef5ff 100%)',
         }}
       />
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_50%_16%,rgba(96,165,250,0.12),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_60%,#111827_100%)] dark:block" />
 
       <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
-        <div className="mx-auto h-1.5 w-16 rounded-full bg-[#c7d6ef] animate-[cafesmartFadeScale_300ms_ease-out_both]" />
+        <div className="mx-auto h-1.5 w-16 rounded-full bg-[#c7d6ef] dark:bg-slate-700 animate-[cafesmartFadeScale_300ms_ease-out_both]" />
         <div className="mt-8 animate-[cafesmartFadeScale_300ms_ease-out_60ms_both]">
           <CafeSmartLogo size="sm" compact />
         </div>
@@ -344,10 +345,10 @@ export function CafeSmartProcessingScreen({
         {variant === 'drying' ? <DryingIllustration /> : <PurchaseIllustration />}
 
         <div className="mt-3 animate-[cafesmartFadeUp_420ms_ease-out_180ms_both]">
-          <h1 className="text-[1.55rem] font-black leading-tight text-[#07153b]">
+          <h1 className="text-[1.55rem] font-black leading-tight text-[#07153b] dark:text-slate-100">
             {title}
           </h1>
-          <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-slate-500">
+          <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300">
             {subtitle}
           </p>
         </div>
@@ -356,18 +357,18 @@ export function CafeSmartProcessingScreen({
           {showSpinner ? (
             <div className="mx-auto h-12 w-12 rounded-full border-[4px] border-blue-100 border-t-[#1683f7] animate-[cafesmartSpin_850ms_linear_infinite]" />
           ) : null}
-          <p className={`${showSpinner ? 'mt-4' : ''} text-sm font-semibold leading-6 text-slate-500`}>
+          <p className={`${showSpinner ? 'mt-4' : ''} text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300`}>
             {helperText}
           </p>
         </div>
 
-        <div className="mt-7 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)]">
+        <div className="mt-7 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] dark:bg-slate-900 dark:ring-1 dark:ring-slate-700 animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)] dark:bg-slate-800 dark:text-sky-300">
             <ShieldCheck size={25} strokeWidth={2.3} />
           </div>
           <div>
-            <p className="text-sm font-black text-[#07153b]">{trustTitle}</p>
-            <p className="mt-1 text-[0.78rem] font-semibold leading-5 text-slate-500">
+            <p className="text-sm font-black text-[#07153b] dark:text-slate-100">{trustTitle}</p>
+            <p className="mt-1 text-[0.78rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
               {trustText}
             </p>
           </div>

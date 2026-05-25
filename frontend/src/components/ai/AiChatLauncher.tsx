@@ -26,7 +26,7 @@ export function AiChatLauncher() {
         <button
           type="button"
           aria-label="Cerrar asistente inteligente"
-          className="fixed inset-0 z-[100] cursor-default bg-slate-950/10 backdrop-blur-[1px]"
+          className="fixed inset-0 z-[100] cursor-default bg-white/20 backdrop-blur-[1px] dark:bg-slate-950/35"
           onClick={() => setIsOpen(false)}
         />
       ) : null}
@@ -38,7 +38,7 @@ export function AiChatLauncher() {
         role="button"
         aria-label="Abrir asistente inteligente"
         onClick={() => setIsOpen((current) => !current)}
-        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[105] inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.18)] transition duration-200 hover:scale-105 hover:border-blue-200 hover:bg-blue-50 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 sm:right-6 sm:bottom-[calc(env(safe-area-inset-bottom)+28px)]"
+        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[105] inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.18)] transition duration-200 hover:scale-105 hover:border-blue-200 hover:bg-blue-50 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:focus-visible:ring-slate-600 sm:right-6 sm:bottom-[calc(env(safe-area-inset-bottom)+28px)]"
       >
         <img
           src={granitoInteligente}

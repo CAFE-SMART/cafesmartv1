@@ -11,6 +11,7 @@ import { AiFloatingButton } from './components/ai/AiFloatingButton';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
+import { themeClasses } from './theme/themeClasses';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -209,7 +210,7 @@ function GlobalOfflineNotice() {
               type="button"
               onClick={dismissAlert}
               aria-label="Cerrar alerta de conexión"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-slate-500 transition hover:bg-white hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
             >
               <X size={15} aria-hidden="true" />
             </button>
@@ -258,7 +259,7 @@ function App() {
         {showBootSplash ? (
           <AppLoadingScreen />
         ) : (
-          <div className="min-h-screen bg-gray-50 text-gray-900">
+          <div className={`min-h-screen ${themeClasses.pageBase}`}>
             <a href="#app-content" className="skip-link">
               Saltar al contenido principal
             </a>

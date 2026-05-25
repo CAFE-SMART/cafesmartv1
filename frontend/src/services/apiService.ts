@@ -50,6 +50,10 @@ const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
     'No pude conectar con el asistente. Revisa la configuración del servicio de IA.',
   AI_PROVIDER_ERROR:
     'No pude generar una respuesta en este momento. Intenta nuevamente.',
+  AI_EMPTY_RESPONSE:
+    'No pude generar una respuesta en este momento. Intenta nuevamente.',
+  AI_QUOTA_EXCEEDED:
+    'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.',
   INSUFFICIENT_STOCK: 'La cantidad supera el inventario disponible.',
   VENTA_INVENTARIO_INSUFICIENTE: 'La cantidad supera el inventario disponible.',
   VENTA_CANTIDAD_INVALIDA: 'Ingresa una cantidad mayor a 0.',
@@ -132,7 +136,12 @@ export function getUserFriendlyErrorMessage(error: {
   const status = error.status ?? 0;
   const code = error.code?.trim();
 
-  if (code === 'AI_SERVICE_NOT_CONFIGURED') {
+  if (
+    code === 'AI_SERVICE_NOT_CONFIGURED' ||
+    code === 'AI_PROVIDER_ERROR' ||
+    code === 'AI_EMPTY_RESPONSE' ||
+    code === 'AI_QUOTA_EXCEEDED'
+  ) {
     return SPECIFIC_CODE_MESSAGES[code];
   }
 

@@ -32,6 +32,12 @@ export type AiBusinessContext = {
     usandoDatosCacheados?: boolean;
     pendientesSync?: number;
   };
+  financiero?: {
+    utilidadEstimada?: number;
+  };
+  bodega?: {
+    capacidadKg?: number;
+  };
 };
 
 export type BuiltAiContext = {
@@ -116,6 +122,16 @@ export async function buildAiContext(): Promise<BuiltAiContext> {
       usandoDatosCacheados: usingCachedData,
       pendientesSync: queueSummary.pendientes + queueSummary.errores,
     },
+    financiero: summary
+      ? {
+          utilidadEstimada: round(summary.utilidadTotalAcumulada),
+        }
+      : undefined,
+    bodega: summary
+      ? {
+          capacidadKg: round(summary.kgCapacidad),
+        }
+      : undefined,
   };
 
   const hasData = Boolean(summary || lotes.length > 0 || queueSummary.total > 0);

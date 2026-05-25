@@ -1591,7 +1591,7 @@ function NoInventorySalesScreen({
   onRegisterPurchase: () => void;
 }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_50%_12%,rgba(47,128,237,0.13),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#edf6ff_100%)] px-5 pb-28 pt-6 text-center text-[#07153b]">
+    <div className="cs-workflow-page relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_50%_12%,rgba(47,128,237,0.13),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f8fbff_52%,#edf6ff_100%)] px-5 pb-28 pt-6 text-center text-[#07153b]">
       <SalesEmptyInventoryAnimations />
       <div className="pointer-events-none absolute left-6 top-10 h-20 w-20 rounded-full bg-[#e6f3ff]/70 blur-2xl" />
       <div className="pointer-events-none absolute right-0 top-28 h-28 w-28 rounded-full bg-[#dbeeff]/70 blur-3xl" />
@@ -1707,6 +1707,12 @@ export default function Ventas() {
   } = ventas;
   const [ventasTecnicasAbiertas, setVentasTecnicasAbiertas] = React.useState<Record<string, boolean>>({});
   const [showDetails, setShowDetails] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!ventaGuardada) {
+      setShowDetails(false);
+    }
+  }, [ventaGuardada]);
 
   const volverDesdeEncabezado = React.useCallback(() => {
     if (paso > 1) {
@@ -1895,14 +1901,45 @@ export default function Ventas() {
           onPrimary={reiniciar}
           onHome={() => navigate('/inicio')}
           capacityNotice={
-            ventasRealizadas.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setMostrarHistorialVentas(true)}
-                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
-              >
-                Ver historial de ventas
-              </button>
+            ventaGuardada.items.length > 0 ? (
+              <section className="rounded-[18px] border border-blue-100 bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950 dark:text-slate-100">
+                      Historial completo de la venta
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">
+                      {ventaGuardada.items.length} registros · {kg(ventaGuardada.totalKg)} · {money(ventaGuardada.totalVenta)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetails((value) => !value)}
+                    className="inline-flex min-h-[34px] shrink-0 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#173ea6] transition hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-700"
+                    aria-expanded={showDetails}
+                  >
+                    {showDetails ? 'Ocultar' : 'Ver detalles'}
+                  </button>
+                </div>
+
+                {showDetails ? (
+                  <div className="mt-3 space-y-2">
+                    {ventaGuardada.items.map((item, index) => (
+                      <article
+                        key={`${item.codigo}-${index}`}
+                        className="rounded-[14px] border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <p className="text-sm font-black uppercase text-slate-950 dark:text-slate-100">
+                          {[item.tipoCafe, item.calidad].filter(Boolean).join(' ') || item.codigo}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-300">
+                          {kg(item.cantidadKg)} · {money(item.subtotal)}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
             ) : null
           }
           rows={[
@@ -1918,211 +1955,6 @@ export default function Ventas() {
             },
           ]}
         />
-        {mostrarHistorialVentas ? (
-          <div
-            className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
-            role="presentation"
-          >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="ventas-history-title"
-              className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white text-left shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]"
-            >
-              <header className="shrink-0 border-b border-slate-100 px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2
-                      id="ventas-history-title"
-                      className="text-lg font-black text-slate-950"
-                    >
-                      Historial completo de la venta
-                    </h2>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      {ventasHistorialFiltradas.length} registros
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHistorialVentaFechaPickerOpen(false);
-                      setMostrarHistorialVentas(false);
-                    }}
-                    aria-label="Cerrar historial de ventas"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-3">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
-                    <SalesDatePicker
-                        value={historialVentaFecha}
-                      min={BUSINESS_MIN_DATE_VALUE}
-                        max={getTodayLocalDateValue()}
-                      open={historialVentaFechaPickerOpen}
-                      onToggle={() =>
-                        setHistorialVentaFechaPickerOpen((open) => !open)
-                      }
-                      onClose={() => setHistorialVentaFechaPickerOpen(false)}
-                      onChange={setHistorialVentaFecha}
-                    />
-                  </label>
-                  {historialVentaFecha ? (
-                    <AppFeedbackMessage
-                      variant="warning"
-                      description="Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos."
-                    />
-                  ) : null}
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-black text-slate-700">Cliente</span>
-                      <SmartSelect
-                        value={historialVentaCliente}
-                        onChange={(event) => setHistorialVentaCliente(event.target.value)}
-                        className="h-[42px]"
-                      >
-                        {historialVentaClientes.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </SmartSelect>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
-                      <SmartSelect
-                        value={historialVentaOrden}
-                        onChange={(event) => setHistorialVentaOrden(event.target.value as 'recent' | 'oldest')}
-                        className="h-[42px]"
-                      >
-                        <option value="recent">Más recientes</option>
-                        <option value="oldest">Más antiguos</option>
-                      </SmartSelect>
-                    </label>
-                  </div>
-                  {(historialVentaFecha ||
-                    historialVentaCliente !== 'TODOS' ||
-                    historialVentaOrden !== 'recent') ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHistorialVentaFecha('');
-                        setHistorialVentaFechaPickerOpen(false);
-                        setHistorialVentaCliente('TODOS');
-                        setHistorialVentaOrden('recent');
-                      }}
-                      className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#334b85]"
-                    >
-                      Limpiar filtros
-                    </button>
-                  ) : null}
-                </div>
-              </header>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
-                {ventasHistorialFiltradas.length === 0 ? (
-                  <div className="rounded-[14px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-6 text-center text-sm font-bold text-slate-500">
-                    {ventasRealizadas.length > 0 &&
-                    (historialVentaFecha ||
-                      historialVentaCliente !== 'TODOS' ||
-                      historialVentaOrden !== 'recent')
-                      ? 'No hay registros con esos filtros.'
-                      : 'Aún no hay ventas registradas.'}
-                  </div>
-                ) : null}
-                {ventasHistorialFiltradas.map((venta) => {
-                  const detallesAbiertos = Boolean(ventasTecnicasAbiertas[venta.referenciaId]);
-                  const cafesVendidos = [
-                    ...new Set(
-                      (venta.items?.length
-                        ? venta.items.map((item) => [item.tipoCafe, item.calidad].filter(Boolean).join(' '))
-                        : venta.fifoBreakdown?.map((item) => item.nombreCafe || [item.tipoCafe, item.calidad].filter(Boolean).join(' ')) ?? []
-                      ).filter(Boolean),
-                    ),
-                  ].join(', ');
-
-                  return (
-                  <article
-                    key={venta.referenciaId}
-                    className="rounded-[18px] border border-[#e2e8f4] bg-white px-4 py-3 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-950">
-                          {venta.clienteNombre}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {formatDateLabel(venta.fecha)} · {kg(venta.totalKg)}
-                        </p>
-                        {cafesVendidos ? (
-                          <p className="mt-1 text-xs font-bold text-slate-500">
-                            {cafesVendidos}
-                          </p>
-                        ) : null}
-                        <p className="mt-1 text-base font-black text-[#173ea6]">
-                          {money(venta.totalVenta)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setVentasTecnicasAbiertas((actual) => ({
-                              ...actual,
-                              [venta.referenciaId]: !detallesAbiertos,
-                            }))
-                          }
-                          className="inline-flex min-h-[34px] items-center justify-center rounded-[11px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#173ea6] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fbff]"
-                        >
-                          {detallesAbiertos ? 'Ocultar detalles' : 'Ver detalles'}
-                        </button>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[0.65rem] font-black uppercase text-emerald-700">
-                          Registrada
-                        </span>
-                      </div>
-                    </div>
-                    {venta.fifoBreakdown?.length ? (
-                      detallesAbiertos ? (
-                        <div className="mt-4 space-y-2 rounded-[14px] border border-[#e3ebff] bg-[#f8fbff] px-3 py-3">
-                          <p className="text-xs font-black uppercase tracking-[0.1em] text-[#102d92]">
-                            Detalle de sublotes usados
-                          </p>
-                          {venta.fifoBreakdown.map((item, index) => (
-                            <article
-                              key={`${venta.referenciaId}-${item.groupId}-${item.subloteId}`}
-                              className="rounded-[12px] border border-[#e6ebf5] bg-white px-3 py-2"
-                            >
-                              <p className="text-sm font-black text-[#102d92]">
-                                {item.subloteCodigo ?? item.subloteNombre}
-                                {item.nombreCafe || item.tipoCafe || item.calidad ? (
-                                  <span className="text-slate-500"> · {item.nombreCafe || [item.tipoCafe, item.calidad].filter(Boolean).join(' ')}</span>
-                                ) : null}
-                              </p>
-                              <p className="mt-1 text-xs font-bold text-slate-700">
-                                {kg(item.pesoAsignado)} vendidos · venta #{index + 1}
-                              </p>
-                              <p className="mt-0.5 text-xs font-semibold text-slate-600">
-                                Ingreso: {formatDateLabel(item.fechaEntrada)}
-                              </p>
-                              <p className="mt-0.5 text-xs font-semibold text-slate-600">
-                                Inventario restante: {kg(item.pesoRestante)}
-                              </p>
-                              {index === 0 ? (
-                                <p className="mt-0.5 text-xs font-black text-slate-500">
-                                  Más antiguo
-                                </p>
-                              ) : null}
-                            </article>
-                          ))}
-                        </div>
-                      ) : null
-                    ) : null}
-                  </article>
-                );
-                })}
-              </div>
-            </section>
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -2166,7 +1998,7 @@ export default function Ventas() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900">
       <div className="mx-auto max-w-[430px] space-y-4">
         <header className="px-4 py-4 pt-6">
           <div className="relative flex items-center justify-center">

@@ -59,8 +59,32 @@ function normalizeError(error: unknown) {
   return 'No pudimos sincronizar este registro. Revisa los datos e intenta nuevamente.';
 }
 
+function isTechnicalServerError(error: unknown) {
+  const message = normalizeError(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : '';
+  const status =
+    error && typeof error === 'object' && 'status' in error
+      ? Number((error as { status?: unknown }).status)
+      : 0;
+
+  return (
+    status >= 500 ||
+    code === 'P2022' ||
+    /p2022|prisma|codigo_sublote|venta_detalle|problema temporal|problema interno|servidor|server/i.test(
+      message,
+    )
+  );
+}
+
 function getModuleErrorMessage(operation: SyncOperation, error: unknown) {
   const message = normalizeError(error);
+
+  if (isTechnicalServerError(error)) {
+    return 'No pudimos sincronizar este registro por un problema interno. Tus datos siguen guardados en este dispositivo.';
+  }
 
   if (operation.modulo === 'COMPRA') {
     return `No pudimos sincronizar esta compra. ${message || 'Revisa los datos obligatorios o la capacidad de bodega.'}`;
@@ -71,11 +95,17 @@ function getModuleErrorMessage(operation: SyncOperation, error: unknown) {
   }
 
   if (operation.modulo === 'VENTA') {
-    return 'No pudimos sincronizar esta venta. El inventario disponible cambió mientras estabas sin conexión.';
+    if (/inventario|stock|disponible|sublote/i.test(message)) {
+      return 'No pudimos sincronizar esta venta porque el inventario disponible cambió.';
+    }
+    return `No pudimos sincronizar esta venta. ${message}`;
   }
 
   if (operation.modulo === 'SECADO') {
-    return 'No pudimos sincronizar este secado. Uno de los sublotes ya no tiene el peso disponible.';
+    if (/peso|sublote|disponible|inventario/i.test(message)) {
+      return 'No pudimos sincronizar este secado porque uno de los sublotes ya no tiene el peso disponible.';
+    }
+    return `No pudimos sincronizar este secado. ${message}`;
   }
 
   return message;

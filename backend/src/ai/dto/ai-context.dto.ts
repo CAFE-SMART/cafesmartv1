@@ -46,6 +46,18 @@ export class AiBusinessContextDto {
     usandoDatosCacheados?: boolean;
     pendientesSync?: number;
   };
+
+  @IsOptional()
+  @IsObject()
+  financiero?: {
+    utilidadEstimada?: number;
+  };
+
+  @IsOptional()
+  @IsObject()
+  bodega?: {
+    capacidadKg?: number;
+  };
 }
 
 export function sanitizeAiText(value: unknown, maxLength = 500) {
