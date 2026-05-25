@@ -29,6 +29,23 @@
 					document.documentElement.classList.toggle('dark', resolved);
 					document.documentElement.style.colorScheme = resolved ? 'dark' : 'light';
 					document.documentElement.dataset.theme = resolved ? 'dark' : 'light';
+					const accessibilityRaw = localStorage.getItem('cafesmart:accessibility-preferences');
+					const accessibility = accessibilityRaw ? JSON.parse(accessibilityRaw) : null;
+					document.documentElement.classList.toggle(
+						'a11y-screen-reader',
+						Boolean(accessibility?.screenReaderMode),
+					);
+					document.documentElement.classList.toggle(
+						'a11y-high-contrast',
+						Boolean(accessibility?.highContrast),
+					);
+					document.documentElement.classList.remove('font-large', 'font-xlarge');
+					if (accessibility?.fontScale === 'large') {
+						document.documentElement.classList.add('font-large');
+					}
+					if (accessibility?.fontScale === 'xlarge') {
+						document.documentElement.classList.add('font-xlarge');
+					}
 				} catch {
 					document.documentElement.classList.remove('dark');
 					document.documentElement.dataset.theme = 'light';

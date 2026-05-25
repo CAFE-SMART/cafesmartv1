@@ -2,27 +2,35 @@ import { alertThemes } from './alertThemes';
 
 export const themeClasses = {
   page:
-    'min-h-screen bg-[#f6f7ff] text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100',
+    'min-h-screen bg-[#f6f7ff] text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-50',
   card:
-    'border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+    'border border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50',
   cardSoft:
-    'border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100',
+    'border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50',
   input:
-    'border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500',
-  textPrimary: 'text-slate-900 dark:text-slate-100',
-  textSecondary: 'text-slate-600 dark:text-slate-300',
+    'border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-50 dark:placeholder:text-slate-400',
+  textPrimary: 'text-slate-900 dark:text-slate-50',
+  textSecondary: 'text-slate-600 dark:text-slate-200',
+  textMuted: 'text-slate-500 dark:text-slate-300',
+  iconDefault: 'text-slate-600 dark:text-slate-100',
+  iconAccent: 'text-blue-700 dark:text-blue-200',
+  iconSoft: 'text-slate-500 dark:text-slate-200',
+  chip:
+    'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100',
+  badge:
+    'border border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/60 dark:bg-blue-500/15 dark:text-blue-100',
   modal:
-    'border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+    'border border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50',
   bottomNav:
-    'border border-slate-200 bg-white/95 text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300',
+    'border border-slate-200 bg-white/95 text-slate-600 shadow-lg dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-200',
   overlay: 'bg-slate-950/35 backdrop-blur-[2px] dark:bg-slate-950/55',
 
   pageBase:
-    'min-h-screen bg-[#f6f7ff] text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100',
+    'min-h-screen bg-[#f6f7ff] text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-50',
   cardBase:
-    'border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+    'border border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50',
   modalBase:
-    'border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+    'border border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50',
 } as const;
 
 export const feedbackThemeClasses = {

@@ -34,9 +34,9 @@ import {
 } from '../utils/inputLimits';
 
 const sectionTitleClass =
-  'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
+  'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a] dark:text-slate-300';
 const cardClass =
-  'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
+  'cs-card rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900';
 const DASHBOARD_HOME_CACHE_KEY = 'cached_dashboard_home';
 
 type CachedDashboardHome = {
@@ -174,8 +174,8 @@ function formatUpdatedAgo(updatedAt: string | null, now: number) {
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 text-[0.76rem]">
-      <span className="text-[#5a6b84]">{label}</span>
-      <span className="font-black text-[#1f2937]">{value}</span>
+      <span className="cs-muted text-[#5a6b84] dark:text-slate-300">{label}</span>
+      <span className="font-black text-[#1f2937] dark:text-white">{value}</span>
     </div>
   );
 }
@@ -203,13 +203,13 @@ function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
   const isDry = item.tipo === 'Seco';
   const Icon = isDry ? SunMedium : isGood ? ShieldCheck : Sparkles;
   const iconClass = isDry
-    ? 'bg-[#fff1da] text-[#c4670e]'
+    ? 'bg-[#fff1da] text-[#c4670e] dark:bg-amber-500/20 dark:text-amber-100'
     : isGood
-      ? 'bg-[#dcfce7] text-[#16845a]'
-      : 'bg-[#fff7d6] text-[#b77905]';
+      ? 'bg-[#dcfce7] text-[#16845a] dark:bg-emerald-500/20 dark:text-emerald-100'
+      : 'bg-[#fff7d6] text-[#b77905] dark:bg-amber-500/20 dark:text-amber-100';
   const qualityClass = isGood
-    ? 'bg-[#dcfce7] text-[#16845a]'
-    : 'bg-[#fff3c4] text-[#a15c00]';
+    ? 'border border-emerald-200 bg-[#dcfce7] text-[#16845a] dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-100'
+    : 'border border-amber-200 bg-[#fff3c4] text-[#a15c00] dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-100';
 
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
@@ -220,17 +220,17 @@ function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
           <Icon size={17} strokeWidth={2.35} />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937]">
+          <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937] dark:text-slate-100">
             {item.tipo}
           </p>
-          <p className="mt-1 flex items-center gap-1 text-[0.58rem] font-bold uppercase tracking-[0.04em] text-[#8a98ad]">
+          <p className="mt-1 flex items-center gap-1 text-[0.58rem] font-bold uppercase tracking-[0.04em] text-[#8a98ad] dark:text-slate-300">
             <CalendarDays size={10} strokeWidth={2.2} />
             Prom. {item.averageDays} dias
           </p>
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <p className="text-[0.78rem] font-black text-[#18479d]">
+        <p className="text-[0.78rem] font-black text-[#18479d] dark:text-blue-200">
           {formatKgUpper(item.totalKg)}
         </p>
         <span
@@ -914,9 +914,9 @@ export default function Inicio() {
 
         {dashboardState === 'valid' && mostrarOnboardingBodega ? (
           <section className="px-5 pb-3">
-            <div className="rounded-[18px] border border-[#f59e0b] bg-[#fff4cc] px-4 py-3 text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)]">
+            <div className="rounded-[18px] border border-[#f59e0b] bg-[#fff4cc] px-4 py-3 text-[#5f370e] shadow-[0_10px_24px_rgba(180,83,9,0.16)] dark:border-amber-500/80 dark:bg-amber-950/45 dark:text-amber-50">
               <div className="flex items-start gap-3">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#92400e]">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#92400e] dark:bg-amber-900/60 dark:text-amber-100">
                   <Warehouse size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -930,7 +930,7 @@ export default function Inicio() {
                     <button
                       type="button"
                       onClick={() => setMostrarOnboardingBodega(false)}
-                      className="inline-flex min-h-[34px] items-center rounded-full bg-white/70 px-3 text-[0.72rem] font-black text-[#5f370e]"
+                      className="inline-flex min-h-[34px] items-center rounded-full bg-white/70 px-3 text-[0.72rem] font-black text-[#5f370e] dark:border dark:border-amber-400/50 dark:bg-slate-900 dark:text-amber-50"
                     >
                       Más tarde
                     </button>
@@ -943,8 +943,8 @@ export default function Inicio() {
                     </button>
                   </div>
                   {capacidadInicialKg ? (
-                    <div className="mt-3 rounded-[14px] bg-white/75 p-3">
-                      <label htmlFor="inicio-capacidad-inicial" className="text-[0.72rem] font-black text-[#5f370e]">
+                    <div className="mt-3 rounded-[14px] bg-white/75 p-3 dark:bg-slate-900/80">
+                      <label htmlFor="inicio-capacidad-inicial" className="text-[0.72rem] font-black text-[#5f370e] dark:text-amber-100">
                         Capacidad máxima (kg)
                       </label>
                       <input
@@ -956,7 +956,7 @@ export default function Inicio() {
                           setCapacidadInicialKg(event.target.value);
                           setCapacidadInicialError(null);
                         }}
-                        className="mt-1 h-10 w-full rounded-[12px] border border-[#f3c363] bg-white px-3 text-sm font-black text-slate-900 outline-none"
+                        className="mt-1 h-10 w-full rounded-[12px] border border-[#f3c363] bg-white px-3 text-sm font-black text-slate-900 outline-none placeholder:text-slate-400 dark:border-amber-400/70 dark:bg-slate-950 dark:text-slate-50 dark:placeholder:text-slate-400"
                         placeholder="Ej. 6000"
                       />
                       {capacidadInicialError ? (

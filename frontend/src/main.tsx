@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import App from './App';
 import { CloudStatusProvider } from './context/CloudStatusContext';
 import { ThemeProvider } from './theme/themeProvider';
+import { AccessibilityProvider } from './theme/accessibilityProvider';
 import { UserProvider } from './context/UserContext';
 import { registerServiceWorker } from './services/pwaService';
 import './index.css';
@@ -19,9 +20,11 @@ registerServiceWorker();
 function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <CloudStatusProvider>
-        <UserProvider>{children}</UserProvider>
-      </CloudStatusProvider>
+      <AccessibilityProvider>
+        <CloudStatusProvider>
+          <UserProvider>{children}</UserProvider>
+        </CloudStatusProvider>
+      </AccessibilityProvider>
     </ThemeProvider>
   );
 }

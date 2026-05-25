@@ -1101,18 +1101,18 @@ export default function Sublotes() {
         ) : null}
 
         {!loading && detalle && !subloteActivo ? (
-          <section className="rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+          <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
+                <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
                   {titleCase(detalle.lote.tipoCafe)}{' '}
                   {titleCase(detalle.lote.calidad)}
                 </p>
-                <p className="mt-1 text-[0.58rem] font-semibold text-[#8a8a8a]">
+                <p className="mt-1 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
                   Sublotes disponibles
                 </p>
               </div>
-              <span className="text-[0.58rem] font-black text-[#8a8a8a]">
+              <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
                 {detalle.sublotes.length} disponibles
               </span>
             </div>
@@ -1135,11 +1135,11 @@ export default function Sublotes() {
                     type="button"
                     onClick={() => setSelectedSubloteId(sublote.id)}
                     title={`${visualCode} · ${fullName}`}
-                    className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)]"
+                    className="cs-card flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)] dark:border-slate-600 dark:bg-slate-900"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="truncate text-[0.74rem] font-black text-[#202020]">
+                        <p className="truncate text-[0.74rem] font-black text-[#202020] dark:text-slate-100">
                           {visualCode}
                         </p>
                         {showHumidityWarning ? (
@@ -1150,20 +1150,20 @@ export default function Sublotes() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
+                      <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
                         {fullName} · {formatKg(sublote.pesoActual)}
                       </p>
                       {showHumidityWarning ? (
-                        <p className="mt-1 text-[0.56rem] font-black text-orange-700">
+                        <p className="mt-1 text-[0.56rem] font-black text-orange-700 dark:text-amber-200">
                           {formatHumedad(sublote.humedad)}
                         </p>
                       ) : (
-                        <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5]">
+                        <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5] dark:text-slate-400">
                           {formatDays(getDaysForSublote(sublote))} en bodega
                         </p>
                       )}
                     </div>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-[0.54rem] font-black uppercase text-[#2f4aa4]">
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[0.54rem] font-black uppercase text-[#2f4aa4] dark:text-blue-200">
                       Detalles
                       <ChevronRight size={13} strokeWidth={2.4} />
                     </span>
@@ -1176,7 +1176,7 @@ export default function Sublotes() {
               <button
                 type="button"
                 onClick={() => setShowAllSublotes(true)}
-                className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e3e8f5] bg-[#f7f9ff] text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4]"
+                className="cs-chip mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e3e8f5] bg-[#f7f9ff] text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4] dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100"
               >
                 Ver {hiddenSublotesCount} sublotes mas
               </button>
@@ -1187,12 +1187,12 @@ export default function Sublotes() {
         {!loading && subloteActivo ? (
           <div className="space-y-3">
             {detalle && detalle.sublotes.length > 1 ? (
-              <section className="hidden rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+              <section className="cs-card hidden rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
+                  <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
                     Sublotes
                   </p>
-                  <span className="text-[0.58rem] font-black text-[#8a8a8a]">
+                  <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
                     {detalle.sublotes.length} disponibles
                   </span>
                 </div>
@@ -1216,13 +1216,13 @@ export default function Sublotes() {
                         title={`${visualCode} · ${fullName}`}
                         className={`flex items-center justify-between rounded-[8px] border px-3 py-2 text-left transition ${
                           active
-                            ? 'border-[#2f4aa4] bg-[#eef3ff]'
-                            : 'border-[#ececec] bg-white'
+                            ? 'border-[#2f4aa4] bg-[#eef3ff] dark:border-blue-400 dark:bg-blue-700/40'
+                            : 'border-[#ececec] bg-white dark:border-slate-600 dark:bg-slate-900'
                         }`}
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <p className="truncate text-[0.7rem] font-black text-[#202020]">
+                            <p className="truncate text-[0.7rem] font-black text-[#202020] dark:text-slate-100">
                               {visualCode}
                             </p>
                             {showHumidityWarning ? (
@@ -1231,7 +1231,7 @@ export default function Sublotes() {
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a]">
+                          <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
                             {fullName} · {formatKg(sublote.pesoActual)} ·{' '}
                             {showHumidityWarning
                               ? formatHumedad(sublote.humedad)
@@ -1251,22 +1251,22 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={() => setShowAnalysis((current) => !current)}
-              className="flex min-h-[36px] w-full items-center justify-between rounded-[8px] border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.02)]"
+              className="cs-card flex min-h-[36px] w-full items-center justify-between rounded-[8px] border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900"
             >
               <span>
-                <span className="block text-[0.6rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
+                <span className="block text-[0.6rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
                   Analisis financiero
                 </span>
-                <span className="mt-0.5 block text-[0.5rem] font-semibold text-[#8a8a8a]">
+                <span className="mt-0.5 block text-[0.5rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
                   Utilidad, merma y valor monetario
                 </span>
               </span>
-              <span className="text-[0.58rem] font-black text-[#2f4aa4]">
+              <span className="text-[0.58rem] font-black text-[#2f4aa4] dark:text-blue-200">
                 {showAnalysis ? 'Ocultar' : 'Ver'}
               </span>
             </button>
 
-            <section className="rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+            <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center gap-2 text-[#1c1c1c]">
                 <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
                   <Info size={14} strokeWidth={2.4} />
@@ -1276,7 +1276,7 @@ export default function Sublotes() {
                 </h2>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2">
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
                 <InfoField
                   label="Tipo"
                   value={titleCase(subloteActivo.tipoCafe)}
@@ -1306,7 +1306,7 @@ export default function Sublotes() {
             </section>
 
             {showAnalysis ? (
-              <section className="rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+              <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
                 <div className="flex items-center gap-2 text-[#1c1c1c]">
                   <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
                     <Tag size={14} strokeWidth={2.3} />
@@ -1316,7 +1316,7 @@ export default function Sublotes() {
                   </h2>
                 </div>
 
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2">
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
                   <InfoField
                     label="Utilidad neta"
                     value={formatCurrency(financieroActivo?.utilidadNeta ?? 0)}
@@ -1339,7 +1339,7 @@ export default function Sublotes() {
               </section>
             ) : null}
 
-            <section className="rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+            <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center gap-2 text-[#1c1c1c]">
                 <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
                   <FlaskConical size={14} strokeWidth={2.3} />
@@ -1349,7 +1349,7 @@ export default function Sublotes() {
                 </h2>
               </div>
 
-              <div className="mt-2 space-y-2 border-t border-[#f0f0f0] pt-2">
+              <div className="mt-2 space-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
                 <TechnicalField
                   label="Humedad"
                   value={formatHumedad(subloteActivo.humedad)}
@@ -1370,7 +1370,7 @@ export default function Sublotes() {
       </main>
 
       {subloteActivo ? (
-        <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1">
+        <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1 dark:bg-slate-950">
           <div className="mx-auto grid w-full max-w-[430px] grid-cols-3 gap-1.5">
             <button
               type="button"
@@ -1384,7 +1384,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={handleOpenWeightModal}
-              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f]"
+              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
             >
               <Scale size={12} strokeWidth={2.2} />
               Ajustar peso
@@ -1397,7 +1397,7 @@ export default function Sublotes() {
                   `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
                 )
               }
-              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f]"
+              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
             >
               <Tag size={12} strokeWidth={2.2} />
               Ver gastos
@@ -1638,11 +1638,11 @@ function InfoField({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[0.52rem] font-black uppercase tracking-[0.08em] text-[#a8a8a8]">
+      <p className="text-[0.52rem] font-black uppercase tracking-[0.08em] text-[#a8a8a8] dark:text-slate-300">
         {label}
       </p>
       <p
-        className={`mt-0.5 text-[0.72rem] font-black leading-tight text-[#232323] ${accent === 'price' ? 'text-[#c4551d]' : ''}`}
+        className={`mt-0.5 text-[0.72rem] font-black leading-tight text-[#232323] dark:text-slate-100 ${accent === 'price' ? 'text-[#c4551d] dark:text-amber-200' : ''}`}
       >
         {value}
       </p>
@@ -1663,15 +1663,15 @@ function TechnicalField({
 }) {
   return (
     <div>
-      <p className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-[#a8a8a8]">
+      <p className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-[#a8a8a8] dark:text-slate-300">
         {label}
       </p>
       <button
         type="button"
         onClick={onEdit}
-        className="mt-1 flex h-[34px] w-full items-center justify-between rounded-[8px] border border-[#e2e2e2] bg-white px-2.5 text-left transition hover:border-[#b9c5e8] focus:border-[#2f4aa4] focus:outline-none"
+        className="mt-1 flex h-[34px] w-full items-center justify-between rounded-[8px] border border-[#e2e2e2] bg-white px-2.5 text-left transition hover:border-[#b9c5e8] focus:border-[#2f4aa4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:hover:border-slate-500 dark:focus:border-blue-400"
       >
-        <p className="min-w-0 text-[0.82rem] font-black leading-none tracking-normal text-[#222222]">
+        <p className="min-w-0 text-[0.82rem] font-black leading-none tracking-normal text-[#222222] dark:text-slate-100">
           <span>{value}</span>
         </p>
         {toneClass ? (
@@ -1680,7 +1680,7 @@ function TechnicalField({
             aria-hidden="true"
           />
         ) : null}
-        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#b6b6b6]">
+        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#b6b6b6] dark:text-slate-200">
           <Pencil size={11} strokeWidth={2.2} />
         </span>
       </button>

@@ -1,9 +1,9 @@
 export const alertThemes = {
   error: {
     container:
-      'border border-red-300 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-100',
+      'border border-red-300 bg-red-50 text-red-900 dark:border-red-500/80 dark:bg-red-950/45 dark:text-red-50',
     title: 'text-red-800 dark:text-red-200',
-    description: 'text-red-700 dark:text-red-100',
+    description: 'text-red-700 dark:text-red-50',
     iconWrap: 'bg-red-100 dark:bg-red-900/50',
     icon: 'text-red-700 dark:text-red-300',
     badge:
@@ -11,9 +11,9 @@ export const alertThemes = {
   },
   warning: {
     container:
-      'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/35 dark:text-amber-100',
+      'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/80 dark:bg-amber-950/40 dark:text-amber-50',
     title: 'text-amber-900 dark:text-amber-200',
-    description: 'text-amber-800 dark:text-amber-100',
+    description: 'text-amber-800 dark:text-amber-50',
     iconWrap: 'bg-amber-100 dark:bg-amber-900/40',
     icon: 'text-amber-700 dark:text-amber-300',
     badge:
@@ -21,9 +21,9 @@ export const alertThemes = {
   },
   success: {
     container:
-      'border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-100',
+      'border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/80 dark:bg-emerald-950/40 dark:text-emerald-50',
     title: 'text-emerald-900 dark:text-emerald-200',
-    description: 'text-emerald-800 dark:text-emerald-100',
+    description: 'text-emerald-800 dark:text-emerald-50',
     iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40',
     icon: 'text-emerald-700 dark:text-emerald-300',
     badge:
@@ -31,9 +31,9 @@ export const alertThemes = {
   },
   info: {
     container:
-      'border border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-700 dark:bg-blue-950/35 dark:text-blue-100',
+      'border border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-500/80 dark:bg-blue-950/40 dark:text-blue-50',
     title: 'text-blue-900 dark:text-blue-200',
-    description: 'text-blue-800 dark:text-blue-100',
+    description: 'text-blue-800 dark:text-blue-50',
     iconWrap: 'bg-blue-100 dark:bg-blue-900/40',
     icon: 'text-blue-700 dark:text-blue-300',
     badge:

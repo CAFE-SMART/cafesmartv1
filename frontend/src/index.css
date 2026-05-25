@@ -16,15 +16,169 @@
   --app-border: #e2e8f0;
   --app-text: #0f172a;
   --app-text-muted: #64748b;
+  --bg-page: #f6f7ff;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-soft: #f8fafc;
+  --bg-input: #ffffff;
+  --bg-modal: #ffffff;
+  --bg-chip: #f1f5f9;
+  --bg-badge: #eff6ff;
+  --bg-disabled: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  --text-soft: #64748b;
+  --text-inverse: #ffffff;
+  --text-disabled: #94a3b8;
+  --border-default: #cbd5e1;
+  --border-soft: #e2e8f0;
+  --border-strong: #94a3b8;
+  --border-focus: #2563eb;
+  --icon-default: #475569;
+  --icon-soft: #64748b;
+  --icon-accent: #1d4ed8;
+  --icon-danger: #b91c1c;
+  --icon-warning: #b45309;
+  --icon-success: #047857;
+  --icon-disabled: #94a3b8;
+  --success-bg: #ecfdf5;
+  --success-text: #065f46;
+  --success-border: #6ee7b7;
+  --warning-bg: #fffbeb;
+  --warning-text: #92400e;
+  --warning-border: #fbbf24;
+  --danger-bg: #fef2f2;
+  --danger-text: #991b1b;
+  --danger-border: #fca5a5;
+  --info-bg: #eff6ff;
+  --info-text: #1e40af;
+  --info-border: #93c5fd;
+  --button-primary-bg: #1d4ed8;
+  --button-primary-text: #ffffff;
+  --button-secondary-bg: #ffffff;
+  --button-secondary-text: #1e293b;
+  --button-secondary-border: #cbd5e1;
+  --cs-text-primary: #0f172a;
+  --cs-text-secondary: #334155;
+  --cs-text-muted: #475569;
+  --cs-border-default: #cbd5e1;
+  --cs-border-strong: #475569;
+  --cs-bg-card: #ffffff;
+  --cs-bg-card-soft: #f8fafc;
+  --cs-bg-input: #ffffff;
 }
 
 .dark {
   --app-bg: #020617;
   --app-surface: #0f172a;
   --app-surface-muted: #1e293b;
-  --app-border: #334155;
+  --app-border: #475569;
   --app-text: #f8fafc;
-  --app-text-muted: #cbd5e1;
+  --app-text-muted: #e2e8f0;
+  --bg-page: #020617;
+  --bg-surface: #0f172a;
+  --bg-card: #0f172a;
+  --bg-card-soft: #1e293b;
+  --bg-input: #020617;
+  --bg-modal: #0f172a;
+  --bg-chip: #1e293b;
+  --bg-badge: rgba(37, 99, 235, 0.18);
+  --bg-disabled: rgba(30, 41, 59, 0.72);
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-muted: #cbd5e1;
+  --text-soft: #cbd5e1;
+  --text-inverse: #020617;
+  --text-disabled: #94a3b8;
+  --border-default: #64748b;
+  --border-soft: #475569;
+  --border-strong: #94a3b8;
+  --border-focus: #60a5fa;
+  --icon-default: #e2e8f0;
+  --icon-soft: #cbd5e1;
+  --icon-accent: #bfdbfe;
+  --icon-danger: #fecaca;
+  --icon-warning: #fde68a;
+  --icon-success: #bbf7d0;
+  --icon-disabled: #64748b;
+  --success-bg: rgba(6, 78, 59, 0.58);
+  --success-text: #ecfdf5;
+  --success-border: #34d399;
+  --warning-bg: rgba(120, 53, 15, 0.62);
+  --warning-text: #fffbeb;
+  --warning-border: #fbbf24;
+  --danger-bg: rgba(127, 29, 29, 0.62);
+  --danger-text: #fef2f2;
+  --danger-border: #f87171;
+  --info-bg: rgba(30, 64, 175, 0.48);
+  --info-text: #eff6ff;
+  --info-border: #60a5fa;
+  --button-primary-bg: #2563eb;
+  --button-primary-text: #ffffff;
+  --button-secondary-bg: #1e293b;
+  --button-secondary-text: #f8fafc;
+  --button-secondary-border: #64748b;
+  --cs-text-primary: #f8fafc;
+  --cs-text-secondary: #e2e8f0;
+  --cs-text-muted: #cbd5e1;
+  --cs-border-default: #64748b;
+  --cs-border-strong: #94a3b8;
+  --cs-bg-card: #0f172a;
+  --cs-bg-card-soft: #1e293b;
+  --cs-bg-input: #020617;
+}
+
+.a11y-high-contrast {
+  --app-text: #020617;
+  --app-text-muted: #1e293b;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f8fafc;
+  --app-border: #475569;
+  --bg-card: #ffffff;
+  --bg-card-soft: #f8fafc;
+  --bg-input: #ffffff;
+  --text-primary: #020617;
+  --border-default: #475569;
+  --border-soft: #64748b;
+  --border-strong: #1e293b;
+  --text-secondary: #1e293b;
+  --text-muted: #334155;
+  --text-soft: #475569;
+  --cs-text-primary: #020617;
+  --cs-text-secondary: #1e293b;
+  --cs-text-muted: #334155;
+  --cs-border-default: #475569;
+  --cs-border-strong: #0f172a;
+  --cs-bg-card: #ffffff;
+  --cs-bg-card-soft: #f8fafc;
+  --cs-bg-input: #ffffff;
+}
+
+.dark.a11y-high-contrast {
+  --app-text: #ffffff;
+  --app-text-muted: #f1f5f9;
+  --app-surface: #0f172a;
+  --app-surface-muted: #1e293b;
+  --app-border: #cbd5e1;
+  --bg-card: #0f172a;
+  --bg-card-soft: #1e293b;
+  --bg-input: #020617;
+  --text-primary: #ffffff;
+  --border-default: #cbd5e1;
+  --border-soft: #94a3b8;
+  --border-strong: #ffffff;
+  --text-secondary: #f8fafc;
+  --text-muted: #f1f5f9;
+  --text-soft: #e2e8f0;
+  --cs-text-primary: #ffffff;
+  --cs-text-secondary: #f8fafc;
+  --cs-text-muted: #e2e8f0;
+  --cs-border-default: #cbd5e1;
+  --cs-border-strong: #ffffff;
+  --cs-bg-card: #0f172a;
+  --cs-bg-card-soft: #1e293b;
+  --cs-bg-input: #020617;
 }
 
 * {
@@ -40,6 +194,77 @@ body {
   background: var(--app-bg);
   min-width: 320px;
   min-height: 100vh;
+}
+
+html.font-large {
+  font-size: 112.5%;
+}
+
+html.font-xlarge {
+  font-size: 125%;
+}
+
+.a11y-screen-reader :focus-visible,
+.a11y-high-contrast :focus-visible {
+  outline: 3px solid var(--border-focus);
+  outline-offset: 3px;
+}
+
+.a11y-high-contrast button,
+.a11y-high-contrast input,
+.a11y-high-contrast textarea,
+.a11y-high-contrast select,
+.a11y-high-contrast [role='button'] {
+  border-color: var(--border-strong);
+}
+
+.a11y-high-contrast .cs-card,
+.a11y-high-contrast .rounded-\[18px\],
+.a11y-high-contrast .rounded-\[20px\],
+.a11y-high-contrast .rounded-\[22px\],
+.a11y-high-contrast .rounded-\[24px\],
+.a11y-high-contrast .rounded-\[26px\] {
+  border-color: var(--cs-border-default);
+}
+
+.a11y-high-contrast .cs-muted,
+.a11y-high-contrast .text-slate-400,
+.a11y-high-contrast .text-slate-500,
+.a11y-high-contrast .text-slate-600,
+.a11y-high-contrast .text-gray-500,
+.a11y-high-contrast .text-gray-600,
+.a11y-high-contrast .text-\[\#73829a\],
+.a11y-high-contrast .text-\[\#8a98ad\],
+.a11y-high-contrast .text-\[\#8a8a8a\],
+.a11y-high-contrast .text-\[\#a5a5a5\],
+.a11y-high-contrast .text-\[\#a8a8a8\],
+.a11y-high-contrast .text-\[\#5570a8\],
+.a11y-high-contrast .text-\[\#52657d\],
+.a11y-high-contrast .dark\:text-slate-300 {
+  color: var(--cs-text-secondary);
+}
+
+.a11y-high-contrast .cs-chip,
+.a11y-high-contrast .rounded-full,
+.a11y-high-contrast .rounded-\[9px\],
+.a11y-high-contrast .rounded-\[10px\],
+.a11y-high-contrast .rounded-\[11px\],
+.a11y-high-contrast .rounded-\[12px\] {
+  border-color: var(--cs-border-strong);
+}
+
+.a11y-high-contrast input,
+.a11y-high-contrast select,
+.a11y-high-contrast textarea {
+  background-color: var(--cs-bg-input);
+  border-color: var(--cs-border-strong);
+  color: var(--cs-text-primary);
+}
+
+.a11y-high-contrast .text-slate-400,
+.a11y-high-contrast .text-slate-500,
+.a11y-high-contrast .dark\:text-slate-300 {
+  color: var(--text-muted);
 }
 
 .dark body {
@@ -124,7 +349,7 @@ body {
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 h1,
@@ -535,15 +760,87 @@ select {
 .dark .cs-workflow-page .text-slate-700,
 .dark .cs-workflow-page .text-slate-600,
 .dark .cs-workflow-page .text-slate-500,
+.dark .cs-workflow-page .text-slate-400,
 .dark .cs-workflow-page .text-\[\#40516d\],
 .dark .cs-workflow-page .text-\[\#52657d\],
 .dark .cs-workflow-page .text-\[\#334b85\],
 .dark .cs-workflow-page .text-\[\#375a9c\],
+.dark .cs-workflow-page .text-\[\#5570a8\],
+.dark .cs-workflow-page .text-\[\#73829a\],
+.dark .cs-workflow-page .text-\[\#8a8a8a\],
+.dark .cs-workflow-page .text-\[\#8a98ad\],
+.dark .cs-workflow-page .text-\[\#9a9a9a\],
+.dark .cs-workflow-page .text-\[\#a5a5a5\],
+.dark .cs-workflow-page .text-\[\#a8a8a8\],
+.dark .cs-workflow-page .text-\[\#b6b6b6\],
+.dark .cs-workflow-page .text-\[\#b8b8b8\],
 .dark .cs-workflow-page .text-\[\#4f4f4f\],
 .dark .cs-workflow-page .text-\[\#5a5a5a\],
 .dark .cs-workflow-page .text-\[\#707070\],
 .dark .cs-workflow-page .text-\[\#777777\] {
   color: #cbd5e1;
+}
+
+.dark .text-\[\#5a6b84\],
+.dark .text-\[\#7f8ca1\],
+.dark .text-\[\#8a98ad\],
+.dark .text-\[\#73829a\],
+.dark .text-\[\#5570a8\],
+.dark .text-\[\#8a8a8a\],
+.dark .text-\[\#a5a5a5\],
+.dark .text-\[\#a8a8a8\],
+.dark .text-\[\#b6b6b6\] {
+  color: #cbd5e1;
+}
+
+.dark .text-\[\#18479d\],
+.dark .text-\[\#102d92\],
+.dark .text-\[\#2f4aa4\],
+.dark .text-\[\#2f63d8\],
+.dark .text-\[\#24469a\],
+.dark .text-\[\#173ea6\],
+.dark .text-\[\#173a8a\],
+.dark .text-\[\#08256d\],
+.dark .text-\[\#0f235c\] {
+  color: #bfdbfe;
+}
+
+.dark .text-\[\#1f2937\],
+.dark .text-\[\#202020\],
+.dark .text-\[\#232323\],
+.dark .text-\[\#3a3a3a\],
+.dark .text-\[\#1c1c1c\],
+.dark .text-\[\#222222\] {
+  color: #f8fafc;
+}
+
+.dark .text-\[\#16845a\] {
+  color: #bbf7d0;
+}
+
+.dark .text-\[\#a15c00\],
+.dark .text-\[\#b77905\],
+.dark .text-\[\#c4551d\],
+.dark .text-orange-700 {
+  color: #fde68a;
+}
+
+.dark .bg-\[\#dcfce7\] {
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
+.dark .bg-\[\#fff3c4\],
+.dark .bg-\[\#fff7d6\],
+.dark .bg-\[\#fff1da\] {
+  background-color: rgba(245, 158, 11, 0.2);
+}
+
+.dark .bg-\[\#f2f3f7\] {
+  background-color: #334155;
+}
+
+.dark .cs-workflow-page .bg-\[\#f2f3f7\] {
+  background-color: #334155;
 }
 
 .dark .cs-workflow-page input,
@@ -562,6 +859,50 @@ select {
 .dark .cs-workflow-page input::placeholder,
 .dark .cs-workflow-page textarea::placeholder {
   color: #94a3b8;
+}
+
+html.a11y-high-contrast .cs-workflow-page,
+html.a11y-high-contrast body,
+html.a11y-high-contrast #root {
+  color: var(--cs-text-primary);
+}
+
+html.a11y-high-contrast .cs-workflow-page .bg-white,
+html.a11y-high-contrast .cs-workflow-page .bg-white\/90,
+html.a11y-high-contrast .cs-workflow-page .bg-white\/95,
+html.a11y-high-contrast .bg-white,
+html.a11y-high-contrast .bg-white\/90,
+html.a11y-high-contrast .bg-white\/95 {
+  background-color: var(--cs-bg-card);
+}
+
+html.a11y-high-contrast .cs-workflow-page .bg-slate-50,
+html.a11y-high-contrast .cs-workflow-page .bg-slate-100,
+html.a11y-high-contrast .bg-slate-50,
+html.a11y-high-contrast .bg-slate-100 {
+  background-color: var(--cs-bg-card-soft);
+}
+
+html.a11y-high-contrast .cs-workflow-page .text-slate-950,
+html.a11y-high-contrast .cs-workflow-page .text-slate-900,
+html.a11y-high-contrast .cs-workflow-page .text-slate-800,
+html.a11y-high-contrast .cs-workflow-page .text-slate-700,
+html.a11y-high-contrast .text-slate-950,
+html.a11y-high-contrast .text-slate-900,
+html.a11y-high-contrast .text-slate-800,
+html.a11y-high-contrast .text-slate-700,
+html.a11y-high-contrast .text-\[\#1f2937\],
+html.a11y-high-contrast .text-\[\#202020\],
+html.a11y-high-contrast .text-\[\#232323\],
+html.a11y-high-contrast .text-\[\#3a3a3a\],
+html.a11y-high-contrast .text-\[\#111827\],
+html.a11y-high-contrast .text-\[\#0f235c\] {
+  color: var(--cs-text-primary);
+}
+
+html.dark.a11y-high-contrast .shadow-sm,
+html.dark.a11y-high-contrast [class*='shadow-'] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.72);
 }
 
 .dark .cs-workflow-page input:disabled,

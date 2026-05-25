@@ -772,22 +772,22 @@ export default function SecadoInicio() {
         </header>
 
         {view === 'pending' ? (
-          <section className="rounded-[18px] border border-[#dbe7ff] bg-white p-3.5 shadow-[0_8px_24px_rgba(47,99,216,0.07)]">
+          <section className="cs-card rounded-[18px] border border-[#dbe7ff] bg-white p-3.5 shadow-[0_8px_24px_rgba(47,99,216,0.07)] dark:border-slate-600 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5570a8]">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#5570a8] dark:text-slate-300">
                   Secados pendientes
                 </p>
-                <h2 className="mt-2 text-[1.2rem] font-black text-[#0f235c]">
+                <h2 className="mt-2 text-[1.2rem] font-black text-[#0f235c] dark:text-slate-100">
                   Lotes por finalizar
                 </h2>
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2 dark:border-slate-600 dark:bg-slate-800">
               <label
                 htmlFor="secado-pending-quality-filter"
-                className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a]"
+                className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a] dark:text-slate-200"
               >
                 Tipo de calidad
               </label>
@@ -819,25 +819,25 @@ export default function SecadoInicio() {
                   <article
                     key={session.id}
                     title={`${sessionCode} · ${sessionName}`}
-                    className="rounded-[14px] border border-[#cfe0ff] bg-[#f8fbff] p-3 shadow-[0_8px_20px_rgba(47,99,216,0.08)]"
+                    className="cs-card rounded-[14px] border border-[#cfe0ff] bg-[#f8fbff] p-3 shadow-[0_8px_20px_rgba(47,99,216,0.08)] dark:border-slate-600 dark:bg-slate-900"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="inline-flex rounded-xl bg-[#eaf2ff] p-2 text-[#2f63d8]">
+                      <span className="inline-flex rounded-xl bg-[#eaf2ff] p-2 text-[#2f63d8] dark:bg-blue-500/20 dark:text-blue-100">
                         <SunMedium size={18} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+                          <span className="cs-chip inline-flex rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.68rem] font-black text-[#102d92] dark:border-blue-400/60 dark:bg-blue-500/20 dark:text-blue-100">
                             {sessionCode}
                           </span>
-                          <p className="truncate text-base font-black text-[#0f235c]">
+                          <p className="truncate text-base font-black text-[#0f235c] dark:text-slate-100">
                             Origen: {originCodes}
                           </p>
                         </div>
-                        <p className="mt-1 text-sm font-semibold text-[#2f63d8]">
+                        <p className="mt-1 text-sm font-semibold text-[#2f63d8] dark:text-blue-200">
                           {estadoLabel(session)}
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300">
                           <span>{formatKg(totalSecadoKg(session))} kg</span>
                           <span>Resultado seco pendiente</span>
                           <span>
@@ -864,7 +864,7 @@ export default function SecadoInicio() {
                       <button
                         type="button"
                         onClick={() => setCancelTarget(session)}
-                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#334b85] transition hover:bg-[#f4f7ff]"
+                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#334b85] transition hover:bg-[#f4f7ff] dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                       >
                         Cancelar secado
                       </button>
@@ -895,11 +895,11 @@ export default function SecadoInicio() {
 
         {view === 'start' ? (
           <>
-            <section className="rounded-[18px] border border-slate-100 bg-white p-3.5 shadow-[0_6px_18px_rgba(15,23,42,0.04)]">
-              <h2 className="text-base font-black leading-tight text-slate-950">
+            <section className="cs-card rounded-[18px] border border-slate-100 bg-white p-3.5 shadow-[0_6px_18px_rgba(15,23,42,0.04)] dark:border-slate-600 dark:bg-slate-900">
+              <h2 className="text-base font-black leading-tight text-slate-950 dark:text-slate-100">
                 Selecciona los sublotes de café verde
               </h2>
-              <p className="mt-1.5 text-[0.72rem] font-semibold leading-5 text-slate-500">
+              <p className="mt-1.5 text-[0.72rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
                 Selecciona solo los sublotes que vas a secar. Ajusta el peso
                 directamente si procesas una parte.
               </p>
@@ -909,7 +909,7 @@ export default function SecadoInicio() {
                   type="button"
                   onClick={seleccionarTodo}
                   disabled={todosSeleccionados || availableSublotes.length === 0}
-                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                 >
                   Seleccionar todo
                 </button>
@@ -917,16 +917,16 @@ export default function SecadoInicio() {
                   type="button"
                   onClick={limpiarSeleccion}
                   disabled={selectedIds.length === 0}
-                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                 >
                   Limpiar
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[13px] border border-[#dbe7ff] bg-[#f5f9ff] px-3 py-2 dark:border-slate-600 dark:bg-slate-800">
                 <label
                   htmlFor="secado-quality-filter"
-                  className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a]"
+                  className="shrink-0 text-[0.7rem] font-black uppercase tracking-[0.08em] text-[#24469a] dark:text-slate-200"
                 >
                   Tipo de calidad
                 </label>

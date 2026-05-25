@@ -46,6 +46,8 @@ import {
 } from '../components/forms/GuidedError';
 import { useUser } from '../context/UserContext';
 import { useTheme, type ThemePreference } from '../theme/themeProvider';
+import { useAccessibility } from '../theme/accessibilityProvider';
+import type { FontScalePreference } from '../theme/accessibilityService';
 import { updateRememberedAccountIfCurrent } from '../storage/authStorage';
 import {
   obtenerDetalleLote,
@@ -436,6 +438,12 @@ export default function Ajustes() {
   const { user, token, hasCompany, setSession, logout } = useUser();
   const { isOffline } = useNetworkStatus();
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const {
+    preferences: accessibilityPreferences,
+    setScreenReaderMode,
+    setHighContrast,
+    setFontScale,
+  } = useAccessibility();
 
   const initialConfig = useMemo(
     () => ({
@@ -534,6 +542,9 @@ export default function Ajustes() {
   );
   const [syncPanelOpen, setSyncPanelOpen] = useState(false);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const [accessibilityModal, setAccessibilityModal] = useState<
+    'screen-reader' | 'high-contrast' | 'font-scale' | null
+  >(null);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
 
   const clearFeedback = () => {
@@ -1678,6 +1689,72 @@ export default function Ajustes() {
     },
   ];
 
+  const accessibilityCards = [
+    {
+      id: 'screen-reader',
+      title: 'Lector de pantalla',
+      description: 'Mejora la navegación con tecnologías asistivas.',
+      status: accessibilityPreferences.screenReaderMode
+        ? 'Activado'
+        : 'Desactivado',
+      icon: ScanSearch,
+      iconStyle: 'bg-[#eff4ff] text-[#2c57cc] dark:bg-blue-500/15 dark:text-blue-200',
+      onClick: () => setAccessibilityModal('screen-reader' as const),
+    },
+    {
+      id: 'high-contrast',
+      title: 'Alto contraste',
+      description: 'Aumenta textos, bordes y alertas.',
+      status: accessibilityPreferences.highContrast
+        ? 'Activado'
+        : 'Desactivado',
+      icon: Eye,
+      iconStyle: 'bg-[#f3f6ff] text-[#1f56dd] dark:bg-slate-800 dark:text-slate-100',
+      onClick: () => setAccessibilityModal('high-contrast' as const),
+    },
+    {
+      id: 'font-scale',
+      title: 'Tamaño de fuente',
+      description: 'Ajusta el texto en toda la app.',
+      status:
+        accessibilityPreferences.fontScale === 'xlarge'
+          ? 'Extra grande'
+          : accessibilityPreferences.fontScale === 'large'
+            ? 'Grande'
+            : 'Normal',
+      icon: Settings,
+      iconStyle: 'bg-[#eef2ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100',
+      onClick: () => setAccessibilityModal('font-scale' as const),
+    },
+  ] as const;
+
+  const binaryAccessibilityOptions = [
+    { value: false, label: 'Desactivado' },
+    { value: true, label: 'Activado' },
+  ] as const;
+
+  const fontScaleOptions: Array<{
+    value: FontScalePreference;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: 'normal',
+      label: 'Normal',
+      description: 'Usa el tamaño actual de CaféSmart.',
+    },
+    {
+      value: 'large',
+      label: 'Grande',
+      description: 'Aumenta el texto aproximadamente 12.5%.',
+    },
+    {
+      value: 'xlarge',
+      label: 'Extra grande',
+      description: 'Aumenta el texto aproximadamente 25%.',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
@@ -1749,6 +1826,159 @@ export default function Ajustes() {
                         active ? 'translate-x-5' : 'translate-x-0'
                       }`}
                     />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </CafeSmartModal>
+
+        <CafeSmartModal
+          open={accessibilityModal === 'screen-reader'}
+          onClose={() => setAccessibilityModal(null)}
+          labelledById="screen-reader-modal-title"
+          title="Modo compatible con lector de pantalla"
+          description="Mejora la forma en que CaféSmart se comunica con lectores de pantalla y navegación por teclado."
+        >
+          <div
+            className="space-y-3"
+            role="radiogroup"
+            aria-label="Modo compatible con lector de pantalla"
+          >
+            {binaryAccessibilityOptions.map((option) => {
+              const active = accessibilityPreferences.screenReaderMode === option.value;
+              return (
+                <button
+                  key={String(option.value)}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setScreenReaderMode(option.value)}
+                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
+                    active
+                      ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
+                      active ? 'bg-[#102d92] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <span
+                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                        active ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                      {option.label}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </CafeSmartModal>
+
+        <CafeSmartModal
+          open={accessibilityModal === 'high-contrast'}
+          onClose={() => setAccessibilityModal(null)}
+          labelledById="high-contrast-modal-title"
+          title="Texto de alto contraste"
+          description="Aumenta el contraste para facilitar la lectura de textos, alertas y botones."
+        >
+          <div
+            className="space-y-3"
+            role="radiogroup"
+            aria-label="Texto de alto contraste"
+          >
+            {binaryAccessibilityOptions.map((option) => {
+              const active = accessibilityPreferences.highContrast === option.value;
+              return (
+                <button
+                  key={String(option.value)}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setHighContrast(option.value)}
+                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
+                    active
+                      ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
+                      active ? 'bg-[#102d92] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <span
+                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                        active ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                      {option.label}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </CafeSmartModal>
+
+        <CafeSmartModal
+          open={accessibilityModal === 'font-scale'}
+          onClose={() => setAccessibilityModal(null)}
+          labelledById="font-scale-modal-title"
+          title="Tamaño de fuente"
+          description="Elige el tamaño de texto que te resulte más cómodo."
+        >
+          <div
+            className="space-y-3"
+            role="radiogroup"
+            aria-label="Tamaño de fuente"
+          >
+            {fontScaleOptions.map((option) => {
+              const active = accessibilityPreferences.fontScale === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setFontScale(option.value)}
+                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
+                    active
+                      ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+                      active
+                        ? 'border-[#102d92] bg-[#102d92] dark:border-blue-300 dark:bg-blue-500'
+                        : 'border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-900'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {active ? (
+                      <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                    ) : null}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                      {option.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-200">
+                      {option.description}
+                    </span>
                   </span>
                 </button>
               );
@@ -2653,6 +2883,42 @@ export default function Ajustes() {
                 className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
               />
             </button>
+          </div>
+
+          <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
+            Accesibilidad
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            {accessibilityCards.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+                >
+                  <span className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}>
+                    <Icon size={14} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      {item.title}
+                    </span>
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
+                      {item.description}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-200">
+                      {item.status}
+                    </span>
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+                  />
+                </button>
+              );
+            })}
           </div>
 
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">

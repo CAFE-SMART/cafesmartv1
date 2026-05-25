@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { themeClasses } from '../../theme/themeClasses';
 
@@ -21,6 +21,30 @@ export function CafeSmartModal({
   labelledById,
   className = '',
 }: CafeSmartModalProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [onClose, open]);
+
   if (!open) return null;
 
   return (
@@ -32,9 +56,12 @@ export function CafeSmartModal({
         onClick={onClose}
       />
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledById}
+        aria-describedby={description ? `${labelledById}-description` : undefined}
+        tabIndex={-1}
         className={`relative mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[22px] shadow-[0_24px_70px_rgba(15,23,42,0.24)] ${themeClasses.modalBase} ${className}`}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-700">
@@ -43,7 +70,10 @@ export function CafeSmartModal({
               {title}
             </h2>
             {description ? (
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+              <p
+                id={`${labelledById}-description`}
+                className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-200"
+              >
                 {description}
               </p>
             ) : null}

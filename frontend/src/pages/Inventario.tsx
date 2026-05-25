@@ -410,22 +410,22 @@ function CapacityRing({
 }) {
   if (!capacityKg) {
     return (
-      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-        <p className="text-[0.95rem] font-black text-black">
+      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
+        <p className="text-[0.95rem] font-black text-black dark:text-slate-50">
           Resumen de Inventario
         </p>
         <div className="mt-2 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[2.1rem] font-black leading-none text-[#102d92]">
+            <p className="text-[2.1rem] font-black leading-none text-[#102d92] dark:text-blue-200">
               {formatNumber(totalKg)} kg
 
             </p>
-            <p className="mt-1 text-sm font-bold text-slate-600">
+            <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-200">
               Capacidad de bodega sin configurar
             </p>
 
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#c7d8ff] bg-[#eef4ff] text-[#102d92] shadow-sm dark:border-blue-400/60 dark:bg-blue-500/15 dark:text-blue-100">
             <Coffee size={18} />
           </div>
         </div>
@@ -459,16 +459,16 @@ function CapacityRing({
         : 'text-[#102d92] dark:text-blue-200';
   const capacityShellClass =
     capacityLevel === 'alert'
-      ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/40'
+      ? 'border-red-300 bg-red-50 dark:border-red-500/80 dark:bg-red-950/45'
       : capacityLevel === 'warning'
-        ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/35'
-        : 'border-[#e6e8f3] bg-white dark:border-slate-700 dark:bg-slate-900';
+        ? 'border-amber-300 bg-amber-50 dark:border-amber-500/80 dark:bg-amber-950/40'
+        : 'border-[#e6e8f3] bg-white dark:border-slate-600 dark:bg-slate-900';
   const capacityBadgeClass =
     capacityLevel === 'alert'
-      ? 'border border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200'
+      ? 'border border-red-200 bg-red-100 text-red-800 dark:border-red-500/80 dark:bg-red-900/60 dark:text-red-100'
       : capacityLevel === 'warning'
-        ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-200'
-        : 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900/50 dark:text-blue-200';
+        ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/80 dark:bg-amber-900/60 dark:text-amber-100'
+        : 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-500/80 dark:bg-blue-900/60 dark:text-blue-100';
   const capacityStatusLabel =
     capacityLevel === 'alert'
       ? 'Bodega casi llena'
@@ -512,7 +512,7 @@ function CapacityRing({
               cx="70"
               cy="70"
               r="58"
-              stroke="#edf1fa"
+              className="stroke-[#edf1fa] dark:stroke-slate-700"
               strokeWidth="12"
               fill="none"
             />
@@ -555,7 +555,7 @@ function TypeSummaryCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[20px] border border-[#e5e8f2] bg-white p-4 text-left shadow-sm"
+      className="cs-card w-full rounded-[20px] border border-[#e5e8f2] bg-white p-4 text-left shadow-sm dark:border-slate-600 dark:bg-slate-900"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -565,10 +565,10 @@ function TypeSummaryCard({
             {visual.icon}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900">
+            <p className="truncate text-[1.45rem] font-semibold leading-tight text-slate-900 dark:text-slate-100">
               {displayCoffeeName(lot.tipoCafe)}
             </p>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-300">
               {formatNumber(lot.pesoActual)} kg ·{' '}
               {formatShortSacks(lot.pesoActual)} bultos
             </p>
@@ -577,15 +577,15 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-[12px] px-4 py-2 text-sm font-semibold ${
+            className={`cs-chip rounded-[12px] border px-4 py-2 text-sm font-semibold ${
               isProcess
-                ? 'bg-[#fff2cc] text-[#946200]'
-                : 'bg-[#f2f3f7] text-slate-700'
+                ? 'border-amber-200 bg-[#fff2cc] text-[#946200] dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-100'
+                : 'border-slate-200 bg-[#f2f3f7] text-slate-700 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100'
             }`}
           >
             {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
-          <ArrowRight size={18} className="text-slate-400" />
+          <ArrowRight size={18} className="text-slate-400 dark:text-slate-200" />
         </div>
       </div>
     </button>
@@ -610,29 +610,29 @@ function QualityLotCard({
       type="button"
       onClick={onOpen}
       title={`${coffeeCode} · ${fullName}`}
-      className="w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm"
+      className="cs-card w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm dark:border-slate-600 dark:bg-slate-900"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-slate-900">
+          <p className="truncate text-[1.05rem] font-semibold text-slate-900 dark:text-slate-100">
             {isSecadoProcessLot(lot)
               ? 'En proceso de secado'
               : 'Sublotes disponibles'}
           </p>
           {!isSecadoProcessLot(lot) ? (
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className="inline-flex rounded-[9px] border border-[#dbe5ff] bg-[#f7f9ff] px-2 py-1 text-[0.68rem] font-black text-[#102d92]">
+              <span className="cs-chip inline-flex rounded-[9px] border border-[#dbe5ff] bg-[#f7f9ff] px-2 py-1 text-[0.68rem] font-black text-[#102d92] dark:border-blue-400/60 dark:bg-blue-500/20 dark:text-blue-100">
                 {coffeeCode}
               </span>
-              <span className="truncate text-xs font-black text-[#5570a8]">
+              <span className="truncate text-xs font-black text-[#5570a8] dark:text-slate-300">
                 {fullName}
               </span>
             </div>
           ) : null}
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-300">
             {formatNumber(lot.pesoActual)} kg
           </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
+          <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300">
             <span className="h-2 w-2 rounded-full bg-slate-400" />
             {lotDays} días
           </p>
@@ -645,10 +645,10 @@ function QualityLotCard({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-[12px] bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700">
+          <span className="cs-chip rounded-[12px] border border-slate-200 bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100">
             {sublotesLabel}
           </span>
-          <ArrowRight size={18} className="text-slate-400" />
+          <ArrowRight size={18} className="text-slate-400 dark:text-slate-200" />
         </div>
       </div>
     </button>
@@ -1176,7 +1176,7 @@ export default function Inventario() {
                       ? openBodegaEditor()
                       : navigate(capacityAlert.secondaryPath)
                   }
-                  className="inline-flex min-h-[34px] items-center rounded-full bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm"
+                  className="inline-flex min-h-[34px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {capacityAlert.secondary}
                 </button>
@@ -1186,7 +1186,7 @@ export default function Inventario() {
               type="button"
               onClick={() => setCapacityAlertClosed(true)}
               aria-label="Cerrar alerta de capacidad"
-              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50"
+              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 transition-all hover:bg-white/80 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 dark:text-slate-100 dark:hover:bg-slate-900/80 dark:hover:text-white"
             >
               <X size={15} aria-hidden="true" />
             </button>
@@ -1194,10 +1194,10 @@ export default function Inventario() {
         ) : null}
 
         {showInventoryContent && !showGlobalEmptyState ? (
-          <section className="rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm">
+          <section className="rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
-                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
                   Ordenar por
                 </span>
                 <SmartSelect
@@ -1212,7 +1212,7 @@ export default function Inventario() {
                 </SmartSelect>
               </label>
               <label className="min-w-0">
-                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
                   Tipo de café
                 </span>
                 <SmartSelect

@@ -769,14 +769,14 @@ function CoffeeTypeDropdown({
           }
         }}
         disabled={disabled}
-        className={`flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
+        className={`flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:bg-slate-900 dark:text-slate-100 ${
           disabled
-            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
             : error
-              ? 'border-rose-200 bg-rose-50/30'
+              ? 'border-rose-200 bg-rose-50/30 dark:border-red-400 dark:bg-red-950/30'
               : open
-                ? 'border-[#1f3fa7] bg-white'
-                : 'border-[#dfe5f2] hover:border-[#cbd6ea] hover:bg-[#fbfdff]'
+                ? 'border-[#1f3fa7] bg-white dark:border-blue-400 dark:bg-slate-900'
+                : 'border-[#dfe5f2] hover:border-[#cbd6ea] hover:bg-[#fbfdff] dark:border-slate-600 dark:hover:border-slate-400 dark:hover:bg-slate-800'
         }`}
       >
         <span className="flex min-w-0 items-center gap-3">
@@ -791,8 +791,8 @@ function CoffeeTypeDropdown({
             <span
               className={`block truncate text-[1rem] leading-5 ${
                 selected
-                  ? 'font-black text-slate-900'
-                  : 'font-semibold text-slate-500'
+                  ? 'font-black text-slate-900 dark:text-slate-100'
+                  : 'font-semibold text-slate-500 dark:text-slate-400'
               }`}
             >
               {selected?.nombre ?? 'Selecciona una opción'}
@@ -801,8 +801,8 @@ function CoffeeTypeDropdown({
         </span>
         <ChevronDown
           size={20}
-          className={`shrink-0 text-slate-400 transition duration-200 ${
-            open ? 'rotate-180 text-[#1f3fa7]' : ''
+          className={`shrink-0 text-slate-400 transition duration-200 dark:text-slate-200 ${
+            open ? 'rotate-180 text-[#1f3fa7] dark:text-blue-200' : ''
           }`}
           aria-hidden="true"
         />
@@ -813,7 +813,7 @@ function CoffeeTypeDropdown({
           id={listboxId}
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-[20px] border border-[#d5deee] bg-white p-2 shadow-[0_22px_48px_rgba(15,23,42,0.16)]"
+          className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-[20px] border border-[#d5deee] bg-white p-2 shadow-[0_22px_48px_rgba(15,23,42,0.16)] dark:border-slate-600 dark:bg-slate-900"
         >
           {options.map((option) => {
             const active = option.id === value;
@@ -830,13 +830,13 @@ function CoffeeTypeDropdown({
                 }}
                 className={`flex min-h-[52px] w-full items-center gap-3 rounded-[15px] px-3 py-2.5 text-left transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
                   active
-                    ? 'bg-[#eef4ff] text-[#1f3fa7]'
-                    : 'text-slate-800 hover:bg-[#f8faff]'
+                    ? 'border border-blue-400 bg-[#eef4ff] text-[#1f3fa7] dark:bg-blue-700/40 dark:text-blue-100'
+                    : 'text-slate-800 hover:bg-[#f8faff] dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <span
                   className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    active ? 'bg-white text-[#1f3fa7]' : visual.fondo
+                    active ? 'bg-white text-[#1f3fa7] dark:bg-blue-900 dark:text-blue-100' : visual.fondo
                   }`}
                 >
                   {visual.icono}
