@@ -253,4 +253,44 @@ describe('DashboardService', () => {
     expect(resumen.utilidadTotalAcumulada).toBe(1304000);
     expect(resumen.mermaTotalKg).toBe(0);
   });
+
+  it('devuelve inicio completo con bodega vacia y sin movimientos', async () => {
+    const { service, prisma } = crearServicioConMocks();
+
+    prisma.compra.count.mockResolvedValue(0);
+    prisma.venta.count.mockResolvedValue(0);
+    prisma.gastoOperativo.count.mockResolvedValue(0);
+    prisma.sublote.aggregate.mockResolvedValue({ _sum: { pesoInicial: null } });
+    prisma.compra.aggregate.mockResolvedValue({ _sum: { totalCompra: null } });
+    prisma.venta.aggregate.mockResolvedValue({ _sum: { totalVenta: null } });
+    prisma.gastoOperativo.aggregate.mockResolvedValue({
+      _sum: { montoGasto: null },
+    });
+    prisma.productor.count.mockResolvedValue(0);
+    prisma.compra.findMany.mockResolvedValue([]);
+    prisma.venta.findMany.mockResolvedValue([]);
+    prisma.gastoOperativo.findMany.mockResolvedValue([]);
+    prisma.sublote.findMany.mockResolvedValue([]);
+    prisma.ventaDetalle.findMany.mockResolvedValue([]);
+    prisma.gastoSublote.findMany.mockResolvedValue([]);
+
+    const inicio = await service.obtenerInicio('user-1');
+
+    expect(inicio).toMatchObject({
+      comprasHoy: 0,
+      ventasHoy: 0,
+      gastosHoy: 0,
+      kgCompradosHoy: 0,
+      totalComprasHoy: 0,
+      totalVentasHoy: 0,
+      totalGastosHoy: 0,
+      totalProductores: 0,
+      kgActual: 0,
+      kgCapacidad: 3000,
+      inventarioPorTipo: [],
+      inventarioBodega: [],
+      movimientosRecientes: [],
+    });
+    expect(typeof inicio.updatedAt).toBe('string');
+  });
 });

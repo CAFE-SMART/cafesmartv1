@@ -16,7 +16,9 @@ import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScre
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import {
+  obtenerDashboardInicio,
   obtenerDashboardSummary,
+  type DashboardInicioBodegaItem,
   type DashboardSummary,
 } from '../services/dashboardService';
 import { guardarConfiguracionBodega } from '../services/bodegaApi';
@@ -42,6 +44,7 @@ const DASHBOARD_HOME_CACHE_KEY = 'cached_dashboard_home';
 type CachedDashboardHome = {
   summary: DashboardSummary;
   lotesBodega: LoteResumen[];
+  inventarioBodega?: DashboardInicioBodegaItem[];
   savedAt: string;
 };
 
@@ -381,6 +384,9 @@ export default function Inicio() {
   const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [inventarioBodegaInicio, setInventarioBodegaInicio] = useState<
+    DashboardInicioBodegaItem[]
+  >([]);
   const [usingCachedDashboard, setUsingCachedDashboard] = useState(false);
   const [offlineCacheMissing, setOfflineCacheMissing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -414,6 +420,7 @@ export default function Inicio() {
     if (!cachedHome) {
       setSummary(null);
       setLotesBodega([]);
+      setInventarioBodegaInicio([]);
       setUsingCachedDashboard(false);
       setOfflineCacheMissing(true);
       setError(null);
@@ -422,6 +429,7 @@ export default function Inicio() {
 
     setSummary(cachedHome.summary);
     setLotesBodega(cachedHome.lotesBodega);
+    setInventarioBodegaInicio(cachedHome.inventarioBodega ?? []);
     setMostrarOnboardingBodega(false);
     setUsingCachedDashboard(true);
     setOfflineCacheMissing(false);
@@ -443,13 +451,22 @@ export default function Inicio() {
         return;
       }
 
-      const [dashboardResult, lotesResult] = await Promise.allSettled([
-        obtenerDashboardSummary(),
+      const dashboardInicioResult = await Promise.allSettled([
+        obtenerDashboardInicio(),
         obtenerLotes(),
       ]);
+      const [dashboardResult, lotesResult] =
+        dashboardInicioResult[0].status === 'fulfilled'
+          ? dashboardInicioResult
+          : await Promise.allSettled([obtenerDashboardSummary(), obtenerLotes()]);
 
       if (dashboardResult.status === 'fulfilled') {
         setSummary(dashboardResult.value);
+        setInventarioBodegaInicio(
+          'inventarioBodega' in dashboardResult.value
+            ? dashboardResult.value.inventarioBodega
+            : [],
+        );
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
         setMostrarOnboardingBodega(
@@ -460,6 +477,7 @@ export default function Inicio() {
       } else {
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
+        setInventarioBodegaInicio([]);
         setError(
           backendReachable === false
             ? 'No pudimos conectar con el servidor'
@@ -479,6 +497,10 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: nextLotes,
+            inventarioBodega:
+              'inventarioBodega' in dashboardResult.value
+                ? dashboardResult.value.inventarioBodega
+                : [],
             savedAt: new Date().toISOString(),
           });
           void saveOfflineCache('cached_inventory_summary', nextLotes);
@@ -515,6 +537,10 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: [],
+            inventarioBodega:
+              'inventarioBodega' in dashboardResult.value
+                ? dashboardResult.value.inventarioBodega
+                : [],
             savedAt: new Date().toISOString(),
           });
         }
@@ -727,6 +753,13 @@ export default function Inicio() {
   }, [alertaBodega?.variant, alertaBodega?.title]);
 
   const cafeEnBodega = useMemo(() => {
+    if (inventarioBodegaInicio.length > 0) {
+      return inventarioBodegaInicio.map((item) => ({
+        ...item,
+        dayWeight: item.averageDays * Math.max(1, item.lots),
+      }));
+    }
+
     const sections: BodegaCoffeeItem[] = [
       {
         key: 'VERDE_BUENO',
@@ -780,7 +813,7 @@ export default function Inicio() {
             : 0,
       }))
       .filter((section) => section.totalKg > 0);
-  }, [lotesBodega]);
+  }, [inventarioBodegaInicio, lotesBodega]);
 
   const isEmptyDashboard =
     !loading &&
