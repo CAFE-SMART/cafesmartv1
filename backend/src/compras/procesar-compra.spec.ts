@@ -306,7 +306,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       expect(resultado.compra.totalKg).toBe(200);
     });
 
-    it('debería funcionar sin contexto de capacidad', () => {
+    it('debería exigir configuración sin contexto de capacidad', () => {
       const input = {
         deviceId: 'device-1',
         localId: 'local-1',
@@ -328,10 +328,11 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.validada).toBe(false);
+      expect(resultado.capacidad.nivel).toBe('requiere_configuracion');
       expect(resultado.compra.totalKg).toBe(200);
     });
 
-    it('debería funcionar sin contexto de capacidad (undefined)', () => {
+    it('debería exigir configuración sin contexto de capacidad (undefined)', () => {
       const input = {
         deviceId: 'device-1',
         localId: 'local-1',
@@ -353,6 +354,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       expect(resultado.warning).toBeUndefined();
       expect(resultado.exceso).toBeUndefined();
       expect(resultado.capacidad.validada).toBe(false);
+      expect(resultado.capacidad.nivel).toBe('requiere_configuracion');
       expect(resultado.compra.totalKg).toBe(200);
     });
   });

@@ -110,7 +110,7 @@ function getCapacityTone(percentage: number) {
   }
 
   return {
-      label: 'Normal',
+    label: 'Normal',
     message: 'Espacio disponible estable.',
     color: '#0d7b67',
     text: 'text-[#0d7b67]',
@@ -197,22 +197,18 @@ function coffeeVisual(name: string) {
 }
 
 function qualityIconTone(tipoCafe: string, calidad: string) {
-  const tipo = keyOf(tipoCafe);
+  void tipoCafe;
   const quality = keyOf(calidad);
 
   if (quality === 'BUENO') {
-    return tipo === 'SECO'
-      ? 'bg-[#fff7df] text-[#d29309]'
-      : 'bg-[#e9fbf4] text-[#0d7b67]';
+    return 'bg-[#e9fbf4] text-[#0d7b67]';
   }
 
   if (quality === 'REGULAR') {
-    return tipo === 'SECO'
-      ? 'bg-[#fff1da] text-[#c4670e]'
-      : 'bg-[#fff7d6] text-[#b77905]';
+    return 'bg-[#fff7df] text-[#b77900]';
   }
 
-  return 'bg-[#ffe7e8] text-[#c92c32]';
+  return 'bg-[#ffe7e4] text-[#b42318]';
 }
 
 function inventoryListClass(itemCount: number, spacing = 'space-y-3') {
@@ -330,34 +326,36 @@ function CapacityRing({
 
         <div className="-mt-1 flex shrink-0 flex-col items-center gap-1 self-start">
           <div className="relative flex h-[58px] w-[58px] items-center justify-center">
-          <svg viewBox="0 0 140 140" className="h-[58px] w-[58px] -rotate-90">
-            <circle
-              cx="70"
-              cy="70"
-              r="58"
-              stroke="#edf1fa"
-              strokeWidth="12"
-              fill="none"
-            />
-            <circle
-              cx="70"
-              cy="70"
-              r="58"
-              stroke={tone.color}
-              strokeWidth="12"
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-            />
-          </svg>
-          <div
-            className={`absolute flex h-7 w-7 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${tone.text}`}
+            <svg viewBox="0 0 140 140" className="h-[58px] w-[58px] -rotate-90">
+              <circle
+                cx="70"
+                cy="70"
+                r="58"
+                stroke="#edf1fa"
+                strokeWidth="12"
+                fill="none"
+              />
+              <circle
+                cx="70"
+                cy="70"
+                r="58"
+                stroke={tone.color}
+                strokeWidth="12"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+              />
+            </svg>
+            <div
+              className={`absolute flex h-7 w-7 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${tone.text}`}
+            >
+              <Coffee size={11} />
+            </div>
+          </div>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[0.56rem] font-black ${tone.chip}`}
           >
-            <Coffee size={11} />
-          </div>
-          </div>
-          <span className={`rounded-full px-2 py-0.5 text-[0.56rem] font-black ${tone.chip}`}>
             {tone.label}
           </span>
         </div>
@@ -460,25 +458,25 @@ function QualityLotCard({
             {visual.icon}
           </span>
           <div className="min-w-0">
-          <p className="truncate text-[1rem] font-black text-slate-900">
-            {isSecadoProcessLot(lot)
-              ? 'En secado'
-              : formatDisplayLabel(lot.calidad)}
-          </p>
-          <p className="mt-0.5 text-[0.72rem] font-semibold text-slate-500">
-            {formatNumber(lot.pesoActual)} kg
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-slate-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-            {lotDays} días
-          </p>
-          {lot.humedadPromedio !== null ? (
-            <p
-              className={`mt-1 inline-flex rounded-[10px] px-2 py-1 text-[0.62rem] font-black ${humidity.toneClass}`}
-            >
-              {formatHumidityWithClassification(lot.humedadPromedio)}
+            <p className="truncate text-[1rem] font-black text-slate-900">
+              {isSecadoProcessLot(lot)
+                ? 'En secado'
+                : formatDisplayLabel(lot.calidad)}
             </p>
-          ) : null}
+            <p className="mt-0.5 text-[0.72rem] font-semibold text-slate-500">
+              {formatNumber(lot.pesoActual)} kg
+            </p>
+            <p className="mt-1 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-slate-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+              {lotDays} días
+            </p>
+            {lot.humedadPromedio !== null ? (
+              <p
+                className={`mt-1 inline-flex rounded-[10px] px-2 py-1 text-[0.62rem] font-black ${humidity.toneClass}`}
+              >
+                {formatHumidityWithClassification(lot.humedadPromedio)}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -598,7 +596,9 @@ export default function Inventario() {
       setNombreBodegaForm(
         sanitizeNombreBodegaInput(config.nombreBodega || 'Bodega principal'),
       );
-      setCapacidadBodegaForm(config.capacidadKg ? String(config.capacidadKg) : '');
+      setCapacidadBodegaForm(
+        config.capacidadKg ? String(config.capacidadKg) : '',
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'No se pudo cargar el inventario.',
@@ -912,7 +912,9 @@ export default function Inventario() {
         ) : null}
 
         {typeKey === '' && !showGlobalEmptyState ? (
-          <section className={inventoryListClass(typeSummaries.length, 'space-y-2.5')}>
+          <section
+            className={inventoryListClass(typeSummaries.length, 'space-y-2.5')}
+          >
             <div className="grid gap-3">
               {typeSummaries.map((group) => (
                 <TypeSummaryCard
@@ -1106,6 +1108,7 @@ export default function Inventario() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  maxLength={6}
                   value={capacidadBodegaForm}
                   onChange={(event) => {
                     setCapacidadBodegaForm(

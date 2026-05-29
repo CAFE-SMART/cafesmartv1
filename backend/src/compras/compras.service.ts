@@ -256,6 +256,20 @@ export class ComprasService {
 
           const compraProcesada = procesarCompra(input, contextoCapacidad);
 
+          if (compraProcesada.capacidad.nivel === 'requiere_configuracion') {
+            throw new BadRequestException(
+              apiError(
+                'COMPRA_CAPACIDAD_REQUERIDA',
+                compraProcesada.capacidad.mensaje,
+                {
+                  details: {
+                    capacidad: compraProcesada.capacidad,
+                  },
+                },
+              ),
+            );
+          }
+
           if (compraProcesada.capacidad.nivel === 'exceso') {
             throw new BadRequestException(
               apiError(

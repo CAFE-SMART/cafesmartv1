@@ -24,9 +24,7 @@ export type ListarProductoresParams = {
   orden?: 'recientes' | 'antiguos' | 'az';
 };
 
-export async function listarProductores(
-  params: ListarProductoresParams = {},
-) {
+export async function listarProductores(params: ListarProductoresParams = {}) {
   const searchParams = new URLSearchParams();
 
   if (params.q?.trim()) searchParams.set('q', params.q.trim());

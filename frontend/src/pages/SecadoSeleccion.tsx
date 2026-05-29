@@ -299,7 +299,9 @@ export default function SecadoSeleccion() {
     }
 
     if (value > editing.pesoActual) {
-      setAdjustError('La cantidad a secar no puede superar el peso disponible.');
+      setAdjustError(
+        'La cantidad a secar no puede superar el peso disponible.',
+      );
       return;
     }
 
@@ -348,13 +350,13 @@ export default function SecadoSeleccion() {
                 <Coffee size={22} />
               </div>
               <div className="min-w-0">
-            <h2 className="text-[1.05rem] font-black leading-tight">
-              Selecciona los sublotes de café verde
-            </h2>
-            <p className="mt-2 text-[0.72rem] leading-5 text-white/80">
-              Selecciona los sublotes que vas a secar. Puedes enviar todo el
-              peso o tocar Ajustar cantidad para secar solo una parte.
-            </p>
+                <h2 className="text-[1.05rem] font-black leading-tight">
+                  Selecciona los sublotes de café verde
+                </h2>
+                <p className="mt-2 text-[0.72rem] leading-5 text-white/80">
+                  Selecciona los sublotes que vas a secar. Puedes enviar todo el
+                  peso o tocar Ajustar cantidad para secar solo una parte.
+                </p>
               </div>
             </div>
 

@@ -13,7 +13,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  PESO_MAXIMO_ENTRADA_KG,
   PESO_MINIMO_KG,
   PRECIO_MAXIMO_KG,
   PRECIO_MINIMO_KG,
@@ -27,13 +26,14 @@ export class CreateVentaDetalleDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'El peso vendido debe ser un numero' })
   @Min(PESO_MINIMO_KG, { message: 'El peso vendido debe ser minimo 5 kg' })
-  @Max(PESO_MAXIMO_ENTRADA_KG, { message: 'El peso vendido no puede superar los 99.999 kg' })
   pesoVendido: number;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'El precio por kg debe ser un numero' })
   @Min(PRECIO_MINIMO_KG, { message: 'El precio por kg debe ser minimo $1.000' })
-  @Max(PRECIO_MAXIMO_KG, { message: 'El precio por kg no puede superar los 100.000' })
+  @Max(PRECIO_MAXIMO_KG, {
+    message: 'El precio por kg no puede superar los 100.000',
+  })
   precioKg: number;
 }
 

@@ -1,33 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  BadgeDollarSign,
+  Coffee,
   CalendarDays,
   Leaf,
   LoaderCircle,
   LogOut,
+  PackageCheck,
   RefreshCcw,
+  ReceiptText,
   Save,
+  ShoppingCart,
   SunMedium,
+  UserRound,
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { useUser } from '../context/UserContext';
 import {
-  obtenerDashboardSummary,
-  type DashboardSummary,
+  obtenerDashboardInicio,
+  type DashboardInicio,
+  type DashboardInicioSubloteAntiguo,
 } from '../services/dashboardService';
-import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import {
   guardarConfiguracionBodega,
   obtenerConfiguracionBodega,
 } from '../services/bodegaApi';
-import { applySecadoToLots } from '../utils/secadoFlow';
-import { getDaysInBodega } from '../utils/date';
-import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
 const sectionTitleClass =
-  'text-[0.74rem] font-black uppercase tracking-[0.16em] text-[#73829a]';
+  'text-[0.82rem] font-black tracking-normal text-[#65758f]';
 const cardClass =
   'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
 
@@ -53,16 +56,7 @@ function formatKg(value: number) {
 }
 
 function formatKgUpper(value: number) {
-  return `${new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(value)} KG`;
-}
-
-function formatMoney(value: number) {
-  return `$${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatKg(value);
 }
 
 function getCapacityTone(percentage: number) {
@@ -103,26 +97,22 @@ function getCapacityTone(percentage: number) {
 
 function resolveCloudLabel(tone: string) {
   if (tone === 'offline' || tone === 'error') {
-    return 'SIN CONEXION';
+    return 'Sin conexión';
   }
 
   if (tone === 'checking') {
-    return 'VERIFICANDO';
+    return 'Verificando';
   }
 
   if (tone === 'syncing') {
-    return 'SINCRONIZANDO';
+    return 'Sincronizando';
   }
 
   if (tone === 'degraded') {
-    return 'CONEXION INESTABLE';
+    return 'Conexión inestable';
   }
 
-  return 'CONECTADO';
-}
-
-function keyOf(value: string) {
-  return value.trim().toUpperCase();
+  return 'Conectado a internet';
 }
 
 function resolveDashboardErrorMessage(error: unknown) {
@@ -183,49 +173,78 @@ function formatMetric(
   return formatter(value);
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function SummaryMetricCard({
+  label,
+  value,
+  icon,
+  tone = 'blue',
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  tone?: 'blue' | 'green' | 'amber' | 'slate';
+}) {
+  const toneClass = {
+    blue: 'bg-[#eef3ff] text-[#2f4aa4]',
+    green: 'bg-[#e9fbf4] text-[#0d7b67]',
+    amber: 'bg-[#fff7df] text-[#b77900]',
+    slate: 'bg-[#f2f4f7] text-[#667085]',
+  }[tone];
+
   return (
-    <div className="flex items-center justify-between gap-4 text-[0.76rem]">
-      <span className="text-[#5a6b84]">{label}</span>
-      <span className="font-black text-[#1f2937]">{value}</span>
+    <div className="min-h-[76px] rounded-[16px] border border-[#e5ebf5] bg-[#fbfcff] px-3 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <span className="block text-[0.72rem] font-semibold leading-4 text-[#65758f]">
+          {label}
+        </span>
+        <span
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${toneClass}`}
+        >
+          {icon}
+        </span>
+      </div>
+      <span className="mt-2 block text-[1.12rem] font-semibold leading-tight text-[#111827]">
+        {value}
+      </span>
     </div>
   );
 }
 
-function lotDays(lot: LoteResumen) {
-  return Math.max(
-    getDaysInBodega(lot.fechaPrimerIngreso || lot.fecha),
-    getDaysInBodega(lot.fechaUltimoIngreso || lot.fecha),
-    lot.diasEnBodegaMax || 0,
-  );
+function qualityColorClasses(calidad: string) {
+  const key = calidad.trim().toUpperCase();
+
+  if (key === 'BUENO') {
+    return {
+      icon: 'bg-[#e9fbf4] text-[#0d7b67]',
+      chip: 'bg-[#dcfce7] text-[#16845a]',
+    };
+  }
+
+  if (key === 'REGULAR') {
+    return {
+      icon: 'bg-[#fff7df] text-[#b77900]',
+      chip: 'bg-[#fff3c4] text-[#a15c00]',
+    };
+  }
+
+  return {
+    icon: 'bg-[#ffe7e4] text-[#b42318]',
+    chip: 'bg-[#ffe7e4] text-[#b42318]',
+  };
 }
 
-type BodegaCoffeeItem = {
-  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
-  tipo: 'Verde' | 'Seco';
-  calidad: 'Bueno' | 'Regular';
-  tipoCafeId: string;
-  calidadId: string;
-  totalKg: number;
-  lots: number;
-  averageDays: number;
-  dayWeight: number;
-};
-
-function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: () => void }) {
-  const isGood = item.calidad === 'Bueno';
+function BodegaCoffeeRow({
+  item,
+  onClick,
+}: {
+  item: DashboardInicioSubloteAntiguo;
+  onClick?: () => void;
+}) {
   const isDry = item.tipo === 'Seco';
   const Icon = isDry ? SunMedium : Leaf;
-  const iconClass = isDry
-    ? isGood
-      ? 'bg-[#fff7df] text-[#d29309]'
-      : 'bg-[#fff1da] text-[#c4670e]'
-    : isGood
-      ? 'bg-[#e9fbf4] text-[#0d7b67]'
-      : 'bg-[#fff7d6] text-[#b77905]';
-  const qualityClass = isGood
-    ? 'bg-[#dcfce7] text-[#16845a]'
-    : 'bg-[#fff3c4] text-[#a15c00]';
+  const qualityColors = qualityColorClasses(item.calidad);
+  const iconClass = qualityColors.icon;
+  const qualityClass = qualityColors.chip;
 
   return (
     <button
@@ -243,9 +262,9 @@ function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: 
           <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937]">
             {item.tipo}
           </p>
-          <p className="mt-1 flex items-center gap-1 text-[0.56rem] font-bold uppercase tracking-[0.03em] text-[#8a98ad]">
+          <p className="mt-1 flex items-center gap-1 text-[0.56rem] font-bold tracking-normal text-[#8a98ad]">
             <CalendarDays size={10} strokeWidth={2.2} />
-            {item.averageDays} dias
+            {item.days} días
           </p>
         </div>
       </div>
@@ -254,7 +273,7 @@ function BodegaCoffeeRow({ item, onClick }: { item: BodegaCoffeeItem; onClick?: 
           {formatKgUpper(item.totalKg)}
         </p>
         <span
-          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}
+          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black ${qualityClass}`}
         >
           {item.calidad}
         </span>
@@ -300,8 +319,7 @@ export default function Inicio() {
   const { logout } = useUser();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [summary, setSummary] = useState<DashboardInicio | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -319,28 +337,13 @@ export default function Inicio() {
     }
 
     try {
-      const [dashboardResult, lotesResult] = await Promise.allSettled([
-        obtenerDashboardSummary(),
-        obtenerLotes(),
-      ]);
+      const dashboardResult = await obtenerDashboardInicio();
 
-      if (dashboardResult.status === 'fulfilled') {
-        setSummary(dashboardResult.value);
-        setError(null);
-      } else {
-        setError(resolveDashboardErrorMessage(dashboardResult.reason));
-      }
-
-      if (lotesResult.status === 'fulfilled') {
-        setLotesBodega(
-          ENABLE_SECADO_PROTOTYPE
-            ? applySecadoToLots(lotesResult.value)
-            : lotesResult.value,
-        );
-      } else {
-        setLotesBodega([]);
-      }
-
+      setSummary(dashboardResult);
+      setError(null);
+    } catch (err) {
+      setError(resolveDashboardErrorMessage(err));
+      setSummary(null);
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -371,7 +374,9 @@ export default function Inicio() {
       setNombreBodegaForm(
         sanitizeNombreBodegaInput(config.nombreBodega || 'Bodega principal'),
       );
-      setCapacidadBodegaForm(config.capacidadKg ? String(config.capacidadKg) : '');
+      setCapacidadBodegaForm(
+        config.capacidadKg ? String(config.capacidadKg) : '',
+      );
     } catch {
       // El modal sigue usable con los datos del resumen.
     }
@@ -441,79 +446,7 @@ export default function Inicio() {
     };
   }, [loading, summary?.kgActual, summary?.kgCapacidad]);
 
-  const cafeEnBodega = useMemo(() => {
-    const sections: BodegaCoffeeItem[] = [
-      {
-        key: 'VERDE_BUENO',
-        tipo: 'Verde',
-        calidad: 'Bueno',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'VERDE_REGULAR',
-        tipo: 'Verde',
-        calidad: 'Regular',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'SECO_BUENO',
-        tipo: 'Seco',
-        calidad: 'Bueno',
-        tipoCafeId: '',
-        calidadId: '',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-    ];
-
-    lotesBodega.forEach((lot) => {
-      const typeKey = keyOf(lot.tipoCafe);
-      const qualityKey = keyOf(lot.calidad);
-      const section = sections.find(
-        (item) => item.key === `${typeKey}_${qualityKey}`,
-      );
-      if (!section) return;
-
-      if (!section.tipoCafeId) {
-        section.tipoCafeId = lot.tipoCafeId;
-        section.calidadId = lot.calidadId;
-      }
-
-      const weight = Math.max(1, lot.sublotes);
-      section.totalKg += lot.pesoActual;
-      section.lots += lot.sublotes;
-      section.dayWeight += lotDays(lot) * weight;
-    });
-
-    return sections
-      .map((section) => ({
-        ...section,
-        averageDays:
-          section.totalKg > 0
-            ? Math.round(section.dayWeight / Math.max(1, section.lots))
-            : 0,
-      }))
-      .filter((section) => section.totalKg > 0)
-      .sort((a, b) => {
-        if (b.averageDays !== a.averageDays) {
-          return b.averageDays - a.averageDays;
-        }
-
-        return b.totalKg - a.totalKg;
-      });
-  }, [lotesBodega]);
+  const sublotesAntiguos = summary?.sublotesAntiguos ?? [];
 
   const isEmptyDashboard =
     !loading &&
@@ -525,52 +458,63 @@ export default function Inicio() {
     summary.totalVentasHoy === 0 &&
     summary.totalGastosHoy === 0 &&
     summary.kgActual === 0 &&
-    lotesBodega.length === 0;
+    sublotesAntiguos.length === 0;
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
       <div className="mx-auto w-full max-w-[430px]">
         <header className="px-5 pb-4 pt-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-[1.35rem] font-black text-[#111827]">
-                Caf&eacute; Smart
-              </h1>
-              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${resolveCloudDotClass(tone)}`}
-                  aria-hidden="true"
-                />
-                <span>{resolveCloudLabel(tone)}</span>
-              </div>
-            </div>
+          <div className="overflow-hidden rounded-[24px] border border-[#dbe5f2] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+            <div className="h-1.5 bg-[#173b9c]" />
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-[#d8e3d7] bg-[#f7fbf5] text-[#37624b] shadow-inner">
+                    <Coffee size={24} strokeWidth={2.1} />
+                  </span>
+                  <h1 className="text-[1.48rem] font-semibold leading-tight text-[#24372e]">
+                    Caf&eacute; Smart
+                  </h1>
+                </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleReload()}
-                disabled={refreshing}
-                className="inline-flex h-11 items-center gap-2 rounded-[16px] border border-[#e1e7f0] bg-white px-4 text-[0.74rem] font-black text-[#4b5c77] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-wait disabled:opacity-80"
-              >
-                {refreshing ? (
-                  <LoaderCircle
-                    size={13}
-                    className="animate-spin text-[#4b5c77]"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReload()}
+                    disabled={refreshing}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[15px] border border-[#e1e7f0] bg-[#f8faff] text-[#4b5c77] transition hover:bg-white disabled:cursor-wait disabled:opacity-80"
+                    aria-label="Recargar inicio"
+                  >
+                    {refreshing ? (
+                      <LoaderCircle
+                        size={17}
+                        className="animate-spin text-[#4b5c77]"
+                      />
+                    ) : (
+                      <RefreshCcw size={17} className="text-[#4b5c77]" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoutConfirm(true)}
+                    disabled={cerrandoSesion}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[15px] border border-[#f0d4d4] bg-[#fffafa] text-[#b44a4a] transition hover:bg-[#fff5f5] disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Cerrar sesión"
+                  >
+                    <LogOut size={17} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 rounded-[16px] bg-[#f4f7fb] px-3 py-2.5">
+                <div className="inline-flex items-center gap-2 text-[0.76rem] font-semibold text-[#65758f]">
+                  <span
+                    className={`h-2 w-2 rounded-full ${resolveCloudDotClass(tone)}`}
+                    aria-hidden="true"
                   />
-                ) : (
-                  <RefreshCcw size={13} className="text-[#4b5c77]" />
-                )}
-                Recargar
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowLogoutConfirm(true)}
-                disabled={cerrandoSesion}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[16px] border border-[#f0d4d4] bg-white text-[#b44a4a] shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition hover:bg-[#fff5f5] disabled:cursor-not-allowed disabled:opacity-60"
-                title="Cerrar sesión"
-              >
-                <LogOut size={15} />
-              </button>
+                  <span>{resolveCloudLabel(tone)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -595,36 +539,54 @@ export default function Inicio() {
         ) : (
           <>
             <section className="px-5 py-3">
-              <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
+                  <p className="mt-1 text-[0.76rem] font-medium text-[#8a98ad]">
+                    Actividad principal de tu negocio.
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#eef3ff] px-3 py-1 text-[0.7rem] font-semibold text-[#173b9c]">
+                  Hoy
+                </span>
+              </div>
 
               <div className={`mt-3 ${cardClass}`}>
-                <div className="space-y-2.5">
-                  <MetricRow
-                    label="Compras hoy:"
+                <div className="grid grid-cols-2 gap-2">
+                  <SummaryMetricCard
+                    label="Compras"
+                    icon={<ShoppingCart size={16} />}
+                    tone="blue"
                     value={formatMetric(
                       loading,
                       summary?.comprasHoy ?? null,
                       formatInteger,
                     )}
                   />
-                  <MetricRow
-                    label="Ventas hoy:"
+                  <SummaryMetricCard
+                    label="Ventas"
+                    icon={<BadgeDollarSign size={16} />}
+                    tone="green"
                     value={formatMetric(
                       loading,
                       summary?.ventasHoy ?? null,
                       formatInteger,
                     )}
                   />
-                  <MetricRow
-                    label="Kg comprados hoy:"
+                  <SummaryMetricCard
+                    label="Kg comprados"
+                    icon={<PackageCheck size={16} />}
+                    tone="amber"
                     value={formatMetric(
                       loading,
                       summary?.kgCompradosHoy ?? null,
                       formatKg,
                     )}
                   />
-                  <MetricRow
-                    label="Productores registrados:"
+                  <SummaryMetricCard
+                    label="Productores"
+                    icon={<UserRound size={16} />}
+                    tone="slate"
                     value={formatMetric(
                       loading,
                       summary?.totalProductores ?? null,
@@ -635,8 +597,9 @@ export default function Inicio() {
                 <button
                   type="button"
                   onClick={() => navigate('/gastos/registro')}
-                  className="mt-3 flex min-h-[30px] w-full items-center justify-center rounded-[10px] border border-[#e4e9f4] bg-[#f8faff] text-[0.66rem] font-black text-[#173b9c]"
+                  className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#dfe6f2] bg-white text-[0.82rem] font-semibold text-[#173b9c] shadow-sm transition hover:bg-[#f8faff]"
                 >
+                  <ReceiptText size={16} />
                   Registrar gasto
                 </button>
               </div>
@@ -644,11 +607,16 @@ export default function Inicio() {
 
             <section className="px-5 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className={sectionTitleClass}>Capacidad en bodega</p>
+                <div>
+                  <p className={sectionTitleClass}>Capacidad en bodega</p>
+                  <p className="mt-1 text-[0.76rem] font-medium leading-5 text-[#8a98ad]">
+                    Revisa cuánto espacio queda antes de registrar nuevas compras.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => void abrirModalBodega()}
-                  className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-400 transition hover:text-[#18479d]"
+                  className="shrink-0 text-[0.68rem] font-black tracking-normal text-slate-400 transition hover:text-[#18479d]"
                 >
                   Ajustar bodega
                 </button>
@@ -661,7 +629,9 @@ export default function Inicio() {
                       Ocupaci&oacute;n actual
                     </h2>
                     {ocupacion.tono.note ? (
-                      <p className={`mt-0.5 text-[0.68rem] font-semibold ${ocupacion.tono.text}`}>
+                      <p
+                        className={`mt-0.5 text-[0.68rem] font-semibold ${ocupacion.tono.text}`}
+                      >
                         {ocupacion.tono.note}
                       </p>
                     ) : null}
@@ -682,15 +652,19 @@ export default function Inicio() {
 
                 <div className="mt-2 grid grid-cols-2 gap-3 text-[0.58rem] font-black text-[#74839a]">
                   <span className="min-w-0">
-                    <span className="block text-[0.52rem] uppercase tracking-[0.08em]">
+                    <span className="block text-[0.58rem] tracking-normal">
                       Usados
                     </span>
                     <span className="block truncate text-[0.66rem] text-[#4b5c77]">
-                      {formatMetric(loading, summary?.kgActual ?? null, formatKg)}
+                      {formatMetric(
+                        loading,
+                        summary?.kgActual ?? null,
+                        formatKg,
+                      )}
                     </span>
                   </span>
                   <span className="min-w-0 text-right">
-                    <span className="block text-[0.52rem] uppercase tracking-[0.08em]">
+                    <span className="block text-[0.58rem] tracking-normal">
                       Total
                     </span>
                     <span className="block truncate text-[0.66rem] text-[#4b5c77]">
@@ -706,28 +680,27 @@ export default function Inicio() {
             </section>
 
             <section className="px-5 py-3">
-              <p className={sectionTitleClass}>Inventario en bodega</p>
+              <div>
+                <p className={sectionTitleClass}>Sublotes m&aacute;s antiguos</p>
+                <p className="mt-1 text-[0.76rem] font-medium text-[#8a98ad]">
+                  Los 3 sublotes que llevan más tiempo en bodega.
+                </p>
+              </div>
 
               <div className={`mt-3 overflow-hidden ${cardClass} p-0`}>
                 {loading && !summary ? (
                   <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                    Cargando bodega...
+                    Cargando sublotes...
                   </div>
-                ) : cafeEnBodega.length === 0 ? (
+                ) : sublotesAntiguos.length === 0 ? (
                   <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                    Aún no hay café disponible en bodega.
+                    Aún no hay sublotes disponibles en bodega.
                   </div>
                 ) : (
-                  <div
-                    className={
-                      cafeEnBodega.length > 4
-                        ? 'max-h-[216px] overflow-y-scroll pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]'
-                        : ''
-                    }
-                  >
-                    {cafeEnBodega.map((item, index) => (
+                  <div>
+                    {sublotesAntiguos.map((item, index) => (
                       <div
-                        key={item.key}
+                        key={item.id}
                         className={index > 0 ? 'border-t border-[#edf1f7]' : ''}
                       >
                         <BodegaCoffeeRow
@@ -735,7 +708,7 @@ export default function Inicio() {
                           onClick={() => {
                             if (item.tipoCafeId && item.calidadId) {
                               navigate(
-                                `/inventario/${item.tipoCafeId}/${item.calidadId}/sublotes`,
+                                `/inventario/${item.tipoCafeId}/${item.calidadId}/sublotes?subloteId=${encodeURIComponent(item.id)}`,
                                 { state: { from: 'inicio' } },
                               );
                             }
@@ -747,7 +720,6 @@ export default function Inicio() {
                 )}
               </div>
             </section>
-
           </>
         )}
       </div>
@@ -796,6 +768,7 @@ export default function Inicio() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  maxLength={6}
                   value={capacidadBodegaForm}
                   onChange={(event) => {
                     setCapacidadBodegaForm(
@@ -807,7 +780,8 @@ export default function Inicio() {
                   placeholder="600000"
                 />
                 <p className="mt-1 text-[0.66rem] font-semibold text-slate-400">
-                  Máx. 999.999 kg · En bodega: {formatInteger(summary?.kgActual ?? 0)} kg
+                  Máx. 999.999 kg · En bodega:{' '}
+                  {formatInteger(summary?.kgActual ?? 0)} kg
                 </p>
               </div>
 

@@ -31,13 +31,17 @@ export class CreateSubloteDto {
   @Type(() => Number)
   @IsNumber({}, { message: 'pesoInicial debe ser un número' })
   @Min(PESO_MINIMO_KG, { message: 'El peso inicial debe ser minimo 5 kg' })
-  @Max(PESO_MAXIMO_ENTRADA_KG, { message: 'El peso inicial no puede exceder los 99.999 kg' })
+  @Max(PESO_MAXIMO_ENTRADA_KG, {
+    message: 'El peso inicial no puede exceder los 99.999 kg',
+  })
   pesoInicial: number;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'precioKg debe ser un número' })
   @Min(PRECIO_MINIMO_KG, { message: 'El precio por kg debe ser minimo $1.000' })
-  @Max(PRECIO_MAXIMO_KG, { message: 'El precio por kg no puede exceder los 100.000' })
+  @Max(PRECIO_MAXIMO_KG, {
+    message: 'El precio por kg no puede exceder los 100.000',
+  })
   precioKg: number;
 
   @IsString({ message: 'deviceId del sublote debe ser un string' })

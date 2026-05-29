@@ -29,7 +29,7 @@ export class BodegaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly parametrosService: ParametrosService,
-  ) { }
+  ) {}
 
   /**
    * Obtiene la configuración de bodega de una organización.
@@ -37,7 +37,13 @@ export class BodegaService {
   async obtenerConfiguracion(
     organizacionId: string,
   ): Promise<ConfiguracionBodega> {
-    const [nombreBodega, capacidadKgStr, maxPesoKgStr, maxPrecioKgStr, maxPrecioVentaKgStr] = await Promise.all([
+    const [
+      nombreBodega,
+      capacidadKgStr,
+      maxPesoKgStr,
+      maxPrecioKgStr,
+      maxPrecioVentaKgStr,
+    ] = await Promise.all([
       this.parametrosService.getParametroString(
         'nombre_bodega',
         organizacionId,
@@ -47,10 +53,7 @@ export class BodegaService {
         'capacidad_bodega',
         organizacionId,
       ),
-      this.parametrosService.getParametroString(
-        'max_peso_kg',
-        organizacionId,
-      ),
+      this.parametrosService.getParametroString('max_peso_kg', organizacionId),
       this.parametrosService.getParametroString(
         'max_precio_kg',
         organizacionId,
@@ -83,7 +86,9 @@ export class BodegaService {
 
     const parsedMaxPrecioVenta = Number(maxPrecioVentaKgStr);
     const maxPrecioVentaKg =
-      maxPrecioVentaKgStr && Number.isFinite(parsedMaxPrecioVenta) && parsedMaxPrecioVenta > 0
+      maxPrecioVentaKgStr &&
+      Number.isFinite(parsedMaxPrecioVenta) &&
+      parsedMaxPrecioVenta > 0
         ? parsedMaxPrecioVenta
         : 100000;
 
@@ -174,7 +179,11 @@ export class BodegaService {
     maxPesoKg: number,
     maxPrecioKg: number,
     maxPrecioVentaKg: number,
-  ): Promise<{ maxPesoKg: number; maxPrecioKg: number; maxPrecioVentaKg: number }> {
+  ): Promise<{
+    maxPesoKg: number;
+    maxPrecioKg: number;
+    maxPrecioVentaKg: number;
+  }> {
     if (
       !Number.isFinite(maxPesoKg) ||
       maxPesoKg < PESO_MINIMO_KG ||
@@ -186,11 +195,15 @@ export class BodegaService {
     }
 
     if (!Number.isFinite(maxPrecioKg) || maxPrecioKg <= 0) {
-      throw new BadRequestException('El precio máximo debe ser un número positivo');
+      throw new BadRequestException(
+        'El precio máximo debe ser un número positivo',
+      );
     }
 
     if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg <= 0) {
-      throw new BadRequestException('El precio máximo de venta debe ser un número positivo');
+      throw new BadRequestException(
+        'El precio máximo de venta debe ser un número positivo',
+      );
     }
 
     await Promise.all([

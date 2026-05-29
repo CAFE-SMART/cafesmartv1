@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { SecadoService } from './secado.service';
+import { CrearSecadoDto } from './dto/crear-secado.dto';
 import { StartSecadoDto } from './dto/start-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
@@ -19,6 +20,11 @@ import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 @UseGuards(JwtAuthGuard)
 export class SecadoController {
   constructor(private readonly secadoService: SecadoService) {}
+
+  @Post()
+  crear(@Body() dto: CrearSecadoDto, @Req() req: { user: { sub: string } }) {
+    return this.secadoService.crearSecado(req.user.sub, dto);
+  }
 
   @Post('transformar')
   transformar(

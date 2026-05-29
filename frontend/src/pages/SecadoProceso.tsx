@@ -6,7 +6,10 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import type { LoteDetalle } from '../services/lotesService';
-import { listarGastosPorSublote, type GastoItem } from '../services/gastosService';
+import {
+  listarGastosPorSublote,
+  type GastoItem,
+} from '../services/gastosService';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -69,8 +72,7 @@ function clampDecimalInput(value: string, maxDigits: number, maxValue: number) {
 
 function dateInput(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime()))
-    return getTodayLocalDateValue();
+  if (Number.isNaN(date.getTime())) return getTodayLocalDateValue();
   return date.toISOString().slice(0, 10);
 }
 
@@ -82,12 +84,6 @@ function money(value: number) {
 
 function keyOf(value: string) {
   return value.trim().toUpperCase();
-}
-
-function titleCase(value: string) {
-  const clean = value.trim().toLowerCase();
-  if (!clean) return '';
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 function QualityDot({ color }: { color: string }) {
@@ -151,9 +147,7 @@ export default function SecadoProceso() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     sessionId ?? null,
   );
-  const session = activeSessionId
-    ? getSecadoSession(activeSessionId)
-    : null;
+  const session = activeSessionId ? getSecadoSession(activeSessionId) : null;
   const [step, setStep] = useState<'config' | 'active' | 'finish'>(
     searchParams.get('step') === 'finish' || session?.estado === 'READY'
       ? 'finish'
@@ -198,22 +192,19 @@ export default function SecadoProceso() {
     [pendingTotalEntrada, session],
   );
   const sourceQuality = keyOf(session?.calidad ?? pendingCalidad);
-  const visibleQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
-    (quality) => !sourceQuality || sourceQuality === quality,
-  );
-  const showAllOutputs = visibleQualities.length === 0;
-  const outputQualities = showAllOutputs
-    ? (['BUENO', 'REGULAR', 'MALO'] as const)
-    : visibleQualities;
+  const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
   const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
   const regular = outputQualities.includes('REGULAR')
     ? Number(regularKg) || 0
     : 0;
   const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
   const totalSalida = bueno + regular + malo;
-  const merma = Math.max(0, totalEntrada - totalSalida);
+  const hasSecadoOutput = totalSalida > 0;
+  const merma = hasSecadoOutput ? Math.max(0, totalEntrada - totalSalida) : 0;
   const mermaPct =
-    totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
+    hasSecadoOutput && totalEntrada > 0
+      ? ((merma / totalEntrada) * 100).toFixed(1)
+      : '0.0';
   const outputFields = [
     {
       quality: 'BUENO' as const,
@@ -612,7 +603,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida para café verde {titleCase(session?.calidad ?? '')}.
+                Registra los kilos secos obtenidos por calidad.
               </p>
               {outputFields.map((field) => (
                 <label key={field.quality} className="mt-4 block">
@@ -638,11 +629,14 @@ export default function SecadoProceso() {
                     className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
                     placeholder="0"
                   />
-                  <span className="mt-1 block text-right text-[0.62rem] font-semibold text-slate-400">
-                    Máx. 99.999 kg
-                  </span>
                 </label>
               ))}
+              {!hasSecadoOutput ? (
+                <p className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.78rem] font-semibold leading-5 text-amber-800">
+                  Registra al menos una salida seca en bueno, regular o malo
+                  para calcular el resultado.
+                </p>
+              ) : null}
               {resultadoSecadoError ? (
                 <InlineGuidedError
                   message={getSecadoGuidance(resultadoSecadoError)}
@@ -667,20 +661,53 @@ export default function SecadoProceso() {
                   <p className="text-[0.6rem] font-black uppercase text-slate-400">
                     Salida
                   </p>
-                  <p className="mt-1 text-lg font-black">{kg(totalSalida)}</p>
+                  <p className="mt-1 text-lg font-black">
+                    {hasSecadoOutput ? kg(totalSalida) : '--'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[0.6rem] font-black uppercase text-slate-400">
                     Merma
                   </p>
-                  <p className="mt-1 text-lg font-black text-rose-600">
-                    {kg(merma)}
-                  </p>
-                  <p className="text-[0.65rem] font-black text-rose-400">
-                    {mermaPct}%
-                  </p>
+                  {hasSecadoOutput ? (
+                    <>
+                      <p className="mt-1 text-lg font-black text-rose-600">
+                        {kg(merma)}
+                      </p>
+                      <p className="text-[0.65rem] font-black text-rose-400">
+                        {mermaPct}%
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-lg font-black text-slate-400">
+                        --
+                      </p>
+                      <p className="text-[0.65rem] font-semibold text-slate-400">
+                        Ingresa la salida
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
+              {hasSecadoOutput ? (
+                <div className="border-t border-slate-100 px-4 pb-4">
+                  <p className="mb-2 text-[0.6rem] font-black uppercase text-slate-400">
+                    Salida por calidad
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[0.72rem] font-bold text-slate-600">
+                    <span className="rounded-[10px] bg-emerald-50 px-2 py-2 text-emerald-700">
+                      Bueno<br />{kg(bueno)}
+                    </span>
+                    <span className="rounded-[10px] bg-amber-50 px-2 py-2 text-amber-700">
+                      Regular<br />{kg(regular)}
+                    </span>
+                    <span className="rounded-[10px] bg-rose-50 px-2 py-2 text-rose-700">
+                      Malo<br />{kg(malo)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-[18px] bg-white p-4 shadow-sm">
@@ -722,7 +749,8 @@ export default function SecadoProceso() {
             <button
               type="button"
               onClick={finalizar}
-              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+              disabled={!hasSecadoOutput}
+              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               <CheckCircle2 size={16} />
               Finalizar secado

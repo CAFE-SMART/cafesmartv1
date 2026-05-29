@@ -11,4 +11,9 @@ export class DashboardController {
   obtenerResumen(@Req() req: { user: { sub: string } }) {
     return this.dashboardService.obtenerResumen(req.user.sub);
   }
+
+  @Get('inicio')
+  obtenerInicio(@Req() req: { user: { sub: string } }) {
+    return this.dashboardService.obtenerInicio(req.user.sub);
+  }
 }

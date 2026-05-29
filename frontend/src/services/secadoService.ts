@@ -46,6 +46,26 @@ export type TransformarSecadoPayload = {
   }>;
 };
 
+export type CrearSecadoPayload = {
+  subloteId: string;
+  pesoSalida: number;
+  calidadSalida: 'BUENO' | 'REGULAR' | 'MALO';
+};
+
+export type CrearSecadoResponse = {
+  subloteOrigenId: string;
+  subloteSeco: {
+    id: string;
+    pesoInicial: number;
+    pesoActual: number;
+    tipoCafeId: string;
+    calidadId: string;
+  };
+  pesoEntradaKg: number;
+  pesoSalidaKg: number;
+  mermaKg: number;
+};
+
 export type TransformarSecadoResponse = {
   sessionId: string;
   totalEntradaKg: number;
@@ -66,6 +86,15 @@ export async function startSecado(
   payload: StartSecadoPayload,
 ): Promise<SecadoSession> {
   return apiFetch(`/secado/start/${tipoCafeId}/${calidadId}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function crearSecado(
+  payload: CrearSecadoPayload,
+): Promise<CrearSecadoResponse> {
+  return apiFetch('/secado', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

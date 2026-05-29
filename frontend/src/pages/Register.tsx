@@ -19,10 +19,18 @@ import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { RegisterProgress } from '../components/register/RegisterProgress';
 import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
+  ADMIN_LASTNAME_MAX_LENGTH,
+  ADMIN_NAME_MAX_LENGTH,
   BUSINESS_NAME_MAX_LENGTH,
+  CUSTOM_BUSINESS_TYPE_MAX_LENGTH,
+  EMAIL_MAX_LENGTH,
   getPasswordChecks,
   getPasswordStrength,
+  PASSWORD_MAX_LENGTH,
+  REGISTER_PHONE_MAX_LENGTH,
+  sanitizeAdminNameInput,
   sanitizeBusinessNameInput,
+  sanitizeRegisterPhoneInput,
   type RegisterLocationState,
   type TipoOrg,
 } from '../utils/registerValidators';
@@ -210,6 +218,8 @@ export default function Register() {
                   placeholder="Ej: Cafe Los Alpes"
                   autoComplete="organization"
                   maxLength={BUSINESS_NAME_MAX_LENGTH}
+                  required
+                  helpText="Solo letras, espacios y hasta 5 números."
                   error={stepOneErrors.nombreOrganizacion}
                 />
                 <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
@@ -219,7 +229,7 @@ export default function Register() {
 
               <div className="mt-6">
                 <p className="mb-3 text-[10px] font-black uppercase tracking-[0.08em] text-[#1f2937]">
-                  TIPO DE NEGOCIO
+                  TIPO DE NEGOCIO <RequiredMark />
                 </p>
                 <div className="grid grid-cols-1 gap-3">
                   {businessTypes.map((type) => (
@@ -249,13 +259,18 @@ export default function Register() {
                     label="DESCRIPCION"
                     value={otroTipoDetalle}
                     onChange={(value) => {
-                      setOtroTipoDetalle(value);
+                      setOtroTipoDetalle(
+                        value.slice(0, CUSTOM_BUSINESS_TYPE_MAX_LENGTH),
+                      );
                       setStepOneErrors((prev) => ({
                         ...prev,
                         otroTipoDetalle: undefined,
                       }));
                     }}
                     placeholder="Ej: Trilla, laboratorio o finca"
+                    maxLength={CUSTOM_BUSINESS_TYPE_MAX_LENGTH}
+                    required
+                    helpText="Cuéntanos qué tipo de operación manejas."
                     error={stepOneErrors.otroTipoDetalle}
                   />
                 </div>
@@ -295,7 +310,9 @@ export default function Register() {
                   <Info size={14} />
                 </span>
                 <p className="text-sm font-semibold leading-5 text-[#355070]">
-                  Este usuario será el administrador del sistema.
+                  Este usuario administrará el negocio, el inventario y los
+                  reportes. Usa datos reales para recuperar el acceso si lo
+                  necesitas.
                 </p>
               </div>
 
@@ -312,14 +329,19 @@ export default function Register() {
                     label="Nombre"
                     value={nombre}
                     onChange={(value) => {
-                      setNombre(value);
+                      setNombre(
+                        sanitizeAdminNameInput(value, ADMIN_NAME_MAX_LENGTH),
+                      );
                       setStepTwoErrors((prev) => ({
                         ...prev,
                         nombre: undefined,
                       }));
                     }}
-                    placeholder="Ej: Juan"
+                    placeholder="Ej: Laura"
                     autoComplete="given-name"
+                    maxLength={ADMIN_NAME_MAX_LENGTH}
+                    required
+                    helpText="Solo letras."
                     error={stepTwoErrors.nombre}
                     compactLabel
                   />
@@ -329,7 +351,12 @@ export default function Register() {
                     label="Apellidos"
                     value={apellidos}
                     onChange={(value) => {
-                      setApellidos(value);
+                      setApellidos(
+                        sanitizeAdminNameInput(
+                          value,
+                          ADMIN_LASTNAME_MAX_LENGTH,
+                        ),
+                      );
                       setStepTwoErrors((prev) => ({
                         ...prev,
                         apellidos: undefined,
@@ -337,24 +364,32 @@ export default function Register() {
                     }}
                     placeholder="Ej: Perez Gomez"
                     autoComplete="family-name"
+                    maxLength={ADMIN_LASTNAME_MAX_LENGTH}
+                    required
+                    helpText="Solo letras y espacios."
                     error={stepTwoErrors.apellidos}
                     compactLabel
                   />
                 </div>
 
-                  <TextInput
-                    id="register-admin-phone"
-                    label="Teléfono"
+                <TextInput
+                  id="register-admin-phone"
+                  label="Teléfono"
                   value={telefono}
                   onChange={(value) => {
-                    setTelefono(value);
+                    setTelefono(sanitizeRegisterPhoneInput(value));
                     setStepTwoErrors((prev) => ({
                       ...prev,
                       telefono: undefined,
                     }));
                   }}
-                  placeholder="+57 300 123 4567"
+                  placeholder="3001234567"
                   autoComplete="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={REGISTER_PHONE_MAX_LENGTH}
+                  required
+                  helpText="10 dígitos, debe empezar por 3."
                   error={stepTwoErrors.telefono}
                   compactLabel
                 />
@@ -383,6 +418,9 @@ export default function Register() {
                     }}
                     placeholder="admin@empresa.com"
                     autoComplete="email"
+                    maxLength={EMAIL_MAX_LENGTH}
+                    required
+                    helpText="Usaremos este correo para iniciar sesión."
                     error={stepTwoErrors.correo}
                     compactLabel
                   />
@@ -398,7 +436,7 @@ export default function Register() {
                     htmlFor="register-admin-password"
                     className="mb-2 block text-xs font-black text-[#344054]"
                   >
-                    Contrase&ntilde;a
+                    Contrase&ntilde;a <RequiredMark />
                   </label>
                   <div
                     className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
@@ -413,7 +451,9 @@ export default function Register() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => {
-                        setPassword(event.target.value);
+                        setPassword(
+                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                        );
                         setStepTwoErrors((prev) => ({
                           ...prev,
                           password: undefined,
@@ -426,6 +466,7 @@ export default function Register() {
                       className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                       required
                       minLength={6}
+                      maxLength={PASSWORD_MAX_LENGTH}
                     />
                     <button
                       type="button"
@@ -443,11 +484,16 @@ export default function Register() {
                   {stepTwoErrors.password ? (
                     <FieldError message={stepTwoErrors.password} />
                   ) : null}
-                  {showPasswordRequirements ? (
+                  {!stepTwoErrors.password && showPasswordRequirements ? (
                     <PasswordRequirements
                       checks={passwordChecks}
                       score={passwordStrength.score}
                     />
+                  ) : null}
+                  {!stepTwoErrors.password && !showPasswordRequirements ? (
+                    <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
+                      Mínimo 6 caracteres con mayúscula, minúscula y número.
+                    </p>
                   ) : null}
                 </div>
 
@@ -456,7 +502,7 @@ export default function Register() {
                   label="Confirma tu contraseña"
                   value={confirmPassword}
                   onChange={(value) => {
-                    setConfirmPassword(value);
+                    setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
                     setStepTwoErrors((prev) => ({
                       ...prev,
                       confirmPassword: undefined,
@@ -465,6 +511,9 @@ export default function Register() {
                   placeholder="Vuelve a escribir tu contraseña"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
+                  maxLength={PASSWORD_MAX_LENGTH}
+                  required
+                  helpText="Debe ser igual a la contraseña anterior."
                   error={stepTwoErrors.confirmPassword}
                   compactLabel
                 />
@@ -631,9 +680,13 @@ function TextInput({
   placeholder,
   type = 'text',
   autoComplete,
+  inputMode,
+  pattern,
   error,
   compactLabel = false,
   maxLength,
+  required = false,
+  helpText,
 }: {
   id: string;
   label: string;
@@ -643,9 +696,13 @@ function TextInput({
   placeholder: string;
   type?: string;
   autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  pattern?: string;
   error?: string;
   compactLabel?: boolean;
   maxLength?: number;
+  required?: boolean;
+  helpText?: string;
 }) {
   return (
     <div>
@@ -655,7 +712,7 @@ function TextInput({
           compactLabel ? 'text-xs' : 'text-[10px] uppercase tracking-[0.08em]'
         }`}
       >
-        {label}
+        {label} {required ? <RequiredMark /> : null}
       </label>
       <input
         id={id}
@@ -666,6 +723,8 @@ function TextInput({
         onBlur={() => void onBlur?.()}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        inputMode={inputMode}
+        pattern={pattern}
         maxLength={maxLength}
         aria-invalid={Boolean(error)}
         className={`block min-h-[50px] w-full rounded-[10px] border px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-[#a8b4c5] ${
@@ -675,7 +734,20 @@ function TextInput({
         }`}
       />
       {error ? <FieldError message={error} /> : null}
+      {!error && helpText ? (
+        <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
+          {helpText}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function RequiredMark() {
+  return (
+    <span className="text-rose-500" aria-label="obligatorio">
+      *
+    </span>
   );
 }
 
@@ -718,7 +790,7 @@ function RegisterLinks({
   return (
     <div className="pt-5 text-center">
       <p className="text-[11px] font-medium text-[#73829a]">
-        &iquest;Necesitas ayuda con el registro?
+        &iquest;Dudas con los datos del registro?
       </p>
       <div className="mt-2 flex items-center justify-center gap-6">
         <button
@@ -727,7 +799,7 @@ function RegisterLinks({
           className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
         >
           <CircleHelp size={13} />
-          Ayuda
+          Ver ayuda
         </button>
         <button
           type="button"
@@ -735,7 +807,7 @@ function RegisterLinks({
           className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
         >
           <Headset size={13} />
-          Contacto
+          Contactar soporte
         </button>
       </div>
     </div>
@@ -798,7 +870,9 @@ function SupportModal({
               id="register-support-title"
               className="mt-1 text-lg font-black text-[#111827]"
             >
-              {type === 'help' ? 'Ayuda básica' : 'Contacto'}
+              {type === 'help'
+                ? 'Ayuda para crear la cuenta'
+                : 'Contacto de soporte'}
             </h2>
           </div>
           <button
@@ -812,13 +886,25 @@ function SupportModal({
         </div>
 
         {type === 'help' ? (
-          <div className="space-y-2 text-sm leading-6 text-[#536178]">
-            <p>1. Escribe el nombre real del negocio.</p>
-            <p>2. Elige el tipo de operación cafetera.</p>
-            <p>3. Pulsa Siguiente paso.</p>
+          <div className="space-y-3 text-sm leading-6 text-[#536178]">
+            <p>
+              Nombre del negocio: usa letras, espacios y máximo cinco números.
+            </p>
+            <p>
+              Administrador: el nombre y los apellidos aceptan solo letras. El
+              teléfono debe tener 10 dígitos y empezar por 3.
+            </p>
+            <p>
+              Contraseña: combina mayúscula, minúscula y número para proteger el
+              acceso al inventario.
+            </p>
           </div>
         ) : (
-          <div className="space-y-2 text-sm leading-6 text-[#536178]">
+          <div className="space-y-3 text-sm leading-6 text-[#536178]">
+            <p>
+              Escríbenos qué paso no pudiste completar, qué mensaje viste y el
+              correo que intentas registrar.
+            </p>
             <p>Correo: soporte@cafesmart.com</p>
             <p>Teléfono: +57 300 000 0000</p>
           </div>
@@ -866,10 +952,7 @@ function PasswordRequirements({
           style={{ width: `${(score / 4) * 100}%` }}
         />
       </div>
-      <ul
-        className="mt-2 space-y-1 pl-1"
-        aria-label="Requisitos de contraseña"
-      >
+      <ul className="mt-2 space-y-1 pl-1" aria-label="Requisitos de contraseña">
         {requirements.map((item) => (
           <li
             key={item.label}

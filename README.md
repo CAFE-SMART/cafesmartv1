@@ -603,6 +603,7 @@ pnpm add -D -w eslint-plugin-prettier eslint-config-prettier prettier
 ### Variables no usadas
 
 Si lint marca una variable como no usada, puedes:
+
 - Eliminarla si no la necesitas
 - Usar prefijo `_` si es intencional:
   ```typescript

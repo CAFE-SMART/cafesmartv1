@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { authService } from '../services/authService';
 import {
+  ADMIN_LASTNAME_MAX_LENGTH,
+  ADMIN_NAME_MAX_LENGTH,
   EMAIL_REGEX,
+  EMAIL_MAX_LENGTH,
   getPasswordChecks,
   hasAtLeastOneSurname,
   isValidPhone,
+  PASSWORD_MAX_LENGTH,
+  REGISTER_PHONE_MAX_LENGTH,
+  validateAdminName,
   validateBusinessName,
   type RegisterLocationState,
   type StepOneErrors,
@@ -149,7 +155,9 @@ export function useRegisterForm({
     const businessNameValidation = validateBusinessName(nombreOrganizacion);
 
     if (!businessNameValidation.isValid) {
-      setError(businessNameValidation.message ?? 'Revisa el nombre del negocio.');
+      setError(
+        businessNameValidation.message ?? 'Revisa el nombre del negocio.',
+      );
       setStepOneErrors({
         nombreOrganizacion: businessNameValidation.message,
       });
@@ -166,22 +174,40 @@ export function useRegisterForm({
 
     if (!nombre.trim()) {
       nextErrors.nombre = 'Escribe el nombre.';
+    } else {
+      const nombreValidation = validateAdminName(nombre, ADMIN_NAME_MAX_LENGTH);
+      if (!nombreValidation.isValid) {
+        nextErrors.nombre = nombreValidation.message;
+      }
     }
 
     if (!apellidos.trim()) {
       nextErrors.apellidos = 'Escribe los apellidos.';
-    } else if (!hasAtLeastOneSurname(apellidos)) {
-      nextErrors.apellidos = 'Ingresa un apellido valido.';
+    } else {
+      const apellidosValidation = validateAdminName(
+        apellidos,
+        ADMIN_LASTNAME_MAX_LENGTH,
+      );
+      if (!apellidosValidation.isValid) {
+        nextErrors.apellidos = apellidosValidation.message;
+      } else if (!hasAtLeastOneSurname(apellidos)) {
+        nextErrors.apellidos = 'Ingresa un apellido valido.';
+      }
     }
 
     if (!telefono.trim()) {
       nextErrors.telefono = 'Escribe el teléfono.';
+    } else if (telefono.length > REGISTER_PHONE_MAX_LENGTH) {
+      nextErrors.telefono = `Máximo ${REGISTER_PHONE_MAX_LENGTH} dígitos.`;
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'Teléfono inválido.';
+      nextErrors.telefono =
+        'El teléfono debe tener 10 dígitos y empezar con 3.';
     }
 
     if (!correo.trim()) {
       nextErrors.correo = 'Escribe el correo.';
+    } else if (correo.trim().length > EMAIL_MAX_LENGTH) {
+      nextErrors.correo = `Máximo ${EMAIL_MAX_LENGTH} caracteres.`;
     } else if (!EMAIL_REGEX.test(correo.trim())) {
       nextErrors.correo = 'Correo inválido.';
     } else {
@@ -193,6 +219,7 @@ export function useRegisterForm({
 
     const checks = getPasswordChecks(password);
     if (
+      password.length > PASSWORD_MAX_LENGTH ||
       !checks.minLength ||
       !checks.hasLower ||
       !checks.hasUpper ||

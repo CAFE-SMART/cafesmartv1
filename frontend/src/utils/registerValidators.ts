@@ -1,8 +1,4 @@
-import {
-  COMPANY_NAME_MAX_LENGTH,
-  sanitizeCompanyNameInput,
-  validateProducerName,
-} from './personValidation';
+import { COMPANY_NAME_MAX_LENGTH } from './personValidation';
 
 export type RegisterLocationState = {
   googleToken?: string;
@@ -42,29 +38,30 @@ export type StepTwoErrors = {
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const BUSINESS_NAME_MAX_LENGTH = COMPANY_NAME_MAX_LENGTH;
-const BUSINESS_NAME_REGEX = /^(?=.*[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±])[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9 &.'-]+$/;
+export const BUSINESS_NAME_MAX_DIGITS = 5;
+export const CUSTOM_BUSINESS_TYPE_MAX_LENGTH = 50;
+export const ADMIN_NAME_MAX_LENGTH = 30;
+export const ADMIN_LASTNAME_MAX_LENGTH = 45;
+export const REGISTER_PHONE_MAX_LENGTH = 10;
+export const EMAIL_MAX_LENGTH = 100;
+export const PASSWORD_MAX_LENGTH = 72;
+const BUSINESS_NAME_REGEX = /^(?=.*\p{L})[\p{L}0-9 ]+$/u;
+const ADMIN_NAME_REGEX = /^(?=.*\p{L})[\p{L} ]+$/u;
 export const BUSINESS_NAME_ERROR = 'Ingresa un nombre de negocio válido.';
+export const ADMIN_NAME_ERROR = 'Usa solo letras y espacios.';
+
+function countDigits(value: string) {
+  return (value.match(/\d/g) ?? []).length;
+}
 
 export function validateBusinessName(value: string) {
-  const name = value.trim();
-  const companyValidation = validateProducerName(name, 'NIT');
+  const name = value.trim().replace(/\s+/g, ' ');
 
   if (!name) {
     return {
       isValid: false,
       value: name,
       message: BUSINESS_NAME_ERROR,
-    };
-  }
-
-  if (!companyValidation.isValid) {
-    return {
-      isValid: false,
-      value: name,
-      message:
-        name.length > BUSINESS_NAME_MAX_LENGTH
-          ? `Máximo ${BUSINESS_NAME_MAX_LENGTH} caracteres.`
-          : BUSINESS_NAME_ERROR,
     };
   }
 
@@ -76,6 +73,17 @@ export function validateBusinessName(value: string) {
     };
   }
 
+  if (
+    !BUSINESS_NAME_REGEX.test(name) ||
+    countDigits(name) > BUSINESS_NAME_MAX_DIGITS
+  ) {
+    return {
+      isValid: false,
+      value: name,
+      message: BUSINESS_NAME_ERROR,
+    };
+  }
+
   return {
     isValid: true,
     value: name,
@@ -83,7 +91,74 @@ export function validateBusinessName(value: string) {
 }
 
 export function sanitizeBusinessNameInput(value: string) {
-  return sanitizeCompanyNameInput(value);
+  let digitCount = 0;
+  let sanitized = '';
+
+  for (const char of value) {
+    if (/\d/.test(char)) {
+      if (digitCount < BUSINESS_NAME_MAX_DIGITS) {
+        sanitized += char;
+        digitCount += 1;
+      }
+      continue;
+    }
+
+    if (/[\p{L} ]/u.test(char)) {
+      sanitized += char;
+    }
+  }
+
+  return sanitized.slice(0, BUSINESS_NAME_MAX_LENGTH);
+}
+
+export function sanitizeRegisterPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  const nationalDigits =
+    digits.startsWith('57') && digits.charAt(2) === '3'
+      ? digits.slice(2)
+      : digits;
+
+  return nationalDigits.slice(0, REGISTER_PHONE_MAX_LENGTH);
+}
+
+export function sanitizeAdminNameInput(value: string, maxLength: number) {
+  return [...value]
+    .filter((char) => /[\p{L} ]/u.test(char))
+    .join('')
+    .slice(0, maxLength);
+}
+
+export function validateAdminName(value: string, maxLength: number) {
+  const name = value.trim().replace(/\s+/g, ' ');
+
+  if (!name) {
+    return {
+      isValid: false,
+      value: name,
+      message: 'Completa este campo.',
+    };
+  }
+
+  if (name.length > maxLength) {
+    return {
+      isValid: false,
+      value: name,
+      message: `Máximo ${maxLength} caracteres.`,
+    };
+  }
+
+  if (!ADMIN_NAME_REGEX.test(name)) {
+    return {
+      isValid: false,
+      value: name,
+      message: ADMIN_NAME_ERROR,
+    };
+  }
+
+  return {
+    isValid: true,
+    value: name,
+  };
 }
 
 export function hasAtLeastOneSurname(value: string) {
@@ -95,8 +170,7 @@ export function hasAtLeastOneSurname(value: string) {
 export const hasAtLeastTwoSurnames = hasAtLeastOneSurname;
 
 export function isValidPhone(value: string) {
-  const digits = value.replace(/\D/g, '');
-  return /^3\d{9}$/.test(digits);
+  return /^3\d{9}$/.test(value);
 }
 
 export function getPasswordChecks(value: string) {

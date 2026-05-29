@@ -36,6 +36,49 @@ export type DashboardSummary = {
   movimientosRecientes: DashboardMovimiento[];
 };
 
+export type DashboardInicioBodegaItem = {
+  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
+  tipo: 'Verde' | 'Seco';
+  calidad: 'Bueno' | 'Regular';
+  tipoCafeId: string;
+  calidadId: string;
+  totalKg: number;
+  lots: number;
+  averageDays: number;
+};
+
+export type DashboardInicioSubloteAntiguo = {
+  id: string;
+  tipo: string;
+  calidad: string;
+  tipoCafeId: string;
+  calidadId: string;
+  totalKg: number;
+  days: number;
+};
+
+export type DashboardInicio = Pick<
+  DashboardSummary,
+  | 'comprasHoy'
+  | 'ventasHoy'
+  | 'gastosHoy'
+  | 'kgCompradosHoy'
+  | 'totalComprasHoy'
+  | 'totalVentasHoy'
+  | 'totalGastosHoy'
+  | 'totalProductores'
+  | 'kgActual'
+  | 'kgCapacidad'
+  | 'inventarioPorTipo'
+> & {
+  inventarioBodega: DashboardInicioBodegaItem[];
+  sublotesAntiguos?: DashboardInicioSubloteAntiguo[];
+};
+
 export async function obtenerDashboardSummary() {
   return apiFetch('/dashboard/summary') as Promise<DashboardSummary>;
+}
+
+export async function obtenerDashboardInicio() {
+  return apiFetch('/dashboard/inicio') as Promise<DashboardInicio>;
 }

@@ -17,4 +17,4 @@
  *   <Route path="/nueva-ruta" element={<MiNuevaPantalla />} />
  *
  * ⚠️ Recuerda instalar react-router-dom con: pnpm add react-router-dom
- */
+ */
