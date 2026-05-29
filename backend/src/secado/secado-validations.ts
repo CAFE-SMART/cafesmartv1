@@ -20,7 +20,10 @@ export function validarResultadosSecadoCriticos(
 ): void {
   const outputBuenoKg = normalizarKg(dto.outputBuenoKg);
   const outputRegularKg = normalizarKg(dto.outputRegularKg);
-  const totalSalida = normalizarKg(outputBuenoKg + outputRegularKg);
+  const outputMaloKg = normalizarKg(dto.outputMaloKg ?? 0);
+  const totalSalida = normalizarKg(
+    outputBuenoKg + outputRegularKg + outputMaloKg,
+  );
   const entrada = normalizarKg(inputKg);
 
   if (!Number.isFinite(entrada) || entrada <= 0) {
@@ -33,8 +36,10 @@ export function validarResultadosSecadoCriticos(
   if (
     !Number.isFinite(outputBuenoKg) ||
     !Number.isFinite(outputRegularKg) ||
+    !Number.isFinite(outputMaloKg) ||
     outputBuenoKg < 0 ||
-    outputRegularKg < 0
+    outputRegularKg < 0 ||
+    outputMaloKg < 0
   ) {
     throw new SecadoValidacionCriticaError(
       'SECADO_CANTIDAD_INVALIDA',

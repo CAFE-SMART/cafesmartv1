@@ -47,6 +47,16 @@ export type DashboardInicioBodegaItem = {
   averageDays: number;
 };
 
+export type DashboardInicioSubloteAntiguo = {
+  id: string;
+  tipo: string;
+  calidad: string;
+  tipoCafeId: string;
+  calidadId: string;
+  totalKg: number;
+  days: number;
+};
+
 export type DashboardInicio = Pick<
   DashboardSummary,
   | 'comprasHoy'
@@ -62,6 +72,7 @@ export type DashboardInicio = Pick<
   | 'inventarioPorTipo'
 > & {
   inventarioBodega: DashboardInicioBodegaItem[];
+  sublotesAntiguos?: DashboardInicioSubloteAntiguo[];
 };
 
 export async function obtenerDashboardSummary() {

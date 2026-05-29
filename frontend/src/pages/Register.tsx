@@ -895,8 +895,8 @@ function SupportModal({
               teléfono debe tener 10 dígitos y empezar por 3.
             </p>
             <p>
-              Contraseña: combina mayúscula, minúscula y número para proteger
-              el acceso al inventario.
+              Contraseña: combina mayúscula, minúscula y número para proteger el
+              acceso al inventario.
             </p>
           </div>
         ) : (
@@ -952,10 +952,7 @@ function PasswordRequirements({
           style={{ width: `${(score / 4) * 100}%` }}
         />
       </div>
-      <ul
-        className="mt-2 space-y-1 pl-1"
-        aria-label="Requisitos de contraseña"
-      >
+      <ul className="mt-2 space-y-1 pl-1" aria-label="Requisitos de contraseña">
         {requirements.map((item) => (
           <li
             key={item.label}

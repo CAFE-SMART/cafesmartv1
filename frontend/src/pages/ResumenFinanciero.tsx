@@ -152,7 +152,9 @@ function getFinancialAccessErrorMessage(error: unknown) {
       return 'No pudimos validar el acceso en este momento. Revisa tu internet e intenta de nuevo.';
     }
 
-    return error.message || 'No pudimos validar la contraseña. Intenta de nuevo.';
+    return (
+      error.message || 'No pudimos validar la contraseña. Intenta de nuevo.'
+    );
   }
 
   if (error instanceof Error && error.message.trim()) {
@@ -278,14 +280,20 @@ export default function ResumenFinanciero() {
     apiValue && apiValue > 0 ? apiValue : fallback;
   const ventasTotal =
     periodo === 'DIARIO'
-      ? totalConRespaldo(summary?.totalVentasHoy, totalesMovimientosPeriodo.ventas)
+      ? totalConRespaldo(
+          summary?.totalVentasHoy,
+          totalesMovimientosPeriodo.ventas,
+        )
       : totalConRespaldo(
           summary?.totalVentasSemana,
           totalesMovimientosPeriodo.ventas,
         );
   const gastosTotal =
     periodo === 'DIARIO'
-      ? totalConRespaldo(summary?.totalGastosHoy, totalesMovimientosPeriodo.gastos)
+      ? totalConRespaldo(
+          summary?.totalGastosHoy,
+          totalesMovimientosPeriodo.gastos,
+        )
       : totalConRespaldo(
           summary?.totalGastosSemana,
           totalesMovimientosPeriodo.gastos,
@@ -499,7 +507,7 @@ export default function ResumenFinanciero() {
             <p className="mx-auto mt-2 max-w-[300px] text-[0.68rem] font-semibold leading-5 text-slate-500">
               {loading
                 ? 'Estamos preparando los datos financieros.'
-                : error ?? 'Revisa tu conexión e intenta de nuevo.'}
+                : (error ?? 'Revisa tu conexión e intenta de nuevo.')}
             </p>
             {!loading ? (
               <button
@@ -616,123 +624,124 @@ export default function ResumenFinanciero() {
             </section>
 
             {periodo === 'SEMANAL' ? (
-            <section className="mt-3 rounded-[14px] border border-[#e5eaf3] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <LineChart size={15} className="text-[#102d92]" />
-                  <div>
-                    <p className="text-[0.78rem] font-black text-[#111827]">
-                      Tendencia del balance
+              <section className="mt-3 rounded-[14px] border border-[#e5eaf3] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <LineChart size={15} className="text-[#102d92]" />
+                    <div>
+                      <p className="text-[0.78rem] font-black text-[#111827]">
+                        Tendencia del balance
+                      </p>
+                      <p className="text-[0.62rem] font-semibold text-slate-500">
+                        Dinero por fecha
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[0.56rem] font-black uppercase tracking-[0.1em] text-[#73829a]">
+                    {trend.xAxisTitle}
+                  </p>
+                </div>
+
+                {movimientosDelPeriodo.length === 0 ? (
+                  <div className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3">
+                    <p className="text-[0.7rem] font-black text-[#111827]">
+                      Aún no hay movimientos para este periodo.
                     </p>
-                    <p className="text-[0.62rem] font-semibold text-slate-500">
-                      Dinero por fecha
+                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-slate-500">
+                      Registra compras, ventas o gastos para ver el resumen
+                      financiero.
                     </p>
                   </div>
-                </div>
-                <p className="text-[0.56rem] font-black uppercase tracking-[0.1em] text-[#73829a]">
-                  {trend.xAxisTitle}
-                </p>
-              </div>
-
-              {movimientosDelPeriodo.length === 0 ? (
-                <div className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3">
-                  <p className="text-[0.7rem] font-black text-[#111827]">
-                    Aún no hay movimientos para este periodo.
-                  </p>
-                  <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-slate-500">
-                    Registra compras, ventas o gastos para ver el resumen financiero.
-                  </p>
-                </div>
-              ) : (
-              <div className="mt-3 h-[206px]">
-                <svg
-                  viewBox="0 0 390 230"
-                  className="h-[196px] w-full overflow-visible"
-                  role="img"
-                  aria-label="Tendencia del balance"
-                >
-                  <text
-                    x="4"
-                    y="14"
-                    fill="#0f172a"
-                    fontSize="10"
-                    fontWeight="800"
-                  >
-                    {trend.yAxisTitle}
-                  </text>
-                  <text
-                    x="350"
-                    y="226"
-                    textAnchor="end"
-                    fill="#0f172a"
-                    fontSize="10"
-                    fontWeight="800"
-                  >
-                    Fecha
-                  </text>
-                  {trend.yLabels.map((tick) => (
-                    <g key={tick.label}>
+                ) : (
+                  <div className="mt-3 h-[206px]">
+                    <svg
+                      viewBox="0 0 390 230"
+                      className="h-[196px] w-full overflow-visible"
+                      role="img"
+                      aria-label="Tendencia del balance"
+                    >
                       <text
                         x="4"
-                        y={tick.y + 4}
-                        fill="#475569"
-                        fontSize="9"
-                        fontWeight="700"
+                        y="14"
+                        fill="#0f172a"
+                        fontSize="10"
+                        fontWeight="800"
                       >
-                        {tick.label}
+                        {trend.yAxisTitle}
                       </text>
+                      <text
+                        x="350"
+                        y="226"
+                        textAnchor="end"
+                        fill="#0f172a"
+                        fontSize="10"
+                        fontWeight="800"
+                      >
+                        Fecha
+                      </text>
+                      {trend.yLabels.map((tick) => (
+                        <g key={tick.label}>
+                          <text
+                            x="4"
+                            y={tick.y + 4}
+                            fill="#475569"
+                            fontSize="9"
+                            fontWeight="700"
+                          >
+                            {tick.label}
+                          </text>
+                          <line
+                            x1="96"
+                            y1={tick.y}
+                            x2="344"
+                            y2={tick.y}
+                            stroke="#e6ecf4"
+                            strokeDasharray="5 5"
+                          />
+                        </g>
+                      ))}
                       <line
                         x1="96"
-                        y1={tick.y}
+                        y1={trend.zeroY}
                         x2="344"
-                        y2={tick.y}
-                        stroke="#e6ecf4"
-                        strokeDasharray="5 5"
+                        y2={trend.zeroY}
+                        stroke="#cbd5e1"
+                        strokeWidth="1.5"
                       />
-                    </g>
-                  ))}
-                  <line
-                    x1="96"
-                    y1={trend.zeroY}
-                    x2="344"
-                    y2={trend.zeroY}
-                    stroke="#cbd5e1"
-                    strokeWidth="1.5"
-                  />
-                  <polyline
-                    points={trend.polyline}
-                    fill="none"
-                    stroke="#0f58bd"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  {trend.points.map((point) => (
-                    <g key={point.key}>
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="6"
-                        fill="#0f58bd"
-                        stroke="#ffffff"
-                        strokeWidth="3"
+                      <polyline
+                        points={trend.polyline}
+                        fill="none"
+                        stroke="#0f58bd"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                      <text
-                        x={point.x}
-                        y="208"
-                        textAnchor="middle"
-                        fill="#475569"
-                        fontSize="9"
-                        fontWeight="700"
-                      >
-                        {point.label}
-                      </text>
-                    </g>
-                  ))}
-                </svg>
-              </div>
-              )}
-            </section>
+                      {trend.points.map((point) => (
+                        <g key={point.key}>
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r="6"
+                            fill="#0f58bd"
+                            stroke="#ffffff"
+                            strokeWidth="3"
+                          />
+                          <text
+                            x={point.x}
+                            y="208"
+                            textAnchor="middle"
+                            fill="#475569"
+                            fontSize="9"
+                            fontWeight="700"
+                          >
+                            {point.label}
+                          </text>
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
+                )}
+              </section>
             ) : null}
 
             <section className="mt-3 rounded-[14px] border border-amber-100 bg-[#fff8e7] px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
@@ -865,7 +874,9 @@ export default function ResumenFinanciero() {
                         Historial
                       </p>
                       <p className="text-[0.6rem] font-semibold text-slate-500">
-                        {periodo === 'DIARIO' ? 'Movimientos de hoy' : 'Movimientos de los últimos 7 días'}
+                        {periodo === 'DIARIO'
+                          ? 'Movimientos de hoy'
+                          : 'Movimientos de los últimos 7 días'}
                       </p>
                     </div>
                     <button

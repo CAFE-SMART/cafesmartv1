@@ -49,4 +49,3 @@ export async function guardarLimitesEntrada(
     body: JSON.stringify(limites),
   }) as Promise<LimitesEntrada>;
 }
-

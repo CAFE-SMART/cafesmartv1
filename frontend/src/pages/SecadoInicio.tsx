@@ -378,9 +378,7 @@ export default function SecadoInicio() {
             ) : (
               <>
                 {error ? (
-                  <InlineGuidedError
-                    message={getSecadoInicioGuidance(error)}
-                  />
+                  <InlineGuidedError message={getSecadoInicioGuidance(error)} />
                 ) : null}
 
                 <section className="rounded-[22px] bg-white p-4 shadow-sm">

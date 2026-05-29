@@ -14,7 +14,9 @@ const CAPACIDAD_BODEGA_INVALIDA = 'Ingresa una capacidad de bodega válida.';
 export class ActualizarBodegaDto {
   @IsString({ message: 'El nombre de la bodega debe ser un texto' })
   @IsNotEmpty({ message: 'El nombre de la bodega es requerido' })
-  @MaxLength(50, { message: 'El nombre de la bodega no puede superar 50 caracteres' })
+  @MaxLength(50, {
+    message: 'El nombre de la bodega no puede superar 50 caracteres',
+  })
   nombreBodega: string;
 
   @Type(() => Number)

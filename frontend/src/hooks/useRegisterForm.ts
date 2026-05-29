@@ -155,7 +155,9 @@ export function useRegisterForm({
     const businessNameValidation = validateBusinessName(nombreOrganizacion);
 
     if (!businessNameValidation.isValid) {
-      setError(businessNameValidation.message ?? 'Revisa el nombre del negocio.');
+      setError(
+        businessNameValidation.message ?? 'Revisa el nombre del negocio.',
+      );
       setStepOneErrors({
         nombreOrganizacion: businessNameValidation.message,
       });
@@ -198,7 +200,8 @@ export function useRegisterForm({
     } else if (telefono.length > REGISTER_PHONE_MAX_LENGTH) {
       nextErrors.telefono = `Máximo ${REGISTER_PHONE_MAX_LENGTH} dígitos.`;
     } else if (!isValidPhone(telefono)) {
-      nextErrors.telefono = 'El teléfono debe tener 10 dígitos y empezar con 3.';
+      nextErrors.telefono =
+        'El teléfono debe tener 10 dígitos y empezar con 3.';
     }
 
     if (!correo.trim()) {

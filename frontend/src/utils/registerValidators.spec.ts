@@ -29,7 +29,16 @@ describe('validateBusinessName', () => {
   });
 
   it('rechaza vacios, caracteres especiales y mas de cinco numeros', () => {
-    ['', '   ', '---', '@@@@', '""""', '&.*', 'Cafe Smart!', 'Cafe Ruta 123456'].forEach((name) => {
+    [
+      '',
+      '   ',
+      '---',
+      '@@@@',
+      '""""',
+      '&.*',
+      'Cafe Smart!',
+      'Cafe Ruta 123456',
+    ].forEach((name) => {
       const result = validateBusinessName(name);
       expect(result.isValid).toBe(false);
       expect(result.message).toBe(BUSINESS_NAME_ERROR);

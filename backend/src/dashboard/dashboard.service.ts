@@ -54,6 +54,16 @@ type DashboardInicioBodegaItem = {
   averageDays: number;
 };
 
+type DashboardInicioSubloteAntiguo = {
+  id: string;
+  tipo: string;
+  calidad: string;
+  tipoCafeId: string;
+  calidadId: string;
+  totalKg: number;
+  days: number;
+};
+
 type DashboardInicioResponse = Pick<
   DashboardSummaryResponse,
   | 'comprasHoy'
@@ -69,6 +79,7 @@ type DashboardInicioResponse = Pick<
   | 'inventarioPorTipo'
 > & {
   inventarioBodega: DashboardInicioBodegaItem[];
+  sublotesAntiguos: DashboardInicioSubloteAntiguo[];
 };
 
 const LIMITE_MOVIMIENTOS_RECIENTES = 50;
@@ -407,9 +418,7 @@ export class DashboardService {
         totalComprasAcumulado._sum.totalCompra ?? 0,
       ),
       totalVentasAcumulado: Number(totalVentasAcumulado._sum.totalVenta ?? 0),
-      totalGastosAcumulado: Number(
-        totalGastosAcumulado._sum.montoGasto ?? 0,
-      ),
+      totalGastosAcumulado: Number(totalGastosAcumulado._sum.montoGasto ?? 0),
       totalProductores,
       kgActual: resumenInventario.kgActual,
       kgCapacidad,
@@ -437,6 +446,7 @@ export class DashboardService {
       resumenInventario,
       kgCapacidad,
       inventarioBodega,
+      sublotesAntiguos,
     ] = await Promise.all([
       this.prisma.compra.count({
         where: {
@@ -503,6 +513,7 @@ export class DashboardService {
       this.obtenerResumenInventario(organizacionId),
       this.obtenerCapacidadBodegaKg(organizacionId),
       this.obtenerInventarioBodegaInicio(organizacionId),
+      this.obtenerSublotesAntiguosInicio(organizacionId),
     ]);
 
     return {
@@ -518,6 +529,7 @@ export class DashboardService {
       kgCapacidad,
       inventarioPorTipo: resumenInventario.inventarioPorTipo,
       inventarioBodega,
+      sublotesAntiguos,
     };
   }
 
@@ -590,7 +602,8 @@ export class DashboardService {
     for (const sublote of sublotes) {
       const tipoKey = sublote.tipoCafe.nombre.trim().toUpperCase();
       const calidadKey = sublote.calidad.nombre.trim().toUpperCase();
-      const key = `${tipoKey}_${calidadKey}` as DashboardInicioBodegaItem['key'];
+      const key =
+        `${tipoKey}_${calidadKey}` as DashboardInicioBodegaItem['key'];
 
       if (
         key !== 'VERDE_BUENO' &&
@@ -601,7 +614,9 @@ export class DashboardService {
       }
 
       const totalKg = Number(sublote.pesoActual);
-      const days = this.daysSinceBogota(sublote.compra.fecha ?? sublote.creadoEn);
+      const days = this.daysSinceBogota(
+        sublote.compra.fecha ?? sublote.creadoEn,
+      );
       const current = map.get(key) ?? {
         key,
         tipo: tipoKey === 'SECO' ? 'Seco' : 'Verde',
@@ -626,9 +641,47 @@ export class DashboardService {
         averageDays: item.lots > 0 ? Math.round(dayWeight / item.lots) : 0,
       }))
       .sort((a, b) => {
-        if (b.averageDays !== a.averageDays) return b.averageDays - a.averageDays;
+        if (b.averageDays !== a.averageDays)
+          return b.averageDays - a.averageDays;
         return b.totalKg - a.totalKg;
       });
+  }
+
+  private async obtenerSublotesAntiguosInicio(
+    organizacionId: string,
+  ): Promise<DashboardInicioSubloteAntiguo[]> {
+    const sublotes = await this.prisma.sublote.findMany({
+      where: {
+        deletedAt: null,
+        pesoActual: { gt: 0 },
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        pesoActual: true,
+        tipoCafeId: true,
+        calidadId: true,
+        tipoCafe: { select: { nombre: true } },
+        calidad: { select: { nombre: true } },
+        compra: { select: { fecha: true } },
+        creadoEn: true,
+      },
+      orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
+      take: 3,
+    });
+
+    return sublotes.map((sublote) => ({
+      id: sublote.id,
+      tipo: this.toTitleLabel(sublote.tipoCafe.nombre),
+      calidad: this.toTitleLabel(sublote.calidad.nombre),
+      tipoCafeId: sublote.tipoCafeId,
+      calidadId: sublote.calidadId,
+      totalKg: Number(sublote.pesoActual),
+      days: this.daysSinceBogota(sublote.compra.fecha ?? sublote.creadoEn),
+    }));
   }
 
   private async obtenerResumenFinanciero(organizacionId: string) {
@@ -893,6 +946,16 @@ export class DashboardService {
     return { inicioDia, finDia };
   }
 
+  private toTitleLabel(value: string): string {
+    const clean = value.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!clean) return '';
+
+    return clean
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
   private daysSinceBogota(value: Date): number {
     const { inicioDia } = this.obtenerRangoHoyBogota();
     const dateParts = new Intl.DateTimeFormat('en-CA', {
@@ -901,7 +964,9 @@ export class DashboardService {
       month: '2-digit',
       day: '2-digit',
     }).formatToParts(value);
-    const year = Number(dateParts.find((parte) => parte.type === 'year')?.value);
+    const year = Number(
+      dateParts.find((parte) => parte.type === 'year')?.value,
+    );
     const month = Number(
       dateParts.find((parte) => parte.type === 'month')?.value,
     );
@@ -926,9 +991,7 @@ export class DashboardService {
     const inicioSemana = new Date(
       inicioDia.getTime() - 6 * 24 * 60 * 60 * 1000,
     );
-    const finSemana = new Date(
-      inicioDia.getTime() + 24 * 60 * 60 * 1000,
-    );
+    const finSemana = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
 
     return { inicioSemana, finSemana };
   }

@@ -97,7 +97,8 @@ function getFieldGuidance(
   const { whatOverride, hasAvailableSublotes = true } = options;
 
   if (field === 'concepto') {
-    const message = whatOverride ?? 'Agrega un nombre para identificar el gasto.';
+    const message =
+      whatOverride ?? 'Agrega un nombre para identificar el gasto.';
     return {
       what: message,
       why: message,
@@ -278,7 +279,6 @@ export default function GastosOperativos() {
       delete next[field];
       return next;
     });
-
   };
 
   const enfocarCampo = (field: FieldKey) => {
@@ -802,9 +802,7 @@ export default function GastosOperativos() {
                 <Layers
                   size={16}
                   className={
-                    aplicaA === 'SUBLOTES'
-                      ? 'text-[#1f62ff]'
-                      : 'text-slate-500'
+                    aplicaA === 'SUBLOTES' ? 'text-[#1f62ff]' : 'text-slate-500'
                   }
                 />
                 <span className="text-[0.58rem] font-black uppercase tracking-normal">
@@ -1061,7 +1059,6 @@ export default function GastosOperativos() {
           </div>
         </div>
       ) : null}
-
     </div>
   );
 }
