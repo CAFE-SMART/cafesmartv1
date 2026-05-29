@@ -7,7 +7,6 @@ const COMPANY_NAME_ALLOWED_CHARS = /^[\p{L}0-9\s&.'/-]+$/u;
 const COMPANY_HAS_LETTER = /\p{L}/u;
 
 const NAME_ALLOWED_CHARS = /^[\p{L}\s'.-]+$/u;
-const BUSINESS_NAME_ALLOWED_CHARS = /^[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9\s&.'-]+$/;
 const HAS_LETTER = /\p{L}/u;
 
 const COMPANY_NAME_MAX_LENGTH = 30;
@@ -92,9 +91,7 @@ export function normalizarNombrePersona(
 
   if (
     words.length < 2 ||
-    words.some(
-      (word) => word.replace(/[^\p{L}]/gu, '').length < 2,
-    )
+    words.some((word) => word.replace(/[^\p{L}]/gu, '').length < 2)
   ) {
     throwPersonValidation(
       entidad,
@@ -137,9 +134,7 @@ export function normalizarDocumentoPersona(
   }
 
   if (tipoDocumento === 'CC') {
-    if (
-      !/^\d+$/.test(documento)
-    ) {
+    if (!/^\d+$/.test(documento)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',
@@ -172,9 +167,7 @@ export function normalizarDocumentoPersona(
   if (tipoDocumento === 'NIT') {
     const digits = documento.replace(/\D/g, '');
 
-    if (
-      !/^\d+(?:-\d+)?$/.test(documento)
-    ) {
+    if (!/^\d+(?:-\d+)?$/.test(documento)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',

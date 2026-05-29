@@ -27,4 +27,18 @@ export class SecadoResultsDto {
   @Min(0, { message: 'La humedad regular no puede ser negativa' })
   @Max(100, { message: 'La humedad regular no puede superar 100%' })
   outputRegularHumedad?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'La salida mala debe ser un numero' })
+  @Min(0, { message: 'La salida mala no puede ser negativa' })
+  @Max(99999, { message: 'La salida mala no puede superar los 99.999 kg' })
+  outputMaloKg?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'La humedad mala debe ser un numero' })
+  @Min(0, { message: 'La humedad mala no puede ser negativa' })
+  @Max(100, { message: 'La humedad mala no puede superar 100%' })
+  outputMaloHumedad?: number;
 }

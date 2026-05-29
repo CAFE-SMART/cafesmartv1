@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarDays,
   ChevronRight,
+  CircleDashed,
   Droplets,
   FlaskConical,
   Lock,
@@ -36,7 +37,7 @@ import {
   guardarConfiguracionBodega,
   guardarLimitesEntrada,
 } from '../services/bodegaApi';
-import { applySecadoToLots } from '../utils/secadoFlow';
+import { applySecadoToLots, getActiveSecadoSessions } from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_ERROR,
@@ -96,7 +97,8 @@ function formatDate(value: string) {
 function getAjustesErrorSection(message: string): AjustesErrorSection | null {
   if (
     message === 'Escribe el nombre del usuario.' ||
-    message === 'El correo electrónico no es válido. Verifica que esté bien escrito.' ||
+    message ===
+      'El correo electrónico no es válido. Verifica que esté bien escrito.' ||
     message === 'El teléfono debe tener 10 dígitos y empezar con 3.'
   ) {
     return 'profile';
@@ -106,7 +108,8 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
     message === BUSINESS_NAME_ERROR ||
     message === 'Selecciona el tipo de empresa.' ||
     message === 'El nombre de la empresa no puede exceder los 30 caracteres.' ||
-    message === 'La descripción de la empresa no puede exceder los 50 caracteres.'
+    message ===
+      'La descripción de la empresa no puede exceder los 50 caracteres.'
   ) {
     return 'company';
   }
@@ -134,7 +137,10 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'El correo electrónico no es válido. Verifica que esté bien escrito.') {
+  if (
+    message ===
+    'El correo electrónico no es válido. Verifica que esté bien escrito.'
+  ) {
     return createGuidedError(
       message,
       'Correo inválido.',
@@ -161,7 +167,9 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'El nombre de la empresa no puede exceder los 30 caracteres.') {
+  if (
+    message === 'El nombre de la empresa no puede exceder los 30 caracteres.'
+  ) {
     return createGuidedError(
       message,
       'Nombre muy largo.',
@@ -170,7 +178,10 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'La descripción de la empresa no puede exceder los 50 caracteres.') {
+  if (
+    message ===
+    'La descripción de la empresa no puede exceder los 50 caracteres.'
+  ) {
     return createGuidedError(
       message,
       'Descripción muy larga.',
@@ -275,8 +286,12 @@ export default function Ajustes() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [showNoActiveSecadoModal, setShowNoActiveSecadoModal] = useState(false);
 
-  const [toastNotification, setToastNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [floatingError, setFloatingError] = useState<GuidedErrorMessage | null>(
@@ -489,13 +504,21 @@ export default function Ajustes() {
         maxPrecioVentaKg: precioVentaMax,
       });
       setSuccess('Límites actualizados.');
-      setToastNotification({ message: 'Límites actualizados con éxito.', type: 'success' });
+      setToastNotification({
+        message: 'Límites actualizados con éxito.',
+        type: 'success',
+      });
       setIsEditingLimites(false);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Error al guardar los l\u00edmites.';
+        err instanceof Error
+          ? err.message
+          : 'Error al guardar los l\u00edmites.';
       setError(message);
-      setToastNotification({ message: 'Error al guardar los límites.', type: 'error' });
+      setToastNotification({
+        message: 'Error al guardar los límites.',
+        type: 'error',
+      });
     } finally {
       setGuardandoLimites(false);
     }
@@ -517,7 +540,8 @@ export default function Ajustes() {
     if (profile.correo.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(profile.correo)) {
-        const message = 'El correo electrónico no es válido. Verifica que esté bien escrito.';
+        const message =
+          'El correo electrónico no es válido. Verifica que esté bien escrito.';
         setError(message);
         return;
       }
@@ -531,7 +555,10 @@ export default function Ajustes() {
     }
     setSavedProfile(profile);
     setSuccess('Perfil actualizado correctamente.');
-    setToastNotification({ message: 'Perfil guardado con éxito.', type: 'success' });
+    setToastNotification({
+      message: 'Perfil guardado con éxito.',
+      type: 'success',
+    });
     setIsEditingProfile(false);
   };
 
@@ -547,19 +574,24 @@ export default function Ajustes() {
     }
 
     if (nombre.length > 30) {
-      const message = 'El nombre de la empresa no puede exceder los 30 caracteres.';
+      const message =
+        'El nombre de la empresa no puede exceder los 30 caracteres.';
       setError(message);
       return;
     }
 
     if (company.descripcion.length > 50) {
-      const message = 'La descripción de la empresa no puede exceder los 50 caracteres.';
+      const message =
+        'La descripción de la empresa no puede exceder los 50 caracteres.';
       setError(message);
       return;
     }
 
     setSuccess('Información de la empresa actualizada.');
-    setToastNotification({ message: 'Empresa guardada con éxito.', type: 'success' });
+    setToastNotification({
+      message: 'Empresa guardada con éxito.',
+      type: 'success',
+    });
     setIsEditingCompany(false);
   };
 
@@ -597,13 +629,19 @@ export default function Ajustes() {
       setCapacidadKg(result.capacidadKg ? String(result.capacidadKg) : '');
       setUpdatedAt(result.updatedAt);
       setSuccess('Capacidad de bodega actualizada.');
-      setToastNotification({ message: 'Capacidad de bodega actualizada con éxito.', type: 'success' });
+      setToastNotification({
+        message: 'Capacidad de bodega actualizada con éxito.',
+        type: 'success',
+      });
       setIsEditingBodega(false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Error al guardar la bodega.';
       setError(message);
-      setToastNotification({ message: 'Error al guardar la bodega.', type: 'error' });
+      setToastNotification({
+        message: 'Error al guardar la bodega.',
+        type: 'error',
+      });
     }
   };
 
@@ -617,6 +655,15 @@ export default function Ajustes() {
     }
   };
 
+  const abrirProcesoSecado = () => {
+    if (getActiveSecadoSessions().length > 0) {
+      navigate('/inventario/secados', { state: { from: 'ajustes' } });
+      return;
+    }
+
+    setShowNoActiveSecadoModal(true);
+  };
+
   const procesosOperativos = [
     {
       id: 'secado',
@@ -624,7 +671,7 @@ export default function Ajustes() {
       description: 'Tiempo y humedad',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#102d92]',
-      onClick: () => navigate('/inventario'),
+      onClick: abrirProcesoSecado,
     },
     {
       id: 'gastos',
@@ -715,10 +762,12 @@ export default function Ajustes() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
       {toastNotification && (
-        <div 
+        <div
           className={`fixed left-1/2 top-4 z-[100] -translate-x-1/2 rounded-full px-6 py-3 shadow-lg transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${toastNotification.type === 'success' ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#fee2e2] text-[#991b1b]'}`}
         >
-          <p className="text-[0.95rem] font-semibold">{toastNotification.message}</p>
+          <p className="text-[0.95rem] font-semibold">
+            {toastNotification.message}
+          </p>
         </div>
       )}
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
@@ -738,9 +787,9 @@ export default function Ajustes() {
         <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="h-14 w-14 rounded-full bg-[#eef2ff] p-1 shadow-inner">
+              <div className="h-16 w-16 rounded-full bg-[#eef2ff] p-1 shadow-inner">
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#102d92]">
-                  <UserCircle2 size={28} />
+                  <UserCircle2 size={31} />
                 </div>
               </div>
               <div className="absolute -right-1 -bottom-1 rounded-full bg-[#102d92] p-1.5 text-white">
@@ -748,17 +797,24 @@ export default function Ajustes() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[1.1rem] font-semibold text-[#121826]">
+              <p className="text-[0.72rem] font-semibold text-slate-400">
+                Usuario de la cuenta
+              </p>
+              <h2 className="mt-0.5 truncate text-[1.08rem] font-semibold leading-tight text-[#121826]">
                 {profile.nombre || 'Administrador'}
               </h2>
-              <p className="text-xs font-medium text-slate-500">
-                {company.tipoEmpresa || 'Administrador'}
-              </p>
+              <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#f4f7fb] px-2.5 py-1">
+                <Building2 size={12} className="shrink-0 text-[#6b7a90]" />
+                <span className="truncate text-[0.72rem] font-medium text-slate-500">
+                  {company.tipoEmpresa || 'Tipo de negocio sin definir'}
+                </span>
+              </div>
             </div>
             <button
               type="button"
               onClick={abrirEditorPerfil}
-              className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#102d92]"
+              className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#102d92]"
+              aria-label="Editar datos del perfil"
             >
               Editar
             </button>
@@ -777,19 +833,21 @@ export default function Ajustes() {
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="rounded-[14px] border border-[#e5e9f5] bg-white p-3 text-left shadow-sm"
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm"
                 >
                   <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                    className={`inline-flex shrink-0 rounded-lg p-2 ${item.iconStyle}`}
                   >
                     <Icon size={14} />
                   </span>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {item.title}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {item.description}
-                  </p>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </span>
+                    <span className="block truncate text-[11px] text-slate-500">
+                      {item.description}
+                    </span>
+                  </span>
                 </button>
               );
             })}
@@ -944,8 +1002,11 @@ export default function Ajustes() {
                   maxLength={30}
                   onChange={(event) => {
                     const raw = event.target.value;
-                    const filtered = sanitizeBusinessNameInput(raw).slice(0, 30);
-                    
+                    const filtered = sanitizeBusinessNameInput(raw).slice(
+                      0,
+                      30,
+                    );
+
                     setCompany((prev) => ({
                       ...prev,
                       nombreEmpresa: filtered,
@@ -969,7 +1030,6 @@ export default function Ajustes() {
                 ) : null}
               </div>
 
-
               <div>
                 <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
                   Descripción (Opcional)
@@ -986,7 +1046,8 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border ${
-                    error === 'La descripción de la empresa no puede exceder los 50 caracteres.'
+                    error ===
+                    'La descripción de la empresa no puede exceder los 50 caracteres.'
                       ? 'border-rose-400 bg-rose-50'
                       : 'border-[#dde4f1] bg-[#f7f9fd]'
                   } px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
@@ -996,13 +1057,13 @@ export default function Ajustes() {
                 <p className="mt-1 text-right text-[0.68rem] text-slate-400">
                   {company.descripcion.length}/50
                 </p>
-                {error === 'La descripción de la empresa no puede exceder los 50 caracteres.' ? (
+                {error ===
+                'La descripción de la empresa no puede exceder los 50 caracteres.' ? (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
                   </div>
                 ) : null}
               </div>
-
 
               <button
                 type="button"
@@ -1062,7 +1123,7 @@ export default function Ajustes() {
                   </div>
                 )}
               </div>
-              
+
               <div>
                 <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
                   Correo electrónico
@@ -1081,7 +1142,8 @@ export default function Ajustes() {
                   className={`w-full rounded-[14px] border ${error === 'El correo electrónico no es válido. Verifica que esté bien escrito.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
                   placeholder="Correo electrónico"
                 />
-                {error === 'El correo electrónico no es válido. Verifica que esté bien escrito.' && (
+                {error ===
+                  'El correo electrónico no es válido. Verifica que esté bien escrito.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
                   </div>
@@ -1107,7 +1169,8 @@ export default function Ajustes() {
                   className={`w-full rounded-[14px] border ${error === 'El teléfono debe tener 10 dígitos y empezar con 3.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
                   placeholder="3001234567"
                 />
-                {error === 'El teléfono debe tener 10 dígitos y empezar con 3.' && (
+                {error ===
+                  'El teléfono debe tener 10 dígitos y empezar con 3.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
                   </div>
@@ -1263,7 +1326,9 @@ export default function Ajustes() {
                   maxLength={5}
                   value={limitMaxPesoKg}
                   onChange={(event) => {
-                    const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                    const raw = event.target.value
+                      .replace(/\D/g, '')
+                      .slice(0, 5);
                     setLimitMaxPesoKg(raw);
                     clearFeedback();
                   }}
@@ -1282,14 +1347,18 @@ export default function Ajustes() {
                   Precio máx. x kg (Compra)
                 </p>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                    $
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
                     value={limitMaxPrecioKg}
                     onChange={(event) => {
-                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                      const raw = event.target.value
+                        .replace(/\D/g, '')
+                        .slice(0, 6);
                       setLimitMaxPrecioKg(raw);
                       clearFeedback();
                     }}
@@ -1297,7 +1366,9 @@ export default function Ajustes() {
                     placeholder="100000"
                   />
                 </div>
-                {error && error.includes('precio') && error.includes('compra') ? (
+                {error &&
+                error.includes('precio') &&
+                error.includes('compra') ? (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
                   </div>
@@ -1309,14 +1380,18 @@ export default function Ajustes() {
                   Precio máx. x kg (Venta)
                 </p>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                    $
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
                     value={limitMaxPrecioVentaKg}
                     onChange={(event) => {
-                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                      const raw = event.target.value
+                        .replace(/\D/g, '')
+                        .slice(0, 6);
                       setLimitMaxPrecioVentaKg(raw);
                       clearFeedback();
                     }}
@@ -1324,7 +1399,9 @@ export default function Ajustes() {
                     placeholder="100000"
                   />
                 </div>
-                {error && error.includes('precio') && error.includes('venta') ? (
+                {error &&
+                error.includes('precio') &&
+                error.includes('venta') ? (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
                   </div>
@@ -1346,7 +1423,6 @@ export default function Ajustes() {
                   {guardandoLimites ? 'Guardando...' : 'Guardar límites'}
                 </button>
               </div>
-              
             </div>
           </div>
         </div>
@@ -1357,6 +1433,57 @@ export default function Ajustes() {
           message={floatingError}
           onClose={() => setFloatingError(null)}
         />
+      ) : null}
+
+      {showNoActiveSecadoModal ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div
+            className="w-full max-w-[430px] rounded-[22px] border border-[#dbe5ff] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="no-active-secado-title"
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef2ff] text-[#102d92]">
+                <CircleDashed size={22} />
+              </span>
+              <div>
+                <h3
+                  id="no-active-secado-title"
+                  className="text-[1.1rem] font-semibold leading-tight text-[#111827]"
+                >
+                  No hay secados activos
+                </h3>
+                <p className="mt-2 text-sm leading-5 text-slate-500">
+                  En este momento no tienes café pendiente por finalizar. Puedes
+                  iniciar un nuevo secado desde los lotes verdes disponibles.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoActiveSecadoModal(false);
+                  navigate('/inventario', {
+                    state: { preferredTypeKey: 'VERDE' },
+                  });
+                }}
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-semibold text-white"
+              >
+                Iniciar secado
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNoActiveSecadoModal(false)}
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white px-4 text-sm font-semibold text-slate-600"
+              >
+                Seguir navegando
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <AppBottomNav />

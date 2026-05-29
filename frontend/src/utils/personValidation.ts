@@ -9,15 +9,13 @@ const COMPANY_NAME_ALLOWED_CHARS = /^[\p{L}0-9\s&.'/-]+$/u;
 const COMPANY_HAS_LETTER = /\p{L}/u;
 
 const NAME_ALLOWED_CHARS = /^[\p{L}\s'.-]+$/u;
-const BUSINESS_NAME_ALLOWED_CHARS = /^[A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9\s&.'-]+$/;
 const HAS_LETTER = /\p{L}/u;
 export const COMPANY_NAME_MAX_LENGTH = PERSON_NAME_MAX_LENGTH;
 const REQUIRED_NAME_ERROR = 'Ingresa el nombre para continuar.';
 const GENERAL_NAME_ERROR = 'Ingresa un nombre válido para continuar.';
 const REQUIRED_COMPANY_NAME_ERROR =
   'Ingresa el nombre de la empresa para continuar.';
-const REQUIRED_FULL_NAME_ERROR =
-  'Escribe el nombre y apellido para continuar.';
+const REQUIRED_FULL_NAME_ERROR = 'Escribe el nombre y apellido para continuar.';
 const INCOMPLETE_FULL_NAME_ERROR =
   'Completa el nombre y apellido para continuar.';
 const INVALID_FULL_NAME_ERROR = 'Revisa el nombre e inténtalo nuevamente.';
@@ -62,7 +60,9 @@ export function sanitizeDocumentInput(value: string, type: DocumentType) {
     return clean.replace(/[^\d-]/g, '').slice(0, 17);
   }
 
-  return clean.replace(/[^A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9 .'-]/g, '').slice(0, 40);
+  return clean
+    .replace(/[^A-Za-zÃÃ‰ÃÃ“ÃšÃœÃ‘Ã¡Ã©Ã­Ã³ÃºÃ¼Ã±0-9 .'-]/g, '')
+    .slice(0, 40);
 }
 
 export function normalizeDocumentValue(value: string, type: DocumentType) {
@@ -85,7 +85,7 @@ function isRepeatedDigits(value: string) {
 
 export function validatePersonName(
   value: string,
-  label = 'El nombre',
+  _label = 'El nombre',
 ): PersonFieldValidation {
   const nombre = value.trim();
 
@@ -123,7 +123,9 @@ export function validateProducerName(
   if (!nombre) {
     return {
       isValid: false,
-      message: isCompany ? REQUIRED_COMPANY_NAME_ERROR : REQUIRED_FULL_NAME_ERROR,
+      message: isCompany
+        ? REQUIRED_COMPANY_NAME_ERROR
+        : REQUIRED_FULL_NAME_ERROR,
     };
   }
 
@@ -159,9 +161,7 @@ export function validateProducerName(
 
   if (
     words.length < 2 ||
-    words.some(
-      (word) => word.replace(/[^\p{L}]/gu, '').length < 2,
-    )
+    words.some((word) => word.replace(/[^\p{L}]/gu, '').length < 2)
   ) {
     return {
       isValid: false,
@@ -219,7 +219,7 @@ export function validatePhoneNumber(
 
 export function validateDocumentNumber(
   value: string,
-  label = 'El documento',
+  _label = 'El documento',
   options: { optional?: boolean; documentType?: DocumentType } = {},
 ): PersonFieldValidation {
   const type = options.documentType ?? 'CC';

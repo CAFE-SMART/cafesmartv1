@@ -174,9 +174,14 @@ function getPersonNameLabel(type: DocumentType, role: 'cliente' | 'productor') {
   return role === 'cliente' ? 'Nombre del cliente' : 'Nombre completo';
 }
 
-function getPersonNamePlaceholder(type: DocumentType, role: 'cliente' | 'productor') {
+function getPersonNamePlaceholder(
+  type: DocumentType,
+  role: 'cliente' | 'productor',
+) {
   if (type === 'NIT') return 'Ej: Café Los Alpes';
-  return role === 'cliente' ? 'Ej: Juan Pérez Rodríguez' : 'Ej: Juan Pérez Rodríguez';
+  return role === 'cliente'
+    ? 'Ej: Juan Pérez Rodríguez'
+    : 'Ej: Juan Pérez Rodríguez';
 }
 
 function isSecadoProcessLot(lote: LoteResumen | LoteVenta) {
@@ -668,9 +673,7 @@ export default function Ventas() {
         ),
       });
       setLotesVenta(
-        mkLotes(
-          lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote)),
-        ),
+        mkLotes(lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote))),
       );
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
     } catch (e) {
@@ -802,10 +805,7 @@ export default function Ventas() {
         return `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${l.codigo}.`;
       if (l.cantidad > getDisponibleVenta(l))
         return `La cantidad supera el disponible en ${l.codigo}.`;
-      if (
-        l.precio < PRECIO_MINIMO_KG ||
-        l.precio > precioMaximoVentaPermitido
-      )
+      if (l.precio < PRECIO_MINIMO_KG || l.precio > precioMaximoVentaPermitido)
         return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
@@ -1109,7 +1109,9 @@ export default function Ventas() {
               )
             : sanitizeDecimalVentaInput(
                 valor,
-                campo === 'pesoVerificadoKg' ? l.disponibleKg : getDisponibleVenta(l),
+                campo === 'pesoVerificadoKg'
+                  ? l.disponibleKg
+                  : getDisponibleVenta(l),
               );
 
         return { ...l, [campo]: normalizado };
@@ -1589,9 +1591,9 @@ export default function Ventas() {
                       </p>
                       {haySecadoExcluido ? (
                         <p className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-3 text-left text-xs font-semibold leading-5 text-amber-800">
-                          No se tendrán en cuenta los sublotes que se
-                          encuentran en proceso de secado (
-                          {secadoExcluidoVenta.sublotes} sublote
+                          No se tendrán en cuenta los sublotes que se encuentran
+                          en proceso de secado ({secadoExcluidoVenta.sublotes}{' '}
+                          sublote
                           {secadoExcluidoVenta.sublotes === 1 ? '' : 's'}
                           {secadoExcluidoVenta.kg > 0
                             ? `, ${kg(secadoExcluidoVenta.kg)}`
@@ -1744,7 +1746,8 @@ export default function Ventas() {
                             ? `Disponible: ${kg(disponibleVenta)}.`
                             : '';
                       const precioErrorTexto =
-                        precioInvalido && toNum(lote.precioKg) < PRECIO_MINIMO_KG
+                        precioInvalido &&
+                        toNum(lote.precioKg) < PRECIO_MINIMO_KG
                           ? 'Mínimo $1.000/kg.'
                           : precioInvalido
                             ? 'Máximo $100.000/kg.'
@@ -1917,7 +1920,7 @@ export default function Ventas() {
                                   </p>
                                 </div>
                               ) : null}
-                              {false && cantidadInvalida ? (
+                              {cantidadInvalida ? (
                                 <InlineGuidedError
                                   message={getCantidadLoteGuidance(
                                     lote,
@@ -1926,7 +1929,7 @@ export default function Ventas() {
                                   className="mt-2"
                                 />
                               ) : null}
-                              {false && precioInvalido ? (
+                              {precioInvalido ? (
                                 <InlineGuidedError
                                   message={getVentasGuidance(
                                     toNum(lote.precioKg) < PRECIO_MINIMO_KG
@@ -2458,7 +2461,6 @@ export default function Ventas() {
                   <X size={17} />
                 </button>
               </div>
-
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -2495,7 +2497,11 @@ export default function Ventas() {
                     className={personFieldClass(false)}
                   >
                     {TIPOS_DOCUMENTO_CLIENTE.map((tipo) => (
-                      <option key={tipo.value} value={tipo.value} translate="no">
+                      <option
+                        key={tipo.value}
+                        value={tipo.value}
+                        translate="no"
+                      >
                         {tipo.label}
                       </option>
                     ))}

@@ -7,7 +7,7 @@ services:
       context: ./backend
     container_name: cafe_smart_backend
     ports:
-      - "3000:3000"
+      - '3000:3000'
     env_file:
       - ./backend/.env
 
@@ -17,7 +17,7 @@ services:
       context: ./frontend
     container_name: cafe_smart_frontend
     ports:
-      - "80:80"
+      - '80:80'
     depends_on:
       - backend
 

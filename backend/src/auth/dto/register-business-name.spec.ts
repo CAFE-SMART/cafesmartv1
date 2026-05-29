@@ -87,10 +87,7 @@ describe('registro nombreOrganizacion', () => {
   });
 
   it('exige telefono del administrador con 10 digitos y que empiece por 3', async () => {
-    for (const telefono of [
-      '3001234567',
-      '3120000000',
-    ]) {
+    for (const telefono of ['3001234567', '3120000000']) {
       const dto = plainToInstance(RegisterDto, {
         ...baseRegister,
         telefono,

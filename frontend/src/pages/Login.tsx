@@ -162,7 +162,8 @@ export default function Login() {
     } catch (err) {
       const authError = err as AuthError;
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'Verifica tu conexión e inténtalo nuevamente.';
+      const message =
+        authError.message || 'Verifica tu conexión e inténtalo nuevamente.';
       const details = authError.details ?? {};
 
       const emailDetail = details.email?.[0] || details.correo?.[0];

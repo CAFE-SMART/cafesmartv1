@@ -11,10 +11,12 @@ import {
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
 
-const BUSINESS_NAME_PATTERN = /^(?=.*\p{L})(?=(?:\D*\d){0,5}\D*$)[\p{L}0-9 ]+$/u;
+const BUSINESS_NAME_PATTERN =
+  /^(?=.*\p{L})(?=(?:\D*\d){0,5}\D*$)[\p{L}0-9 ]+$/u;
 const ADMIN_NAME_PATTERN = /^(?=.*\p{L})[\p{L} ]+$/u;
 const BUSINESS_NAME_MESSAGE = 'Ingresa un nombre de negocio válido.';
-const ADMIN_NAME_MESSAGE = 'El nombre del administrador solo puede tener letras y espacios.';
+const ADMIN_NAME_MESSAGE =
+  'El nombre del administrador solo puede tener letras y espacios.';
 const BUSINESS_NAME_MAX_LENGTH_MESSAGE =
   'El nombre del negocio no puede superar 30 caracteres.';
 

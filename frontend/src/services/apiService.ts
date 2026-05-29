@@ -79,7 +79,8 @@ function traducirMensajeError(message: unknown, status: number) {
     Unauthorized: 'Tu sesión expiró. Inicia sesión nuevamente.',
     Forbidden: 'No tienes permiso para realizar esta acción.',
     'Forbidden resource': 'No tienes permiso para esta opción.',
-    'Not Found': 'No encontramos esa información. Verifica los datos e inténtalo nuevamente.',
+    'Not Found':
+      'No encontramos esa información. Verifica los datos e inténtalo nuevamente.',
     'Bad Request': 'Revisa los datos e inténtalo nuevamente.',
     'Failed to fetch': 'Revisa la conexión a internet e inténtalo nuevamente.',
   };

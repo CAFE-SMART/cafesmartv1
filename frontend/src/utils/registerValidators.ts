@@ -1,6 +1,4 @@
-import {
-  COMPANY_NAME_MAX_LENGTH,
-} from './personValidation';
+import { COMPANY_NAME_MAX_LENGTH } from './personValidation';
 
 export type RegisterLocationState = {
   googleToken?: string;
@@ -75,7 +73,10 @@ export function validateBusinessName(value: string) {
     };
   }
 
-  if (!BUSINESS_NAME_REGEX.test(name) || countDigits(name) > BUSINESS_NAME_MAX_DIGITS) {
+  if (
+    !BUSINESS_NAME_REGEX.test(name) ||
+    countDigits(name) > BUSINESS_NAME_MAX_DIGITS
+  ) {
     return {
       isValid: false,
       value: name,

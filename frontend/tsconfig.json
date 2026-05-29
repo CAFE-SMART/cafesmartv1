@@ -6,7 +6,7 @@
 // antes de que el usuario los vea. Este archivo define esas reglas.
 //
 // ¿Debo editarlo?: ⛔ CASI NO. Ya viene bien configurado.
-// Solo lo tocarías si necesitas agregar un alias de ruta (ej: "@" para 
+// Solo lo tocarías si necesitas agregar un alias de ruta (ej: "@" para
 // importar desde src/) o cambiar la versión de JS destino.
 //
 // El alias "@" que configuramos en vite.config.ts también debe declararse
