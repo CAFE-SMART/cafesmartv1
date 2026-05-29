@@ -1789,7 +1789,7 @@ export default function Ajustes() {
                   key={option.value}
                   type="button"
                   role="radio"
-                  aria-checked={active}
+                  aria-checked={active ? 'true' : 'false'}
                   onClick={() => setTheme(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1853,7 +1853,7 @@ export default function Ajustes() {
                   key={String(option.value)}
                   type="button"
                   role="radio"
-                  aria-checked={active}
+                  aria-checked={active ? 'true' : 'false'}
                   onClick={() => setScreenReaderMode(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1903,7 +1903,7 @@ export default function Ajustes() {
                   key={String(option.value)}
                   type="button"
                   role="radio"
-                  aria-checked={active}
+                  aria-checked={active ? 'true' : 'false'}
                   onClick={() => setHighContrast(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1953,7 +1953,7 @@ export default function Ajustes() {
                   key={option.value}
                   type="button"
                   role="radio"
-                  aria-checked={active}
+                  aria-checked={active ? 'true' : 'false'}
                   onClick={() => setFontScale(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -2590,7 +2590,7 @@ export default function Ajustes() {
                       ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
                       : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
-                  aria-pressed={secadoPanel === 'active'}
+                  aria-pressed={secadoPanel === 'active' ? 'true' : 'false'}
                 >
                   <CircleDashed size={15} />
                   Ver secados activos
@@ -2603,7 +2603,7 @@ export default function Ajustes() {
                       ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
                       : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
-                  aria-pressed={secadoPanel === 'start'}
+                  aria-pressed={secadoPanel === 'start' ? 'true' : 'false'}
                 >
                   <Droplets size={15} />
                   Iniciar secado
@@ -2969,7 +2969,6 @@ export default function Ajustes() {
                   type="button"
                   onClick={item.onClick}
                   disabled={disabled}
-                  aria-disabled={item.staticOnly === true ? true : undefined}
                   className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
                 >
                   <span

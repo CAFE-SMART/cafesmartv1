@@ -39,16 +39,10 @@ import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import { useCloudStatus } from '../context/CloudStatusContext';
-import { useUser } from '../context/UserContext';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
-import {
-  dismissStorageAlert,
-  shouldShowStorageAlert,
-  type StorageAlertData,
-} from '../services/storageAlertDismissService';
 import {
   applySecadoToLots,
   getActiveSecadoSessions,
@@ -97,6 +91,13 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function formatPercentage(value: number) {
+  return new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function formatSacks(valueKg: number) {
@@ -156,8 +157,8 @@ function coffeeVisual(name: string) {
   if (key === 'VERDE') {
     return {
       icon: <Leaf size={18} />,
-      bg: 'bg-[#e9fbf4]',
-      text: 'text-[#0d7b67]',
+      bg: 'bg-emerald-50 dark:bg-emerald-500/20',
+      text: 'text-emerald-700 dark:text-emerald-200',
       ring: '#0d7b67',
     };
   }
@@ -165,8 +166,8 @@ function coffeeVisual(name: string) {
   if (key === 'SECO') {
     return {
       icon: <SunMedium size={18} />,
-      bg: 'bg-[#fff7df]',
-      text: 'text-[#d29309]',
+      bg: 'bg-orange-50 dark:bg-orange-500/20',
+      text: 'text-orange-700 dark:text-orange-200',
       ring: '#d29309',
     };
   }
@@ -174,8 +175,8 @@ function coffeeVisual(name: string) {
   if (key === 'EN SECADO') {
     return {
       icon: <CircleDashed size={18} />,
-      bg: 'bg-[#fff7df]',
-      text: 'text-[#b77900]',
+      bg: 'bg-amber-50 dark:bg-amber-500/20',
+      text: 'text-amber-700 dark:text-amber-200',
       ring: '#b77900',
     };
   }
@@ -183,16 +184,16 @@ function coffeeVisual(name: string) {
   if (key === 'PASILLA') {
     return {
       icon: <BadgeAlert size={18} />,
-      bg: 'bg-[#ffe7e8]',
-      text: 'text-[#c92c32]',
+      bg: 'bg-red-50 dark:bg-red-500/20',
+      text: 'text-red-700 dark:text-red-200',
       ring: '#c92c32',
     };
   }
 
   return {
     icon: <Coffee size={18} />,
-    bg: 'bg-[#eef1ff]',
-    text: 'text-[#102d92]',
+    bg: 'bg-slate-100 dark:bg-slate-600/40',
+    text: 'text-slate-700 dark:text-slate-100',
     ring: '#102d92',
   };
 }
@@ -441,16 +442,17 @@ function CapacityRing({
 
   const safeCapacity = Math.max(1, capacityKg);
   const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
-  const displayPercentage =
-    rawPercentage === 0
-      ? '0'
-      : rawPercentage < 1
-        ? rawPercentage.toFixed(1)
-        : rawPercentage.toFixed(0);
+  const displayPercentage = formatPercentage(rawPercentage);
   const ringPercentage =
     totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
   const capacityLevel =
-    rawPercentage >= 90 ? 'alert' : rawPercentage >= 70 ? 'warning' : 'normal';
+    rawPercentage > 100
+      ? 'alert'
+      : rawPercentage >= 95
+        ? 'alert'
+        : rawPercentage >= 80
+          ? 'warning'
+          : 'normal';
   const accentColor =
     capacityLevel === 'alert'
       ? '#ef4444'
@@ -482,11 +484,13 @@ function CapacityRing({
         ? 'stroke-amber-100 dark:stroke-amber-950/50'
         : 'stroke-[#edf1fa] dark:stroke-slate-700';
   const capacityStatusLabel =
-    capacityLevel === 'alert'
-      ? 'Bodega casi llena'
-      : capacityLevel === 'warning'
-        ? 'Advertencia de capacidad'
-        : 'Estado normal';
+    rawPercentage > 100
+      ? 'Bodega por encima de la capacidad registrada'
+      : capacityLevel === 'alert'
+        ? 'Bodega casi llena'
+        : capacityLevel === 'warning'
+          ? 'Advertencia de capacidad'
+          : 'Estado normal';
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
@@ -572,7 +576,7 @@ function TypeSummaryCard({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] ${visual.bg} ${visual.text}`}
+            className={`inventory-type-icon inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-transparent dark:border-white/10 ${visual.bg} ${visual.text}`}
           >
             {visual.icon}
           </span>
@@ -740,8 +744,6 @@ export default function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOnline, backendReachable, refreshHealth } = useCloudStatus();
-  const { user } = useUser();
-  const empresaId = user?.organizacionId ?? user?.id ?? 'default-company';
   const locationState = (location.state ?? null) as {
     preferredTypeKey?: string;
     activeSecadoId?: string;
@@ -769,7 +771,7 @@ export default function Inventario() {
   const [bodegaCapacityDraft, setBodegaCapacityDraft] = useState('');
   const [bodegaEditorError, setBodegaEditorError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
-  const [storageAlertDismissVersion, setStorageAlertDismissVersion] = useState(0);
+  const [storageAlertClosed, setStorageAlertClosed] = useState(false);
 
   const openBodegaEditor = () => {
     setBodegaNameDraft(bodegaConfig.nombreBodega || 'Bodega principal');
@@ -1074,12 +1076,12 @@ export default function Inventario() {
     if (!capacityKg || capacityKg <= 0) return null;
 
     const percentage = (totalKg / capacityKg) * 100;
-    const data: StorageAlertData = {
+    const data = {
       occupancyPercent: percentage,
       capacityKg,
       usedKg: totalKg,
     };
-    if (percentage >= 100) {
+    if (percentage > 100) {
       return {
         title: 'Bodega por encima de la capacidad registrada.',
         text: 'Revisa el espacio físico disponible y actualiza la capacidad si es necesario.',
@@ -1090,7 +1092,7 @@ export default function Inventario() {
         data,
       };
     }
-    if (percentage >= 90) {
+    if (percentage >= 95) {
       return {
         title: 'La bodega está casi llena.',
         text: 'Puedes continuar comprando si lo necesitas, pero revisa el espacio disponible.',
@@ -1115,14 +1117,16 @@ export default function Inventario() {
     return null;
   }, [bodegaConfig.capacidadKg, totalKg]);
 
-  const showStorageAlert = useMemo(
-    () =>
-      Boolean(
-        capacityAlert &&
-          shouldShowStorageAlert(empresaId, capacityAlert.data),
-      ),
-    [capacityAlert, empresaId, storageAlertDismissVersion],
-  );
+  useEffect(() => {
+    setStorageAlertClosed(false);
+  }, [
+    capacityAlert?.title,
+    capacityAlert?.data.occupancyPercent,
+    capacityAlert?.data.capacityKg,
+    capacityAlert?.data.usedKg,
+  ]);
+
+  const showStorageAlert = Boolean(capacityAlert && !storageAlertClosed);
   const activeSecadoSessions = useMemo(
     () =>
       ENABLE_SECADO_PROTOTYPE
@@ -1211,10 +1215,7 @@ export default function Inventario() {
             </AppFeedbackMessage>
             <button
               type="button"
-              onClick={() => {
-                dismissStorageAlert(empresaId, capacityAlert.data);
-                setStorageAlertDismissVersion((current) => current + 1);
-              }}
+              onClick={() => setStorageAlertClosed(true)}
               aria-label="Cerrar alerta de bodega"
               className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
             >

@@ -742,7 +742,7 @@ export default function SecadoInicio() {
           <div className="mt-3 grid grid-cols-2 gap-2 rounded-[14px] border border-slate-200 bg-[#eaf2ff] p-1 dark:border-slate-600 dark:bg-slate-900">
             <button
               type="button"
-              aria-pressed={view === 'pending'}
+              aria-pressed={view === 'pending' ? 'true' : 'false'}
               onClick={() => {
                 cargarPendientes();
                 setView('pending');
@@ -758,7 +758,7 @@ export default function SecadoInicio() {
             </button>
             <button
               type="button"
-              aria-pressed={view === 'start'}
+              aria-pressed={view === 'start' ? 'true' : 'false'}
               onClick={() => setView('start')}
               disabled={loading}
               className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[11px] px-2 text-[0.68rem] font-black transition ${
@@ -909,7 +909,7 @@ export default function SecadoInicio() {
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  aria-pressed={todosSeleccionados}
+                  aria-pressed={todosSeleccionados ? 'true' : 'false'}
                   onClick={seleccionarTodo}
                   disabled={availableSublotes.length === 0}
                   className={`inline-flex min-h-[34px] items-center justify-center rounded-[10px] border px-2 text-[0.66rem] font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-500/40 ${

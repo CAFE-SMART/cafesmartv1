@@ -3973,7 +3973,6 @@ export default function Compras() {
               type="button"
               onClick={irSiguientePaso}
               disabled={loading}
-              aria-disabled={productorSeleccionado ? 'false' : 'true'}
               className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] bg-[#1f3fa7] px-5 py-4 text-[1.1rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition disabled:cursor-wait disabled:opacity-70"
             >
               {loading ? (
@@ -4023,13 +4022,7 @@ export default function Compras() {
               const precioError = mostrarErroresSublote
                 ? precioValidacion.error
                 : null;
-              const capacidadDisponible =
-                getCapacidadDisponibleAntes(capacidadPrevia) ??
-                PESO_MAXIMO_COMPRA_KG;
-              const pesoMaximoPermitido = Math.min(
-                PESO_MAXIMO_COMPRA_KG,
-                Math.max(0, capacidadDisponible),
-              );
+              const pesoMaximoPermitido = PESO_MAXIMO_COMPRA_KG;
               const capacidadDisponibleAntes =
                 getCapacidadDisponibleAntes(capacidadPrevia);
               const capacidadRestanteDespues =
@@ -4380,7 +4373,7 @@ export default function Compras() {
                                           }`}
                                         >
                                           <Warehouse size={12} aria-hidden="true" />
-                                          {capacidadEnExceso ? 'Sin espacio' : capacidadCasiLlena ? 'Casi llena' : 'Disponible'}
+                                          {capacidadEnExceso ? 'Sobrecapacidad' : capacidadCasiLlena ? 'Casi llena' : 'Disponible'}
                                         </span>
                                       </div>
                                       <span className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">Espacio disponible</span>
@@ -4388,7 +4381,9 @@ export default function Compras() {
 
                                     {capacidadDisponibleAntes !== null ? (
                                       <p className={`whitespace-nowrap text-[1.2rem] font-black leading-none ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-800'}`}>
-                                        {formatoKg(capacidadDisponibleAntes)} kg libres
+                                        {capacidadDisponibleAntes >= 0
+                                          ? `${formatoKg(capacidadDisponibleAntes)} kg libres`
+                                          : `${formatoKg(Math.abs(capacidadDisponibleAntes))} kg por encima`}
                                       </p>
                                     ) : null}
 
@@ -4400,8 +4395,14 @@ export default function Compras() {
 
                                     {capacidadRestanteDespues !== null ? (
                                       <div className="flex items-center justify-between gap-2 rounded-[14px] bg-slate-50 px-3 py-2 text-[0.78rem]">
-                                        <span className="whitespace-nowrap font-black text-slate-500">Disponible después:</span>
-                                        <span className={`whitespace-nowrap font-black leading-tight ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-700'}`}>{formatoKg(capacidadRestanteDespues)} kg</span>
+                                        <span className="whitespace-nowrap font-black text-slate-500">
+                                          {capacidadRestanteDespues >= 0
+                                            ? 'Disponible después:'
+                                            : 'Sobrecapacidad después:'}
+                                        </span>
+                                        <span className={`whitespace-nowrap font-black leading-tight ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-700'}`}>
+                                          {formatoKg(Math.abs(capacidadRestanteDespues))} kg
+                                        </span>
                                       </div>
                                     ) : null}
                                   </div>
@@ -4562,16 +4563,11 @@ export default function Compras() {
                 <span className="truncate">Paso anterior</span>
               </button>
               <button
-                type="button"
-                onClick={irSiguientePaso}
-                disabled={loading || checkingCapacidadPreview}
-                aria-disabled={
-                  paso2Completo
-                    ? 'false'
-                    : 'true'
-                }
-                className="inline-flex min-h-[54px] min-w-0 items-center justify-center gap-2 rounded-[18px] bg-[#1f3fa7] px-3 py-3 text-[0.95rem] font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
-              >
+              type="button"
+              onClick={irSiguientePaso}
+              disabled={loading || checkingCapacidadPreview}
+              className="inline-flex min-h-[54px] min-w-0 items-center justify-center gap-2 rounded-[18px] bg-[#1f3fa7] px-3 py-3 text-[0.95rem] font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
+            >
                 {loading || checkingCapacidadPreview ? (
                   <>
                     <LoaderCircle size={18} className="shrink-0 animate-spin" />

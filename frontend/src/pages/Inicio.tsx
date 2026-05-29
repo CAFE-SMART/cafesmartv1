@@ -15,7 +15,6 @@ import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
-import { useUser } from '../context/UserContext';
 import {
   obtenerDashboardInicio,
   obtenerDashboardSummary,
@@ -26,11 +25,6 @@ import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { prepareOfflineData } from '../services/offlinePreparationService';
-import {
-  dismissStorageAlert,
-  shouldShowStorageAlert,
-  type StorageAlertData,
-} from '../services/storageAlertDismissService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -65,6 +59,13 @@ function formatKg(value: number) {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value)} kg`;
+}
+
+function formatPercentage(value: number) {
+  return `${new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
 }
 
 function formatKgUpper(value: number) {
@@ -388,8 +389,6 @@ function DashboardErrorState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
-  const { user } = useUser();
-  const empresaId = user?.organizacionId ?? user?.id ?? 'default-company';
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
   const [inventarioBodegaInicio, setInventarioBodegaInicio] = useState<
@@ -412,7 +411,7 @@ export default function Inicio() {
   const [capacidadBodegaLocal, setCapacidadBodegaLocal] = useState('');
   const [bodegaLocalError, setBodegaLocalError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
-  const [storageAlertDismissVersion, setStorageAlertDismissVersion] = useState(0);
+  const [storageAlertClosed, setStorageAlertClosed] = useState(false);
   const [preparingOffline, setPreparingOffline] = useState(false);
   const [offlinePrepFeedback, setOfflinePrepFeedback] = useState<{
     variant: 'success' | 'error';
@@ -669,6 +668,7 @@ export default function Inicio() {
     ) {
       return {
         porcentaje: 0,
+        porcentajeVisual: 0,
         etiqueta: loading ? '...' : '0%',
         excedida: false,
         nivel: 'normal' as const,
@@ -678,13 +678,16 @@ export default function Inicio() {
     const porcentajeReal = Math.max(0, (kgActual / kgCapacidad) * 100);
 
     return {
-      porcentaje: Math.min(100, porcentajeReal),
-      etiqueta: `${Math.round(porcentajeReal)}%`,
+      porcentaje: porcentajeReal,
+      porcentajeVisual: Math.min(100, porcentajeReal),
+      etiqueta: formatPercentage(porcentajeReal),
       excedida: porcentajeReal > 100,
       nivel:
-        porcentajeReal >= 90
+        porcentajeReal > 100
           ? 'alert'
-          : porcentajeReal >= 70
+          : porcentajeReal >= 95
+          ? 'alert'
+          : porcentajeReal >= 80
             ? 'warning'
             : 'normal',
     };
@@ -732,7 +735,7 @@ export default function Inicio() {
     }
 
     const porcentajeReal = (kgActual / kgCapacidad) * 100;
-    const data: StorageAlertData = {
+    const data = {
       occupancyPercent: porcentajeReal,
       capacityKg: kgCapacidad,
       usedKg: kgActual,
@@ -748,7 +751,7 @@ export default function Inicio() {
         data,
       };
     }
-    if (porcentajeReal >= 90) {
+    if (porcentajeReal >= 95) {
       return {
         title: 'La bodega está casi llena.',
         text: 'Puedes continuar comprando si lo necesitas, pero revisa el espacio disponible.',
@@ -759,7 +762,7 @@ export default function Inicio() {
         data,
       };
     }
-    if (porcentajeReal >= 70) {
+    if (porcentajeReal >= 80) {
       return {
         title: 'La bodega se está llenando.',
         text: 'La bodega está cerca de su capacidad. Revisa el espacio disponible antes de continuar.',
@@ -774,14 +777,16 @@ export default function Inicio() {
     return null;
   }, [summary?.kgActual, summary?.kgCapacidad]);
 
-  const mostrarAlertaBodega = useMemo(
-    () =>
-      Boolean(
-        alertaBodega &&
-          shouldShowStorageAlert(empresaId, alertaBodega.data),
-      ),
-    [alertaBodega, empresaId, storageAlertDismissVersion],
-  );
+  useEffect(() => {
+    setStorageAlertClosed(false);
+  }, [
+    alertaBodega?.title,
+    alertaBodega?.data.occupancyPercent,
+    alertaBodega?.data.capacityKg,
+    alertaBodega?.data.usedKg,
+  ]);
+
+  const mostrarAlertaBodega = Boolean(alertaBodega && !storageAlertClosed);
 
   const cafeEnBodega = useMemo(() => {
     if (inventarioBodegaInicio.length > 0) {
@@ -1199,14 +1204,15 @@ export default function Inicio() {
                 <div
                   role="progressbar"
                   aria-label="Porcentaje de ocupación de bodega"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(ocupacion.porcentaje)}
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={String(Math.round(ocupacion.porcentajeVisual))}
+                  aria-valuetext={`${ocupacion.etiqueta} de ocupación de bodega`}
                   className={`mt-3 h-4 overflow-hidden rounded-full border p-0.5 shadow-inner ${ocupacionVisual.track}`}
                 >
                   <div
                     className={`h-full min-w-2 rounded-full shadow-[0_1px_4px_rgba(15,23,42,0.24)] transition-[width] duration-500 ${ocupacionVisual.bar}`}
-                    style={{ width: `${ocupacion.porcentaje}%` }}
+                    style={{ width: `${ocupacion.porcentajeVisual}%` }}
                   />
                 </div>
 
@@ -1257,10 +1263,7 @@ export default function Inicio() {
                     </AppFeedbackMessage>
                     <button
                       type="button"
-                      onClick={() => {
-                        dismissStorageAlert(empresaId, alertaBodega.data);
-                        setStorageAlertDismissVersion((current) => current + 1);
-                      }}
+                      onClick={() => setStorageAlertClosed(true)}
                       aria-label="Cerrar alerta de bodega"
                       className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
                     >
