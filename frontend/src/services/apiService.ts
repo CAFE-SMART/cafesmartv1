@@ -9,6 +9,7 @@ type ApiRequestErrorOptions = {
   code?: string | null;
   field?: string | null;
   details?: ApiErrorDetails | null;
+  retryAfterSeconds?: number | null;
 };
 
 export class ApiRequestError extends Error {
@@ -16,6 +17,7 @@ export class ApiRequestError extends Error {
   code: string | null;
   field: string | null;
   details: ApiErrorDetails | null;
+  retryAfterSeconds: number | null;
 
   constructor(message: string, options: ApiRequestErrorOptions) {
     super(message);
@@ -24,6 +26,7 @@ export class ApiRequestError extends Error {
     this.code = options.code ?? null;
     this.field = options.field ?? null;
     this.details = options.details ?? null;
+    this.retryAfterSeconds = options.retryAfterSeconds ?? null;
   }
 }
 
@@ -46,14 +49,22 @@ const TECHNICAL_ERROR_WORDS =
   /api|autenticaci[oó]n fallida|backend|base de datos|conexi[oó]n rechazada|database|endpoint|error interno|error\s*500|exception|fallo del sistema|fetch failed|internal server|localhost|prisma|request|server|servidor|stack|terminal|timeout|token/i;
 
 const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
+  AI_DISABLED:
+    'El asistente inteligente todavía no está disponible.',
   AI_SERVICE_NOT_CONFIGURED:
     'No pude conectar con el asistente. Revisa la configuración del servicio de IA.',
   AI_PROVIDER_ERROR:
     'No pude generar una respuesta en este momento. Intenta nuevamente.',
   AI_EMPTY_RESPONSE:
     'No pude generar una respuesta en este momento. Intenta nuevamente.',
+  AI_PROVIDER_QUOTA_EXCEEDED:
+    'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.',
   AI_QUOTA_EXCEEDED:
     'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.',
+  AI_DAILY_LIMIT_EXCEEDED:
+    'Alcanzaste el límite diario del asistente. Intenta de nuevo mañana.',
+  AI_CONTEXT_TOO_LARGE:
+    'La información es demasiado amplia para analizarla ahora.',
   INSUFFICIENT_STOCK: 'La cantidad supera el inventario disponible.',
   VENTA_INVENTARIO_INSUFICIENTE: 'La cantidad supera el inventario disponible.',
   VENTA_CANTIDAD_INVALIDA: 'Ingresa una cantidad mayor a 0.',
@@ -138,9 +149,13 @@ export function getUserFriendlyErrorMessage(error: {
 
   if (
     code === 'AI_SERVICE_NOT_CONFIGURED' ||
+    code === 'AI_DISABLED' ||
     code === 'AI_PROVIDER_ERROR' ||
     code === 'AI_EMPTY_RESPONSE' ||
-    code === 'AI_QUOTA_EXCEEDED'
+    code === 'AI_PROVIDER_QUOTA_EXCEEDED' ||
+    code === 'AI_QUOTA_EXCEEDED' ||
+    code === 'AI_DAILY_LIMIT_EXCEEDED' ||
+    code === 'AI_CONTEXT_TOO_LARGE'
   ) {
     return SPECIFIC_CODE_MESSAGES[code];
   }
@@ -246,6 +261,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
             status: response.status,
             code: typeof data?.code === 'string' ? data.code : null,
             field: typeof data?.field === 'string' ? data.field : null,
+            retryAfterSeconds:
+              typeof data?.retryAfterSeconds === 'number'
+                ? data.retryAfterSeconds
+                : null,
             details:
               data?.details && typeof data.details === 'object'
                 ? (data.details as ApiErrorDetails)

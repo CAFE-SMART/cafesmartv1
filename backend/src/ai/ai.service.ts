@@ -14,6 +14,10 @@ type AiProvider = 'openai' | 'gemini' | 'groq' | 'openrouter' | 'mock' | 'none';
 type ProviderCredentialSource = 'primary' | 'fallback';
 
 export const AI_NOT_CONFIGURED_MESSAGE = 'Servicio de IA no configurado.';
+const AI_DISABLED_RESPONSE = {
+  code: 'AI_DISABLED',
+  message: 'El asistente inteligente todavía no está activo.',
+};
 const AI_NOT_CONFIGURED_RESPONSE = {
   code: 'AI_SERVICE_NOT_CONFIGURED',
   message: AI_NOT_CONFIGURED_MESSAGE,
@@ -26,9 +30,10 @@ const AI_EMPTY_RESPONSE = {
   code: 'AI_EMPTY_RESPONSE',
   message: 'El proveedor de IA no devolvió contenido.',
 };
-const AI_QUOTA_EXCEEDED_RESPONSE = {
-  code: 'AI_QUOTA_EXCEEDED',
-  message: 'La cuota del asistente se agotó por ahora.',
+const AI_PROVIDER_QUOTA_EXCEEDED_RESPONSE = {
+  code: 'AI_PROVIDER_QUOTA_EXCEEDED',
+  message: 'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.',
+  retryAfterSeconds: null as number | null,
 };
 
 const SYSTEM_PROMPT =
@@ -70,6 +75,7 @@ export class AiService {
   constructor(private readonly configService: ConfigService) {}
 
   async generateChatResponse(dto: AiChatDto) {
+    this.ensureAiEnabled();
     const questionSanitization = this.sanitizeUserQuestion(dto.question);
     const question = questionSanitization.text;
     const context = this.sanitizeContext(dto.context);
@@ -106,6 +112,9 @@ export class AiService {
   }
 
   async generateFinancialAnalysis(dto: FinancialAnalysisDto) {
+    this.ensureAiEnabled();
+    const questionSanitization = this.sanitizeUserQuestion(dto.question);
+    const question = questionSanitization.text;
     const context = this.sanitizeContext(dto.context);
     const hasContext = Object.keys(context).length > 0;
     this.logContextKeys('financial analysis', context);
@@ -121,6 +130,9 @@ export class AiService {
       SYSTEM_PROMPT,
       'Genera un análisis completo del negocio con estos encabezados exactos: Resumen general, Puntos de atención y Recomendaciones.',
       'Usa listas breves cuando ayuden. Si un dato no existe en el contexto, indica que no está disponible. No abras la respuesta con frases genéricas.',
+      question
+        ? `Enfoca el análisis en esta pregunta del usuario: ${question}`
+        : 'Enfoca el análisis en un resumen financiero general.',
       'Contexto resumido disponible:',
       JSON.stringify(context, null, 2),
       'No inventes valores y avisa si los datos vienen de cache offline.',
@@ -227,8 +239,10 @@ export class AiService {
 
       try {
         return await this.callProvider(fallbackProvider, prompt, 'fallback');
-      } catch {
-        throw new ServiceUnavailableException(AI_QUOTA_EXCEEDED_RESPONSE);
+      } catch (fallbackError) {
+        throw new ServiceUnavailableException(
+          this.buildQuotaExceededResponse(fallbackError),
+        );
       }
     }
   }
@@ -290,10 +304,11 @@ export class AiService {
     });
 
     if (!response.ok) {
-      await this.logProviderError(provider, response);
+      const detail = await response.text().catch(() => '');
+      this.logProviderError(provider, response, detail);
       throw new ServiceUnavailableException(
-        response.status === 429
-          ? AI_QUOTA_EXCEEDED_RESPONSE
+        this.isProviderQuotaResponse(response.status, detail)
+          ? this.buildQuotaExceededResponse(detail)
           : AI_PROVIDER_ERROR_RESPONSE,
       );
     }
@@ -331,10 +346,11 @@ export class AiService {
     });
 
     if (!response.ok) {
-      await this.logProviderError('gemini', response);
+      const detail = await response.text().catch(() => '');
+      this.logProviderError('gemini', response, detail);
       throw new ServiceUnavailableException(
-        response.status === 429
-          ? AI_QUOTA_EXCEEDED_RESPONSE
+        this.isProviderQuotaResponse(response.status, detail)
+          ? this.buildQuotaExceededResponse(detail)
           : AI_PROVIDER_ERROR_RESPONSE,
       );
     }
@@ -421,8 +437,44 @@ export class AiService {
       typeof response === 'object' &&
       response !== null &&
       'code' in response &&
-      response.code === AI_QUOTA_EXCEEDED_RESPONSE.code
+      response.code === AI_PROVIDER_QUOTA_EXCEEDED_RESPONSE.code
     );
+  }
+
+  private isProviderQuotaResponse(status: number, detail: string) {
+    return (
+      status === 429 ||
+      /RESOURCE_EXHAUSTED|quota\s+exceeded|cuota/i.test(detail)
+    );
+  }
+
+  private extractRetryAfterSeconds(value: unknown) {
+    const text =
+      typeof value === 'string'
+        ? value
+        : value instanceof ServiceUnavailableException
+          ? JSON.stringify(value.getResponse())
+          : '';
+    const match = text.match(/retry\s+in\s+(\d+(?:\.\d+)?)s/i);
+    if (!match) return null;
+    const seconds = Number(match[1]);
+    return Number.isFinite(seconds) ? Math.ceil(seconds) : null;
+  }
+
+  private buildQuotaExceededResponse(source: unknown = null) {
+    return {
+      ...AI_PROVIDER_QUOTA_EXCEEDED_RESPONSE,
+      retryAfterSeconds: this.extractRetryAfterSeconds(source),
+    };
+  }
+
+  private ensureAiEnabled() {
+    const enabled = (this.configService.get<string>('AI_ENABLED') ?? 'true')
+      .trim()
+      .toLowerCase();
+    if (['false', '0', 'no', 'off'].includes(enabled)) {
+      throw new ServiceUnavailableException(AI_DISABLED_RESPONSE);
+    }
   }
 
   private isActionRequest(question: string) {
@@ -498,18 +550,20 @@ export class AiService {
     }
   }
 
-  private async logProviderError(provider: AiProvider, response: Response) {
+  private logProviderError(provider: AiProvider, response: Response, detail: string) {
     const nodeEnv = this.configService.get<string>('NODE_ENV') ?? 'development';
     if (nodeEnv === 'production') return;
 
-    const detail = await response.text().catch(() => '');
     console.warn(
       JSON.stringify({
         event: 'ai_provider_error',
         provider,
         status: response.status,
         statusText: response.statusText,
-        detail: sanitizeAiText(detail, 500),
+        code: this.isProviderQuotaResponse(response.status, detail)
+          ? AI_PROVIDER_QUOTA_EXCEEDED_RESPONSE.code
+          : AI_PROVIDER_ERROR_RESPONSE.code,
+        retryAfterSeconds: this.extractRetryAfterSeconds(detail),
       }),
     );
   }

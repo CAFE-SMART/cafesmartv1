@@ -1,6 +1,10 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { buildAiContext } from '../services/aiContextService';
-import { sendAiChatMessage } from '../services/aiService';
+import {
+  AiChatNoticeError,
+  sendAiChatMessage,
+  type AiChatNoticeCode,
+} from '../services/aiService';
 import {
   clearAllConversations,
   createConversation,
@@ -17,12 +21,20 @@ type AiConversationContextValue = {
   currentConversation: Conversation;
   messages: AiMessage[];
   isSending: boolean;
+  notice: AiConversationNotice | null;
+  lastQuestion: string;
   sendMessage: (content: string) => Promise<void>;
+  clearNotice: () => void;
   startNewConversation: () => void;
   loadConversation: (id: string) => void;
   removeConversation: (id: string) => void;
   clearHistory: () => void;
   refreshConversations: () => void;
+};
+
+export type AiConversationNotice = {
+  code: AiChatNoticeCode;
+  message: string;
 };
 
 const AiConversationContext = createContext<AiConversationContextValue | undefined>(
@@ -44,6 +56,8 @@ export function AiConversationProvider({
   const [currentConversation, setCurrentConversation] =
     useState<Conversation>(getInitialConversation);
   const [isSending, setIsSending] = useState(false);
+  const [notice, setNotice] = useState<AiConversationNotice | null>(null);
+  const [lastQuestion, setLastQuestion] = useState('');
 
   const refreshConversations = useCallback(() => {
     const next = getConversations();
@@ -69,8 +83,8 @@ export function AiConversationProvider({
       if (!trimmed || isSending) return;
 
       const target = getConversationById(currentConversation.id) ?? currentConversation;
+      setLastQuestion(trimmed);
       setIsSending(true);
-      persistMessage(target.id, { role: 'user', content: trimmed });
 
       try {
         const builtContext = await buildAiContext();
@@ -80,7 +94,20 @@ export function AiConversationProvider({
             ? 'No tengo información guardada para analizar. Conéctate a internet una vez para cargar tus datos.'
             : await sendAiChatMessage(trimmed, builtContext.context);
 
+        setNotice(null);
+        persistMessage(target.id, { role: 'user', content: trimmed });
         persistMessage(target.id, { role: 'assistant', content: answer });
+      } catch (error) {
+        if (error instanceof AiChatNoticeError) {
+          setNotice({ code: error.code, message: error.message });
+          return;
+        }
+
+        setNotice({
+          code: 'AI_SERVICE_NOT_CONFIGURED',
+          message:
+            'No pude conectar con el asistente. Revisa la configuración del servicio de IA.',
+        });
       } finally {
         setIsSending(false);
       }
@@ -88,10 +115,15 @@ export function AiConversationProvider({
     [currentConversation, isSending, persistMessage],
   );
 
+  const clearNotice = useCallback(() => {
+    setNotice(null);
+  }, []);
+
   const startNewConversation = useCallback(() => {
     const conversation = createConversation();
     setCurrentConversation(conversation);
     setConversations(getConversations());
+    setNotice(null);
   }, []);
 
   const loadConversation = useCallback((id: string) => {
@@ -124,7 +156,10 @@ export function AiConversationProvider({
       currentConversation,
       messages: currentConversation.messages,
       isSending,
+      notice,
+      lastQuestion,
       sendMessage,
+      clearNotice,
       startNewConversation,
       loadConversation,
       removeConversation,
@@ -135,7 +170,10 @@ export function AiConversationProvider({
       conversations,
       currentConversation,
       isSending,
+      notice,
+      lastQuestion,
       sendMessage,
+      clearNotice,
       startNewConversation,
       loadConversation,
       removeConversation,

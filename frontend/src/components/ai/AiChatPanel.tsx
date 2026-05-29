@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Send, Sparkles, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAiConversation } from '../../context/AiConversationContext';
+import { AiTypingIndicator } from './AiTypingIndicator';
 
 type AiChatPanelProps = {
   onClose: () => void;
@@ -17,13 +18,14 @@ const suggestedQuestions = [
 
 export function AiChatPanel({ onClose }: AiChatPanelProps) {
   const navigate = useNavigate();
-  const { messages, isSending, sendMessage } = useAiConversation();
+  const { messages, isSending, notice, sendMessage } = useAiConversation();
   const [question, setQuestion] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const assistantDisabled = notice?.code === 'AI_DISABLED';
 
   const sendQuestion = async (value: string) => {
     const trimmed = value.trim();
-    if (!trimmed || isSending) return;
+    if (!trimmed || isSending || assistantDisabled) return;
 
     setQuestion('');
     await sendMessage(trimmed);
@@ -109,9 +111,21 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
           </div>
         ))}
 
+        {notice ? (
+          <div
+            role="status"
+            className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100"
+          >
+            <p>{notice.message}</p>
+            {assistantDisabled ? (
+              <p className="mt-1">El asistente se activará cuando se configure el servicio de IA.</p>
+            ) : null}
+          </div>
+        ) : null}
+
         {isSending ? (
-          <div className="inline-flex rounded-2xl bg-stone-100 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300" role="status">
-            Analizando...
+          <div className="inline-flex rounded-2xl bg-stone-100 px-3 py-2 dark:bg-slate-800">
+            <AiTypingIndicator />
           </div>
         ) : null}
 
@@ -120,8 +134,9 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
             <button
               key={suggestion}
               type="button"
+              disabled={assistantDisabled}
               onClick={() => void sendQuestion(suggestion)}
-              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               {suggestion}
             </button>
@@ -138,15 +153,20 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
           ref={inputRef}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
+          disabled={assistantDisabled}
           maxLength={500}
-          placeholder="Pregunta sobre inventario, ventas o finanzas..."
-          className="min-w-0 flex-1 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+          placeholder={
+            assistantDisabled
+              ? 'El asistente se activará cuando se configure el servicio de IA.'
+              : 'Pregunta sobre inventario, ventas o finanzas...'
+          }
+          className="min-w-0 flex-1 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
         />
         <button
           type="submit"
-          disabled={isSending || !question.trim()}
-          aria-label="Enviar pregunta"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-700 text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          disabled={assistantDisabled || isSending || !question.trim()}
+          aria-label="Enviar mensaje al asistente"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-700 text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border dark:border-blue-400/40 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
         >
           <Send size={16} aria-hidden="true" />
         </button>

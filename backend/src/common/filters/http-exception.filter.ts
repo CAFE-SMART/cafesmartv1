@@ -90,6 +90,16 @@ function getPrismaInfrastructureError(debugError: DebugError) {
   return null;
 }
 
+function isExpectedAiError(code: string) {
+  return [
+    'AI_DISABLED',
+    'AI_SERVICE_NOT_CONFIGURED',
+    'AI_PROVIDER_QUOTA_EXCEEDED',
+    'AI_PROVIDER_ERROR',
+    'AI_EMPTY_RESPONSE',
+  ].includes(code);
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -106,27 +116,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       : prismaInfrastructureError
         ? prismaInfrastructureError.status
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    const shouldExposeDebug = process.env.NODE_ENV !== 'production';
-
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(
-        `${request.method ?? 'HTTP'} ${request.url ?? ''} fallo con ${status}: ${
-          debugError.message ?? 'Error sin mensaje'
-        }`,
-        debugError.stack,
-      );
-
-      if (debugError.code || debugError.meta) {
-        this.logger.error(
-          `Detalle del error: ${JSON.stringify({
-            name: debugError.name,
-            code: debugError.code,
-            meta: debugError.meta,
-          })}`,
-        );
-      }
-    }
-
     const baseBody = isHttpException
       ? getResponseBody(exception)
       : prismaInfrastructureError
@@ -140,6 +129,38 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof baseBody.code === 'string'
         ? baseBody.code
         : defaultCodeForHttpStatus(status);
+    const isExpectedAiHttpError = status >= 500 && isExpectedAiError(code);
+    const shouldExposeDebug =
+      process.env.NODE_ENV !== 'production' && !isExpectedAiHttpError;
+
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      if (isExpectedAiHttpError) {
+        if (process.env.NODE_ENV !== 'production') {
+          this.logger.warn(
+            `[ai-debug] status=${status} code=${code} endpoint=${request.method ?? 'HTTP'} ${
+              request.url ?? ''
+            }`,
+          );
+        }
+      } else {
+        this.logger.error(
+          `${request.method ?? 'HTTP'} ${request.url ?? ''} fallo con ${status}: ${
+            debugError.message ?? 'Error sin mensaje'
+          }`,
+          debugError.stack,
+        );
+
+        if (debugError.code || debugError.meta) {
+          this.logger.error(
+            `Detalle del error: ${JSON.stringify({
+              name: debugError.name,
+              code: debugError.code,
+              meta: debugError.meta,
+            })}`,
+          );
+        }
+      }
+    }
 
     response.status(status).json({
       statusCode: status,

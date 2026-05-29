@@ -218,6 +218,24 @@ html.font-xlarge {
   border-color: var(--border-strong);
 }
 
+@keyframes aiWaveDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.ai-wave-dot {
+  animation: aiWaveDot 1s ease-in-out infinite;
+}
+
 .a11y-high-contrast .cs-card,
 .a11y-high-contrast .rounded-\[16px\],
 .a11y-high-contrast .rounded-\[18px\],
@@ -341,17 +359,46 @@ html.font-xlarge {
   border-color: var(--app-border);
 }
 
+input,
+textarea,
+select {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  caret-color: #1d4ed8;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+input::selection,
+textarea::selection,
+select::selection {
+  background-color: #bfdbfe;
+  color: #020617;
+}
+
 .dark input,
 .dark textarea,
 .dark select {
-  background-color: var(--app-surface);
-  border-color: var(--app-border);
-  color: var(--app-text);
+  background-color: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+  caret-color: #93c5fd;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
   color: #94a3b8;
+}
+
+.dark input::selection,
+.dark textarea::selection,
+.dark select::selection {
+  background-color: #2563eb;
+  color: #ffffff;
 }
 
 h1,
@@ -848,9 +895,10 @@ select {
 .dark .cs-workflow-page input,
 .dark .cs-workflow-page textarea,
 .dark .cs-workflow-page select {
-  background-color: #020617;
+  background-color: #0f172a;
   border-color: #475569;
-  color: #f8fafc;
+  color: #f1f5f9;
+  caret-color: #93c5fd;
 }
 
 .dark .cs-workflow-page input.bg-transparent,
@@ -861,6 +909,13 @@ select {
 .dark .cs-workflow-page input::placeholder,
 .dark .cs-workflow-page textarea::placeholder {
   color: #94a3b8;
+}
+
+.dark .cs-workflow-page input::selection,
+.dark .cs-workflow-page textarea::selection,
+.dark .cs-workflow-page select::selection {
+  background-color: #2563eb;
+  color: #ffffff;
 }
 
 html.a11y-high-contrast .cs-workflow-page,

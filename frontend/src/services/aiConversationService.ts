@@ -5,8 +5,11 @@ export type AiMessage = {
   createdAt: string;
 };
 
+export type AiConversationType = 'general' | 'financial';
+
 export type Conversation = {
   id: string;
+  type: AiConversationType;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -57,6 +60,7 @@ function readStored(): Conversation[] {
       .filter((item) => item?.id && Array.isArray(item.messages))
       .map((item) => ({
         ...item,
+        type: item.type === 'financial' ? 'financial' : 'general',
         title: item.title || 'Nueva conversación',
         messages: item.messages.slice(-MAX_MESSAGES_PER_CONVERSATION),
       }))
@@ -67,22 +71,34 @@ function readStored(): Conversation[] {
   }
 }
 
+function trimConversationList(conversations: Conversation[]) {
+  const result: Conversation[] = [];
+  for (const type of ['general', 'financial'] as const) {
+    result.push(
+      ...conversations
+        .filter((conversation) => conversation.type === type)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, MAX_CONVERSATIONS),
+    );
+  }
+  return result.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
 function writeStored(conversations: Conversation[]) {
   if (typeof window === 'undefined') return;
-  const normalized = conversations
+  const normalized = trimConversationList(conversations)
     .map((conversation) => ({
       ...conversation,
       messages: conversation.messages.slice(-MAX_MESSAGES_PER_CONVERSATION),
-    }))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, MAX_CONVERSATIONS);
+    }));
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
 }
 
-export function createConversation() {
+export function createConversation(type: AiConversationType = 'general') {
   const createdAt = nowIso();
   const conversation: Conversation = {
     id: createId('conversation'),
+    type,
     title: 'Nueva conversación',
     createdAt,
     updatedAt: createdAt,
@@ -96,6 +112,10 @@ export function getConversations() {
   return readStored();
 }
 
+export function getConversationsByType(type: AiConversationType) {
+  return readStored().filter((conversation) => conversation.type === type);
+}
+
 export function getConversationById(id: string) {
   return readStored().find((conversation) => conversation.id === id) ?? null;
 }
@@ -103,10 +123,11 @@ export function getConversationById(id: string) {
 export function saveMessage(
   conversationId: string,
   message: Omit<AiMessage, 'id' | 'createdAt'>,
+  type: AiConversationType = 'general',
 ) {
   const conversations = readStored();
   let conversation =
-    conversations.find((item) => item.id === conversationId) ?? createConversation();
+    conversations.find((item) => item.id === conversationId) ?? createConversation(type);
   const sanitizedContent = sanitizeMessageContent(message.content);
   const nextMessage: AiMessage = {
     id: createId(message.role),
@@ -149,14 +170,44 @@ export function updateConversationTitle(conversationId: string, title: string) {
   );
 }
 
+export function replaceConversationMessages(
+  conversationId: string,
+  messages: AiMessage[],
+) {
+  const conversations = readStored();
+  const updatedAt = nowIso();
+  const next = conversations.map((conversation) =>
+    conversation.id === conversationId
+      ? {
+          ...conversation,
+          title:
+            conversation.title === 'Nueva conversación'
+              ? buildTitleFromMessage(
+                  messages.find((message) => message.role === 'user')?.content ?? '',
+                )
+              : conversation.title,
+          updatedAt,
+          messages: messages
+            .map((message) => ({
+              ...message,
+              content: sanitizeMessageContent(message.content),
+            }))
+            .slice(-MAX_MESSAGES_PER_CONVERSATION),
+        }
+      : conversation,
+  );
+  writeStored(next);
+  return getConversationById(conversationId);
+}
+
 export function deleteConversation(conversationId: string) {
   writeStored(
     readStored().filter((conversation) => conversation.id !== conversationId),
   );
 }
 
-export function clearAllConversations() {
-  writeStored([]);
+export function clearAllConversations(type?: AiConversationType) {
+  writeStored(type ? readStored().filter((conversation) => conversation.type !== type) : []);
 }
 
 export const AI_CONVERSATION_LIMITS = {

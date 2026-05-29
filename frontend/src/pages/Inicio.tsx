@@ -1236,7 +1236,18 @@ export default function Inicio() {
                       variant={alertaBodega.variant}
                       title={alertaBodega.title}
                       description={alertaBodega.text}
-                      className="pr-12 shadow-[0_12px_30px_rgba(15,23,42,0.10)]"
+                      autoClose={false}
+                      className="shadow-[0_12px_30px_rgba(15,23,42,0.10)]"
+                      action={
+                        <button
+                          type="button"
+                          onClick={() => setStorageAlertClosed(true)}
+                          aria-label="Cerrar alerta de bodega"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
+                        >
+                          <X size={15} aria-hidden="true" />
+                        </button>
+                      }
                     >
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -1261,14 +1272,6 @@ export default function Inicio() {
                         </button>
                       </div>
                     </AppFeedbackMessage>
-                    <button
-                      type="button"
-                      onClick={() => setStorageAlertClosed(true)}
-                      aria-label="Cerrar alerta de bodega"
-                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
-                    >
-                      <X size={15} aria-hidden="true" />
-                    </button>
                   </div>
                 ) : null}
               </div>

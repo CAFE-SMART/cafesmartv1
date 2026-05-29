@@ -570,8 +570,8 @@ function SelectionCheck({ active }: { active: boolean }) {
     <span
       className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
         active
-          ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
-          : 'border-[#cad2e2] bg-white text-transparent'
+          ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white dark:border-blue-300 dark:bg-blue-600 dark:text-white'
+          : 'border-[#cad2e2] bg-white text-transparent dark:border-blue-300 dark:bg-slate-900 dark:text-transparent'
       }`}
       aria-hidden="true"
     >
@@ -585,8 +585,8 @@ function getSelectableCardClass(active: boolean, compact = false) {
     compact ? 'px-3.5 py-3.5' : 'px-4 py-3.5'
   } ${
     active
-      ? 'border-[#1f3fa7] bg-[#f4f7ff] shadow-[0_14px_30px_rgba(31,63,167,0.14)]'
-      : 'border-[#e3e7f3] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)] hover:border-[#ccd6ea] hover:bg-[#fbfdff] hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]'
+      ? 'border-[#1f3fa7] bg-[#f4f7ff] shadow-[0_14px_30px_rgba(31,63,167,0.14)] dark:border-blue-400 dark:bg-blue-950/40 dark:text-slate-100'
+      : 'border-[#e3e7f3] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)] hover:border-[#ccd6ea] hover:bg-[#fbfdff] hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-400/60 dark:hover:bg-slate-800'
   }`;
 }
 
@@ -616,7 +616,7 @@ function SelectableOptionCard({
         <span
           className={`inline-flex shrink-0 items-center justify-center rounded-full transition ${
             compact ? 'h-10 w-10' : 'h-12 w-12'
-          } ${active ? 'bg-[#1f3fa7] text-white' : 'bg-[#eef2f7] text-slate-500'}`}
+          } ${active ? 'bg-[#1f3fa7] text-white dark:bg-blue-600 dark:text-white' : 'bg-[#eef2f7] text-slate-500 dark:border dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200'}`}
         >
           {icon}
         </span>
@@ -656,10 +656,10 @@ function ProductorCard({
     >
       <span className="flex w-full items-center gap-3">
         <span
-          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
+            className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
             active
-              ? 'bg-[#1f3fa7] text-white'
-              : 'bg-[#edf3ff] text-[#1f3fa7]'
+              ? 'bg-[#1f3fa7] text-white dark:bg-blue-600 dark:text-white'
+              : 'bg-[#edf3ff] text-[#1f3fa7] dark:border dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200'
           }`}
         >
           {getProductorInitials(productor.nombre)}

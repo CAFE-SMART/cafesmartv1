@@ -7,6 +7,8 @@ import {
   CalendarDays,
   ChevronDown,
   Clock,
+  Eye,
+  EyeOff,
   LineChart,
   Lock,
   PackageCheck,
@@ -19,7 +21,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
@@ -126,11 +128,26 @@ async function cargarMovimientosHistoricos(): Promise<DashboardMovimiento[]> {
   return [...comprasMovimientos, ...ventasMovimientos, ...gastosMovimientos];
 }
 
-function formatDayShort(value: Date) {
+function formatChartDayLabel(value: Date) {
   return value.toLocaleDateString('es-CO', {
-    day: '2-digit',
-    month: 'short',
+    day: 'numeric',
   });
+}
+
+function formatChartMonthName(value: string) {
+  const parsed = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const month = parsed.toLocaleDateString('es-CO', { month: 'long' });
+  return month.charAt(0).toUpperCase() + month.slice(1);
+}
+
+function getChartMonthLabel(data: Array<{ key: string }>) {
+  const months = Array.from(
+    new Set(data.map((item) => formatChartMonthName(item.key)).filter(Boolean)),
+  );
+
+  return months.length > 0 ? `Mes: ${months.join(' / ')}` : '';
 }
 
 function formatLongDateLabel(value: string) {
@@ -162,6 +179,34 @@ const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 const HUMEDAD_MINIMA_IDEAL = 10;
 const HUMEDAD_MAXIMA_IDEAL = 12;
 const FACTOR_BASE_MERCADO = 94;
+const FINANCIAL_ACCESS_SESSION_KEY = 'cafesmart:financial-access-granted';
+const FINANCIAL_ACCESS_TTL_MS = 30 * 60 * 1000;
+
+function saveFinancialAccessSession() {
+  try {
+    sessionStorage.setItem(
+      FINANCIAL_ACCESS_SESSION_KEY,
+      JSON.stringify({ expiresAt: Date.now() + FINANCIAL_ACCESS_TTL_MS }),
+    );
+  } catch {
+    // El acceso sigue válido en memoria aunque sessionStorage no esté disponible.
+  }
+}
+
+function hasValidFinancialAccessSession() {
+  try {
+    const raw = sessionStorage.getItem(FINANCIAL_ACCESS_SESSION_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { expiresAt?: number };
+    if (!parsed.expiresAt || parsed.expiresAt < Date.now()) {
+      sessionStorage.removeItem(FINANCIAL_ACCESS_SESSION_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
 }
@@ -434,11 +479,12 @@ function HistoryDatePicker({
 
 function formatCurrencyShort(value: number) {
   const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
   if (abs >= 1000000)
-    return `$${(value / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
+    return `${sign}$${(abs / 1000000).toLocaleString('es-CO', { maximumFractionDigits: 1 })}M`;
   if (abs >= 1000)
-    return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
-  return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+    return `${sign}$${(abs / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
+  return `${sign}$${abs.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 }
 
 function getMovimientoCopy(item: DashboardMovimiento) {
@@ -447,8 +493,8 @@ function getMovimientoCopy(item: DashboardMovimiento) {
       title: 'Venta registrada',
       detail: item.kg > 0 ? `${formatKg(item.kg)} vendidos` : item.nombre,
       icon: ShoppingCart,
-      tone: 'bg-[#e9f7ef] text-[#118444]',
-      amountTone: 'text-[#118444]',
+      tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200',
+      amountTone: 'text-emerald-700 dark:text-emerald-200',
       sign: '+',
     };
   }
@@ -458,8 +504,8 @@ function getMovimientoCopy(item: DashboardMovimiento) {
       title: 'Compra registrada',
       detail: item.kg > 0 ? `${formatKg(item.kg)} comprados` : item.nombre,
       icon: PackageCheck,
-      tone: 'bg-[#eef4ff] text-[#0f58bd]',
-      amountTone: 'text-[#0f58bd]',
+      tone: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      amountTone: 'text-blue-700 dark:text-blue-200',
       sign: '-',
     };
   }
@@ -468,8 +514,8 @@ function getMovimientoCopy(item: DashboardMovimiento) {
     title: item.nombre || 'Gasto registrado',
     detail: 'Gasto operativo',
     icon: Receipt,
-    tone: 'bg-[#fff1f2] text-[#be123c]',
-    amountTone: 'text-[#be123c]',
+    tone: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200',
+    amountTone: 'text-red-700 dark:text-red-200',
     sign: '',
   };
 }
@@ -589,13 +635,6 @@ async function cargarAnalisisLaboratorio(): Promise<LaboratoryAnalysis> {
   );
   const sublotes = detalles.flatMap((detalle) => detalle.sublotes);
   const analysis = buildLaboratoryAnalysis(sublotes);
-
-  if (import.meta.env.DEV) {
-    console.info('Sublotes para análisis:', analysis.sublotes);
-    console.info('Total kg inventario:', analysis.totalKgInventario);
-    console.info('Descuento humedad:', analysis.totalDescuentoHumedad);
-    console.info('Descuento factor:', analysis.totalDescuentoFactor);
-  }
 
   return analysis;
 }
@@ -887,9 +926,16 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
 
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const financialAccessGranted =
+    (location.state as { financialAccessGranted?: boolean } | null)
+      ?.financialAccessGranted === true;
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [password, setPassword] = useState('');
-  const [authorized, setAuthorized] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authorized, setAuthorized] = useState(
+    () => financialAccessGranted || hasValidFinancialAccessSession(),
+  );
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
@@ -969,6 +1015,11 @@ export default function ResumenFinanciero() {
     }
   }, [refreshing]);
 
+  useEffect(() => {
+    if (!authorized || summary || loading || refreshing || historialLoading) return;
+    void cargar();
+  }, [authorized, cargar, historialLoading, loading, refreshing, summary]);
+
   const handleUnlock = async () => {
     if (!password.trim()) {
       setError('Escribe la contraseña del administrador.');
@@ -980,6 +1031,7 @@ export default function ResumenFinanciero() {
 
     try {
       await verificarPasswordFinanciero(password);
+      saveFinancialAccessSession();
       setAuthorized(true);
       setPassword('');
       await cargar();
@@ -991,7 +1043,10 @@ export default function ResumenFinanciero() {
   };
 
   const handleAnalyzeBusiness = () => {
-    navigate('/resumen-financiero/analisis-inteligente');
+    saveFinancialAccessSession();
+    navigate('/resumen-financiero/analisis-inteligente', {
+      state: { financialAccessGranted: true },
+    });
   };
 
   const handleRetryAccess = () => {
@@ -1157,10 +1212,13 @@ export default function ResumenFinanciero() {
         const date = new Date(`${item.fecha}T12:00:00`);
         return {
           key: item.fecha,
-          label: formatDayShort(date),
+          label: formatChartDayLabel(date),
           time: date.getTime(),
           value: item.utilidad,
           displayValue: formatCurrencyShort(item.utilidad),
+          ventas: item.ventas,
+          compras: item.compras,
+          gastos: item.gastos,
         };
       });
 
@@ -1171,7 +1229,7 @@ export default function ResumenFinanciero() {
         zeroY: 0,
         yLabels: [],
         yAxisTitle: 'Utilidad (COP)',
-        xAxisTitle: 'Últimos movimientos',
+        monthLabel: '',
         hasEnoughData: false,
       };
     }
@@ -1183,7 +1241,7 @@ export default function ResumenFinanciero() {
     const min = rawMin - padding;
     const max = rawMax + padding;
     const range = Math.max(1, max - min);
-    const chart = { left: 74, top: 34, width: 286, height: 164 };
+    const chart = { left: 72, top: 36, width: 292, height: 150 };
     const points = buckets.map((bucket, index) => {
       const x =
         buckets.length === 1
@@ -1212,11 +1270,20 @@ export default function ResumenFinanciero() {
           label: formatCurrencyShort(value),
           y: chart.top + chart.height - ((value - min) / range) * chart.height,
         })),
-      yAxisTitle: 'Dinero utilizado / Gastado (COP)',
-      xAxisTitle: 'Últimos 7 días con movimiento',
+      yAxisTitle: 'Utilidad (COP)',
+      monthLabel: getChartMonthLabel(points),
       hasEnoughData: true,
     };
   }, [movimientos]);
+  const trendSummary = useMemo(() => {
+    if (trend.points.length === 0) {
+      return 'No hay suficientes movimientos para mostrar la tendencia.';
+    }
+    const highest = trend.points.reduce((best, point) =>
+      point.value > best.value ? point : best,
+    );
+    return `La gráfica muestra la utilidad registrada durante los últimos 7 días. La utilidad más alta fue ${formatCurrency(highest.value)} el día ${formatLongDateLabel(highest.key)}.`;
+  }, [trend.points]);
 
   if (loading || refreshing || historialLoading) {
     return (
@@ -1261,18 +1328,18 @@ export default function ResumenFinanciero() {
   }
 
   return (
-    <div className="cs-workflow-page min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[#f7f9fc] px-4 py-4 pb-24 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <main className="mx-auto w-full max-w-[430px] py-2">
         <header className="grid min-h-[54px] grid-cols-[44px_1fr_auto] items-center gap-2">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white dark:text-slate-100 dark:hover:bg-slate-900"
             aria-label="Volver"
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 className="text-center text-[1.05rem] font-black text-[#111827]">
+          <h1 className="text-center text-[1.05rem] font-black text-slate-900 dark:text-slate-100">
             Resultado financiero
           </h1>
           {authorized ? (
@@ -1302,29 +1369,39 @@ export default function ResumenFinanciero() {
         ) : null}
 
         {!authorized ? (
-          <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
-            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+          <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
+            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200">
               <Lock size={18} />
             </span>
-            <h2 className="mt-3 text-[1rem] font-black text-[#111827]">
+            <h2 className="mt-3 text-[1rem] font-black text-slate-900 dark:text-slate-100">
               Acceso financiero
             </h2>
-            <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500">
+            <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
               Ingresa la contraseña del administrador para ver utilidad, merma y
               análisis.
             </p>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  void handleUnlock();
-                }
-              }}
-              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#102d92]"
-              placeholder="Contraseña"
-            />
+            <div className="relative mt-4">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void handleUnlock();
+                  }
+                }}
+                className="w-full rounded-[8px] border border-slate-300 bg-white px-3 py-2.5 pr-11 text-[0.78rem] font-semibold text-slate-900 outline-none placeholder:text-slate-400 caret-blue-700 selection:bg-blue-200 selection:text-slate-950 focus:border-blue-700 focus:ring-4 focus:ring-blue-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400 dark:caret-blue-300 dark:selection:bg-blue-600 dark:selection:text-white"
+                placeholder="Contraseña"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-[8px] text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-700/20 dark:text-slate-300"
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => void handleUnlock()}
@@ -1338,15 +1415,15 @@ export default function ResumenFinanciero() {
           <>
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-[#64748b]">
+                <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-blue-700 dark:text-blue-200">
                   Dashboard
                 </p>
-                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-[#071126]">
+                <h2 className="mt-1 text-[1.85rem] font-black leading-none text-slate-900 dark:text-slate-100">
                   Finanzas
                 </h2>
               </div>
-              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-[#111827] shadow-sm">
-                <CalendarDays size={15} className="text-[#102d92]" />
+              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <CalendarDays size={15} className="text-blue-700 dark:text-blue-200" />
                 {periodoActual}
               </div>
             </div>
@@ -1385,11 +1462,11 @@ export default function ResumenFinanciero() {
               </p>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-emerald-100 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-4 rounded-[16px] border border-emerald-100 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-blue-50">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-blue-50 dark:border-blue-400/30 dark:bg-blue-500/15">
                       <img
                         src={granitoInteligente}
                         alt="Asistente inteligente de CaféSmart"
@@ -1398,10 +1475,10 @@ export default function ResumenFinanciero() {
                       />
                     </span>
                     <div>
-                      <p className="text-[0.82rem] font-black text-[#111827]">
+                      <p className="text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
                         Análisis inteligente
                       </p>
-                      <p className="text-[0.62rem] font-semibold leading-4 text-slate-500">
+                      <p className="text-[0.62rem] font-semibold leading-4 text-slate-500 dark:text-slate-300">
                         Recibe una explicación clara sobre tus resultados, inventario y movimientos recientes.
                       </p>
                     </div>
@@ -1418,55 +1495,55 @@ export default function ResumenFinanciero() {
             </section>
 
             <section className="mt-4 grid grid-cols-3 gap-3">
-              <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <article className="rounded-[14px] border border-emerald-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">
                   <ShoppingCart size={18} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-emerald-700">
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-200">
                   Ventas
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-2 text-[0.9rem] font-black text-slate-900 dark:text-slate-100">
                   {loading ? '...' : formatCurrency(ventasTotal)}
                 </p>
               </article>
-              <article className="rounded-[14px] border border-blue-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#0f58bd]">
+              <article className="rounded-[14px] border border-blue-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
                   <PackageCheck size={18} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#0f58bd]">
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-blue-700 dark:text-blue-200">
                   Compras
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-2 text-[0.9rem] font-black text-slate-900 dark:text-slate-100">
                   {loading ? '...' : formatCurrency(comprasTotal)}
                 </p>
               </article>
-              <article className="rounded-[14px] border border-rose-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <article className="rounded-[14px] border border-red-100 bg-white px-3 py-4 text-center shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
+                <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200">
                   <Wallet size={18} />
                 </span>
-                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-rose-600">
+                <p className="mt-3 text-[0.62rem] font-black uppercase tracking-[0.08em] text-red-700 dark:text-red-200">
                   Gastos
                 </p>
-                <p className="mt-2 text-[0.9rem] font-black text-[#111827]">
+                <p className="mt-2 text-[0.9rem] font-black text-slate-900 dark:text-slate-100">
                   {loading ? '...' : formatCurrency(gastosTotal)}
                 </p>
               </article>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-4 rounded-[16px] border border-amber-100 bg-[#fff8e7] px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-amber-400/30 dark:bg-amber-500/15">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
                     <Scale size={22} />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700">
+                    <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
                       Merma total
                     </p>
-                    <p className="mt-1 text-[1.45rem] font-black text-[#8a4b00]">
+                    <p className="mt-1 text-[1.45rem] font-black text-amber-900 dark:text-amber-100">
                       {loading ? '...' : formatKg(mermaTotalKg)}
                     </p>
-                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75">
+                    <p className="mt-1 text-[0.62rem] font-semibold leading-4 text-amber-800/75 dark:text-amber-100">
                       {loading
                         ? 'Calculando impacto.'
                         : `${formatPercent(mermaTotalPorcentaje)} del peso comprado. Valor: ${formatCurrency(mermaTotalValor)}.`}
@@ -1487,19 +1564,19 @@ export default function ResumenFinanciero() {
               </div>
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => toggleFinancialSection('trend')}
                 className="flex w-full items-center justify-between text-left"
               >
                 <div className="flex items-center gap-2">
-                  <LineChart size={15} className="text-[#102d92]" />
+                  <LineChart size={15} className="text-blue-700 dark:text-blue-200" />
                   <div>
-                    <p className="text-[0.82rem] font-black text-[#111827]">
+                    <p className="text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
                       Tendencia de utilidad
                     </p>
-                    <p className="text-[0.62rem] font-semibold text-slate-500">
+                    <p className="text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
                       Dinero por fecha
                     </p>
                   </div>
@@ -1514,44 +1591,45 @@ export default function ResumenFinanciero() {
               trend.hasEnoughData ? (
               <div className="mt-4 min-h-[300px] overflow-visible">
                 <div className="mb-3">
-                  <h3 className="text-[0.86rem] font-black text-slate-950">
+                  <h3 className="text-[0.86rem] font-black text-slate-950 dark:text-slate-100">
                     Movimiento de registro durante la última semana
                   </h3>
-                  <p className="mt-0.5 text-[0.66rem] font-semibold text-slate-500">
+                  <p className="mt-0.5 text-[0.66rem] font-semibold text-slate-500 dark:text-slate-300">
                     Ventas menos compras y gastos por fecha real
                   </p>
                 </div>
+                <p className="sr-only">{trendSummary}</p>
                 <svg
-                  viewBox="0 0 390 260"
-                  className="h-[255px] w-full overflow-visible"
+                  viewBox="0 0 390 230"
+                  className="h-[240px] w-full overflow-visible"
                   role="img"
-                  aria-label="Tendencia de utilidad"
+                  aria-label="Gráfica de tendencia de utilidad de la última semana"
                 >
                   <text
                     x="0"
                     y="14"
-                    fill="#0f172a"
+                    className="fill-slate-900 dark:fill-slate-100"
                     fontSize="11"
                     fontWeight="800"
                   >
                     {trend.yAxisTitle}
                   </text>
                   <text
-                    x="358"
-                    y="250"
-                    textAnchor="end"
-                    fill="#0f172a"
+                    x="218"
+                    y="222"
+                    textAnchor="middle"
+                    className="fill-slate-600 dark:fill-slate-300"
                     fontSize="11"
                     fontWeight="800"
                   >
-                    {trend.xAxisTitle}
+                    {trend.monthLabel}
                   </text>
                   {trend.yLabels.map((tick) => (
                     <g key={tick.label}>
                       <text
                         x="0"
                         y={tick.y + 4}
-                        fill="#475569"
+                        className="fill-slate-600 dark:fill-slate-300"
                         fontSize="11"
                         fontWeight="700"
                       >
@@ -1562,7 +1640,7 @@ export default function ResumenFinanciero() {
                         y1={tick.y}
                         x2="358"
                         y2={tick.y}
-                        stroke="#e6ecf4"
+                        className="stroke-slate-200 dark:stroke-slate-700"
                         strokeDasharray="5 5"
                       />
                     </g>
@@ -1572,24 +1650,27 @@ export default function ResumenFinanciero() {
                     y1={trend.zeroY}
                     x2="358"
                     y2={trend.zeroY}
-                    stroke="#cbd5e1"
+                    className="stroke-slate-300 dark:stroke-slate-600"
                     strokeWidth="1.5"
                   />
                   <polyline
                     points={trend.polyline}
                     fill="none"
-                    stroke="#1E3A8A"
-                    strokeWidth="4"
+                    className="stroke-blue-700 dark:stroke-blue-400"
+                    strokeWidth="3.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
                   {trend.points.map((point, index) => (
                     <g key={point.key}>
+                      <title>
+                        {`Fecha: ${formatLongDateLabel(point.key)}. Ventas: ${formatCurrency(point.ventas)}. Compras: ${formatCurrency(point.compras)}. Gastos: ${formatCurrency(point.gastos)}. Utilidad: ${formatCurrency(point.value)}.`}
+                      </title>
                       <text
                         x={point.x}
-                        y={Math.max(22, point.y - (index % 2 === 0 ? 14 : 28))}
+                        y={Math.max(18, point.y - (index % 2 === 0 ? 12 : 24))}
                         textAnchor="middle"
-                        fill="#111827"
+                        className="fill-slate-700 dark:fill-slate-100"
                         fontSize="11"
                         fontWeight="800"
                       >
@@ -1599,15 +1680,14 @@ export default function ResumenFinanciero() {
                         cx={point.x}
                         cy={point.y}
                         r="6"
-                        fill="#1E3A8A"
-                        stroke="#ffffff"
+                        className="fill-white stroke-blue-700 dark:fill-slate-900 dark:stroke-blue-300"
                         strokeWidth="3"
                       />
                       <text
                         x={point.x}
-                        y="224"
+                        y="204"
                         textAnchor="middle"
-                        fill="#475569"
+                        className="fill-slate-600 dark:fill-slate-300"
                         fontSize="11"
                         fontWeight="700"
                       >
@@ -1618,11 +1698,11 @@ export default function ResumenFinanciero() {
                 </svg>
               </div>
               ) : (
-                <div className="mt-4 rounded-[14px] border border-[#dbe5f7] bg-[#f8fbff] px-4 py-5 text-center">
-                  <p className="text-[0.86rem] font-black text-slate-900">
-                    Aún no hay datos suficientes para mostrar la tendencia de utilidad.
+                <div className="mt-4 rounded-[14px] border border-[#dbe5f7] bg-[#f8fbff] px-4 py-5 text-center dark:border-slate-600 dark:bg-slate-800">
+                  <p className="text-[0.86rem] font-black text-slate-900 dark:text-slate-100">
+                    No hay suficientes movimientos para mostrar la tendencia.
                   </p>
-                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
                     Registra compras, ventas o gastos para generar el análisis.
                   </p>
                 </div>
@@ -1630,21 +1710,21 @@ export default function ResumenFinanciero() {
               ) : null}
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => toggleFinancialSection('movements')}
                 className="flex w-full items-center justify-between gap-2 text-left"
               >
                 <div>
-                  <p className="text-[0.82rem] font-black text-[#111827]">
+                  <p className="text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
                     Movimientos recientes
                   </p>
-                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500">
+                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
                     {movimientosRecientes.length} últimos registros
                   </p>
                 </div>
-                <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a]">
+                <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a] dark:bg-slate-800 dark:text-slate-200">
                   {movimientosRecientes.length}
                 </span>
                 <ChevronDown
@@ -1655,7 +1735,7 @@ export default function ResumenFinanciero() {
 
               {financialSectionsOpen.movements ? (
               movimientosRecientes.length === 0 ? (
-                <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500">
+                <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                   Aún no tienes movimientos
                 </p>
               ) : (
@@ -1666,7 +1746,7 @@ export default function ResumenFinanciero() {
                     return (
                       <article
                         key={`${item.tipo}-${item.id}`}
-                        className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0"
+                        className="flex items-center gap-3 border-b border-[#eef2f7] px-1 py-3 last:border-b-0 dark:border-slate-700"
                       >
                         <span
                           className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
@@ -1674,15 +1754,15 @@ export default function ResumenFinanciero() {
                           <Icon size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[0.82rem] font-black text-[#111827]">
+                          <p className="truncate text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
                             {copy.title}
                           </p>
-                          <p className="truncate text-[0.68rem] font-semibold text-slate-500">
+                          <p className="truncate text-[0.68rem] font-semibold text-slate-500 dark:text-slate-300">
                             {copy.detail}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[0.62rem] font-semibold text-slate-500">
+                          <p className="text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
                             {formatDate(item.fecha)}
                           </p>
                           <p
@@ -1699,17 +1779,17 @@ export default function ResumenFinanciero() {
               )) : null}
             </section>
 
-            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => toggleFinancialSection('histories')}
                 className="flex w-full items-center justify-between gap-2 text-left"
               >
                 <div>
-                  <p className="text-[0.82rem] font-black text-[#111827]">
+                  <p className="text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
                     Historiales financieros
                   </p>
-                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500">
+                  <p className="mt-1 text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
                     Consulta completa por categoría
                   </p>
                 </div>
@@ -1726,21 +1806,21 @@ export default function ResumenFinanciero() {
                     title: 'Historial de ventas',
                     text: 'Consulta ventas registradas.',
                     icon: ShoppingCart,
-                    tone: 'bg-[#e9f7ef] text-[#118444]',
+                    tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200',
                   },
                   {
                     tipo: 'COMPRA' as const,
                     title: 'Historial de compras',
                     text: 'Consulta compras registradas.',
                     icon: PackageCheck,
-                    tone: 'bg-[#eef4ff] text-[#0f58bd]',
+                    tone: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
                   },
                   {
                     tipo: 'GASTO' as const,
                     title: 'Historial de gastos',
                     text: 'Consulta gastos registrados.',
                     icon: Wallet,
-                    tone: 'bg-[#fff1f2] text-[#be123c]',
+                    tone: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200',
                   },
                 ].map((item) => {
                   const Icon = item.icon;
@@ -1749,7 +1829,7 @@ export default function ResumenFinanciero() {
                       key={item.tipo}
                       type="button"
                       onClick={() => abrirHistorial(item.tipo)}
-                      className="flex min-h-[58px] items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-2 text-left"
+                      className="flex min-h-[58px] items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-2 text-left dark:border-slate-700 dark:bg-slate-800"
                     >
                       <span
                         className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${item.tone}`}
@@ -1757,10 +1837,10 @@ export default function ResumenFinanciero() {
                         <Icon size={17} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black text-[#111827]">
+                        <span className="block text-sm font-black text-slate-900 dark:text-slate-100">
                           {item.title}
                         </span>
-                        <span className="block text-xs font-semibold text-slate-500">
+                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
                           {item.text}
                         </span>
                       </span>
@@ -1775,7 +1855,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => navigate('/ventas')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#e9f7ef] px-2 text-center text-[0.58rem] font-black text-[#118444]"
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-emerald-50 px-2 text-center text-[0.58rem] font-black text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
               >
                 <ShoppingCart size={15} />
                 Venta
@@ -1783,7 +1863,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => navigate('/compras')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#eef4ff] px-2 text-center text-[0.58rem] font-black text-[#0f58bd]"
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-blue-50 px-2 text-center text-[0.58rem] font-black text-blue-700 dark:bg-blue-500/15 dark:text-blue-200"
               >
                 <PackageCheck size={15} />
                 Compra
@@ -1791,7 +1871,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => navigate('/gastos/registro')}
-                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-[#fff1f2] px-2 text-center text-[0.58rem] font-black text-[#be123c]"
+                className="inline-flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[8px] bg-red-50 px-2 text-center text-[0.58rem] font-black text-red-700 dark:bg-red-500/15 dark:text-red-200"
               >
                 <Plus size={15} />
                 Gasto

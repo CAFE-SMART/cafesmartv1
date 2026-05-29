@@ -239,6 +239,18 @@ function GlobalSyncOverlay() {
   );
 }
 
+function GlobalAiAssistant() {
+  const location = useLocation();
+  const isAssistantPage = location.pathname.startsWith('/asistente');
+  const isFinancialAiPage = location.pathname.includes(
+    '/resumen-financiero/analisis',
+  );
+
+  if (isAssistantPage || isFinancialAiPage) return null;
+
+  return <AiFloatingButton />;
+}
+
 function App() {
   const [showBootSplash, setShowBootSplash] = useState(true);
 
@@ -266,7 +278,7 @@ function App() {
             <GlobalOfflineNotice />
             <SyncQueueRunner />
             <GlobalSyncOverlay />
-            <AiFloatingButton />
+            <GlobalAiAssistant />
             <div id="app-content">
               <AppRoutes />
             </div>
