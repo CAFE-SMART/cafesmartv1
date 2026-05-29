@@ -1736,7 +1736,7 @@ function getCompraErrorMessage(error: unknown) {
     }
 
     if (error.code === 'COMPRA_CAPACIDAD_INSUFICIENTE') {
-      return 'No hay espacio suficiente en la bodega.';
+      return 'Esta compra puede superar la capacidad registrada de la bodega. Confirma si deseas continuar.';
     }
 
     if (error.code === 'COMPRA_PRECIO_INVALIDO') {
@@ -2134,14 +2134,12 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
     normalizedMessage.includes('peso es demasiado alto') ||
     normalizedMessage.includes('peso ingresado es demasiado alto') ||
     normalizedMessage.includes('cantidad supera') ||
-    normalizedMessage.includes('solo puedes registrar hasta') ||
-    normalizedMessage.includes('espacio disponible') ||
-    normalizedMessage.includes('capacidad disponible')
+    normalizedMessage.includes('solo puedes registrar hasta')
   ) {
     return createGuidedError(
       message,
       'El peso supera el límite.',
-      'La cantidad supera el espacio disponible en bodega.',
+      'La cantidad supera el límite permitido para una compra.',
       'Ingresa una cantidad menor para continuar.',
     );
   }
@@ -2285,6 +2283,8 @@ export default function Compras() {
   const [mostrarModalCancelar, setMostrarModalCancelar] = useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] = useState(false);
   const [mostrarModalCapacidad, setMostrarModalCapacidad] = useState(false);
+  const [capacidadRiesgoConfirmada, setCapacidadRiesgoConfirmada] =
+    useState(false);
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
   const [mostrarModalConfigurarCapacidad, setMostrarModalConfigurarCapacidad] =
     useState(false);
@@ -2306,10 +2306,9 @@ export default function Compras() {
     capacidadKg: number;
     inventarioActual: number;
     nuevoTotal: number;
+    pesoCompra?: number;
+    porcentaje?: number;
   } | null>(null);
-  const [errorCapacidadCantidad, setErrorCapacidadCantidad] =
-    useState<GuidedErrorMessage | null>(null);
-
   useEffect(() => {
     if (panelBodegaTimeoutRef.current) {
       window.clearTimeout(panelBodegaTimeoutRef.current);
@@ -2694,7 +2693,6 @@ export default function Compras() {
     sublotes.length > 0 &&
     catalogos.tiposCafe.length > 0 &&
     catalogos.calidades.length > 0 &&
-    !errorCapacidadCantidad &&
     !saving &&
     !checkingConfirmacion &&
     !loading;
@@ -2796,7 +2794,6 @@ export default function Compras() {
     setAlerta80Mostrada(false);
     setDatosAlerta80(null);
     setDatosCapacidad(null);
-    setErrorCapacidadCantidad(null);
     setCapacidadNuevaError(null);
   };
 
@@ -3244,18 +3241,6 @@ export default function Compras() {
       }
     }
 
-    const capacidadDisponible = getCapacidadDisponibleAntes(capacidadPrevia);
-    if (
-      capacidadPrevia?.validada &&
-      typeof capacidadDisponible === 'number' &&
-      Number.isFinite(capacidadDisponible) &&
-      resumen.totalKg > Math.max(0, capacidadDisponible)
-    ) {
-      return `Tienes espacio disponible para ${formatoKg(
-        Math.max(0, capacidadDisponible),
-      )} kg.`;
-    }
-
     return null;
   };
 
@@ -3263,9 +3248,6 @@ export default function Compras() {
     setError(null);
     setMostrarErrorFormulario(false);
     setFormAlertExiting(false);
-    if (bodegaBloqueada) {
-      return;
-    }
     if (step === 1) {
       if (!productorSelectionMode) {
         mostrarErrorProductor(
@@ -3355,7 +3337,6 @@ export default function Compras() {
       if (isOffline) {
         setCheckingCapacidadPreview(false);
         setCapacidadPrevia(null);
-        setErrorCapacidadCantidad(null);
       }
       return;
     }
@@ -3373,7 +3354,6 @@ export default function Compras() {
 
     if (!sublotesListos) {
       setCapacidadPrevia(null);
-      setErrorCapacidadCantidad(null);
       return;
     }
 
@@ -3408,24 +3388,9 @@ export default function Compras() {
           if (cancelado) return;
 
           setCapacidadPrevia(capacidad);
-
-          if (capacidad.validada && capacidad.nivel === 'exceso') {
-            const disponible = getCapacidadDisponibleAntes(capacidad) ?? 0;
-            setErrorCapacidadCantidad(
-              createGuidedError(
-                'La bodega no tiene espacio suficiente para esa cantidad.',
-                `Solo tienes espacio para ${formatoKg(disponible)} kg.`,
-                'Reduce la cantidad para continuar.',
-                'Ajusta la cantidad.',
-              ),
-            );
-          } else {
-            setErrorCapacidadCantidad(null);
-          }
         } catch {
           if (!cancelado) {
             setCapacidadPrevia(null);
-            setErrorCapacidadCantidad(null);
           }
         } finally {
           if (!cancelado) {
@@ -3451,6 +3416,19 @@ export default function Compras() {
 
   const validarCapacidadBodega = async (): Promise<boolean> => {
     if (isOffline) {
+      if (bodegaBloqueada) {
+        const nuevoTotal = bodegaBloqueada.inventarioKg + resumen.totalKg;
+        setDatosCapacidad({
+          capacidadKg: bodegaBloqueada.capacidadKg,
+          inventarioActual: bodegaBloqueada.inventarioKg,
+          nuevoTotal,
+          pesoCompra: resumen.totalKg,
+          porcentaje: Math.round((nuevoTotal / bodegaBloqueada.capacidadKg) * 100),
+        });
+        setCapacidadRiesgoConfirmada(false);
+        setMostrarModalCapacidad(true);
+        return false;
+      }
       setCapacidadPrevia({
         validada: false,
         nivel: 'sin_validacion',
@@ -3479,21 +3457,19 @@ export default function Compras() {
       const nuevoTotal =
         capacidad.capacidadUsadaKg ?? inventarioActual + resumen.totalKg;
 
-      if (capacidad.nivel === 'exceso') {
-        const disponible = Math.max(0, capacidadKg - inventarioActual);
-        setErrorCapacidadCantidad(
-          createGuidedError(
-            'No hay espacio suficiente.',
-            `Disponible: ${formatoKg(disponible)} kg. Intentas registrar: ${formatoKg(resumen.totalKg)} kg.`,
-            'Ajusta la cantidad para continuar.',
-            'Reduce la cantidad.',
-          ),
-        );
+      if (
+        capacidad.nivel === 'exceso' ||
+        (capacidad.porcentajeOcupacion ?? 0) >= 95
+      ) {
         setDatosCapacidad({
           capacidadKg,
           inventarioActual,
           nuevoTotal,
+          pesoCompra: resumen.totalKg,
+          porcentaje: Math.round(capacidad.porcentajeOcupacion ?? 0),
         });
+        setCapacidadRiesgoConfirmada(false);
+        setMostrarModalCapacidad(true);
         return false;
       }
 
@@ -3582,10 +3558,6 @@ export default function Compras() {
     setError(null);
     setMostrarErrorFormulario(false);
 
-    if (bodegaBloqueada) {
-      return;
-    }
-
     if (!productorSeleccionado) {
       mostrarErrorPaso('Selecciona un productor para continuar.', 1);
       return;
@@ -3618,12 +3590,6 @@ export default function Compras() {
     setSaving(true);
     setError(null);
     setMostrarErrorFormulario(false);
-
-    if (bodegaBloqueada) {
-      savingRef.current = false;
-      setSaving(false);
-      return;
-    }
 
     if (!productorSeleccionado) {
       savingRef.current = false;
@@ -3712,17 +3678,10 @@ export default function Compras() {
         err instanceof ApiRequestError &&
         err.code === 'COMPRA_CAPACIDAD_INSUFICIENTE'
       ) {
-        const details = err.details as
-          | { disponibleKg?: number; cantidadIntentadaKg?: number }
-          | null;
-        setErrorCapacidadCantidad(
-          createGuidedError(
-            'No hay espacio suficiente.',
-            `Disponible: ${formatoKg(details?.disponibleKg ?? 0)} kg. Intentas registrar: ${formatoKg(details?.cantidadIntentadaKg ?? resumen.totalKg)} kg.`,
-            'Ajusta la cantidad para continuar.',
-            'Reduce la cantidad.',
-          ),
+        setRegistroErrorMensaje(
+          'Esta compra puede superar la capacidad registrada de la bodega. Confirma si deseas continuar.',
         );
+        return;
       }
       setRegistroErrorMensaje(mensaje);
       setError(null);
@@ -3814,73 +3773,6 @@ export default function Compras() {
         onSecondary={volverDesdeError}
         primaryBusy={saving}
       />
-    );
-  }
-
-  if (bodegaBloqueada) {
-    return (
-      <main className="cs-workflow-page flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-8 text-slate-900">
-        <section
-          role="alertdialog"
-          aria-labelledby="bodega-llena-title"
-          aria-describedby="bodega-llena-message"
-          className="w-full max-w-[430px] rounded-[28px] border border-[#e5e9f5] bg-white p-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.18)]"
-        >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
-            <AlertTriangle size={30} strokeWidth={2.4} aria-hidden="true" />
-          </div>
-          <h1
-            id="bodega-llena-title"
-            className="mt-5 text-[1.65rem] font-black leading-tight text-slate-950"
-          >
-            Tu bodega está llena
-          </h1>
-          <p
-            id="bodega-llena-message"
-            className="mx-auto mt-3 max-w-[340px] text-sm font-semibold leading-6 text-slate-500"
-          >
-            La capacidad de tu bodega llegó al 100%. No puedes realizar más
-            compras hasta liberar espacio o ampliar la capacidad.
-          </p>
-          <div className="mt-5 rounded-[18px] border border-[#dbe7ff] bg-[#f5f9ff] px-4 py-3 text-left">
-            <div className="flex items-center justify-between gap-3 text-sm font-bold text-slate-600">
-              <span>Capacidad</span>
-              <span className="text-slate-950">
-                {formatoKg(bodegaBloqueada.capacidadKg)} kg
-              </span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-sm font-bold text-slate-600">
-              <span>En bodega</span>
-              <span className="text-[#102d92]">
-                {formatoKg(bodegaBloqueada.inventarioKg)} kg
-              </span>
-            </div>
-          </div>
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => navigate('/ventas')}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_14px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#1b3f9d]"
-            >
-              Ir a vender
-            </button>
-            <button
-              type="button"
-              onClick={irAEditarBodega}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cdd8ef] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#f5f9ff]"
-            >
-              Editar bodega
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/inicio')}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-            >
-              Ir a inicio
-            </button>
-          </div>
-        </section>
-      </main>
     );
   }
 
@@ -4529,12 +4421,6 @@ export default function Compras() {
                             className="mt-2"
                           />
                         ) : null}
-                        {errorCapacidadCantidad ? (
-                          <InlineGuidedError
-                            message={errorCapacidadCantidad}
-                            className="mt-2"
-                          />
-                        ) : null}
                       </div>
 
                       <div className="relative">
@@ -4680,7 +4566,7 @@ export default function Compras() {
                 onClick={irSiguientePaso}
                 disabled={loading || checkingCapacidadPreview}
                 aria-disabled={
-                  paso2Completo && !errorCapacidadCantidad
+                  paso2Completo
                     ? 'false'
                     : 'true'
                 }
@@ -5115,11 +5001,12 @@ export default function Compras() {
                 <AlertTriangle size={24} />
               </div>
               <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
-                Capacidad superada
+                Capacidad de bodega superada
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Esta compra supera la capacidad registrada de tu bodega. Puedes
-                revisar los datos o continuar bajo tu criterio.
+                Con esta compra, la bodega puede superar su capacidad registrada.
+                En la operación real puedes continuar, pero se recomienda revisar
+                el espacio disponible.
               </p>
             </div>
 
@@ -5128,6 +5015,26 @@ export default function Compras() {
                 <span>Capacidad máxima</span>
                 <span className="font-semibold text-slate-900">
                   {datosCapacidad.capacidadKg.toLocaleString('es-CO', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Ocupación actual</span>
+                <span className="font-semibold text-slate-900">
+                  {datosCapacidad.inventarioActual.toLocaleString('es-CO', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  kg
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Peso de la compra</span>
+                <span className="font-semibold text-slate-900">
+                  {(datosCapacidad.pesoCompra ?? resumen.totalKg).toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -5144,7 +5051,31 @@ export default function Compras() {
                   kg
                 </span>
               </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
+                <span>Ocupación proyectada</span>
+                <span className="font-semibold text-[#ea580c]">
+                  {Math.round(
+                    datosCapacidad.porcentaje ??
+                      (datosCapacidad.nuevoTotal / datosCapacidad.capacidadKg) * 100,
+                  )}
+                  %
+                </span>
+              </div>
             </div>
+
+            <label className="mt-5 flex items-start gap-3 rounded-[16px] border border-amber-200 bg-amber-50 p-4 text-left">
+              <input
+                type="checkbox"
+                checked={capacidadRiesgoConfirmada}
+                onChange={(event) =>
+                  setCapacidadRiesgoConfirmada(event.target.checked)
+                }
+                className="mt-1 h-5 w-5 rounded border-amber-400 text-[#ea580c] focus:ring-[#ea580c]/30"
+              />
+              <span className="text-sm font-semibold leading-5 text-amber-950">
+                Entiendo el riesgo y deseo continuar.
+              </span>
+            </label>
 
             <div className="mt-6 grid gap-3">
               <button
@@ -5153,16 +5084,20 @@ export default function Compras() {
                   setMostrarModalCapacidad(false);
                   setMostrarModalConfirmar(true);
                 }}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white"
+                disabled={!capacidadRiesgoConfirmada}
+                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
               >
-                Continuar
+                Continuar compra
               </button>
               <button
                 type="button"
-                onClick={() => setMostrarModalCapacidad(false)}
+                onClick={() => {
+                  setMostrarModalCapacidad(false);
+                  setCapacidadRiesgoConfirmada(false);
+                }}
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#c2410c]"
               >
-                Revisar compra
+                Cancelar
               </button>
             </div>
           </div>
@@ -5183,7 +5118,8 @@ export default function Compras() {
                   : 'La bodega se está llenando.'}
               </h2>
               <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Libera espacio antes de comprar más café.
+                La bodega está cerca de su capacidad. Revisa el espacio
+                disponible antes de continuar.
               </p>
             </div>
 

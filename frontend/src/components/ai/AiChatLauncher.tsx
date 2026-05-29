@@ -18,7 +18,7 @@ export function AiChatLauncher() {
   const { pathname } = useLocation();
   const { user } = useUser();
 
-  if (!user || isPublicRoute(pathname)) return null;
+  if (!user || isPublicRoute(pathname) || pathname.startsWith('/asistente')) return null;
 
   return (
     <>

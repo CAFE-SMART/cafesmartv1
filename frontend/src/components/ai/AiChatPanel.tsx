@@ -1,16 +1,10 @@
-import { FormEvent, useRef, useState } from 'react';
-import { Send, Sparkles, X } from 'lucide-react';
-import { buildAiContext } from '../../services/aiContextService';
-import { sendAiChatMessage } from '../../services/aiService';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { ExternalLink, Send, Sparkles, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAiConversation } from '../../context/AiConversationContext';
 
 type AiChatPanelProps = {
   onClose: () => void;
-};
-
-type ChatMessage = {
-  id: string;
-  role: 'assistant' | 'user';
-  content: string;
 };
 
 const suggestedQuestions = [
@@ -21,23 +15,10 @@ const suggestedQuestions = [
   '¿Tengo operaciones pendientes por sincronizar?',
 ];
 
-function createMessage(role: ChatMessage['role'], content: string): ChatMessage {
-  return {
-    id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    role,
-    content,
-  };
-}
-
 export function AiChatPanel({ onClose }: AiChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    createMessage(
-      'assistant',
-      'Hola, soy tu asistente inteligente. Puedo ayudarte a revisar inventario, ventas, compras, gastos y sincronización offline.',
-    ),
-  ]);
+  const navigate = useNavigate();
+  const { messages, isSending, sendMessage } = useAiConversation();
   const [question, setQuestion] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const sendQuestion = async (value: string) => {
@@ -45,18 +26,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
     if (!trimmed || isSending) return;
 
     setQuestion('');
-    setIsSending(true);
-    setMessages((current) => [...current, createMessage('user', trimmed)]);
-
-    const builtContext = await buildAiContext();
-    const answer = builtContext.hasData
-      ? await sendAiChatMessage(trimmed, builtContext.context)
-      : typeof navigator !== 'undefined' && !navigator.onLine
-        ? 'No tengo información guardada para analizar. Conéctate a internet una vez para cargar tus datos.'
-        : await sendAiChatMessage(trimmed, builtContext.context);
-
-    setMessages((current) => [...current, createMessage('assistant', answer)]);
-    setIsSending(false);
+    await sendMessage(trimmed);
     window.setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -64,6 +34,14 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
     event.preventDefault();
     void sendQuestion(question);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <section
@@ -83,20 +61,40 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
             <p className="text-xs text-slate-600 dark:text-slate-300">Pregúntame sobre tu negocio cafetero</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar asistente"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-        >
-          <X size={17} aria-hidden="true" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              navigate('/asistente');
+            }}
+            aria-label="Abrir asistente en pantalla grande"
+            title="Abrir asistente en pantalla grande"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+          >
+            <ExternalLink size={17} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar asistente"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+          >
+            <X size={17} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
         <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           El asistente genera recomendaciones con base en los datos disponibles. Verifica la información antes de tomar decisiones.
         </p>
+
+        {messages.length === 0 ? (
+          <div className="max-w-[86%] whitespace-pre-line break-words rounded-2xl bg-stone-100 px-3 py-2 text-sm leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+            Hola, soy tu asistente inteligente. Puedo ayudarte a revisar inventario, ventas, compras, gastos y sincronización offline.
+          </div>
+        ) : null}
 
         {messages.map((message) => (
           <div

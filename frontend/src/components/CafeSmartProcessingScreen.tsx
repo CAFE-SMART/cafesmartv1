@@ -323,6 +323,7 @@ export function CafeSmartProcessingScreen({
   return (
     <main
       className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-5 py-7 text-[#07153b] dark:bg-slate-950 dark:text-slate-100"
+      role="status"
       aria-busy="true"
       aria-live="polite"
     >
@@ -355,7 +356,13 @@ export function CafeSmartProcessingScreen({
 
         <div className="mt-7 animate-[cafesmartFadeUp_420ms_ease-out_260ms_both]">
           {showSpinner ? (
-            <div className="mx-auto h-12 w-12 rounded-full border-[4px] border-blue-100 border-t-[#1683f7] animate-[cafesmartSpin_850ms_linear_infinite]" />
+            <>
+              <div
+                className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-700 dark:border-slate-700 dark:border-t-blue-300"
+                aria-hidden="true"
+              />
+              <span className="sr-only">Cargando información</span>
+            </>
           ) : null}
           <p className={`${showSpinner ? 'mt-4' : ''} text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300`}>
             {helperText}

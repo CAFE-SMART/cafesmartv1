@@ -235,23 +235,19 @@ export class ComprasService {
           const compraProcesada = procesarCompra(input, contextoCapacidad);
 
           if (compraProcesada.capacidad.nivel === 'exceso') {
-            throw new BadRequestException(
-              apiError(
-                'COMPRA_CAPACIDAD_INSUFICIENTE',
-                'La cantidad ingresada supera la capacidad disponible de la bodega.',
-                {
-                  field: 'sublotes.pesoInicial',
-                  details: {
-                    disponibleKg:
-                      compraProcesada.capacidad.disponibleKg ?? 0,
-                    cantidadIntentadaKg: compraProcesada.compra.totalKg,
-                    capacidadBodegaKg:
-                      compraProcesada.capacidad.capacidadBodegaKg,
-                    inventarioActualKg:
-                      compraProcesada.capacidad.inventarioActualKg,
-                  },
-                },
-              ),
+            this.logger.warn(
+              JSON.stringify({
+                event: 'compra_registrada_con_capacidad_excedida',
+                organizacionId: organizacionIdFinal,
+                usuarioId: userId,
+                porcentajeOcupacion:
+                  compraProcesada.capacidad.porcentajeOcupacion,
+                capacidadBodegaKg:
+                  compraProcesada.capacidad.capacidadBodegaKg,
+                inventarioActualKg:
+                  compraProcesada.capacidad.inventarioActualKg,
+                cantidadIntentadaKg: compraProcesada.compra.totalKg,
+              }),
             );
           }
 

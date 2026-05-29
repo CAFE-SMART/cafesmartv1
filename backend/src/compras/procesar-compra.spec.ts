@@ -70,7 +70,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(100, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('nivel de alerta');
+      expect(resultado.warning).toContain('cerca de su capacidad');
       expect(resultado.warning).toContain('800 kg');
       expect(resultado.warning).toContain('1000 kg');
       expect(resultado.exceso).toBeUndefined();
@@ -85,7 +85,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(100, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('nivel de alerta');
+      expect(resultado.warning).toContain('cerca de su capacidad');
       expect(resultado.warning).toContain('850 kg');
       expect(resultado.warning).toContain('1000 kg');
       expect(resultado.exceso).toBeUndefined();
@@ -100,7 +100,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(0, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('nivel de alerta');
+      expect(resultado.warning).toContain('cerca de su capacidad');
       expect(resultado.exceso).toBeUndefined();
     });
 
@@ -113,7 +113,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(0.01, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('nivel de alerta');
+      expect(resultado.warning).toContain('cerca de su capacidad');
       expect(resultado.exceso).toBeUndefined();
     });
   });
@@ -128,7 +128,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(200, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('supera la capacidad');
+      expect(resultado.warning).toContain('superar la capacidad');
       expect(resultado.warning).toContain('1100 kg');
       expect(resultado.warning).toContain('1000 kg');
       expect(resultado.exceso).toBeDefined();
@@ -156,7 +156,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(1500, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('supera la capacidad');
+      expect(resultado.warning).toContain('superar la capacidad');
       expect(resultado.exceso).toBe(500);
     });
 
@@ -181,7 +181,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = evaluarCapacidadCompra(200, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('supera la capacidad');
+      expect(resultado.warning).toContain('superar la capacidad');
       expect(resultado.exceso).toBeDefined();
       expect(resultado.exceso).toBe(50);
     });
@@ -301,7 +301,7 @@ describe('evaluarCapacidadCompra - QA Tests de Capacidad de Bodega', () => {
       const resultado = procesarCompra(input, contexto);
 
       expect(resultado.warning).toBeDefined();
-      expect(resultado.warning).toContain('supera la capacidad');
+      expect(resultado.warning).toContain('superar la capacidad');
       expect(resultado.exceso).toBeDefined();
       expect(resultado.compra.totalKg).toBe(200);
     });

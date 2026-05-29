@@ -15,14 +15,22 @@ import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { useUser } from '../context/UserContext';
 import {
+  obtenerDashboardInicio,
   obtenerDashboardSummary,
+  type DashboardInicioBodegaItem,
   type DashboardSummary,
 } from '../services/dashboardService';
 import { guardarConfiguracionBodega } from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { prepareOfflineData } from '../services/offlinePreparationService';
+import {
+  dismissStorageAlert,
+  shouldShowStorageAlert,
+  type StorageAlertData,
+} from '../services/storageAlertDismissService';
 import { applySecadoToLots } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -42,6 +50,7 @@ const DASHBOARD_HOME_CACHE_KEY = 'cached_dashboard_home';
 type CachedDashboardHome = {
   summary: DashboardSummary;
   lotesBodega: LoteResumen[];
+  inventarioBodega?: DashboardInicioBodegaItem[];
   savedAt: string;
 };
 
@@ -379,8 +388,13 @@ function DashboardErrorState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
+  const { user } = useUser();
+  const empresaId = user?.organizacionId ?? user?.id ?? 'default-company';
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
+  const [inventarioBodegaInicio, setInventarioBodegaInicio] = useState<
+    DashboardInicioBodegaItem[]
+  >([]);
   const [usingCachedDashboard, setUsingCachedDashboard] = useState(false);
   const [offlineCacheMissing, setOfflineCacheMissing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -398,7 +412,7 @@ export default function Inicio() {
   const [capacidadBodegaLocal, setCapacidadBodegaLocal] = useState('');
   const [bodegaLocalError, setBodegaLocalError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
-  const [alertaBodegaCerrada, setAlertaBodegaCerrada] = useState(false);
+  const [storageAlertDismissVersion, setStorageAlertDismissVersion] = useState(0);
   const [preparingOffline, setPreparingOffline] = useState(false);
   const [offlinePrepFeedback, setOfflinePrepFeedback] = useState<{
     variant: 'success' | 'error';
@@ -414,6 +428,7 @@ export default function Inicio() {
     if (!cachedHome) {
       setSummary(null);
       setLotesBodega([]);
+      setInventarioBodegaInicio([]);
       setUsingCachedDashboard(false);
       setOfflineCacheMissing(true);
       setError(null);
@@ -422,6 +437,7 @@ export default function Inicio() {
 
     setSummary(cachedHome.summary);
     setLotesBodega(cachedHome.lotesBodega);
+    setInventarioBodegaInicio(cachedHome.inventarioBodega ?? []);
     setMostrarOnboardingBodega(false);
     setUsingCachedDashboard(true);
     setOfflineCacheMissing(false);
@@ -443,13 +459,22 @@ export default function Inicio() {
         return;
       }
 
-      const [dashboardResult, lotesResult] = await Promise.allSettled([
-        obtenerDashboardSummary(),
+      const dashboardInicioResult = await Promise.allSettled([
+        obtenerDashboardInicio(),
         obtenerLotes(),
       ]);
+      const [dashboardResult, lotesResult] =
+        dashboardInicioResult[0].status === 'fulfilled'
+          ? dashboardInicioResult
+          : await Promise.allSettled([obtenerDashboardSummary(), obtenerLotes()]);
 
       if (dashboardResult.status === 'fulfilled') {
         setSummary(dashboardResult.value);
+        setInventarioBodegaInicio(
+          'inventarioBodega' in dashboardResult.value
+            ? dashboardResult.value.inventarioBodega
+            : [],
+        );
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
         setMostrarOnboardingBodega(
@@ -460,6 +485,7 @@ export default function Inicio() {
       } else {
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
+        setInventarioBodegaInicio([]);
         setError(
           backendReachable === false
             ? 'No pudimos conectar con el servidor'
@@ -479,6 +505,10 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: nextLotes,
+            inventarioBodega:
+              'inventarioBodega' in dashboardResult.value
+                ? dashboardResult.value.inventarioBodega
+                : [],
             savedAt: new Date().toISOString(),
           });
           void saveOfflineCache('cached_inventory_summary', nextLotes);
@@ -515,6 +545,10 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: [],
+            inventarioBodega:
+              'inventarioBodega' in dashboardResult.value
+                ? dashboardResult.value.inventarioBodega
+                : [],
             savedAt: new Date().toISOString(),
           });
         }
@@ -659,26 +693,26 @@ export default function Inicio() {
   const ocupacionVisual = useMemo(() => {
     if (ocupacion.nivel === 'alert') {
       return {
-        card: 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/40',
+        card: 'border-red-300 bg-red-50 text-red-900 dark:border-red-600 dark:bg-red-950/40 dark:text-red-100',
         text: 'text-red-800 dark:text-red-100',
-        bar: 'bg-[#ef4444]',
-        track: 'border-red-300 bg-red-100 dark:border-red-700 dark:bg-red-900/50',
-        badge: 'border border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200',
+        bar: 'bg-red-500 dark:bg-red-400',
+        track: 'border-red-300 bg-red-100 dark:border-red-600 dark:bg-red-950/50',
+        badge: 'border border-red-300 bg-red-100 text-red-900 dark:border-red-600 dark:bg-red-900/50 dark:text-red-100',
       };
     }
     if (ocupacion.nivel === 'warning') {
       return {
-        card: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/35',
+        card: 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/35 dark:text-amber-100',
         text: 'text-amber-900 dark:text-amber-100',
-        bar: 'bg-[#f59e0b]',
-        track: 'border-amber-300 bg-amber-100 dark:border-amber-700 dark:bg-amber-900/50',
-        badge: 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-200',
+        bar: 'bg-amber-500 dark:bg-amber-400',
+        track: 'border-amber-300 bg-amber-100 dark:border-amber-600 dark:bg-amber-950/50',
+        badge: 'border border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-600 dark:bg-amber-900/50 dark:text-amber-100',
       };
     }
     return {
       card: 'border-[#e6e8f3] bg-white dark:border-slate-700 dark:bg-slate-900',
       text: 'text-[#102d92] dark:text-blue-200',
-      bar: 'bg-[#2563eb]',
+        bar: 'bg-blue-600 dark:bg-blue-400',
       track: 'border-[#c7d2fe] bg-[#e8efff] dark:border-blue-700 dark:bg-blue-950/35',
       badge: 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900/50 dark:text-blue-200',
     };
@@ -698,35 +732,65 @@ export default function Inicio() {
     }
 
     const porcentajeReal = (kgActual / kgCapacidad) * 100;
-    if (porcentajeReal >= 90) {
+    const data: StorageAlertData = {
+      occupancyPercent: porcentajeReal,
+      capacityKg: kgCapacidad,
+      usedKg: kgActual,
+    };
+    if (porcentajeReal > 100) {
       return {
-        title: 'La bodega está casi llena.',
-        text: 'Libera espacio antes de comprar más café.',
+        title: 'Bodega por encima de la capacidad registrada.',
+        text: 'Revisa el espacio físico disponible y actualiza la capacidad si es necesario.',
         variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
+        data,
+      };
+    }
+    if (porcentajeReal >= 90) {
+      return {
+        title: 'La bodega está casi llena.',
+        text: 'Puedes continuar comprando si lo necesitas, pero revisa el espacio disponible.',
+        variant: 'error' as const,
+        primary: 'Ir a ventas',
+        secondary: 'Editar bodega',
+        secondaryPath: '/ajustes',
+        data,
       };
     }
     if (porcentajeReal >= 70) {
       return {
         title: 'La bodega se está llenando.',
-        text: 'Libera espacio antes de comprar más café.',
+        text: 'La bodega está cerca de su capacidad. Revisa el espacio disponible antes de continuar.',
         variant: 'warning' as const,
         primary: 'Ir a ventas',
         primaryPath: '/ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
+        data,
       };
     }
     return null;
   }, [summary?.kgActual, summary?.kgCapacidad]);
 
-  useEffect(() => {
-    setAlertaBodegaCerrada(false);
-  }, [alertaBodega?.variant, alertaBodega?.title]);
+  const mostrarAlertaBodega = useMemo(
+    () =>
+      Boolean(
+        alertaBodega &&
+          shouldShowStorageAlert(empresaId, alertaBodega.data),
+      ),
+    [alertaBodega, empresaId, storageAlertDismissVersion],
+  );
 
   const cafeEnBodega = useMemo(() => {
+    if (inventarioBodegaInicio.length > 0) {
+      return inventarioBodegaInicio.map((item) => ({
+        ...item,
+        dayWeight: item.averageDays * Math.max(1, item.lots),
+      }));
+    }
+
     const sections: BodegaCoffeeItem[] = [
       {
         key: 'VERDE_BUENO',
@@ -780,7 +844,7 @@ export default function Inicio() {
             : 0,
       }))
       .filter((section) => section.totalKg > 0);
-  }, [lotesBodega]);
+  }, [inventarioBodegaInicio, lotesBodega]);
 
   const isEmptyDashboard =
     !loading &&
@@ -1160,13 +1224,13 @@ export default function Inicio() {
                     total
                   </span>
                 </div>
-                {alertaBodega && !alertaBodegaCerrada ? (
+                {alertaBodega && mostrarAlertaBodega ? (
                   <div className="relative mt-3">
                     <AppFeedbackMessage
                       variant={alertaBodega.variant}
                       title={alertaBodega.title}
                       description={alertaBodega.text}
-                      className="pr-12"
+                      className="pr-12 shadow-[0_12px_30px_rgba(15,23,42,0.10)]"
                     >
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -1176,7 +1240,7 @@ export default function Inicio() {
                               ? abrirEditorBodegaLocal()
                               : navigate(alertaBodega.secondaryPath)
                           }
-                          className="inline-flex min-h-[32px] items-center rounded-full bg-[#102d92] px-3 text-[0.7rem] font-black text-white shadow-sm"
+                          className="inline-flex min-h-[32px] items-center rounded-full bg-blue-700 px-3 text-[0.7rem] font-black text-white shadow-sm hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
                         >
                           {alertaBodega.secondary}
                         </button>
@@ -1185,7 +1249,7 @@ export default function Inicio() {
                           onClick={() =>
                             navigate(alertaBodega.primaryPath ?? '/ventas')
                           }
-                          className="inline-flex min-h-[32px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.7rem] font-black text-[#17489c] shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          className="inline-flex min-h-[32px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.7rem] font-black text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/40 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                         >
                           {alertaBodega.primary}
                         </button>
@@ -1193,9 +1257,12 @@ export default function Inicio() {
                     </AppFeedbackMessage>
                     <button
                       type="button"
-                      onClick={() => setAlertaBodegaCerrada(true)}
-                      aria-label="Cerrar alerta de capacidad"
-                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 transition-all hover:bg-white/80 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 dark:text-slate-200 dark:hover:bg-slate-900/80 dark:hover:text-white"
+                      onClick={() => {
+                        dismissStorageAlert(empresaId, alertaBodega.data);
+                        setStorageAlertDismissVersion((current) => current + 1);
+                      }}
+                      aria-label="Cerrar alerta de bodega"
+                      className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
                     >
                       <X size={15} aria-hidden="true" />
                     </button>

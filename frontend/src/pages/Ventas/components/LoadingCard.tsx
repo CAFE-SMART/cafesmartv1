@@ -1,5 +1,4 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
 import { InternalLoadingScreen } from '../../../components/InternalLoadingScreen';
 
 interface LoadingCardProps {
@@ -26,11 +25,16 @@ export function LoadingCard({
   return (
     <section
       className="rounded-[18px] border border-[#e5e7f2] bg-white px-4 py-3 shadow-sm"
+      role="status"
       aria-busy="true"
       aria-live="polite"
     >
       <div className="flex items-center gap-3">
-        <RefreshCw size={16} className="shrink-0 animate-spin text-[#102d92]" />
+        <span
+          className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700 dark:border-slate-700 dark:border-t-blue-300"
+          aria-hidden="true"
+        />
+        <span className="sr-only">Cargando información</span>
         <p className="text-sm font-semibold text-[#102d92]">{text}</p>
       </div>
     </section>

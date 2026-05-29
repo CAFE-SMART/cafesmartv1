@@ -87,11 +87,8 @@ export default function AnalisisInteligente() {
         setState('success');
       } catch (error) {
         const message =
-          error instanceof ApiRequestError &&
-          error.code === 'AI_SERVICE_NOT_CONFIGURED'
-            ? 'No pude conectar con el asistente. Revisa la configuración del servicio de IA.'
-            : error instanceof ApiRequestError && error.code === 'AI_QUOTA_EXCEEDED'
-              ? 'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.'
+          error instanceof ApiRequestError
+            ? error.message
             : 'No pude generar el análisis en este momento. Intenta nuevamente.';
         if (refresh && answer) {
           setUpdateError('No pudimos actualizar el análisis. Intenta nuevamente.');

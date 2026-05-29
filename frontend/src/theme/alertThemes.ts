@@ -1,21 +1,21 @@
 export const alertThemes = {
   error: {
     container:
-      'border border-red-300 bg-red-50 text-red-900 dark:border-red-500/80 dark:bg-red-950/45 dark:text-red-50',
-    title: 'text-red-800 dark:text-red-200',
-    description: 'text-red-700 dark:text-red-50',
+      'border border-red-300 bg-red-50 text-red-900 dark:border-red-600 dark:bg-red-950/40 dark:text-red-100',
+    title: 'text-red-900 dark:text-red-100',
+    description: 'text-red-800 dark:text-red-100',
     iconWrap: 'bg-red-100 dark:bg-red-900/50',
-    icon: 'text-red-700 dark:text-red-300',
+    icon: 'text-red-700 dark:text-red-200',
     badge:
       'border border-red-200 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200',
   },
   warning: {
     container:
-      'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/80 dark:bg-amber-950/40 dark:text-amber-50',
-    title: 'text-amber-900 dark:text-amber-200',
-    description: 'text-amber-800 dark:text-amber-50',
-    iconWrap: 'bg-amber-100 dark:bg-amber-900/40',
-    icon: 'text-amber-700 dark:text-amber-300',
+      'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/35 dark:text-amber-100',
+    title: 'text-amber-900 dark:text-amber-100',
+    description: 'text-amber-800 dark:text-amber-100',
+    iconWrap: 'bg-amber-100 dark:bg-amber-900/50',
+    icon: 'text-amber-700 dark:text-amber-200',
     badge:
       'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:text-amber-200',
   },

@@ -13,6 +13,8 @@ type AiFinancialAnalysisResponse = {
 
 const AI_CONFIGURATION_ERROR =
   'No pude conectar con el asistente. Revisa la configuración del servicio de IA.';
+const AI_DISABLED_MESSAGE =
+  'El asistente inteligente todavía no está disponible. Podrás usarlo cuando se active el servicio.';
 export const AI_FINANCIAL_ANALYSIS_CACHE_KEY = 'ai_financial_analysis_latest';
 
 export type CachedAiFinancialAnalysis = {
@@ -23,6 +25,10 @@ export type CachedAiFinancialAnalysis = {
 
 function resolveAiErrorMessage(error: unknown, scope: 'chat' | 'analysis' = 'chat') {
   if (error instanceof ApiRequestError) {
+    if (error.code === 'AI_DISABLED') {
+      return AI_DISABLED_MESSAGE;
+    }
+
     if (
       error.code === 'AI_SERVICE_NOT_CONFIGURED' ||
       /servicio de ia no configurado|asistente ia no esta configurado|asistente ia no está configurado/i.test(
@@ -32,8 +38,21 @@ function resolveAiErrorMessage(error: unknown, scope: 'chat' | 'analysis' = 'cha
       return AI_CONFIGURATION_ERROR;
     }
 
-    if (error.code === 'AI_QUOTA_EXCEEDED') {
+    if (error.code === 'AI_DAILY_LIMIT_EXCEEDED') {
+      return scope === 'analysis'
+        ? 'Alcanzaste el límite diario de análisis inteligentes. Intenta de nuevo mañana.'
+        : 'Alcanzaste el límite diario del asistente. Intenta de nuevo mañana.';
+    }
+
+    if (
+      error.code === 'AI_PROVIDER_QUOTA_EXCEEDED' ||
+      error.code === 'AI_QUOTA_EXCEEDED'
+    ) {
       return 'El asistente alcanzó el límite de uso por ahora. Intenta más tarde.';
+    }
+
+    if (error.code === 'AI_CONTEXT_TOO_LARGE') {
+      return 'La información es demasiado amplia para analizarla ahora.';
     }
 
     if (error.code === 'AI_PROVIDER_ERROR' || error.code === 'AI_EMPTY_RESPONSE') {

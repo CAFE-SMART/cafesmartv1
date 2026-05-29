@@ -39,10 +39,16 @@ import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { useUser } from '../context/UserContext';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
+import {
+  dismissStorageAlert,
+  shouldShowStorageAlert,
+  type StorageAlertData,
+} from '../services/storageAlertDismissService';
 import {
   applySecadoToLots,
   getActiveSecadoSessions,
@@ -447,9 +453,9 @@ function CapacityRing({
     rawPercentage >= 90 ? 'alert' : rawPercentage >= 70 ? 'warning' : 'normal';
   const accentColor =
     capacityLevel === 'alert'
-      ? '#d92d20'
+      ? '#ef4444'
       : capacityLevel === 'warning'
-        ? '#d97706'
+        ? '#f59e0b'
         : '#102d92';
   const accentTextClass =
     capacityLevel === 'alert'
@@ -459,16 +465,22 @@ function CapacityRing({
         : 'text-[#102d92] dark:text-blue-200';
   const capacityShellClass =
     capacityLevel === 'alert'
-      ? 'border-red-300 bg-red-50 dark:border-red-500/80 dark:bg-red-950/45'
+      ? 'border-red-300 bg-red-50 text-red-900 dark:border-red-600 dark:bg-red-950/40 dark:text-red-100'
       : capacityLevel === 'warning'
-        ? 'border-amber-300 bg-amber-50 dark:border-amber-500/80 dark:bg-amber-950/40'
+        ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/35 dark:text-amber-100'
         : 'border-[#e6e8f3] bg-white dark:border-slate-600 dark:bg-slate-900';
   const capacityBadgeClass =
     capacityLevel === 'alert'
-      ? 'border border-red-200 bg-red-100 text-red-800 dark:border-red-500/80 dark:bg-red-900/60 dark:text-red-100'
+      ? 'border border-red-300 bg-red-100 text-red-900 dark:border-red-600 dark:bg-red-900/50 dark:text-red-100'
       : capacityLevel === 'warning'
-        ? 'border border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-500/80 dark:bg-amber-900/60 dark:text-amber-100'
+        ? 'border border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-600 dark:bg-amber-900/50 dark:text-amber-100'
         : 'border border-blue-200 bg-blue-100 text-blue-900 dark:border-blue-500/80 dark:bg-blue-900/60 dark:text-blue-100';
+  const capacityTrackClass =
+    capacityLevel === 'alert'
+      ? 'stroke-red-100 dark:stroke-red-950/50'
+      : capacityLevel === 'warning'
+        ? 'stroke-amber-100 dark:stroke-amber-950/50'
+        : 'stroke-[#edf1fa] dark:stroke-slate-700';
   const capacityStatusLabel =
     capacityLevel === 'alert'
       ? 'Bodega casi llena'
@@ -512,7 +524,7 @@ function CapacityRing({
               cx="70"
               cy="70"
               r="58"
-              className="stroke-[#edf1fa] dark:stroke-slate-700"
+              className={capacityTrackClass}
               strokeWidth="12"
               fill="none"
             />
@@ -728,6 +740,8 @@ export default function Inventario() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOnline, backendReachable, refreshHealth } = useCloudStatus();
+  const { user } = useUser();
+  const empresaId = user?.organizacionId ?? user?.id ?? 'default-company';
   const locationState = (location.state ?? null) as {
     preferredTypeKey?: string;
     activeSecadoId?: string;
@@ -755,7 +769,7 @@ export default function Inventario() {
   const [bodegaCapacityDraft, setBodegaCapacityDraft] = useState('');
   const [bodegaEditorError, setBodegaEditorError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
-  const [capacityAlertClosed, setCapacityAlertClosed] = useState(false);
+  const [storageAlertDismissVersion, setStorageAlertDismissVersion] = useState(0);
 
   const openBodegaEditor = () => {
     setBodegaNameDraft(bodegaConfig.nombreBodega || 'Bodega principal');
@@ -1060,42 +1074,55 @@ export default function Inventario() {
     if (!capacityKg || capacityKg <= 0) return null;
 
     const percentage = (totalKg / capacityKg) * 100;
+    const data: StorageAlertData = {
+      occupancyPercent: percentage,
+      capacityKg,
+      usedKg: totalKg,
+    };
     if (percentage >= 100) {
       return {
-        title: 'La bodega alcanzó su límite.',
-        text: 'Libera espacio antes de comprar más café.',
+        title: 'Bodega por encima de la capacidad registrada.',
+        text: 'Revisa el espacio físico disponible y actualiza la capacidad si es necesario.',
         variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
+        data,
       };
     }
     if (percentage >= 90) {
       return {
         title: 'La bodega está casi llena.',
-        text: 'Libera espacio antes de comprar más café.',
+        text: 'Puedes continuar comprando si lo necesitas, pero revisa el espacio disponible.',
         variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
+        data,
       };
     }
     if (percentage >= 80) {
       return {
         title: 'La bodega se está llenando.',
-        text: 'Libera espacio antes de comprar más café.',
+        text: 'La bodega está cerca de su capacidad. Revisa el espacio disponible antes de continuar.',
         variant: 'warning' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
         secondaryPath: '/ajustes',
+        data,
       };
     }
     return null;
   }, [bodegaConfig.capacidadKg, totalKg]);
 
-  useEffect(() => {
-    setCapacityAlertClosed(false);
-  }, [capacityAlert?.variant, capacityAlert?.title]);
+  const showStorageAlert = useMemo(
+    () =>
+      Boolean(
+        capacityAlert &&
+          shouldShowStorageAlert(empresaId, capacityAlert.data),
+      ),
+    [capacityAlert, empresaId, storageAlertDismissVersion],
+  );
   const activeSecadoSessions = useMemo(
     () =>
       ENABLE_SECADO_PROTOTYPE
@@ -1152,20 +1179,20 @@ export default function Inventario() {
           />
         ) : null}
 
-        {showInventoryContent && !showGlobalEmptyState && capacityAlert && !capacityAlertClosed ? (
+        {showInventoryContent && !showGlobalEmptyState && capacityAlert && showStorageAlert ? (
           <div className="relative">
             <AppFeedbackMessage
               variant={capacityAlert.variant}
               icon={BadgeAlert}
               title={capacityAlert.title}
               description={capacityAlert.text}
-              className="pr-12"
+              className="pr-12 shadow-[0_12px_30px_rgba(15,23,42,0.10)]"
             >
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => navigate('/ventas')}
-                  className="inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-[0.72rem] font-black text-white"
+                  className="inline-flex min-h-[34px] items-center rounded-full bg-blue-700 px-3 text-[0.72rem] font-black text-white shadow-sm hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
                 >
                   {capacityAlert.primary}
                 </button>
@@ -1176,7 +1203,7 @@ export default function Inventario() {
                       ? openBodegaEditor()
                       : navigate(capacityAlert.secondaryPath)
                   }
-                  className="inline-flex min-h-[34px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.72rem] font-black text-[#173a8a] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+                  className="inline-flex min-h-[34px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.72rem] font-black text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/40 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   {capacityAlert.secondary}
                 </button>
@@ -1184,9 +1211,12 @@ export default function Inventario() {
             </AppFeedbackMessage>
             <button
               type="button"
-              onClick={() => setCapacityAlertClosed(true)}
-              aria-label="Cerrar alerta de capacidad"
-              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 transition-all hover:bg-white/80 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 dark:text-slate-100 dark:hover:bg-slate-900/80 dark:hover:text-white"
+              onClick={() => {
+                dismissStorageAlert(empresaId, capacityAlert.data);
+                setStorageAlertDismissVersion((current) => current + 1);
+              }}
+              aria-label="Cerrar alerta de bodega"
+              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
             >
               <X size={15} aria-hidden="true" />
             </button>

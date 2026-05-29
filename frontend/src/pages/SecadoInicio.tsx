@@ -739,17 +739,18 @@ export default function SecadoInicio() {
               Recargar
             </RefreshButton>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 rounded-[14px] bg-[#eaf2ff] p-1">
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-[14px] border border-slate-200 bg-[#eaf2ff] p-1 dark:border-slate-600 dark:bg-slate-900">
             <button
               type="button"
+              aria-pressed={view === 'pending'}
               onClick={() => {
                 cargarPendientes();
                 setView('pending');
               }}
               className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[11px] px-2 text-[0.68rem] font-black transition ${
                 view === 'pending'
-                  ? 'bg-white text-[#102d92] shadow-sm'
-                  : 'text-[#5570a8]'
+                  ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                  : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
               }`}
             >
               <ClipboardList size={15} />
@@ -757,12 +758,13 @@ export default function SecadoInicio() {
             </button>
             <button
               type="button"
+              aria-pressed={view === 'start'}
               onClick={() => setView('start')}
               disabled={loading}
               className={`inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[11px] px-2 text-[0.68rem] font-black transition ${
                 view === 'start'
-                  ? 'bg-white text-[#102d92] shadow-sm'
-                  : 'text-[#5570a8]'
+                  ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                  : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500 dark:focus-visible:ring-blue-500/40'
               }`}
             >
               <SunMedium size={15} />
@@ -897,19 +899,24 @@ export default function SecadoInicio() {
           <>
             <section className="cs-card rounded-[18px] border border-slate-100 bg-white p-3.5 shadow-[0_6px_18px_rgba(15,23,42,0.04)] dark:border-slate-600 dark:bg-slate-900">
               <h2 className="text-base font-black leading-tight text-slate-950 dark:text-slate-100">
-                Selecciona los sublotes de café verde
+                Sublotes de café verde
               </h2>
               <p className="mt-1.5 text-[0.72rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
-                Selecciona solo los sublotes que vas a secar. Ajusta el peso
-                directamente si procesas una parte.
+                Selecciona solo los que vas a secar. Ajusta el peso
+                si secas una parte.
               </p>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
+                  aria-pressed={todosSeleccionados}
                   onClick={seleccionarTodo}
-                  disabled={todosSeleccionados || availableSublotes.length === 0}
-                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
+                  disabled={availableSublotes.length === 0}
+                  className={`inline-flex min-h-[34px] items-center justify-center rounded-[10px] border px-2 text-[0.66rem] font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:focus-visible:ring-blue-500/40 ${
+                    todosSeleccionados
+                      ? 'border-blue-700 bg-blue-700 text-white dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                      : 'border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white'
+                  } disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500`}
                 >
                   Seleccionar todo
                 </button>
@@ -917,7 +924,7 @@ export default function SecadoInicio() {
                   type="button"
                   onClick={limpiarSeleccion}
                   disabled={selectedIds.length === 0}
-                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-200 bg-white px-2 text-[0.66rem] font-black text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-[10px] border border-slate-300 bg-white px-2 text-[0.66rem] font-black text-slate-800 transition hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500 dark:focus-visible:ring-blue-500/40"
                 >
                   Limpiar
                 </button>

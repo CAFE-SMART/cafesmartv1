@@ -12,6 +12,7 @@ export function AppLoadingScreen({
   return (
     <main
       className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#f8fbff] px-6 py-10 text-[#07153b] dark:bg-slate-950 dark:text-slate-100"
+      role="status"
       aria-busy="true"
       aria-live="polite"
     >
@@ -58,7 +59,11 @@ export function AppLoadingScreen({
         </section>
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">
-          <div className="mx-auto h-16 w-16 rounded-full border-[5px] border-blue-100 border-t-[#1683f7] animate-[appSplashSpin_900ms_linear_infinite]" />
+          <div
+            className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-700 dark:border-slate-700 dark:border-t-blue-300"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Cargando información</span>
           <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b] dark:text-slate-100">
             {title}
           </p>

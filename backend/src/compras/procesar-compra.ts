@@ -282,7 +282,7 @@ export function evaluarCapacidadCompra(
     const disponibleKg = desdeCentiUnidades(
       Math.max(0, capacidadCenti - inventarioActualCenti),
     );
-    const mensaje = `La cantidad ingresada supera la capacidad disponible de la bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
+    const mensaje = `Esta compra puede superar la capacidad registrada de la bodega. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
 
     return {
       warning: mensaje,
@@ -303,7 +303,7 @@ export function evaluarCapacidadCompra(
   }
 
   if (nuevoTotalCenti >= limiteWarningCenti) {
-    const mensaje = `La compra deja la bodega en nivel de alerta. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
+    const mensaje = `La bodega está cerca de su capacidad. Nuevo total: ${nuevoTotalKg} kg de ${capacidadBodegaKg} kg.`;
 
     return {
       warning: mensaje,

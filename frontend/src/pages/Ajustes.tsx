@@ -126,6 +126,7 @@ import {
 } from '../utils/personValidation';
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import granitoInteligente from '../assets/granito-inteligente.png';
 
 type ProfileSettings = {
   nombre: string;
@@ -1559,7 +1560,7 @@ export default function Ajustes() {
       title: 'Proceso de secado',
       description: 'Revisa secados activos',
       icon: Droplets,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => {
         setSecadoError(null);
         navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } });
@@ -1570,7 +1571,7 @@ export default function Ajustes() {
       title: 'Gastos operativos',
       description: 'Listado y registro',
       icon: Wallet,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => navigate('/gastos'),
     },
     {
@@ -1578,7 +1579,7 @@ export default function Ajustes() {
       title: 'Sincronización offline',
       description: `${syncSummary.pendientes} pendientes · ${syncSummary.errores} con error`,
       icon: CloudCog,
-      iconStyle: 'bg-[#fff7ed] text-[#b45309]',
+      iconStyle: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200',
       onClick: () => setSyncPanelOpen((current) => !current),
     },
   ] as const;
@@ -1589,7 +1590,7 @@ export default function Ajustes() {
       title: 'Empresa',
       description: company.nombreEmpresa || 'Datos principales del negocio',
       icon: Building2,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: abrirEditorEmpresa,
     },
@@ -1598,7 +1599,7 @@ export default function Ajustes() {
       title: 'Tipos de café',
       description: 'Variedades registradas',
       icon: FlaskConical,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: true,
       onClick: undefined,
     },
@@ -1607,7 +1608,7 @@ export default function Ajustes() {
       title: 'Calidades de café',
       description: 'Estándares de calidad',
       icon: ScanSearch,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: true,
       onClick: undefined,
     },
@@ -1616,7 +1617,7 @@ export default function Ajustes() {
       title: 'Bodega',
       description: 'Espacio de bodega',
       icon: Warehouse,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: abrirEditorBodega,
     },
@@ -1625,7 +1626,7 @@ export default function Ajustes() {
       title: 'Usuarios',
       description: 'Próximamente',
       icon: Users,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+      iconStyle: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
       staticOnly: true,
       onClick: undefined,
     },
@@ -1634,7 +1635,7 @@ export default function Ajustes() {
       title: 'Soporte',
       description: 'Ayuda y reportes',
       icon: LifeBuoy,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: () => navigate('/soporte'),
     },
@@ -1646,7 +1647,7 @@ export default function Ajustes() {
       title: 'Contactos',
       description: 'Clientes y productores registrados',
       icon: Users2,
-      iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => void cargarPersonasAdmin('todos'),
     },
     {
@@ -1654,7 +1655,7 @@ export default function Ajustes() {
       title: 'Usuarios del sistema',
       description: 'Roles y permisos',
       icon: Shield,
-      iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
+      iconStyle: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
       onClick: undefined,
     },
   ] as const;
@@ -1693,29 +1694,29 @@ export default function Ajustes() {
     {
       id: 'screen-reader',
       title: 'Lector de pantalla',
-      description: 'Mejora la navegación con tecnologías asistivas.',
+      description: 'Navegación accesible',
       status: accessibilityPreferences.screenReaderMode
         ? 'Activado'
         : 'Desactivado',
       icon: ScanSearch,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc] dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('screen-reader' as const),
     },
     {
       id: 'high-contrast',
       title: 'Alto contraste',
-      description: 'Aumenta textos, bordes y alertas.',
+      description: 'Vista mejorada',
       status: accessibilityPreferences.highContrast
         ? 'Activado'
         : 'Desactivado',
       icon: Eye,
-      iconStyle: 'bg-[#f3f6ff] text-[#1f56dd] dark:bg-slate-800 dark:text-slate-100',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('high-contrast' as const),
     },
     {
       id: 'font-scale',
       title: 'Tamaño de fuente',
-      description: 'Ajusta el texto en toda la app.',
+      description: 'Texto adaptable',
       status:
         accessibilityPreferences.fontScale === 'xlarge'
           ? 'Extra grande'
@@ -1723,7 +1724,7 @@ export default function Ajustes() {
             ? 'Grande'
             : 'Normal',
       icon: Settings,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100',
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('font-scale' as const),
     },
   ] as const;
@@ -2377,7 +2378,7 @@ export default function Ajustes() {
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:bg-[#f9fafb]"
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
                 >
                   <span
                     className={`inline-flex shrink-0 rounded-lg p-2 ${item.iconStyle}`}
@@ -2385,16 +2386,16 @@ export default function Ajustes() {
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500">
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
                       {item.description}
                     </span>
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-300"
+                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
                   />
                 </button>
               );
@@ -2586,9 +2587,10 @@ export default function Ajustes() {
                   }}
                   className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
                     secadoPanel === 'active'
-                      ? 'bg-[#102d92] text-white shadow-sm'
-                      : 'border border-[#d5deee] bg-white text-[#334b85]'
+                      ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                      : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
+                  aria-pressed={secadoPanel === 'active'}
                 >
                   <CircleDashed size={15} />
                   Ver secados activos
@@ -2598,9 +2600,10 @@ export default function Ajustes() {
                   onClick={() => void cargarPanelSecadoInicio()}
                   className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
                     secadoPanel === 'start'
-                      ? 'bg-[#102d92] text-white shadow-sm'
-                      : 'border border-[#d5deee] bg-white text-[#334b85]'
+                      ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                      : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
+                  aria-pressed={secadoPanel === 'start'}
                 >
                   <Droplets size={15} />
                   Iniciar secado
@@ -2867,7 +2870,7 @@ export default function Ajustes() {
               onClick={() => setThemeModalOpen(true)}
               className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900"
             >
-              <span className="inline-flex rounded-lg bg-[#eff4ff] p-2 text-[#2c57cc] dark:bg-slate-800 dark:text-slate-100">
+              <span className="inline-flex rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
                 <Settings size={14} />
               </span>
               <span className="min-w-0 flex-1">
@@ -2880,7 +2883,7 @@ export default function Ajustes() {
               </span>
               <ChevronRight
                 size={14}
-                className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
+                className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
               />
             </button>
           </div>
@@ -2921,20 +2924,53 @@ export default function Ajustes() {
             })}
           </div>
 
+          <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
+            Asistente inteligente
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => navigate('/asistente')}
+              className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+            >
+              <span className="inline-flex shrink-0 rounded-lg bg-blue-50 p-2 ring-1 ring-blue-100 dark:bg-blue-500/15 dark:ring-blue-300/20">
+                <img
+                  src={granitoInteligente}
+                  alt=""
+                  className="h-[14px] w-[14px] object-contain drop-shadow-sm"
+                  draggable={false}
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                  IA asistente 
+                </span>
+                <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
+                  Consulta tu negocio
+                </span>
+              </span>
+              <ChevronRight
+                size={14}
+                className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+              />
+            </button>
+          </div>
+
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Configuración del negocio
           </p>
           <div className="grid grid-cols-2 gap-2.5">
             {configuracionNegocio.map((item) => {
               const Icon = item.icon;
-              const disabled = item.staticOnly === true;
+              const disabled = item.id === 'gestion-usuarios';
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
                   disabled={disabled}
-                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${disabled ? 'opacity-75' : ''}`}
+                  aria-disabled={item.staticOnly === true ? true : undefined}
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
                 >
                   <span
                     className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
@@ -2951,7 +2987,7 @@ export default function Ajustes() {
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
+                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
                   />
                 </button>
               );
@@ -2970,7 +3006,7 @@ export default function Ajustes() {
                   type="button"
                   onClick={item.onClick}
                   disabled={!item.onClick}
-                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${!item.onClick ? 'opacity-80' : ''}`}
+                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
                 >
                   <span
                     className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
@@ -2987,7 +3023,7 @@ export default function Ajustes() {
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-300 dark:text-slate-500"
+                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
                   />
                 </button>
               );

@@ -87,7 +87,7 @@ function getModuleErrorMessage(operation: SyncOperation, error: unknown) {
   }
 
   if (operation.modulo === 'COMPRA') {
-    return `No pudimos sincronizar esta compra. ${message || 'Revisa los datos obligatorios o la capacidad de bodega.'}`;
+    return `No pudimos sincronizar esta compra. ${message || 'Revisa los datos obligatorios e intenta nuevamente.'}`;
   }
 
   if (operation.modulo === 'GASTO') {

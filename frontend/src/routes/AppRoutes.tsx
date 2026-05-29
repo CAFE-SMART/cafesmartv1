@@ -26,6 +26,7 @@ const GastosOperativos = lazy(() => import('../pages/GastosOperativos'));
 const GastosListado = lazy(() => import('../pages/GastosListado'));
 const ResumenFinanciero = lazy(() => import('../pages/ResumenFinanciero'));
 const AnalisisInteligente = lazy(() => import('../pages/AnalisisInteligente'));
+const AsistenteIA = lazy(() => import('../pages/AsistenteIA'));
 
 export default function AppRoutes() {
   return (
@@ -72,6 +73,7 @@ export default function AppRoutes() {
           <Route path="/gastos" element={<GastosListado />} />
           <Route path="/gastos/registro" element={<GastosOperativos />} />
           <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
+          <Route path="/asistente" element={<AsistenteIA />} />
           <Route
             path="/resumen-financiero/analisis-inteligente"
             element={<AnalisisInteligente />}
