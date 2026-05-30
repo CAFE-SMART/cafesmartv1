@@ -52,6 +52,48 @@ function Test-AdbDeviceReady {
   }
 }
 
+function Resolve-CommandPath {
+  param(
+    [string]$CommandName,
+    [string]$InstallHint
+  )
+
+  $command = Get-Command $CommandName -ErrorAction SilentlyContinue
+  if ($command) {
+    return $command.Source
+  }
+
+  throw "No encontre $CommandName. $InstallHint"
+}
+
+function Resolve-AndroidTool {
+  param(
+    [string]$RelativePath,
+    [string]$ToolName
+  )
+
+  $localAppDataSdk = if ($env:LOCALAPPDATA) {
+    Join-Path $env:LOCALAPPDATA "Android\Sdk"
+  } else {
+    $null
+  }
+
+  $sdkCandidates = @(
+    $env:ANDROID_HOME,
+    $env:ANDROID_SDK_ROOT,
+    $localAppDataSdk
+  ) | Where-Object { $_ -and $_.Trim() }
+
+  foreach ($sdkRoot in $sdkCandidates) {
+    $toolPath = Join-Path $sdkRoot $RelativePath
+    if (Test-Path $toolPath) {
+      return $toolPath
+    }
+  }
+
+  throw "No encontre $ToolName. Instala Android Studio/SDK o define ANDROID_HOME apuntando al SDK de Android."
+}
+
 function Get-ConnectedEmulatorId {
   param([string]$AdbPath)
 
@@ -169,16 +211,10 @@ $androidDir = Join-Path $projectRoot "android"
 $distDir = Join-Path $projectRoot "dist"
 $apkPath = Join-Path $androidDir "app\build\outputs\apk\debug\app-debug.apk"
 $androidAssetsDir = Join-Path $androidDir "app\src\main\assets\public"
-$adbPath = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
-$emulatorPath = Join-Path $env:LOCALAPPDATA "Android\Sdk\emulator\emulator.exe"
-
-if (-not (Test-Path $adbPath)) {
-  throw "No encontre adb en $adbPath"
-}
-
-if (-not (Test-Path $emulatorPath)) {
-  throw "No encontre el emulador en $emulatorPath"
-}
+$nodePath = Resolve-CommandPath -CommandName "node" -InstallHint "Instala Node.js antes de correr Android."
+$pnpmPath = Resolve-CommandPath -CommandName "pnpm" -InstallHint "Instala pnpm con corepack enable o npm i -g pnpm."
+$adbPath = Resolve-AndroidTool -RelativePath "platform-tools\adb.exe" -ToolName "adb"
+$emulatorPath = Resolve-AndroidTool -RelativePath "emulator\emulator.exe" -ToolName "el emulador de Android"
 
 $webSources = @(
   (Join-Path $projectRoot "src"),
@@ -201,6 +237,12 @@ $gradleSources = @(
 Push-Location $projectRoot
 
 try {
+  Invoke-Step "Verificando herramientas locales" {
+    & $nodePath --version
+    & $pnpmPath --version
+    & $adbPath version | Select-Object -First 1
+  }
+
   Invoke-Step "Limpiando locks viejos de Android" {
     Clear-AndroidLocks
   }
@@ -256,7 +298,7 @@ try {
 
     if ($needsWebBuild) {
       Invoke-Step "Compilando frontend para Android" {
-        pnpm build:android
+        & $pnpmPath build:android
       }
     } else {
       Write-Host ""
@@ -272,8 +314,8 @@ try {
       ($null -ne $latestDistAfterBuild -and $latestDistAfterBuild -gt $latestAndroidAssets)
 
     if ($needsCapCopy) {
-      Invoke-Step "Copiando assets a Capacitor" {
-        npx cap copy android
+      Invoke-Step "Sincronizando Capacitor Android" {
+        & $pnpmPath exec cap sync android
       }
     } else {
       Write-Host ""

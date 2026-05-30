@@ -202,6 +202,31 @@ export class GastosService {
     return this.formatearGasto(gasto, gasto.sublotes.length === 0);
   }
 
+  async actualizarEstadoGasto(
+    id: string,
+    userId: string,
+    estadoPago: EstadoPago,
+  ): Promise<GastoItem> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    const existente = await this.prisma.gastoOperativo.findFirst({
+      where: { id, organizacionId, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!existente) {
+      throw new NotFoundException(`Gasto con id "${id}" no encontrado`);
+    }
+
+    const gasto = await this.prisma.gastoOperativo.update({
+      where: { id },
+      data: { estadoPago },
+      include: this.incluirSublotes(),
+    });
+
+    return this.formatearGasto(gasto, gasto.sublotes.length === 0);
+  }
+
   /**
    * Lista los gastos asociados a un sublote específico.
    */
