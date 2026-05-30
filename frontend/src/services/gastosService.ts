@@ -89,6 +89,18 @@ export async function crearGasto(payload: CrearGastoPayload) {
   return response;
 }
 
+export async function actualizarEstadoGasto(
+  id: string,
+  estadoPago: GastoEstadoPago,
+) {
+  const response = await apiFetch(`/gastos/${id}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ estadoPago }),
+  }) as GastoItem;
+  invalidateApiCache();
+  return response;
+}
+
 export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {
   return crearGasto({
     conceptoGasto: payload.concepto,
