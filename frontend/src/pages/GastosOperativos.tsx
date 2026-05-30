@@ -82,6 +82,9 @@ const GASTO_DRAFT_STORAGE_KEY = 'cafe-smart:gasto-draft:v1';
 const GASTO_CONCEPTO_MAX = 60;
 const GASTO_DESCRIPCION_MAX = 200;
 const GASTO_MONTO_MAX = 20000000;
+const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
+const CONCEPTO_GASTO_TIENE_LETRA_REGEX = /\p{L}/u;
+const CONCEPTO_GASTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 const MONTHS_ES = [
   'Enero',
   'Febrero',
@@ -672,9 +675,23 @@ export default function GastosOperativos() {
   const validarFormulario = (): FormErrors => {
     const errors: FormErrors = {};
     const fechaValidacion = validateBusinessDateRange(fecha);
+    const conceptoNormalizado = concepto.trim();
 
-    if (!concepto.trim()) {
-      errors.concepto = getFieldGuidance('concepto');
+    if (!conceptoNormalizado) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'Escribe el concepto del gasto.',
+      });
+    } else if (CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(conceptoNormalizado)) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'Describe el gasto con al menos una palabra.',
+      });
+    } else if (
+      !CONCEPTO_GASTO_VALIDO_REGEX.test(conceptoNormalizado) ||
+      !CONCEPTO_GASTO_TIENE_LETRA_REGEX.test(conceptoNormalizado)
+    ) {
+      errors.concepto = getFieldGuidance('concepto', {
+        whatOverride: 'El concepto contiene caracteres no válidos.',
+      });
     }
 
     const monto = Number(montoStr);

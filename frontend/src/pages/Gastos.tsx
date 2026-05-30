@@ -77,6 +77,9 @@ const FORM_INICIAL: GastoForm = {
 const GASTO_CONCEPTO_MAX = 60;
 const GASTO_DESCRIPCION_MAX = 200;
 const GASTO_MONTO_MAX = 20000000;
+const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
+const CONCEPTO_GASTO_TIENE_LETRA_REGEX = /\p{L}/u;
+const CONCEPTO_GASTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 
 function sanitizeMoneyInput(value: string, max = GASTO_MONTO_MAX) {
   const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
@@ -163,8 +166,21 @@ export default function Gastos() {
   );
 
   const validar = React.useCallback(() => {
-    if (!form.concepto.trim()) {
+    const conceptoNormalizado = form.concepto.trim();
+
+    if (!conceptoNormalizado) {
       return UI_MESSAGES.forms.incompleteData.mensaje;
+    }
+
+    if (CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(conceptoNormalizado)) {
+      return 'Describe el gasto con al menos una palabra.';
+    }
+
+    if (
+      !CONCEPTO_GASTO_VALIDO_REGEX.test(conceptoNormalizado) ||
+      !CONCEPTO_GASTO_TIENE_LETRA_REGEX.test(conceptoNormalizado)
+    ) {
+      return 'El concepto contiene caracteres no válidos.';
     }
 
     if (!fechaValidacion.isValid) {

@@ -9,23 +9,72 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import { TipoGasto, EstadoPago } from '@prisma/client';
+
+const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
+const CONCEPTO_GASTO_TIENE_LETRA_REGEX = /\p{L}/u;
+const CONCEPTO_GASTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
+const GASTO_MONTO_MAX = 20000000;
+
+@ValidatorConstraint({ name: 'ConceptoGastoValido', async: false })
+class ConceptoGastoValidoConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    const concepto = value.trim();
+    if (!concepto) {
+      return false;
+    }
+
+    return (
+      CONCEPTO_GASTO_VALIDO_REGEX.test(concepto) &&
+      CONCEPTO_GASTO_TIENE_LETRA_REGEX.test(concepto) &&
+      !CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(concepto)
+    );
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    const concepto = String(args.value ?? '').trim();
+
+    if (!concepto) {
+      return 'Escribe el concepto del gasto.';
+    }
+
+    if (CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(concepto)) {
+      return 'Describe el gasto con al menos una palabra.';
+    }
+
+    return 'El concepto contiene caracteres no válidos.';
+  }
+}
 
 export class CrearGastoDto {
   // ── Datos del gasto ──────────────────────────────────────────
   @IsString({ message: 'conceptoGasto debe ser un string' })
-  @IsNotEmpty({ message: 'conceptoGasto es obligatorio' })
+  @IsNotEmpty({ message: 'Escribe el concepto del gasto.' })
+  @MaxLength(60, { message: 'Máximo 60 caracteres.' })
+  @Validate(ConceptoGastoValidoConstraint)
   conceptoGasto: string;
 
   @IsOptional()
   @IsString({ message: 'descripcion debe ser un string' })
+  @MaxLength(200, { message: 'Máximo 200 caracteres.' })
   descripcion?: string;
 
   @Type(() => Number)
   @IsNumber({}, { message: 'montoGasto debe ser un número' })
   @Min(0.01, { message: 'El monto del gasto debe ser mayor a 0' })
+  @Max(GASTO_MONTO_MAX, { message: 'El monto supera el límite permitido.' })
   montoGasto: number;
 
   @IsDateString({}, { message: 'fechaGasto debe ser una fecha ISO 8601' })
