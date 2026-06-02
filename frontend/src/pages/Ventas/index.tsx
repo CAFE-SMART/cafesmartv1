@@ -1916,7 +1916,7 @@ export default function Ventas() {
                     type="button"
                     onClick={() => setShowDetails((value) => !value)}
                     className="inline-flex min-h-[34px] shrink-0 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#173ea6] transition hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-700"
-                    aria-expanded={showDetails}
+                    {...ariaExpanded(showDetails)}
                   >
                     {showDetails ? 'Ocultar' : 'Ver detalles'}
                   </button>
@@ -3245,7 +3245,7 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={() => setShowDetails((prev) => !prev)}
-                aria-expanded={showDetails}
+                {...ariaExpanded(showDetails)}
                 aria-label={showDetails ? 'Ocultar detalles de sublotes' : 'Ver detalles de sublotes'}
                 className="mt-3 inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-[11px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#173ea6] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition hover:bg-[#f8fbff]"
               >

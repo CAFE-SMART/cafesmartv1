@@ -12,6 +12,7 @@ import {
   Eye,
   FlaskConical,
   LifeBuoy,
+  LoaderCircle,
   Lock,
   LogOut,
   Monitor,
@@ -22,6 +23,7 @@ import {
   Save,
   Settings,
   Shield,
+  Scale,
   Sun,
   Trash2,
   UserCircle2,
@@ -58,6 +60,7 @@ import {
 import {
   obtenerConfiguracionBodega,
   guardarConfiguracionBodega,
+  guardarLimitesEntrada,
 } from '../services/bodegaApi';
 import {
   actualizarCliente,
@@ -127,6 +130,22 @@ import {
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import granitoInteligente from '../assets/granito-inteligente.png';
+import {
+  PESO_MAXIMO_ENTRADA_KG,
+  PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
+  PESO_MINIMO_KG,
+  PRECIO_MAXIMO_KG,
+} from '../utils/businessRules';
+
+const PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL = '99.999';
+
+function ariaChecked(active: boolean) {
+  return { 'aria-checked': active ? 'true' : 'false' } as const;
+}
+
+function ariaPressed(active: boolean) {
+  return { 'aria-pressed': active ? 'true' : 'false' } as const;
+}
 
 type ProfileSettings = {
   nombre: string;
@@ -450,6 +469,9 @@ export default function Ajustes() {
     () => ({
       nombreBodega: 'Bodega principal',
       capacidadKg: null as number | null,
+      maxPesoKg: PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
+      maxPrecioKg: PRECIO_MAXIMO_KG,
+      maxPrecioVentaKg: PRECIO_MAXIMO_KG,
       updatedAt: new Date().toISOString(),
     }),
     [],
@@ -470,6 +492,15 @@ export default function Ajustes() {
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
   const [capacidadKg, setCapacidadKg] = useState('');
+  const [limitMaxPesoKg, setLimitMaxPesoKg] = useState(
+    String(initialConfig.maxPesoKg),
+  );
+  const [limitMaxPrecioKg, setLimitMaxPrecioKg] = useState(
+    String(initialConfig.maxPrecioKg),
+  );
+  const [limitMaxPrecioVentaKg, setLimitMaxPrecioVentaKg] = useState(
+    String(initialConfig.maxPrecioVentaKg),
+  );
   const [updatedAt, setUpdatedAt] = useState(initialConfig.updatedAt);
   const [inventarioActualKg, setInventarioActualKg] = useState(0);
   const [loadingStock, setLoadingStock] = useState(true);
@@ -488,6 +519,8 @@ export default function Ajustes() {
   const [isViewingPublicProfile, setIsViewingPublicProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [isEditingLimites, setIsEditingLimites] = useState(false);
+  const [guardandoLimites, setGuardandoLimites] = useState(false);
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
   const [nombreLimitNotice, setNombreLimitNotice] = useState(false);
   const [peopleMode, setPeopleMode] = useState<PeopleAdminMode>(null);
@@ -587,6 +620,16 @@ export default function Ajustes() {
     setIsEditingCompany(false);
     setIsEditingProfile(false);
     setIsViewingPublicProfile(false);
+    setIsEditingLimites(false);
+  };
+
+  const abrirEditorLimites = () => {
+    clearFeedback();
+    setIsEditingLimites(true);
+    setIsEditingBodega(false);
+    setIsEditingCompany(false);
+    setIsEditingProfile(false);
+    setIsViewingPublicProfile(false);
   };
 
   const abrirEditorPerfil = () => {
@@ -597,6 +640,7 @@ export default function Ajustes() {
     setIsViewingPublicProfile(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
+    setIsEditingLimites(false);
   };
 
   const cerrarEditorPerfil = () => {
@@ -615,12 +659,15 @@ export default function Ajustes() {
     setIsEditingProfile(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
+    setIsEditingLimites(false);
   };
 
   const abrirEditorEmpresa = () => {
     clearFeedback();
     companyBaselineRef.current = company;
     setIsEditingCompany(true);
+    setIsEditingBodega(false);
+    setIsEditingLimites(false);
   };
 
   const cerrarEditorEmpresa = () => {
@@ -635,6 +682,11 @@ export default function Ajustes() {
   const cerrarEditorBodega = () => {
     clearFeedback();
     setIsEditingBodega(false);
+  };
+
+  const cerrarEditorLimites = () => {
+    clearFeedback();
+    setIsEditingLimites(false);
   };
 
   const mapClienteAdmin = (cliente: ClienteItem): PeopleAdminItem => ({
@@ -901,10 +953,20 @@ export default function Ajustes() {
         const config = await obtenerConfiguracionBodega();
         setNombreBodega(config.nombreBodega);
         setCapacidadKg(config.capacidadKg ? String(config.capacidadKg) : '');
+        setLimitMaxPesoKg(
+          String(config.maxPesoKg || PESO_MAXIMO_OPERATIVO_DEFAULT_KG),
+        );
+        setLimitMaxPrecioKg(String(config.maxPrecioKg || PRECIO_MAXIMO_KG));
+        setLimitMaxPrecioVentaKg(
+          String(config.maxPrecioVentaKg || PRECIO_MAXIMO_KG),
+        );
         setUpdatedAt(config.updatedAt);
       } catch {
         setNombreBodega(initialConfig.nombreBodega);
         setCapacidadKg('');
+        setLimitMaxPesoKg(String(initialConfig.maxPesoKg));
+        setLimitMaxPrecioKg(String(initialConfig.maxPrecioKg));
+        setLimitMaxPrecioVentaKg(String(initialConfig.maxPrecioVentaKg));
         setUpdatedAt(initialConfig.updatedAt);
       }
     };
@@ -1208,6 +1270,57 @@ export default function Ajustes() {
       const message =
         'No pudimos guardar la capacidad. Revisa tu conexión e intenta nuevamente.';
       setError(message);
+    }
+  };
+
+  const guardarLimites = async () => {
+    const pesoMax = Number(limitMaxPesoKg);
+    const precioMax = Number(limitMaxPrecioKg);
+    const precioVentaMax = Number(limitMaxPrecioVentaKg);
+    clearFeedback();
+
+    if (isOffline) {
+      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      return;
+    }
+
+    if (
+      !Number.isFinite(pesoMax) ||
+      pesoMax < PESO_MINIMO_KG ||
+      pesoMax > PESO_MAXIMO_ENTRADA_KG
+    ) {
+      setError(
+        `El peso máximo debe estar entre ${PESO_MINIMO_KG} y ${PESO_MAXIMO_ENTRADA_KG} kg.`,
+      );
+      return;
+    }
+
+    if (!Number.isFinite(precioMax) || precioMax <= 0) {
+      setError('El precio máximo de compra debe ser mayor que 0.');
+      return;
+    }
+
+    if (!Number.isFinite(precioVentaMax) || precioVentaMax <= 0) {
+      setError('El precio máximo de venta debe ser mayor que 0.');
+      return;
+    }
+
+    setGuardandoLimites(true);
+    try {
+      const result = await guardarLimitesEntrada({
+        maxPesoKg: pesoMax,
+        maxPrecioKg: precioMax,
+        maxPrecioVentaKg: precioVentaMax,
+      });
+      setLimitMaxPesoKg(String(result.maxPesoKg));
+      setLimitMaxPrecioKg(String(result.maxPrecioKg));
+      setLimitMaxPrecioVentaKg(String(result.maxPrecioVentaKg));
+      setSuccess('Límites actualizados.');
+      setIsEditingLimites(false);
+    } catch {
+      setError('No pudimos guardar los límites. Revisa tu conexión e intenta nuevamente.');
+    } finally {
+      setGuardandoLimites(false);
     }
   };
 
@@ -1622,6 +1735,15 @@ export default function Ajustes() {
       onClick: abrirEditorBodega,
     },
     {
+      id: 'limites-entrada',
+      title: 'Límites de entrada',
+      description: 'Peso y precio máximo',
+      icon: Scale,
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      staticOnly: false,
+      onClick: abrirEditorLimites,
+    },
+    {
       id: 'gestion-usuarios',
       title: 'Usuarios',
       description: 'Próximamente',
@@ -1640,6 +1762,12 @@ export default function Ajustes() {
       onClick: () => navigate('/soporte'),
     },
   ] as const;
+  const configuracionNegocioInactiva = new Set([
+    'tipos-cafe',
+    'calidades-cafe',
+    'limites-entrada',
+    'gestion-usuarios',
+  ]);
 
   const gestionPersonas = [
     {
@@ -1789,7 +1917,7 @@ export default function Ajustes() {
                   key={option.value}
                   type="button"
                   role="radio"
-                  aria-checked={active ? 'true' : 'false'}
+                  {...ariaChecked(active)}
                   onClick={() => setTheme(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1853,7 +1981,7 @@ export default function Ajustes() {
                   key={String(option.value)}
                   type="button"
                   role="radio"
-                  aria-checked={active ? 'true' : 'false'}
+                  {...ariaChecked(active)}
                   onClick={() => setScreenReaderMode(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1903,7 +2031,7 @@ export default function Ajustes() {
                   key={String(option.value)}
                   type="button"
                   role="radio"
-                  aria-checked={active ? 'true' : 'false'}
+                  {...ariaChecked(active)}
                   onClick={() => setHighContrast(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -1953,7 +2081,7 @@ export default function Ajustes() {
                   key={option.value}
                   type="button"
                   role="radio"
-                  aria-checked={active ? 'true' : 'false'}
+                  {...ariaChecked(active)}
                   onClick={() => setFontScale(option.value)}
                   className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
                     active
@@ -2590,7 +2718,7 @@ export default function Ajustes() {
                       ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
                       : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
-                  aria-pressed={secadoPanel === 'active' ? 'true' : 'false'}
+                  {...ariaPressed(secadoPanel === 'active')}
                 >
                   <CircleDashed size={15} />
                   Ver secados activos
@@ -2603,7 +2731,7 @@ export default function Ajustes() {
                       ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
                       : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
                   }`}
-                  aria-pressed={secadoPanel === 'start' ? 'true' : 'false'}
+                  {...ariaPressed(secadoPanel === 'start')}
                 >
                   <Droplets size={15} />
                   Iniciar secado
@@ -2962,31 +3090,63 @@ export default function Ajustes() {
           <div className="grid grid-cols-2 gap-2.5">
             {configuracionNegocio.map((item) => {
               const Icon = item.icon;
-              const disabled = item.id === 'gestion-usuarios';
+              const disabled = configuracionNegocioInactiva.has(item.id);
+              const statusLabel =
+                item.id === 'gestion-usuarios' ? 'Próximamente' : 'En desarrollo';
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
                   disabled={disabled}
-                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
+                  aria-disabled={disabled}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border px-3 py-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 ${
+                    disabled
+                      ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                      : 'border-[#e5e9f5] bg-white hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:ring-blue-300/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40'
+                  }`}
                 >
                   <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                    className={`inline-flex rounded-lg p-2 ${
+                      disabled
+                        ? 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                        : item.iconStyle
+                    }`}
                   >
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <span
+                      className={`block truncate text-sm font-semibold ${
+                        disabled
+                          ? 'text-slate-500 dark:text-slate-400'
+                          : 'text-slate-900 dark:text-slate-100'
+                      }`}
+                    >
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
+                    <span
+                      className={`block truncate text-[11px] ${
+                        disabled
+                          ? 'text-slate-400 dark:text-slate-500'
+                          : 'text-slate-500 dark:text-slate-300'
+                      }`}
+                    >
                       {item.description}
                     </span>
+                    {disabled ? (
+                      <span className="mt-1 inline-flex rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.06em] text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {statusLabel}
+                      </span>
+                    ) : null}
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+                    className={`mt-0.5 shrink-0 ${
+                      disabled
+                        ? 'text-slate-300 dark:text-slate-600'
+                        : 'text-slate-400 dark:text-slate-300'
+                    }`}
                   />
                 </button>
               );
@@ -2999,30 +3159,56 @@ export default function Ajustes() {
           <div className="grid grid-cols-2 gap-2.5">
             {gestionPersonas.map((item) => {
               const Icon = item.icon;
+              const disabled = !item.onClick;
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
-                  disabled={!item.onClick}
-                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40"
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border px-3 py-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 ${
+                    disabled
+                      ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-500'
+                      : 'border-[#e5e9f5] bg-white hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:ring-blue-300/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:focus-visible:ring-blue-500/40'
+                  }`}
                 >
                   <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                    className={`inline-flex rounded-lg p-2 ${
+                      disabled
+                        ? 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                        : item.iconStyle
+                    }`}
                   >
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <span
+                      className={`block truncate text-sm font-semibold ${
+                        disabled
+                          ? 'text-slate-500 dark:text-slate-400'
+                          : 'text-slate-900 dark:text-slate-100'
+                      }`}
+                    >
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
+                    <span
+                      className={`block truncate text-[11px] ${
+                        disabled
+                          ? 'text-slate-400 dark:text-slate-500'
+                          : 'text-slate-500 dark:text-slate-300'
+                      }`}
+                    >
                       {item.description}
                     </span>
                   </span>
                   <ChevronRight
                     size={14}
-                    className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+                    className={`mt-0.5 shrink-0 ${
+                      disabled
+                        ? 'text-slate-300 dark:text-slate-600'
+                        : 'text-slate-400 dark:text-slate-300'
+                    }`}
                   />
                 </button>
               );
@@ -3189,7 +3375,7 @@ export default function Ajustes() {
         </div>
         ) : null}
 
-              {error && !activeErrorSection && !isEditingBodega ? (
+              {error && !activeErrorSection && !isEditingBodega && !isEditingLimites ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
         ) : null}
 
@@ -3335,6 +3521,114 @@ export default function Ajustes() {
                 <CalendarDays size={12} className="text-[#102d92]" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isEditingLimites ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
+                Límites de Transacción
+              </h3>
+              <button
+                type="button"
+                onClick={cerrarEditorLimites}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                aria-label="Cerrar límites de transacción"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Peso máximo en compra (kg)
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  value={limitMaxPesoKg}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                    setLimitMaxPesoKg(raw);
+                    clearFeedback();
+                  }}
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Precio máx. x kg (Compra)
+                </span>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                    $
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={limitMaxPrecioKg}
+                    onChange={(event) => {
+                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                      setLimitMaxPrecioKg(raw);
+                      clearFeedback();
+                    }}
+                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    placeholder="100000"
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Precio máx. x kg (Venta)
+                </span>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                    $
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={limitMaxPrecioVentaKg}
+                    onChange={(event) => {
+                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                      setLimitMaxPrecioVentaKg(raw);
+                      clearFeedback();
+                    }}
+                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    placeholder="100000"
+                  />
+                </div>
+              </label>
+
+              {error ? (
+                <InlineGuidedError message={getAjustesGuidance(error)} />
+              ) : null}
+
+              <button
+                type="button"
+                onClick={guardarLimites}
+                disabled={guardandoLimites}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white disabled:opacity-70"
+              >
+                {guardandoLimites ? (
+                  <LoaderCircle size={16} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                {guardandoLimites ? 'Guardando...' : 'Guardar límites'}
+              </button>
             </div>
           </div>
         </div>

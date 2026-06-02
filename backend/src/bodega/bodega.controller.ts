@@ -45,6 +45,23 @@ export class BodegaController {
     return this.bodegaService.actualizarConfiguracion(organizacionId, dto);
   }
 
+  @Post('limites')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async actualizarLimites(
+    @Body()
+    body: { maxPesoKg: number; maxPrecioKg: number; maxPrecioVentaKg: number },
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.actualizarLimites(
+      organizacionId,
+      body.maxPesoKg,
+      body.maxPrecioKg,
+      body.maxPrecioVentaKg,
+    );
+  }
+
   private async obtenerOrganizacionId(userId: string): Promise<string> {
     const cached = getCachedOrganizationId(userId);
     if (cached) return cached;

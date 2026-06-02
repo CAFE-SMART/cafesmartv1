@@ -3,7 +3,16 @@ import { apiFetch } from './apiService';
 export type ConfiguracionBodega = {
   nombreBodega: string;
   capacidadKg: number | null;
+  maxPesoKg: number;
+  maxPrecioKg: number;
+  maxPrecioVentaKg: number;
   updatedAt: string;
+};
+
+export type LimitesEntrada = {
+  maxPesoKg: number;
+  maxPrecioKg: number;
+  maxPrecioVentaKg: number;
 };
 
 /**
@@ -27,4 +36,13 @@ export async function guardarConfiguracionBodega(config: {
       capacidadKg: config.capacidadKg,
     }),
   }) as Promise<ConfiguracionBodega>;
+}
+
+export async function guardarLimitesEntrada(
+  limites: LimitesEntrada,
+): Promise<LimitesEntrada> {
+  return apiFetch('/bodega/limites', {
+    method: 'POST',
+    body: JSON.stringify(limites),
+  }) as Promise<LimitesEntrada>;
 }

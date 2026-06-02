@@ -181,11 +181,28 @@ function formatUpdatedAgo(updatedAt: string | null, now: number) {
   return `Actualizado hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+}) {
   return (
-    <div className="flex items-center justify-between gap-4 text-[0.76rem]">
-      <span className="cs-muted text-[#5a6b84] dark:text-slate-300">{label}</span>
-      <span className="font-black text-[#1f2937] dark:text-white">{value}</span>
+    <div className="min-h-[86px] rounded-[14px] border border-[#e4eaf3] bg-[#f8fbff] p-3 dark:border-slate-600 dark:bg-slate-800">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[0.68rem] font-black text-[#64748b] dark:text-slate-300">
+          {label}
+        </span>
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#102d92] shadow-sm dark:bg-slate-900 dark:text-blue-200">
+          <Icon size={15} strokeWidth={2.4} aria-hidden="true" />
+        </span>
+      </div>
+      <p className="mt-3 text-[1.25rem] font-black leading-none text-[#111827] dark:text-white">
+        {value}
+      </p>
     </div>
   );
 }
@@ -873,9 +890,9 @@ export default function Inicio() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
+    <div className="relative min-h-screen bg-[#f4f7fb] pb-32 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {refreshing ? (
-        <div className="fixed inset-0 z-40 bg-white/82 backdrop-blur-sm">
+        <div className="fixed inset-0 z-40 bg-white/82 backdrop-blur-sm dark:bg-slate-950/82">
           <DashboardLoadingState />
         </div>
       ) : null}
@@ -883,10 +900,10 @@ export default function Inicio() {
         <header className="px-5 pb-4 pt-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-[1.35rem] font-black text-[#111827]">
+              <h1 className="text-[1.35rem] font-black text-[#111827] dark:text-slate-50">
                 Caf&eacute; Smart
               </h1>
-              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm">
+              <div className="mt-1.5 inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.12em] text-[#72809a] shadow-sm dark:bg-slate-900 dark:text-slate-200">
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${resolveCloudDotClass(tone)}`}
                   aria-hidden="true"
@@ -898,7 +915,7 @@ export default function Inicio() {
                   Información guardada en este dispositivo
                 </p>
               ) : dashboardState === 'valid' ? (
-                <p className="mt-2 text-[0.68rem] font-bold text-[#72809a]">
+                <p className="mt-2 text-[0.68rem] font-bold text-[#72809a] dark:text-slate-300">
                   {formatUpdatedAgo(summary?.updatedAt ?? null, now)}
                 </p>
               ) : null}
@@ -949,13 +966,13 @@ export default function Inicio() {
 
         {dashboardState === 'valid' ? (
           <section className="px-5 pb-3">
-            <div className="rounded-[18px] border border-[#dbe2ee] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+            <div className="rounded-[18px] border border-[#dbe2ee] bg-white px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[0.78rem] font-black text-[#111827]">
+                  <p className="text-[0.78rem] font-black text-[#111827] dark:text-slate-50">
                     Preparar modo sin conexión
                   </p>
-                  <p className="mt-1 text-[0.66rem] font-semibold leading-5 text-[#65758f]">
+                  <p className="mt-1 text-[0.66rem] font-semibold leading-5 text-[#65758f] dark:text-slate-300">
                     Guarda catálogos, inventario y resumen para trabajar offline.
                   </p>
                 </div>
@@ -1146,43 +1163,65 @@ export default function Inicio() {
         ) : dashboardState === 'valid' ? (
           <>
             <section className="px-5 py-3">
-              <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
-
               <div className={`mt-3 ${cardClass}`}>
-                <div className="space-y-2.5">
-                  <MetricRow
-                    label="Compras hoy:"
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
+                    <p className="mt-1 text-[0.72rem] font-semibold text-[#65758f] dark:text-slate-300">
+                      Actividad principal de tu negocio.
+                    </p>
+                  </div>
+                  <span className="inline-flex shrink-0 rounded-full border border-[#dbe5ff] bg-[#f7f9ff] px-3 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#102d92] dark:border-blue-500/60 dark:bg-blue-500/20 dark:text-blue-100">
+                    Hoy
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <MetricCard
+                    label="Compras"
                     value={formatMetric(
                       loading,
                       summary?.comprasHoy ?? null,
                       formatInteger,
                     )}
+                    icon={ShoppingCart}
                   />
-                  <MetricRow
-                    label="Ventas hoy:"
+                  <MetricCard
+                    label="Ventas"
                     value={formatMetric(
                       loading,
                       summary?.ventasHoy ?? null,
                       formatInteger,
                     )}
+                    icon={CalendarDays}
                   />
-                  <MetricRow
-                    label="Kg comprados hoy:"
+                  <MetricCard
+                    label="Kg comprados"
                     value={formatMetric(
                       loading,
                       summary?.kgCompradosHoy ?? null,
                       formatKg,
                     )}
+                    icon={PackageCheck}
                   />
-                  <MetricRow
-                    label="Productores registrados:"
+                  <MetricCard
+                    label="Productores"
                     value={formatMetric(
                       loading,
                       summary?.totalProductores ?? null,
                       formatInteger,
                     )}
+                    icon={ShieldCheck}
                   />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/gastos')}
+                  className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)] transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500"
+                >
+                  Registrar gasto
+                </button>
               </div>
             </section>
 

@@ -8,8 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
+  root: __dirname,
   plugins: [react()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  optimizeDeps: {
+    include: ['react', 'react-dom/client', 'react-router-dom', 'lucide-react'],
+  },
   server: {
     port: 5173,
     strictPort: true,

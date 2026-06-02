@@ -487,6 +487,14 @@ export default function Sublotes() {
   const hiddenSublotesCount = detalle
     ? Math.max(0, detalle.sublotes.length - sublotesPreview.length)
     : 0;
+  const totalSublotesKg = useMemo(
+    () =>
+      detalle?.sublotes.reduce(
+        (sum, sublote) => sum + sublote.pesoActual,
+        0,
+      ) ?? 0,
+    [detalle],
+  );
 
   const cargar = useCallback(async () => {
     if (!tipoCafeId || !calidadId) {
@@ -1007,6 +1015,15 @@ export default function Sublotes() {
     if (!subloteActivo) return 0;
     return getDaysForSublote(subloteActivo);
   }, [subloteActivo]);
+  const subloteActivoIndex = useMemo(() => {
+    if (!detalle || !subloteActivo) return -1;
+    return detalle.sublotes.findIndex((sublote) => sublote.id === subloteActivo.id);
+  }, [detalle, subloteActivo]);
+  const subloteActivoCode =
+    subloteActivo
+      ? subloteCodeMap.get(subloteActivo.id) ??
+        formatSubloteVisualCode(subloteActivo, Math.max(0, subloteActivoIndex))
+      : '';
 
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);
@@ -1109,12 +1126,31 @@ export default function Sublotes() {
                   {titleCase(detalle.lote.calidad)}
                 </p>
                 <p className="mt-1 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
-                  Sublotes disponibles
+                  Elige un sublote para revisar inventario, costos y acciones.
                 </p>
               </div>
               <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
                 {detalle.sublotes.length} disponibles
               </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-[10px] border border-[#ececec] bg-[#fafafa] px-3 py-2 dark:border-slate-600 dark:bg-slate-800">
+                <p className="text-[0.52rem] font-black uppercase tracking-[0.08em] text-[#8a8a8a] dark:text-slate-300">
+                  Peso total
+                </p>
+                <p className="mt-0.5 text-[0.82rem] font-black text-[#202020] dark:text-slate-100">
+                  {formatKg(totalSublotesKg)}
+                </p>
+              </div>
+              <div className="rounded-[10px] border border-[#ececec] bg-[#fafafa] px-3 py-2 dark:border-slate-600 dark:bg-slate-800">
+                <p className="text-[0.52rem] font-black uppercase tracking-[0.08em] text-[#8a8a8a] dark:text-slate-300">
+                  En inventario
+                </p>
+                <p className="mt-0.5 text-[0.82rem] font-black text-[#202020] dark:text-slate-100">
+                  {detalle.sublotes.length} disponibles
+                </p>
+              </div>
             </div>
 
             <div className="mt-3 grid gap-2">
@@ -1181,22 +1217,23 @@ export default function Sublotes() {
                 Ver {hiddenSublotesCount} sublotes mas
               </button>
             ) : null}
+
           </section>
         ) : null}
 
         {!loading && subloteActivo ? (
           <div className="space-y-3">
             {detalle && detalle.sublotes.length > 1 ? (
-              <section className="cs-card hidden rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+              <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
-                    Sublotes
+                    Cambiar sublote
                   </p>
                   <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
                     {detalle.sublotes.length} disponibles
                   </span>
                 </div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {detalle.sublotes.map((sublote, index) => {
                     const active = sublote.id === subloteActivo.id;
                     const humidity = classifyHumidity(sublote.humedad);
@@ -1214,13 +1251,13 @@ export default function Sublotes() {
                         type="button"
                         onClick={() => setSelectedSubloteId(sublote.id)}
                         title={`${visualCode} · ${fullName}`}
-                        className={`flex items-center justify-between rounded-[8px] border px-3 py-2 text-left transition ${
+                        className={`flex min-w-0 items-center justify-between gap-2 rounded-[8px] border px-2.5 py-2 text-left transition ${
                           active
                             ? 'border-[#2f4aa4] bg-[#eef3ff] dark:border-blue-400 dark:bg-blue-700/40'
                             : 'border-[#ececec] bg-white dark:border-slate-600 dark:bg-slate-900'
                         }`}
                       >
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="truncate text-[0.7rem] font-black text-[#202020] dark:text-slate-100">
                               {visualCode}
@@ -1255,7 +1292,7 @@ export default function Sublotes() {
             >
               <span>
                 <span className="block text-[0.6rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
-                  Analisis financiero
+                  Análisis financiero
                 </span>
                 <span className="mt-0.5 block text-[0.5rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
                   Utilidad, merma y valor monetario
@@ -1265,6 +1302,44 @@ export default function Sublotes() {
                 {showAnalysis ? 'Ocultar' : 'Ver'}
               </span>
             </button>
+
+            {showAnalysis ? (
+              <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+                <div className="flex items-center gap-2 text-[#1c1c1c]">
+                  <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a] dark:text-slate-300">
+                    <Tag size={14} strokeWidth={2.3} />
+                  </span>
+                  <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
+                    Resultados financieros
+                  </h2>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
+                  <InfoField
+                    label="Utilidad neta"
+                    value={formatCurrency(financieroActivo?.utilidadNeta ?? 0)}
+                    accent="price"
+                  />
+                  <InfoField
+                    label="Merma kg"
+                    value={formatKg(financieroActivo?.mermaKg ?? 0)}
+                  />
+                  <InfoField
+                    label="Merma %"
+                    value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)}
+                  />
+                  <InfoField
+                    label="Valor merma"
+                    value={formatCurrency(financieroActivo?.mermaValor ?? 0)}
+                    accent="price"
+                  />
+                  <InfoField
+                    label="Proporcion de merma"
+                    value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)}
+                  />
+                </div>
+              </section>
+            ) : null}
 
             <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center gap-2 text-[#1c1c1c]">
@@ -1277,6 +1352,10 @@ export default function Sublotes() {
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
+                <InfoField
+                  label="Sublote"
+                  value={subloteActivoCode}
+                />
                 <InfoField
                   label="Tipo"
                   value={titleCase(subloteActivo.tipoCafe)}
@@ -1304,40 +1383,6 @@ export default function Sublotes() {
                 />
               </div>
             </section>
-
-            {showAnalysis ? (
-              <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
-                <div className="flex items-center gap-2 text-[#1c1c1c]">
-                  <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
-                    <Tag size={14} strokeWidth={2.3} />
-                  </span>
-                  <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
-                    Resultados financieros
-                  </h2>
-                </div>
-
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
-                  <InfoField
-                    label="Utilidad neta"
-                    value={formatCurrency(financieroActivo?.utilidadNeta ?? 0)}
-                    accent="price"
-                  />
-                  <InfoField
-                    label="Merma kg"
-                    value={formatKg(financieroActivo?.mermaKg ?? 0)}
-                  />
-                  <InfoField
-                    label="Merma %"
-                    value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)}
-                  />
-                  <InfoField
-                    label="Valor merma"
-                    value={formatCurrency(financieroActivo?.mermaValor ?? 0)}
-                    accent="price"
-                  />
-                </div>
-              </section>
-            ) : null}
 
             <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center gap-2 text-[#1c1c1c]">
@@ -1378,7 +1423,7 @@ export default function Sublotes() {
               className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#2f4aa4] px-1 text-[0.62rem] font-black text-white shadow-[0_6px_14px_rgba(47,74,164,0.14)]"
             >
               <Tag size={12} strokeWidth={2.25} />
-              Vender
+              Vender sublote
             </button>
 
             <button

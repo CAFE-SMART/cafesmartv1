@@ -182,6 +182,8 @@ const FACTOR_BASE_MERCADO = 94;
 const FINANCIAL_ACCESS_SESSION_KEY = 'cafesmart:financial-access-granted';
 const FINANCIAL_ACCESS_TTL_MS = 30 * 60 * 1000;
 
+type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
+
 function saveFinancialAccessSession() {
   try {
     sessionStorage.setItem(
@@ -940,6 +942,7 @@ export default function ResumenFinanciero() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<PeriodoFinanciero>('DIARIO');
   const [historialCompleto, setHistorialCompleto] = useState<DashboardMovimiento[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError] = useState<string | null>(null);
@@ -1057,7 +1060,6 @@ export default function ResumenFinanciero() {
     navigate(-1);
   };
 
-  const utilidad = summary?.utilidadTotalAcumulada ?? 0;
   const movimientos = useMemo(() => {
     const seen = new Set<string>();
 
@@ -1078,9 +1080,38 @@ export default function ResumenFinanciero() {
         (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
       );
   }, [historialCompleto, summary?.movimientosRecientes]);
+  const movimientosDelPeriodo = useMemo(() => {
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+    if (periodo === 'SEMANAL') {
+      inicio.setDate(inicio.getDate() - 6);
+    }
+
+    const fin = new Date();
+    fin.setHours(23, 59, 59, 999);
+
+    return movimientos.filter((item) => {
+      const fecha = new Date(item.fecha);
+      if (Number.isNaN(fecha.getTime())) return false;
+      return fecha >= inicio && fecha <= fin;
+    });
+  }, [movimientos, periodo]);
+  const totalesPeriodo = useMemo(
+    () =>
+      movimientosDelPeriodo.reduce(
+        (totales, item) => {
+          if (item.tipo === 'VENTA') totales.ventas += item.valor;
+          if (item.tipo === 'COMPRA') totales.compras += item.valor;
+          if (item.tipo === 'GASTO') totales.gastos += item.valor;
+          return totales;
+        },
+        { ventas: 0, compras: 0, gastos: 0 },
+      ),
+    [movimientosDelPeriodo],
+  );
   const movimientosRecientes = useMemo(
-    () => movimientos.slice(0, 3),
-    [movimientos],
+    () => movimientosDelPeriodo.slice(0, 3),
+    [movimientosDelPeriodo],
   );
   const historialMovimientos = useMemo(() => {
     if (!historialActivo) return [];
@@ -1164,9 +1195,14 @@ export default function ResumenFinanciero() {
     setMermaAuditView('summary');
   };
 
-  const ventasTotal = summary?.totalVentasHoy ?? 0;
-  const gastosTotal = summary?.totalGastosHoy ?? 0;
-  const comprasTotal = summary?.totalComprasHoy ?? 0;
+  const ventasTotal =
+    periodo === 'DIARIO' ? (summary?.totalVentasHoy ?? totalesPeriodo.ventas) : totalesPeriodo.ventas;
+  const gastosTotal =
+    periodo === 'DIARIO' ? (summary?.totalGastosHoy ?? totalesPeriodo.gastos) : totalesPeriodo.gastos;
+  const comprasTotal =
+    periodo === 'DIARIO' ? (summary?.totalComprasHoy ?? totalesPeriodo.compras) : totalesPeriodo.compras;
+  const utilidad = ventasTotal - comprasTotal - gastosTotal;
+  const periodoLabel = periodo === 'DIARIO' ? 'del día' : 'de los últimos 7 días';
   const mermaTotalKg = summary?.mermaTotalKg ?? 0;
   const mermaTotalPorcentaje = summary?.mermaTotalPorcentaje ?? 0;
   const mermaTotalValor = summary?.mermaTotalValor ?? 0;
@@ -1176,8 +1212,9 @@ export default function ResumenFinanciero() {
     comprasTotal > 0 ||
     gastosTotal > 0 ||
     mermaTotalKg > 0 ||
-    movimientos.length > 0;
+    movimientosDelPeriodo.length > 0;
   const periodoActual = new Date().toLocaleDateString('es-CO', {
+    day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
@@ -1422,17 +1459,45 @@ export default function ResumenFinanciero() {
                   Finanzas
                 </h2>
               </div>
-              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.78rem] font-bold capitalize text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+              <div className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-[#dfe6f2] bg-white px-3 text-[0.72rem] font-bold capitalize text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
                 <CalendarDays size={15} className="text-blue-700 dark:text-blue-200" />
                 {periodoActual}
               </div>
+            </div>
+
+            <div
+              className="mt-4 grid grid-cols-2 gap-2 rounded-[14px] border border-[#dfe6f2] bg-white p-1 shadow-sm dark:border-slate-600 dark:bg-slate-900"
+              role="tablist"
+              aria-label="Periodo financiero"
+            >
+              {[
+                ['DIARIO', 'Diario'],
+                ['SEMANAL', 'Semanal'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={periodo === value}
+                  onClick={() => setPeriodo(value as PeriodoFinanciero)}
+                  className={`min-h-[38px] rounded-[11px] px-3 text-[0.68rem] font-black transition ${
+                    periodo === value
+                      ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.2)]'
+                      : 'text-slate-600 hover:bg-[#f1f5fb] dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             <section className="mt-5 overflow-hidden rounded-[16px] bg-[#0959d8] px-4 py-5 text-white shadow-[0_16px_34px_rgba(9,89,216,0.24)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/80">
-                    Utilidad neta
+                    {periodo === 'DIARIO'
+                      ? 'Utilidad estimada del día'
+                      : 'Utilidad estimada de los últimos 7 días'}
                   </p>
                   <p className="mt-3 text-[2.15rem] font-black leading-none tracking-normal">
                     {loading ? '...' : formatCurrency(utilidad)}
@@ -1443,8 +1508,8 @@ export default function ResumenFinanciero() {
                 </span>
               </div>
               {hasData ? (
-                <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
-                  Resultado después de compras, gastos y ventas
+                  <p className="mt-3 text-[0.62rem] font-semibold leading-4 text-white/75">
+                  Ventas menos compras y gastos {periodoLabel}.
                 </p>
               ) : (
                 <div className="mt-3 space-y-1 text-white/75">
@@ -1574,10 +1639,10 @@ export default function ResumenFinanciero() {
                   <LineChart size={15} className="text-blue-700 dark:text-blue-200" />
                   <div>
                     <p className="text-[0.82rem] font-black text-slate-900 dark:text-slate-100">
-                      Tendencia de utilidad
+                      Tendencia del balance
                     </p>
                     <p className="text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
-                      Dinero por fecha
+                      Días con movimiento
                     </p>
                   </div>
                 </div>
@@ -1595,7 +1660,7 @@ export default function ResumenFinanciero() {
                     Movimiento de registro durante la última semana
                   </h3>
                   <p className="mt-0.5 text-[0.66rem] font-semibold text-slate-500 dark:text-slate-300">
-                    Ventas menos compras y gastos por fecha real
+                    Ventas menos compras y gastos por día con movimiento
                   </p>
                 </div>
                 <p className="sr-only">{trendSummary}</p>
@@ -1721,7 +1786,7 @@ export default function ResumenFinanciero() {
                     Movimientos recientes
                   </p>
                   <p className="mt-1 text-[0.62rem] font-semibold text-slate-500 dark:text-slate-300">
-                    {movimientosRecientes.length} últimos registros
+                    {periodo === 'DIARIO' ? 'Hoy' : 'Últimos 7 días'} · {movimientosRecientes.length} registros
                   </p>
                 </div>
                 <span className="rounded-full bg-[#f1f5fb] px-2 py-1 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#73829a] dark:bg-slate-800 dark:text-slate-200">
@@ -1736,7 +1801,7 @@ export default function ResumenFinanciero() {
               {financialSectionsOpen.movements ? (
               movimientosRecientes.length === 0 ? (
                 <p className="mt-3 rounded-[10px] bg-[#f8fafc] px-3 py-3 text-[0.64rem] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                  Aún no tienes movimientos
+                  Aún no tienes movimientos para este periodo.
                 </p>
               ) : (
                 <div className="mt-3 space-y-2">

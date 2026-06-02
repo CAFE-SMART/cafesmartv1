@@ -3,7 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarDays, Plus, Receipt } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
-import { listarGastos, type GastoItem } from '../services/gastosService';
+import {
+  actualizarEstadoGasto,
+  listarGastos,
+  type GastoEstadoPago,
+  type GastoItem,
+} from '../services/gastosService';
 import {
   BUSINESS_MIN_DATE_VALUE,
   formatDateLabel,
@@ -265,7 +270,9 @@ export default function GastosListado() {
   const [filtroFecha, setFiltroFecha] = useState('');
   const [filtroFechaOpen, setFiltroFechaOpen] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
+  const [estadoFiltro, setEstadoFiltro] = useState<GastoEstadoPago | 'TODOS'>('PENDIENTE');
   const [orden, setOrden] = useState<'recent' | 'oldest'>('recent');
+  const [actualizandoId, setActualizandoId] = useState<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
 
   const cargar = useCallback(
@@ -317,19 +324,47 @@ export default function GastosListado() {
     return [...gastos]
       .filter((gasto) => !filtroFecha || gasto.fechaGasto.slice(0, 10) === filtroFecha)
       .filter((gasto) => filtroTipo === 'TODOS' || gasto.tipoGasto === filtroTipo)
+      .filter((gasto) => estadoFiltro === 'TODOS' || gasto.estadoPago === estadoFiltro)
       .sort((a, b) =>
         orden === 'oldest'
           ? new Date(a.fechaGasto).getTime() - new Date(b.fechaGasto).getTime()
           : new Date(b.fechaGasto).getTime() - new Date(a.fechaGasto).getTime(),
       );
-  }, [filtroFecha, filtroTipo, gastos, orden]);
+  }, [estadoFiltro, filtroFecha, filtroTipo, gastos, orden]);
 
   const totalAcumulado = useMemo(
     () => gastosFiltrados.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
     [gastosFiltrados],
   );
   const filtrosActivos =
-    Boolean(filtroFecha) || filtroTipo !== 'TODOS' || orden !== 'recent';
+    Boolean(filtroFecha) ||
+    filtroTipo !== 'TODOS' ||
+    estadoFiltro !== 'PENDIENTE' ||
+    orden !== 'recent';
+
+  const estadoResumen =
+    estadoFiltro === 'PENDIENTE'
+      ? 'pendientes'
+      : estadoFiltro === 'PAGADO'
+        ? 'pagados'
+        : 'registrados';
+
+  const marcarPagado = async (id: string) => {
+    if (actualizandoId) return;
+
+    setActualizandoId(id);
+    setError(null);
+    try {
+      const actualizado = await actualizarEstadoGasto(id, 'PAGADO');
+      setGastos((current) =>
+        current.map((gasto) => (gasto.id === id ? actualizado : gasto)),
+      );
+    } catch {
+      setError('No pudimos actualizar el estado del gasto. Intenta nuevamente.');
+    } finally {
+      setActualizandoId(null);
+    }
+  };
 
   return (
     <div className="cs-workflow-page min-h-screen bg-[#eef2f6] px-4 py-3 pb-24 text-slate-900">
@@ -363,7 +398,7 @@ export default function GastosListado() {
             {loading ? '...' : formatCurrency(totalAcumulado)}
           </p>
           <p className="mt-1 text-[0.58rem] font-semibold leading-4 text-slate-500">
-            Suma de todos tus gastos registrados.
+            Suma de gastos {estadoResumen} según los filtros activos.
           </p>
         </section>
 
@@ -375,6 +410,27 @@ export default function GastosListado() {
           <Plus size={14} />
           Registrar gasto
         </button>
+
+        <section className="mt-3 grid grid-cols-3 gap-2 rounded-[14px] border border-[#dbe2ee] bg-[#f8faff] p-1">
+          {[
+            ['PENDIENTE', 'Pendientes'],
+            ['PAGADO', 'Pagados'],
+            ['TODOS', 'Todos'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setEstadoFiltro(value as GastoEstadoPago | 'TODOS')}
+              className={`min-h-[36px] rounded-[11px] px-2 text-[0.62rem] font-black transition ${
+                estadoFiltro === value
+                  ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]'
+                  : 'bg-white text-[#334b85]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </section>
 
         <section className="mt-3 rounded-[14px] border border-[#dbe2ee] bg-[#f8faff] px-3 py-3">
           <div className="grid grid-cols-2 gap-2 min-[430px]:grid-cols-3">
@@ -434,6 +490,7 @@ export default function GastosListado() {
                 setFiltroFecha('');
                 setFiltroFechaOpen(false);
                 setFiltroTipo('TODOS');
+                setEstadoFiltro('PENDIENTE');
                 setOrden('recent');
               }}
               className="mt-2 inline-flex min-h-[36px] w-full items-center justify-center rounded-[11px] border border-[#d5deee] bg-white px-3 text-[0.64rem] font-black text-[#334b85]"
@@ -453,7 +510,7 @@ export default function GastosListado() {
           {!loading && gastos.length > 0 ? (
             <div className="flex items-center justify-between px-1">
               <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
-                Gastos recientes
+                Gastos {estadoResumen}
               </p>
               <span className="text-[0.56rem] font-bold text-slate-400">
                 {gastosFiltrados.length} {gastosFiltrados.length === 1 ? 'registro' : 'registros'}
@@ -516,6 +573,16 @@ export default function GastosListado() {
                       {titleCase(gasto.estadoPago)}
                     </span>
                   </div>
+                  {gasto.estadoPago === 'PENDIENTE' ? (
+                    <button
+                      type="button"
+                      onClick={() => void marcarPagado(gasto.id)}
+                      disabled={actualizandoId === gasto.id}
+                      className="mt-3 inline-flex min-h-[34px] w-full items-center justify-center rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 text-[0.62rem] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-70"
+                    >
+                      {actualizandoId === gasto.id ? 'Actualizando...' : 'Marcar como pagado'}
+                    </button>
+                  ) : null}
                 </article>
               ))
             : null}

@@ -66,7 +66,6 @@ import {
 
 const TYPE_ORDER = [
   'VERDE',
-  'EN SECADO',
   'SECO',
   'TRILLADO',
   'PASILLA',
@@ -77,11 +76,6 @@ const INVENTORY_SUMMARY_CACHE_KEY = 'inventory_summary';
 const WAREHOUSE_CAPACITY_CACHE_KEY = 'warehouse_capacity';
 const INVENTORY_FILTERS_CACHE_KEY = 'inventory_filters';
 const DASHBOARD_INVENTORY_SUMMARY_CACHE_KEY = 'dashboard_inventory_summary';
-const QUALITY_SECTIONS = [
-  { key: 'BUENO', title: 'BUENO', dot: 'bg-[#74e3dd]' },
-  { key: 'REGULAR', title: 'REGULAR', dot: 'bg-[#f6b81a]' },
-  { key: 'MALO', title: 'MALO', dot: 'bg-[#d82433]' },
-] as const;
 
 function keyOf(value: string) {
   return value.trim().toUpperCase();
@@ -120,6 +114,48 @@ function displayCoffeeName(value: string) {
   const key = keyOf(value);
   if (key === 'EN SECADO') return 'En secado';
   return value.toLowerCase();
+}
+
+function displayQualityName(value: string) {
+  const key = keyOf(value);
+  if (key === 'BUENO') return 'Bueno';
+  if (key === 'REGULAR') return 'Regular';
+  if (key === 'MALO') return 'Malo';
+  return value.toLowerCase();
+}
+
+function getQualityStyles(calidad: string) {
+  const key = keyOf(calidad);
+
+  if (key === 'BUENO') {
+    return {
+      iconBg: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      chip: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-100',
+      dot: 'bg-emerald-500',
+    };
+  }
+
+  if (key === 'REGULAR') {
+    return {
+      iconBg: 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      chip: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-100',
+      dot: 'bg-amber-500',
+    };
+  }
+
+  if (key === 'MALO') {
+    return {
+      iconBg: 'bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100',
+      chip: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/50 dark:bg-rose-500/20 dark:text-rose-100',
+      dot: 'bg-rose-500',
+    };
+  }
+
+  return {
+    iconBg: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-100',
+    chip: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100',
+    dot: 'bg-slate-400',
+  };
 }
 
 function getGeneralCoffeeTypeKey(value: string) {
@@ -554,6 +590,7 @@ function CapacityRing({
     </section>
   );
 }
+
 function TypeSummaryCard({
   lot,
   subloteCount,
@@ -617,51 +654,40 @@ function QualityLotCard({
 }) {
   const lotDays = getLotDays(lot).max;
   const sublotesLabel = pluralLabel(lot.sublotes, 'sublote', 'sublotes');
-  const humidity = classifyHumidity(lot.humedadPromedio);
-  const coffeeCode = getCoffeeCodePrefix(lot);
-  const fullName = formatCoffeeFullName(lot);
+  const visual = coffeeVisual(lot.tipoCafe);
+  const qualityStyles = getQualityStyles(lot.calidad);
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      title={`${coffeeCode} · ${fullName}`}
+      title={`${displayQualityName(lot.calidad)} · ${formatNumber(lot.pesoActual)} kg`}
       className="cs-card w-full rounded-[18px] border border-[#e8ebf4] bg-white p-4 text-left shadow-sm dark:border-slate-600 dark:bg-slate-900"
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[1.05rem] font-semibold text-slate-900 dark:text-slate-100">
-            {isSecadoProcessLot(lot)
-              ? 'En proceso de secado'
-              : 'Sublotes disponibles'}
-          </p>
-          {!isSecadoProcessLot(lot) ? (
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className="cs-chip inline-flex rounded-[9px] border border-[#dbe5ff] bg-[#f7f9ff] px-2 py-1 text-[0.68rem] font-black text-[#102d92] dark:border-blue-400/60 dark:bg-blue-500/20 dark:text-blue-100">
-                {coffeeCode}
-              </span>
-              <span className="truncate text-xs font-black text-[#5570a8] dark:text-slate-300">
-                {fullName}
-              </span>
-            </div>
-          ) : null}
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-300">
-            {formatNumber(lot.pesoActual)} kg
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300">
-            <span className="h-2 w-2 rounded-full bg-slate-400" />
-            {lotDays} días
-          </p>
-          {lot.humedadPromedio !== null ? (
-            <p
-              className={`mt-2 inline-flex rounded-[10px] px-2 py-1 text-[0.68rem] font-black ${humidity.toneClass}`}
-            >
-              {formatHumidityWithClassification(lot.humedadPromedio)}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span
+            className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-transparent dark:border-white/10 ${qualityStyles.iconBg}`}
+          >
+            {visual.icon}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[1.05rem] font-black text-slate-900 dark:text-slate-100">
+              {isSecadoProcessLot(lot)
+                ? 'En proceso de secado'
+                : displayQualityName(lot.calidad)}
             </p>
-          ) : null}
+            <p className="mt-1.5 text-[1.15rem] font-black leading-none text-slate-950 dark:text-white">
+              {formatNumber(lot.pesoActual)} kg
+            </p>
+            <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />
+              {lotDays} días
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="cs-chip rounded-[12px] border border-slate-200 bg-[#f2f3f7] px-3 py-2 text-xs font-semibold text-slate-700 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100">
+          <span className={`cs-chip rounded-[12px] border px-3 py-2 text-xs font-semibold ${qualityStyles.chip}`}>
             {sublotesLabel}
           </span>
           <ArrowRight size={18} className="text-slate-400 dark:text-slate-200" />
@@ -908,6 +934,7 @@ export default function Inventario() {
 
     for (const lot of lots) {
       const key = getGeneralCoffeeTypeKey(lot.tipoCafe);
+      if (key === 'EN SECADO') continue;
       if (!map.has(key)) {
         map.set(key, { key, name: getGeneralCoffeeTypeName(key) });
       }
@@ -959,7 +986,7 @@ export default function Inventario() {
   ]);
 
   useEffect(() => {
-    if (typeKey !== 'VERDE' && qualityFilterKey) {
+    if (!typeKey && qualityFilterKey) {
       setQualityFilterKey('');
     }
   }, [qualityFilterKey, typeKey]);
@@ -968,13 +995,17 @@ export default function Inventario() {
     if (!typeKey) return [];
     return lots.filter(
       (lot) =>
+        getGeneralCoffeeTypeKey(lot.tipoCafe) !== 'EN SECADO' &&
         getGeneralCoffeeTypeKey(lot.tipoCafe) === typeKey &&
         (!qualityFilterKey || keyOf(lot.calidad) === qualityFilterKey),
     );
   }, [lots, qualityFilterKey, typeKey]);
 
   const visibleLots = useMemo(
-    () => (typeKey ? filteredLots : lots),
+    () =>
+      (typeKey ? filteredLots : lots).filter(
+        (lot) => getGeneralCoffeeTypeKey(lot.tipoCafe) !== 'EN SECADO',
+      ),
     [filteredLots, lots, typeKey],
   );
   const coffeeFilterValue = useMemo(() => {
@@ -983,12 +1014,6 @@ export default function Inventario() {
   }, [typeKey]);
 
   const handleCoffeeFilterChange = (value: string) => {
-    if (value === 'EN_SECADO') {
-      setTypeKey('EN SECADO');
-      setQualityFilterKey('');
-      return;
-    }
-
     if (value !== 'TODOS') {
       setTypeKey(value);
       setQualityFilterKey('');
@@ -1030,6 +1055,7 @@ export default function Inventario() {
 
     for (const lot of lots) {
       const key = getGeneralCoffeeTypeKey(lot.tipoCafe);
+      if (key === 'EN SECADO') continue;
       const current = grouped.get(key) ?? {
         key,
         name: getGeneralCoffeeTypeName(key),
@@ -1057,15 +1083,6 @@ export default function Inventario() {
       ];
     });
   }, [lots]);
-
-  const qualitySections = useMemo(
-    () =>
-      QUALITY_SECTIONS.map((section) => ({
-        ...section,
-        lots: orderedLots.filter((lot) => keyOf(lot.calidad) === section.key),
-      })),
-    [orderedLots],
-  );
 
   const totalKg = useMemo(
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
@@ -1148,7 +1165,7 @@ export default function Inventario() {
 
   return (
     <div
-      className={`cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
+      className={`cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 dark:bg-slate-950 ${
         showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
       }`}
     >
@@ -1267,11 +1284,31 @@ export default function Inventario() {
                   {availableTypes.some((type) => type.key === 'TRILLADO') ? (
                     <option value="TRILLADO">Trillado</option>
                   ) : null}
-                  {availableTypes.some((type) => type.key === 'EN SECADO') ? (
-                    <option value="EN_SECADO">En secado</option>
-                  ) : null}
                 </SmartSelect>
               </label>
+              {typeKey ? (
+                <label className="min-w-0">
+                  <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
+                    Calidad
+                  </span>
+                  <SmartSelect
+                    aria-label="Calidad"
+                    value={qualityFilterKey || 'TODOS'}
+                    onChange={(event) =>
+                      setQualityFilterKey(
+                        event.target.value === 'TODOS'
+                          ? ''
+                          : event.target.value,
+                      )
+                    }
+                  >
+                    <option value="TODOS">Todos</option>
+                    <option value="BUENO">Bueno</option>
+                    <option value="REGULAR">Regular</option>
+                    <option value="MALO">Malo</option>
+                  </SmartSelect>
+                </label>
+              ) : null}
             </div>
             {(sortKey !== 'OLDEST' || typeKey || qualityFilterKey) ? (
               <button
@@ -1283,6 +1320,32 @@ export default function Inventario() {
               </button>
             ) : null}
           </section>
+        ) : null}
+
+        {showInventoryContent &&
+        !showGlobalEmptyState &&
+        canOpenSecadoProcess ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/inventario/secado/inicio', {
+                state: { from: '/inventario' },
+              })
+            }
+            className="flex w-full items-center justify-between gap-3 rounded-[20px] border border-[#e6eaf3] bg-white p-4 text-left shadow-sm transition hover:border-[#c7d8ff] hover:bg-[#f8fbff] dark:border-slate-600 dark:bg-slate-900 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+          >
+            <div className="min-w-0">
+              <h2 className="text-base font-black text-[#102d92] dark:text-blue-200">
+                Proceso de secado
+              </h2>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                Revisa secados activos o inicia un nuevo proceso.
+              </p>
+            </div>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#173ea6] dark:bg-blue-500/20 dark:text-blue-100">
+              <ArrowRight size={18} />
+            </span>
+          </button>
         ) : null}
 
         {showInventoryContent && showGlobalEmptyState ? (
@@ -1338,11 +1401,6 @@ export default function Inventario() {
                     0,
                   )}
                   onOpen={() => {
-                    if (group.key === 'EN SECADO') {
-                      navigate('/inventario/secados');
-                      return;
-                    }
-
                     setTypeKey(group.key);
                     setQualityFilterKey('');
                   }}
@@ -1352,39 +1410,12 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {showInventoryContent &&
-        !showGlobalEmptyState &&
-        canOpenSecadoProcess &&
-        typeKey === 'VERDE' ? (
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/inventario/secado/inicio', {
-                state: { from: '/inventario' },
-              })
-            }
-            className="flex w-full items-center justify-between gap-3 rounded-[20px] border border-[#e6eaf3] bg-white p-4 text-left shadow-sm transition hover:border-[#c7d8ff] hover:bg-[#f8fbff]"
-          >
-            <div className="min-w-0">
-              <h2 className="text-base font-black text-[#102d92]">
-                Proceso de secado
-              </h2>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                Revisa secados activos o inicia un nuevo proceso.
-              </p>
-            </div>
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#173ea6]">
-              <ArrowRight size={18} />
-            </span>
-          </button>
-        ) : null}
-
         {showInventoryContent && typeKey === 'EN SECADO' && !showGlobalEmptyState ? (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[#f6b81a]" />
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436] dark:text-slate-100">
                   Procesos de secado
                 </p>
               </div>
@@ -1461,52 +1492,23 @@ export default function Inventario() {
         typeKey !== '' &&
         typeKey !== 'EN SECADO' &&
         orderedLots.length > 0 ? (
-          <section className="space-y-4">
-            {qualitySections
-              .filter((section) => section.lots.length > 0)
-              .map((section) => (
-                <section key={section.key} className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${section.dot}`}
-                      />
-                      <p className="text-sm font-black uppercase tracking-[0.2em] text-[#1d2436]">
-                        {section.title}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-500">
-                      {pluralLabel(
-                        section.lots.reduce(
-                          (sum, lot) => sum + lot.sublotes,
-                          0,
-                        ),
-                        'sublote',
-                        'sublotes',
-                      )}
-                    </p>
-                  </div>
+          <section className="space-y-3">
+            {orderedLots.map((lot) => (
+              <QualityLotCard
+                key={lot.id}
+                lot={lot}
+                onOpen={() => {
+                  if (isSecadoProcessLot(lot)) {
+                    navigate('/inventario/secados');
+                    return;
+                  }
 
-                  <div className="space-y-3">
-                    {section.lots.map((lot) => (
-                      <QualityLotCard
-                        key={lot.id}
-                        lot={lot}
-                        onOpen={() => {
-                          if (isSecadoProcessLot(lot)) {
-                            navigate('/inventario/secados');
-                            return;
-                          }
-
-                          navigate(
-                            `/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`,
-                          );
-                        }}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
+                  navigate(
+                    `/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`,
+                  );
+                }}
+              />
+            ))}
           </section>
         ) : null}
       </main>
