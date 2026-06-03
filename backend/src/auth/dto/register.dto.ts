@@ -18,8 +18,10 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
+  MaxLength,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -49,6 +51,14 @@ export class RegisterDto {
       'El detalle del tipo de negocio es obligatorio cuando seleccionas "Otro".',
   })
   otroTipoDetalle?: string;
+
+  @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))
+  @IsOptional()
+  @IsString({ message: 'La descripcion del negocio debe ser texto.' })
+  @MaxLength(200, {
+    message: 'La descripcion no puede superar los 200 caracteres.',
+  })
+  descripcionOrganizacion?: string;
 
   @IsString({ message: 'El nombre del usuario debe ser texto.' })
   @IsNotEmpty({ message: 'El nombre del usuario es obligatorio.' })

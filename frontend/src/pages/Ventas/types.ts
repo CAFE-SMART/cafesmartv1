@@ -44,6 +44,7 @@ export type VentaFifoItem = {
   tipoCafe: string;
   calidad: string;
   nombreCafe: string;
+  origenSublote?: string | null;
   fifoPosition: number;
   pesoAsignado: number;
   pesoRestante: number;

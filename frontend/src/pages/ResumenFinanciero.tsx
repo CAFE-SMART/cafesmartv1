@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronDown,
   Clock,
+  Edit2,
   Eye,
   EyeOff,
   LineChart,
@@ -17,6 +18,7 @@ import {
   Scale,
   Search,
   ShoppingCart,
+  Trash2,
   TrendingUp,
   Wallet,
   X,
@@ -32,7 +34,14 @@ import {
   type DashboardSummary,
 } from '../services/dashboardService';
 import { listarCompras } from '../services/comprasService';
-import { listarGastos } from '../services/gastosService';
+import {
+  actualizarGasto,
+  eliminarGasto,
+  listarGastos,
+  type GastoEstadoPago,
+  type GastoItem,
+  type GastoTipo,
+} from '../services/gastosService';
 import { listarVentas } from '../services/ventasService';
 import {
   obtenerDetalleLote,
@@ -91,7 +100,18 @@ function formatDate(value: string) {
   });
 }
 
-async function cargarMovimientosHistoricos(): Promise<DashboardMovimiento[]> {
+function getLocalDateValueFromRecord(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return formatLocalDateValue(parsed);
+}
+
+async function cargarMovimientosHistoricos(): Promise<MovimientoFinanciero[]> {
   const [compras, ventasResponse, gastos] = await Promise.all([
     listarCompras(),
     listarVentas(),
@@ -116,13 +136,14 @@ async function cargarMovimientosHistoricos(): Promise<DashboardMovimiento[]> {
     fecha: venta.fecha,
   }));
 
-  const gastosMovimientos = gastos.map((gasto): DashboardMovimiento => ({
+  const gastosMovimientos = gastos.map((gasto): MovimientoFinanciero => ({
     id: gasto.id,
     tipo: 'GASTO',
     nombre: gasto.conceptoGasto || gasto.tipoGasto,
     kg: gasto.sublotes.reduce((total, sublote) => total + sublote.pesoActual, 0),
     valor: gasto.montoGasto,
     fecha: gasto.fechaGasto,
+    gasto,
   }));
 
   return [...comprasMovimientos, ...ventasMovimientos, ...gastosMovimientos];
@@ -183,6 +204,28 @@ const FINANCIAL_ACCESS_SESSION_KEY = 'cafesmart:financial-access-granted';
 const FINANCIAL_ACCESS_TTL_MS = 30 * 60 * 1000;
 
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
+type HistorialTipo = 'VENTA' | 'COMPRA' | 'GASTO';
+type MovimientoFinanciero = DashboardMovimiento & {
+  gasto?: GastoItem;
+};
+type GastoEditForm = {
+  conceptoGasto: string;
+  descripcion: string;
+  montoGasto: string;
+  fechaGasto: string;
+  tipoGasto: GastoTipo;
+  estadoPago: GastoEstadoPago;
+};
+
+const TIPOS_GASTO: GastoTipo[] = [
+  'TRANSPORTE',
+  'COMIDA',
+  'SECADO',
+  'CARGUE',
+  'DESCARGUE',
+  'OTROS',
+];
+const GASTO_MONTO_MAX = 20000000;
 
 function saveFinancialAccessSession() {
   try {
@@ -519,6 +562,29 @@ function getMovimientoCopy(item: DashboardMovimiento) {
     tone: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200',
     amountTone: 'text-red-700 dark:text-red-200',
     sign: '',
+  };
+}
+
+function titleCase(value: string) {
+  return value
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function sanitizeMoneyInput(value: string) {
+  return value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+}
+
+function toGastoEditForm(gasto: GastoItem): GastoEditForm {
+  return {
+    conceptoGasto: gasto.conceptoGasto,
+    descripcion: gasto.descripcion ?? '',
+    montoGasto: String(Math.round(gasto.montoGasto)),
+    fechaGasto: gasto.fechaGasto.slice(0, 10),
+    tipoGasto: gasto.tipoGasto as GastoTipo,
+    estadoPago: gasto.estadoPago as GastoEstadoPago,
   };
 }
 
@@ -943,18 +1009,25 @@ export default function ResumenFinanciero() {
   const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<PeriodoFinanciero>('DIARIO');
-  const [historialCompleto, setHistorialCompleto] = useState<DashboardMovimiento[]>([]);
+  const [historialCompleto, setHistorialCompleto] = useState<MovimientoFinanciero[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError] = useState<string | null>(null);
-  const [historialActivo, setHistorialActivo] = useState<
-    'VENTA' | 'COMPRA' | 'GASTO' | null
-  >(null);
+  const [historialActivo, setHistorialActivo] = useState<HistorialTipo | null>(null);
   const [historialSearch, setHistorialSearch] = useState('');
   const [historialDate, setHistorialDate] = useState('');
   const [historialDateOpen, setHistorialDateOpen] = useState(false);
   const [historialTipo, setHistorialTipo] = useState('TODOS');
-  const [historialSort, setHistorialSort] = useState<'recent' | 'oldest' | 'amount-desc' | 'amount-asc'>('recent');
+  const [historialEstado, setHistorialEstado] = useState<GastoEstadoPago | 'TODOS'>('TODOS');
+  const [historialSort, setHistorialSort] = useState<'recent' | 'oldest' | 'amount-desc' | 'amount-asc' | 'date'>('recent');
   const [historialVisibleCount, setHistorialVisibleCount] = useState(30);
+  const [historialActionMessage, setHistorialActionMessage] = useState<string | null>(null);
+  const [historialFilterFeedback, setHistorialFilterFeedback] = useState<string | null>(null);
+  const [gastoEditando, setGastoEditando] = useState<GastoItem | null>(null);
+  const [gastoEditForm, setGastoEditForm] = useState<GastoEditForm | null>(null);
+  const [gastoEditError, setGastoEditError] = useState<string | null>(null);
+  const [guardandoGasto, setGuardandoGasto] = useState(false);
+  const [gastoAEliminar, setGastoAEliminar] = useState<GastoItem | null>(null);
+  const [eliminandoGastoId, setEliminandoGastoId] = useState<string | null>(null);
   const [financialSectionsOpen, setFinancialSectionsOpen] = useState({
     trend: false,
     movements: false,
@@ -1023,6 +1096,20 @@ export default function ResumenFinanciero() {
     void cargar();
   }, [authorized, cargar, historialLoading, loading, refreshing, summary]);
 
+  useEffect(() => {
+    const state = location.state as {
+      openHistorial?: HistorialTipo;
+      financialAccessGranted?: boolean;
+    } | null;
+    if (!authorized || !state?.openHistorial) return;
+    setFinancialSectionsOpen((current) => ({ ...current, histories: true }));
+    abrirHistorial(state.openHistorial);
+    navigate(location.pathname, {
+      replace: true,
+      state: financialAccessGranted ? { financialAccessGranted: true } : null,
+    });
+  }, [authorized, financialAccessGranted, location.pathname, location.state, navigate]);
+
   const handleUnlock = async () => {
     if (!password.trim()) {
       setError('Escribe la contraseña del administrador.');
@@ -1066,7 +1153,7 @@ export default function ResumenFinanciero() {
     const base =
       historialCompleto.length > 0
         ? historialCompleto
-        : (summary?.movimientosRecientes ?? []);
+        : ((summary?.movimientosRecientes ?? []) as MovimientoFinanciero[]);
 
     return [...base]
       .filter((item) => {
@@ -1126,10 +1213,20 @@ export default function ResumenFinanciero() {
           .includes(term);
       })
       .filter((item) => {
-        if (!historialDate) return true;
-        return item.fecha.slice(0, 10) === historialDate;
+        if (historialSort !== 'date' || !historialDate) return true;
+        return getLocalDateValueFromRecord(item.fecha) === historialDate;
       })
-      .filter((item) => historialTipo === 'TODOS' || item.nombre === historialTipo)
+      .filter((item) => {
+        if (historialTipo === 'TODOS') return true;
+        if (historialActivo === 'GASTO') {
+          return item.gasto?.tipoGasto === historialTipo;
+        }
+        return item.nombre === historialTipo;
+      })
+      .filter((item) => {
+        if (historialActivo !== 'GASTO' || historialEstado === 'TODOS') return true;
+        return item.gasto?.estadoPago === historialEstado;
+      })
       .sort((a, b) => {
         if (historialSort === 'oldest') {
           return new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
@@ -1138,13 +1235,16 @@ export default function ResumenFinanciero() {
         if (historialSort === 'amount-asc') return a.valor - b.valor;
         return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
       });
-  }, [historialActivo, historialDate, historialSearch, historialSort, historialTipo, movimientos]);
+  }, [historialActivo, historialDate, historialEstado, historialSearch, historialSort, historialTipo, movimientos]);
   const historialTipos = useMemo(
-    () => [
-      'TODOS',
-      ...Array.from(new Set(historialMovimientos.map((item) => item.nombre).filter(Boolean))),
-    ],
-    [historialMovimientos],
+    () =>
+      historialActivo === 'GASTO'
+        ? ['TODOS', ...TIPOS_GASTO]
+        : [
+            'TODOS',
+            ...Array.from(new Set(historialMovimientos.map((item) => item.nombre).filter(Boolean))),
+          ],
+    [historialActivo, historialMovimientos],
   );
   const historialTotal = historialMovimientos.reduce(
     (total, item) => total + item.valor,
@@ -1157,33 +1257,124 @@ export default function ResumenFinanciero() {
   const historialHasMore = historialMovimientos.length > historialVisible.length;
   const historialFiltrosActivos =
     Boolean(historialSearch.trim()) ||
-    Boolean(historialDate) ||
+    (historialSort === 'date' && Boolean(historialDate)) ||
     historialTipo !== 'TODOS' ||
+    historialEstado !== 'TODOS' ||
     historialSort !== 'recent';
-  const abrirHistorial = (tipo: 'VENTA' | 'COMPRA' | 'GASTO') => {
+  const abrirHistorial = (tipo: HistorialTipo) => {
     setHistorialActivo(tipo);
     setHistorialSearch('');
     setHistorialDate('');
     setHistorialTipo('TODOS');
+    setHistorialEstado('TODOS');
+    setHistorialDate('');
+    setHistorialDateOpen(false);
     setHistorialSort('recent');
     setHistorialVisibleCount(30);
+    setHistorialFilterFeedback(null);
   };
   const recargarHistorial = () => {
     setRefreshFeedback('Actualizando información...');
     void cargar(true);
   };
   const limpiarFiltrosHistorial = () => {
+    if (!historialFiltrosActivos) return;
     setHistorialSearch('');
     setHistorialDate('');
     setHistorialDateOpen(false);
     setHistorialTipo('TODOS');
+    setHistorialEstado('TODOS');
     setHistorialSort('recent');
     setHistorialVisibleCount(30);
-    setRefreshFeedback('Filtros limpiados.');
+    setHistorialFilterFeedback('Filtros limpiados.');
+  };
+  const abrirEditarGastoHistorial = (gasto: GastoItem) => {
+    setGastoEditando(gasto);
+    setGastoEditForm(toGastoEditForm(gasto));
+    setGastoEditError(null);
+  };
+  const validarGastoEditado = () => {
+    if (!gastoEditForm) return 'Corrige los campos marcados para guardar.';
+    const concepto = gastoEditForm.conceptoGasto.trim();
+    const monto = Number(gastoEditForm.montoGasto);
+    if (!concepto || concepto.length < 4) return 'El concepto debe tener al menos 4 caracteres.';
+    if (!gastoEditForm.fechaGasto) return 'Selecciona la fecha del gasto.';
+    if (!Number.isFinite(monto) || monto <= 0) return 'El monto debe ser mayor a $0.';
+    if (monto > GASTO_MONTO_MAX) return 'El monto máximo permitido es $20.000.000.';
+    return null;
+  };
+  const guardarGastoEditado = async () => {
+    if (!gastoEditando || !gastoEditForm || guardandoGasto) return;
+    const mensaje = validarGastoEditado();
+    if (mensaje) {
+      setGastoEditError(mensaje);
+      return;
+    }
+    setGuardandoGasto(true);
+    setGastoEditError(null);
+    try {
+      const actualizado = await actualizarGasto(gastoEditando.id, {
+        conceptoGasto: gastoEditForm.conceptoGasto.trim(),
+        descripcion: gastoEditForm.descripcion.trim(),
+        montoGasto: Number(gastoEditForm.montoGasto),
+        fechaGasto: new Date(`${gastoEditForm.fechaGasto}T12:00:00`).toISOString(),
+        tipoGasto: gastoEditForm.tipoGasto,
+        estadoPago: gastoEditForm.estadoPago,
+      });
+      setHistorialCompleto((current) =>
+        current.map((item) =>
+          item.tipo === 'GASTO' && item.id === actualizado.id
+            ? {
+                ...item,
+                nombre: actualizado.conceptoGasto || actualizado.tipoGasto,
+                valor: actualizado.montoGasto,
+                fecha: actualizado.fechaGasto,
+                kg: actualizado.sublotes.reduce(
+                  (total, sublote) => total + sublote.pesoActual,
+                  0,
+                ),
+                gasto: actualizado,
+              }
+            : item,
+        ),
+      );
+      setGastoEditando(null);
+      setGastoEditForm(null);
+      setHistorialActionMessage('Gasto actualizado correctamente.');
+    } catch {
+      setGastoEditError('No pudimos actualizar el gasto. Intenta nuevamente.');
+    } finally {
+      setGuardandoGasto(false);
+    }
+  };
+  const confirmarEliminarGastoHistorial = async () => {
+    if (!gastoAEliminar || eliminandoGastoId) return;
+    setEliminandoGastoId(gastoAEliminar.id);
+    setHistorialError(null);
+    try {
+      await eliminarGasto(gastoAEliminar.id);
+      setHistorialCompleto((current) =>
+        current.filter(
+          (item) => !(item.tipo === 'GASTO' && item.id === gastoAEliminar.id),
+        ),
+      );
+      setGastoAEliminar(null);
+      setHistorialActionMessage('Gasto eliminado correctamente.');
+    } catch {
+      setHistorialError('No pudimos eliminar el gasto. Intenta nuevamente.');
+    } finally {
+      setEliminandoGastoId(null);
+    }
   };
   useEffect(() => {
     setHistorialVisibleCount(30);
-  }, [historialActivo, historialDate, historialSearch, historialSort, historialTipo]);
+  }, [historialActivo, historialDate, historialEstado, historialSearch, historialSort, historialTipo]);
+  useEffect(() => {
+    if (historialSort !== 'date') {
+      setHistorialDate('');
+      setHistorialDateOpen(false);
+    }
+  }, [historialSort]);
   const toggleFinancialSection = (section: keyof typeof financialSectionsOpen) => {
     setFinancialSectionsOpen((current) => ({
       ...current,
@@ -1226,7 +1417,8 @@ export default function ResumenFinanciero() {
     >();
 
     for (const movimiento of movimientos) {
-      const fecha = movimiento.fecha.slice(0, 10);
+      const fecha = getLocalDateValueFromRecord(movimiento.fecha);
+      if (!fecha) continue;
       const current = byDay.get(fecha) ?? {
         fecha,
         ventas: 0,
@@ -1629,6 +1821,7 @@ export default function ResumenFinanciero() {
               </div>
             </section>
 
+            {periodo === 'SEMANAL' ? (
             <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <button
                 type="button"
@@ -1774,6 +1967,7 @@ export default function ResumenFinanciero() {
               )
               ) : null}
             </section>
+            ) : null}
 
             <section className="mt-4 rounded-[16px] border border-[#e5eaf3] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] dark:border-slate-600 dark:bg-slate-900">
               <button
@@ -1944,22 +2138,23 @@ export default function ResumenFinanciero() {
             </section>
 
             {historialActivo ? (
-              <div className="cs-workflow-page fixed inset-0 z-50 h-[100dvh] bg-[#f7f9fc] text-slate-900">
-                <section className="mx-auto flex h-full w-full max-w-[430px] flex-col overflow-visible bg-white">
-                  <header className="relative z-[80] shrink-0 border-b border-slate-100 bg-white px-4 py-4 shadow-sm">
+              <div className="cs-workflow-page fixed inset-0 z-50 h-[100dvh] bg-[#f7f9fc] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+                <section className="mx-auto flex h-full w-full max-w-[430px] flex-col overflow-visible bg-white dark:bg-slate-950">
+                  <header className="relative z-[80] shrink-0 border-b border-slate-100 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div className="grid grid-cols-[42px_1fr_42px] items-center gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           setHistorialDateOpen(false);
+                          setHistorialFilterFeedback(null);
                           setHistorialActivo(null);
                         }}
-                        aria-label="Volver a resultado financiero"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                        aria-label="Volver"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-blue-200 bg-[#eef2ff] text-[#102d92] shadow-sm transition hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-400/25 active:scale-95 dark:border-blue-400/40 dark:bg-blue-500/20 dark:text-blue-100 dark:hover:bg-blue-500/30"
                       >
                         <ArrowLeft size={17} />
                       </button>
-                      <h3 className="min-w-0 truncate text-lg font-black text-slate-950">
+                      <h3 className="min-w-0 truncate text-lg font-black text-slate-950 dark:text-slate-100">
                         {historialActivo === 'VENTA'
                           ? 'Historial de ventas'
                           : historialActivo === 'COMPRA'
@@ -1974,16 +2169,16 @@ export default function ResumenFinanciero() {
                         iconOnly
                       />
                     </div>
-                    <label className="mt-3 flex h-11 items-center gap-2 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3">
-                      <Search size={15} className="text-slate-400" />
+                    <label className="mt-3 flex h-11 items-center gap-2 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 dark:border-slate-700 dark:bg-slate-950">
+                      <Search size={15} className="text-slate-400 dark:text-slate-300" />
                       <input
                         value={historialSearch}
                         maxLength={60}
                         onChange={(event) =>
                           setHistorialSearch(sanitizeSearchInput(event.target.value))
                         }
-                        className="w-full bg-transparent text-sm font-semibold outline-none"
-                        placeholder="Buscar registro"
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                        placeholder={historialActivo === 'GASTO' ? 'Buscar gasto' : 'Buscar registro'}
                       />
                     </label>
                     {refreshing || refreshFeedback === 'Actualizando información...' ? (
@@ -1991,21 +2186,33 @@ export default function ResumenFinanciero() {
                         Actualizando información...
                       </p>
                     ) : null}
+                    {historialFilterFeedback ? (
+                      <p role="status" className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                        {historialFilterFeedback}
+                      </p>
+                    ) : null}
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {historialActivo === 'GASTO' ? (
+                        <div className="min-w-0">
+                          <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                            Estado
+                          </label>
+                          <SmartSelect
+                            value={historialEstado}
+                            onChange={(event) =>
+                              setHistorialEstado(event.target.value as GastoEstadoPago | 'TODOS')
+                            }
+                            className="min-h-[42px] rounded-[12px] text-[0.68rem]"
+                            aria-label="Filtrar por estado"
+                          >
+                            <option value="TODOS">Todos</option>
+                            <option value="PENDIENTE">Pendientes</option>
+                            <option value="PAGADO">Pagados</option>
+                          </SmartSelect>
+                        </div>
+                      ) : null}
                       <div className="min-w-0">
-                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                          Fecha
-                        </label>
-                        <HistoryDatePicker
-                        value={historialDate}
-                          open={historialDateOpen}
-                          onToggle={() => setHistorialDateOpen((open) => !open)}
-                          onClose={() => setHistorialDateOpen(false)}
-                          onChange={setHistorialDate}
-                      />
-                      </div>
-                      <div className="min-w-0">
-                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                           {historialActivo === 'VENTA'
                             ? 'Tipo de cliente'
                             : historialActivo === 'COMPRA'
@@ -2020,47 +2227,68 @@ export default function ResumenFinanciero() {
                       >
                         {historialTipos.map((tipo) => (
                           <option key={tipo} value={tipo}>
-                            {tipo === 'TODOS' ? 'Todos' : tipo}
+                            {tipo === 'TODOS' ? 'Todos' : titleCase(String(tipo))}
                           </option>
                         ))}
                       </SmartSelect>
                       </div>
                       <div className="min-w-0">
-                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                           Ordenar por
                         </label>
                       <SmartSelect
                         value={historialSort}
-                        onChange={(event) =>
-                          setHistorialSort(event.target.value as typeof historialSort)
-                        }
+                        onChange={(event) => {
+                          const nextSort = event.target.value as typeof historialSort;
+                          setHistorialSort(nextSort);
+                        }}
                         className="min-h-[42px] rounded-[12px] text-[0.68rem]"
                         aria-label="Ordenar historial"
                       >
-                        <option value="recent">Recientes</option>
-                        <option value="oldest">Antiguos</option>
+                        <option value="recent">Más reciente</option>
+                        <option value="oldest">Más antiguo</option>
                         <option value="amount-desc">Mayor valor</option>
                         <option value="amount-asc">Menor valor</option>
+                        <option value="date">Fecha específica</option>
                       </SmartSelect>
                       </div>
                     </div>
-                    {historialDate ? (
-                      <div className="mt-3 rounded-[14px] border border-[#dbe6ff] bg-[#f5f8ff] px-3 py-2 text-xs font-bold text-[#102d92]">
-                        Mostrando registros del {formatDateLabel(historialDate)}. Usa “Limpiar” para ver todo.
+                    {historialSort === 'date' ? (
+                      <div className="mt-3 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 py-3 dark:border-slate-700 dark:bg-slate-950">
+                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                          Fecha específica
+                        </label>
+                        <HistoryDatePicker
+                          value={historialDate}
+                          open={historialDateOpen}
+                          onToggle={() => setHistorialDateOpen((open) => !open)}
+                          onClose={() => setHistorialDateOpen(false)}
+                          onChange={setHistorialDate}
+                        />
+                      </div>
+                    ) : null}
+                    {historialSort === 'date' && historialDate ? (
+                      <div className="mt-3 rounded-[14px] border border-[#dbe6ff] bg-[#f5f8ff] px-3 py-2 text-xs font-bold text-[#102d92] dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-100">
+                        Fecha: {formatDateLabel(historialDate)}
                       </div>
                     ) : null}
                     {historialFiltrosActivos ? (
                       <button
                         type="button"
                         onClick={limpiarFiltrosHistorial}
-                        className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#334b85]"
+                        className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#d5deee] bg-white px-3 text-xs font-black text-[#334b85] transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:border-slate-700 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-slate-800"
                       >
                         Limpiar filtros
                       </button>
                     ) : null}
-                    <div className="mt-3 rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                    <div className="mt-3 rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92] dark:bg-blue-500/10 dark:text-blue-100">
                       Total acumulado: {formatCurrency(historialTotal)}
                     </div>
+                    {historialActionMessage ? (
+                      <p className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
+                        {historialActionMessage}
+                      </p>
+                    ) : null}
                   </header>
                   <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                     {historialError ? (
@@ -2089,20 +2317,27 @@ export default function ResumenFinanciero() {
                         ))}
                       </div>
                     ) : historialMovimientos.length === 0 ? (
-                      <p className="rounded-[14px] bg-[#f8fafc] px-4 py-6 text-center text-sm font-bold text-slate-500">
-                        {historialFiltrosActivos
-                          ? 'No hay registros con esos filtros.'
-                          : 'Aún no hay registros históricos disponibles.'}
+                      <p className="rounded-[14px] bg-[#f8fafc] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                        {historialSort === 'date' && historialDate
+                          ? historialActivo === 'VENTA'
+                            ? 'No hay ventas para la fecha seleccionada.'
+                            : historialActivo === 'COMPRA'
+                              ? 'No hay compras para la fecha seleccionada.'
+                              : 'No hay gastos para la fecha seleccionada.'
+                          : historialFiltrosActivos
+                            ? 'No hay registros con esos filtros.'
+                            : 'Aún no hay registros históricos disponibles.'}
                       </p>
                     ) : (
                       <div className="space-y-2">
                         {historialVisible.map((item) => {
                           const copy = getMovimientoCopy(item);
                           const Icon = copy.icon;
+                          const gasto = historialActivo === 'GASTO' ? item.gasto : null;
                           return (
                             <article
                               key={`${item.tipo}-${item.id}-${item.fecha}`}
-                              className="flex items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-3"
+                              className="flex items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-3 dark:border-slate-700 dark:bg-slate-900"
                             >
                               <span
                                 className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
@@ -2110,17 +2345,57 @@ export default function ResumenFinanciero() {
                                 <Icon size={17} />
                               </span>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-black text-[#111827]">
-                                  {item.nombre || copy.title}
+                                <p className="truncate text-sm font-black text-[#111827] dark:text-slate-100">
+                                  {gasto ? gasto.conceptoGasto : item.nombre || copy.title}
                                 </p>
-                                <p className="text-xs font-semibold text-slate-500">
-                                  {formatDate(item.fecha)}
-                                  {item.kg > 0 ? ` · ${formatKg(item.kg)}` : ''}
-                                </p>
+                                {gasto ? (
+                                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[0.62rem] font-black">
+                                    <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">
+                                      {titleCase(gasto.tipoGasto || 'OTROS')}
+                                    </span>
+                                    <span
+                                      className={`rounded-full px-2 py-1 ${
+                                        gasto.estadoPago === 'PAGADO'
+                                          ? 'bg-emerald-50 text-emerald-700'
+                                          : 'bg-amber-50 text-amber-700'
+                                      }`}
+                                    >
+                                      {gasto.estadoPago === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                                    </span>
+                                    <span className="font-semibold text-slate-500 dark:text-slate-300">
+                                      {formatDate(item.fecha)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
+                                    {formatDate(item.fecha)}
+                                    {item.kg > 0 ? ` · ${formatKg(item.kg)}` : ''}
+                                  </p>
+                                )}
                               </div>
                               <p className={`shrink-0 text-sm font-black ${copy.amountTone}`}>
                                 {formatCurrency(item.valor)}
                               </p>
+                              {gasto ? (
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirEditarGastoHistorial(gasto)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                                    aria-label="Editar gasto"
+                                  >
+                                    <Edit2 size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setGastoAEliminar(gasto)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-rose-200 bg-rose-50 text-rose-700"
+                                    aria-label="Eliminar gasto"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ) : null}
                             </article>
                           );
                         })}
@@ -2128,13 +2403,210 @@ export default function ResumenFinanciero() {
                           <button
                             type="button"
                             onClick={() => setHistorialVisibleCount((count) => count + 30)}
-                            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#102d92]"
+                            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#102d92] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
                           >
                             Cargar más
                           </button>
                         ) : null}
                       </div>
                     )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {gastoEditando && gastoEditForm ? (
+              <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/55 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+                <section className="max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] overflow-y-auto rounded-[18px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-black text-slate-950">Editar gasto</h2>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        Guarda cambios sin duplicar el registro.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGastoEditando(null);
+                        setGastoEditForm(null);
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                      aria-label="Cerrar edición"
+                    >
+                      <X size={17} />
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-black text-slate-700">
+                        Concepto del gasto
+                      </span>
+                      <input
+                        value={gastoEditForm.conceptoGasto}
+                        maxLength={60}
+                        onChange={(event) =>
+                          setGastoEditForm((current) =>
+                            current ? { ...current, conceptoGasto: event.target.value } : current,
+                          )
+                        }
+                        className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-black text-slate-700">
+                        Observación
+                      </span>
+                      <textarea
+                        value={gastoEditForm.descripcion}
+                        maxLength={200}
+                        rows={2}
+                        onChange={(event) =>
+                          setGastoEditForm((current) =>
+                            current ? { ...current, descripcion: event.target.value } : current,
+                          )
+                        }
+                        className="w-full resize-none rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-black text-slate-700">
+                          Monto
+                        </span>
+                        <input
+                          value={gastoEditForm.montoGasto}
+                          inputMode="numeric"
+                          onChange={(event) =>
+                            setGastoEditForm((current) =>
+                              current
+                                ? { ...current, montoGasto: sanitizeMoneyInput(event.target.value) }
+                                : current,
+                            )
+                          }
+                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-black text-slate-700">
+                          Fecha
+                        </span>
+                        <input
+                          type="date"
+                          value={gastoEditForm.fechaGasto}
+                          max={getTodayLocalDateValue()}
+                          onChange={(event) =>
+                            setGastoEditForm((current) =>
+                              current ? { ...current, fechaGasto: event.target.value } : current,
+                            )
+                          }
+                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-black text-slate-700">
+                          Tipo
+                        </span>
+                        <select
+                          value={gastoEditForm.tipoGasto}
+                          onChange={(event) =>
+                            setGastoEditForm((current) =>
+                              current
+                                ? { ...current, tipoGasto: event.target.value as GastoTipo }
+                                : current,
+                            )
+                          }
+                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        >
+                          {TIPOS_GASTO.map((tipo) => (
+                            <option key={tipo} value={tipo}>
+                              {tipo}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-black text-slate-700">
+                          Estado
+                        </span>
+                        <select
+                          value={gastoEditForm.estadoPago}
+                          onChange={(event) =>
+                            setGastoEditForm((current) =>
+                              current
+                                ? { ...current, estadoPago: event.target.value as GastoEstadoPago }
+                                : current,
+                            )
+                          }
+                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        >
+                          <option value="PENDIENTE">Pendiente</option>
+                          <option value="PAGADO">Pagado</option>
+                        </select>
+                      </label>
+                    </div>
+                    {gastoEditError ? (
+                      <p className="rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                        {gastoEditError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void guardarGastoEditado()}
+                      disabled={guardandoGasto}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-[#2051e5] px-3 text-sm font-black text-white disabled:opacity-70"
+                    >
+                      {guardandoGasto ? 'Guardando...' : 'Guardar cambios'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGastoEditando(null);
+                        setGastoEditForm(null);
+                      }}
+                      disabled={guardandoGasto}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {gastoAEliminar ? (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm">
+                <section className="w-full max-w-[360px] rounded-[18px] bg-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-700">
+                    <Trash2 size={20} />
+                  </div>
+                  <h2 className="mt-4 text-lg font-black text-slate-950">
+                    ¿Eliminar este gasto?
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                    Esta acción quitará el gasto del registro. No podrás recuperarlo después.
+                  </p>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setGastoAEliminar(null)}
+                      disabled={Boolean(eliminandoGastoId)}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void confirmarEliminarGastoHistorial()}
+                      disabled={Boolean(eliminandoGastoId)}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-rose-600 px-3 text-sm font-black text-white disabled:opacity-70"
+                    >
+                      {eliminandoGastoId ? 'Eliminando...' : 'Eliminar gasto'}
+                    </button>
                   </div>
                 </section>
               </div>

@@ -9,6 +9,7 @@ export type RegisterLocationState = {
     authMode?: 'register';
     currentStep?: 1 | 2;
     nombreOrganizacion?: string;
+    descripcionOrganizacion?: string;
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
     otroTipoDetalle?: string;
     nombre?: string;
@@ -24,6 +25,7 @@ export type TipoOrgSelection = TipoOrg | '';
 
 export type StepOneErrors = {
   nombreOrganizacion?: string;
+  descripcionOrganizacion?: string;
   tipoOrganizacion?: string;
   otroTipoDetalle?: string;
 };
@@ -40,6 +42,7 @@ export type StepTwoErrors = {
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const BUSINESS_NAME_MIN_LENGTH = 3;
 export const BUSINESS_NAME_MAX_LENGTH = 100;
+export const BUSINESS_DESCRIPTION_MAX_LENGTH = 200;
 export const PERSON_NAME_MIN_LENGTH = 2;
 export const PERSON_NAME_MAX_LENGTH = 60;
 export const PERSON_LASTNAME_MAX_LENGTH = 60;
@@ -67,6 +70,28 @@ function hasExcessiveRepetition(value: string) {
 
 export function normalizeBusinessNameInput(value: string) {
   return value.replace(/\s{2,}/g, ' ').slice(0, BUSINESS_NAME_MAX_LENGTH);
+}
+
+export function normalizeBusinessDescriptionInput(value: string) {
+  return value.replace(/\s{2,}/g, ' ').slice(0, BUSINESS_DESCRIPTION_MAX_LENGTH);
+}
+
+export function validateBusinessDescription(value: string) {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (value !== value.trim()) {
+    return 'No uses espacios al inicio ni al final.';
+  }
+
+  if (normalized.length > BUSINESS_DESCRIPTION_MAX_LENGTH) {
+    return 'La descripción no puede superar los 200 caracteres.';
+  }
+
+  return null;
 }
 
 export function normalizeHumanNameInput(value: string) {

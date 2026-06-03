@@ -39,8 +39,7 @@ import {
 import { BUSINESS_MIN_DATE_VALUE, formatDateLabel, getTodayLocalDateValue } from '../../utils/date';
 import { formatPhoneNumber, sanitizeDocumentInput, sanitizeNameInput, type DocumentType } from '../../utils/personValidation';
 import { sanitizeSearchInput } from '../../utils/inputLimits';
-import { PRECIO_MINIMO_KG } from '../../utils/businessRules';
-import { isValidCantidadInput, isValidPrecioInput, MAX_PRECIO_KG } from './utils';
+import { getLimitesVenta, isValidCantidadInput, isValidPrecioInput } from './utils';
 import { useNavigate } from 'react-router-dom';
 import { useVentas } from './hooks/useVentas';
 import { MAX_NOMBRE_CARACTERES } from './constants';
@@ -50,7 +49,7 @@ import { CafeSmartErrorState } from '../../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
 import { fuzzySearch } from '../../utils/fuzzySearch';
-import { formatCoffeeFullName, getCoffeeCodePrefix } from '../../utils/coffeeCodes';
+import { formatCoffeeFullName, getCoffeeCodePrefix, getSubloteCodeMap } from '../../utils/coffeeCodes';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -964,6 +963,48 @@ const norm = (v: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
+function getQualityStyles(calidad: string) {
+  const key = norm(calidad);
+
+  if (key.includes('bueno')) {
+    return {
+      card: 'border-emerald-200 bg-emerald-50/45 dark:border-emerald-500/50 dark:bg-emerald-950/25',
+      accent: 'border-l-4 border-l-emerald-400',
+      icon: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      chip: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-100',
+      text: 'text-emerald-700 dark:text-emerald-100',
+    };
+  }
+
+  if (key.includes('regular')) {
+    return {
+      card: 'border-amber-200 bg-amber-50/45 dark:border-amber-500/50 dark:bg-amber-950/25',
+      accent: 'border-l-4 border-l-amber-400',
+      icon: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      chip: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100',
+      text: 'text-amber-700 dark:text-amber-100',
+    };
+  }
+
+  if (key.includes('malo')) {
+    return {
+      card: 'border-rose-200 bg-rose-50/45 dark:border-rose-500/50 dark:bg-rose-950/25',
+      accent: 'border-l-4 border-l-rose-400',
+      icon: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100',
+      chip: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-100',
+      text: 'text-rose-700 dark:text-rose-100',
+    };
+  }
+
+  return {
+    card: 'border-[#e5e8f3] bg-[#fcfcff] dark:border-slate-600 dark:bg-slate-900',
+    accent: 'border-l-4 border-l-[#1f3fa7]',
+    icon: 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100',
+    chip: 'border-[#dbe4ff] bg-[#eef4ff] text-[#102d92] dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-100',
+    text: 'text-[#102d92] dark:text-blue-100',
+  };
+}
+
 function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
   return lotes
     .filter((l) => {
@@ -1705,6 +1746,10 @@ export default function Ventas() {
     setMostrarDesgloseSublotesVenta, setMostrarModalCancelar, setNombreMaxToast,
     setRevisionDeleteAlert,
   } = ventas;
+  const lotesVentaCodeMap = React.useMemo(
+    () => getSubloteCodeMap(lotesVenta ?? []),
+    [lotesVenta],
+  );
   const [ventasTecnicasAbiertas, setVentasTecnicasAbiertas] = React.useState<Record<string, boolean>>({});
   const [showDetails, setShowDetails] = React.useState(false);
 
@@ -1756,8 +1801,9 @@ export default function Ventas() {
     (tipoCafeId: string, rawValue: string) => {
       const nextValue = rawValue.replace(/[^\d]/g, '').slice(0, 8);
       const precio = toNum(nextValue);
+      const limitesVenta = getLimitesVenta();
 
-      if (nextValue && precio > MAX_PRECIO_KG) {
+      if (nextValue && precio > limitesVenta.maxPrecioVentaKg) {
         setSubmitError('El precio ingresado supera el máximo permitido.');
         return;
       }
@@ -1842,8 +1888,10 @@ export default function Ventas() {
       );
       if (tipoSinPrecio) {
         const precio = preciosVentaTotal[tipoSinPrecio.tipoCafeId] ?? '';
+        const limitesVenta = getLimitesVenta();
         if (!precio.trim()) return 'Ingresa el precio por kilo.';
-        if (Number(precio) > MAX_PRECIO_KG) return 'El precio supera el máximo permitido.';
+        if (Number(precio) > limitesVenta.maxPrecioVentaKg) return 'El precio supera el máximo permitido.';
+        if (Number(precio) < limitesVenta.minPrecioVentaKg) return 'El precio está por debajo del mínimo permitido.';
         return 'Ingresa solo números válidos.';
       }
     }
@@ -1998,33 +2046,33 @@ export default function Ventas() {
   }
 
   return (
-    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900">
+    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-[145px] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-[430px] space-y-4">
         <header className="px-4 py-4 pt-6">
           <div className="relative flex items-center justify-center">
             <button
               type="button"
               onClick={volverDesdeEncabezado}
-              className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75"
+              className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75 dark:bg-slate-800 dark:text-blue-100 dark:hover:bg-slate-700"
               aria-label={
                 paso > 1 ? 'Volver al paso anterior' : 'Volver a la pantalla anterior'
               }
             >
               <ArrowLeft size={22} />
             </button>
-            <h1 className="text-[1.35rem] font-semibold text-slate-900">
+            <h1 className="text-[1.35rem] font-semibold text-slate-900 dark:text-slate-100">
               Nueva Venta
             </h1>
           </div>
 
           <div className="mt-8">
-            <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
+            <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900 dark:text-slate-100">
               <span>
                 Paso {paso}: {pasoActual.titulo}
               </span>
-              <span className="text-[1.05rem] text-[#002f6c]">{paso} de 3</span>
+              <span className="text-[1.05rem] text-[#002f6c] dark:text-blue-100">{paso} de 3</span>
             </div>
-            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
+            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb] dark:bg-slate-800">
               <div
                 className={`h-full rounded-full bg-[#04337b] transition-all duration-300 ${
                   pasoActual.progreso === 33
@@ -2040,27 +2088,27 @@ export default function Ventas() {
         {(
           <>
             {paso === 2 ? (
-              <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#52657d]">
+              <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#52657d] dark:text-slate-300">
                   Seleccionar café
                 </p>
-                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
+                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92] dark:text-blue-100">
                   ¿Cómo deseas realizar la venta?
                 </h2>
 
-                <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
+                <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3 dark:border-slate-700 dark:bg-slate-950">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-300">
                     Cliente seleccionado
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                  <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {clienteSeleccionado?.nombre ?? 'Sin cliente'}
                   </p>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     {clienteSeleccionado?.documento ?? 'Selección pendiente'}
                   </p>
                 </div>
 
-                <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
+                <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3 dark:border-slate-700 dark:bg-slate-950">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="text-xs font-medium text-slate-500">
                       Fecha de venta
@@ -2218,11 +2266,12 @@ export default function Ventas() {
                           const precioTipoInvalido =
                             modoVenta === 'TOTAL' &&
                             (intentoPaso2 || precioTipo.trim() !== '') &&
-                            (precioTipoFormatoInvalido || toNum(precioTipo) < PRECIO_MINIMO_KG);
+                            (precioTipoFormatoInvalido ||
+                              toNum(precioTipo) < getLimitesVenta().minPrecioVentaKg);
                           const precioTipoSuperaMaximo =
                             modoVenta === 'TOTAL' &&
                             precioTipo.trim() !== '' &&
-                            toNum(precioTipo) > MAX_PRECIO_KG;
+                            toNum(precioTipo) > getLimitesVenta().maxPrecioVentaKg;
 
                           return (
                             <div key={item.tipoCafeId}>
@@ -2390,31 +2439,43 @@ export default function Ventas() {
                       const precioInvalido =
                         modoVenta === 'PARCIAL' &&
                         cantidadIngresada &&
-                        (precioFormatoInvalido || toNum(lote.precioKg) < PRECIO_MINIMO_KG);
+                        (precioFormatoInvalido ||
+                          toNum(lote.precioKg) < getLimitesVenta().minPrecioVentaKg);
                       const ajusteVentaAbierto = ventaParcialOpenId === lote.id;
                       const alertaTarjeta = ventaParcialCardAlerts[lote.id];
                       const ajustePendiente =
                         !ajustesVentaParcialConfirmados[lote.id] &&
                         toNum(lote.cantidadKg) > 0;
+                      const codigoVisible =
+                        lotesVentaCodeMap.get(lote.id) ||
+                        lote.codigo ||
+                        getCoffeeCodePrefix(lote);
+                      const nombreCafe = formatCoffeeFullName(lote);
+                      const qualityStyles = getQualityStyles(lote.calidad);
+                      const ajusteConfirmado =
+                        Boolean(ajustesVentaParcialConfirmados[lote.id]) &&
+                        cantidad > 0;
 
                       return (
                         <article
                           key={lote.id}
-                          className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-3"
+                          className={`rounded-[14px] border p-2.5 shadow-[0_6px_18px_rgba(15,23,42,0.045)] transition ${qualityStyles.card} ${qualityStyles.accent} ${
+                            ajusteConfirmado ? 'ring-2 ring-[#1f3fa7]/15' : ''
+                          }`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-base font-black uppercase text-[#102d92]">
-                                {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)}
-                              </p>
-                              <p className="text-sm font-semibold text-slate-600">
-                                Disponible: {kg(disponibleVenta)}
-                              </p>
-                              {cantidad > 0 ? (
-                                <p className="mt-1 text-sm font-black text-slate-900">
-                                  {kg(cantidad)} · {money(cantidad * toNum(lote.precioKg))}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${qualityStyles.icon}`}>
+                                <Coffee size={16} aria-hidden="true" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className={`truncate text-[0.95rem] font-black uppercase leading-tight ${qualityStyles.text}`}>
+                                  {codigoVisible}
                                 </p>
-                              ) : null}
+                                <p className="mt-0.5 truncate text-[0.68rem] font-semibold text-slate-600 dark:text-slate-300">
+                                  {nombreCafe} · Disponible: {kg(disponibleVenta)}
+                                </p>
+                              </div>
                             </div>
                             <button
                               type="button"
@@ -2423,104 +2484,131 @@ export default function Ventas() {
                                   actual === lote.id ? null : lote.id,
                                 )
                               }
-                              className="inline-flex min-h-[38px] shrink-0 items-center rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
+                              className={`inline-flex min-h-[34px] shrink-0 items-center rounded-[10px] border px-3 text-[0.68rem] font-black transition ${
+                                ajusteConfirmado
+                                  ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white dark:border-blue-500 dark:bg-blue-600'
+                                  : 'border-[#dbe4ff] bg-white text-[#102d92] dark:border-blue-500/50 dark:bg-blue-500/15 dark:text-blue-100'
+                              }`}
+                              aria-label={`${ajusteVentaAbierto ? 'Ocultar ajuste' : 'Vender'} ${codigoVisible}`}
                               {...ariaExpanded(ajusteVentaAbierto)}
                             >
-                              Vender
+                              {ajusteConfirmado ? 'Ajustar' : 'Vender'}
                             </button>
                           </div>
 
+                          {cantidad > 0 ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <span className={`rounded-full border px-2 py-1 text-[0.6rem] font-black ${qualityStyles.chip}`}>
+                                {kg(cantidad)}
+                              </span>
+                              <span className="rounded-full border border-[#dbe4ff] bg-white px-2 py-1 text-[0.6rem] font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100">
+                                {money(cantidad * toNum(lote.precioKg))}
+                              </span>
+                              {!ajustesVentaParcialConfirmados[lote.id] ? (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[0.58rem] font-black text-amber-800">
+                                  Pendiente
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+
                           {ajusteVentaAbierto ? (
                             <>
-                              <div className="mt-3 grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-xs font-black text-slate-700">
-                                    Cantidad a vender (kg)
-                                  </label>
-                                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                                    No puede superar el peso disponible.
-                                  </p>
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    pattern="^\\d{0,8}(?:\\.\\d{0,3})?$"
-                                    maxLength={12}
-                                    value={lote.cantidadKg}
-                                    onChange={(event) =>
-                                      updateLote(
-                                        lote.id,
-                                        'cantidadKg',
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder="Cantidad kg"
-                                    className="mt-2 w-full rounded-xl border border-[#d7dcec] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92]"
-                                  />
+                              <div className="mt-2 grid grid-cols-2 gap-2 rounded-[12px] border border-white/80 bg-white/70 p-2 dark:border-slate-700 dark:bg-slate-900/70">
+                                <label className="min-w-0">
+                                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                                    Cantidad
+                                  </span>
+                                  <div className="mt-1 flex h-9 items-center rounded-[9px] border border-[#d7dcec] bg-white px-2 focus-within:border-[#102d92] dark:border-slate-600 dark:bg-slate-950">
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      pattern="^\\d{0,8}(?:\\.\\d{0,3})?$"
+                                      maxLength={12}
+                                      value={lote.cantidadKg}
+                                      onChange={(event) =>
+                                        updateLote(
+                                          lote.id,
+                                          'cantidadKg',
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="0"
+                                      className="min-w-0 flex-1 bg-transparent text-right text-[0.78rem] font-black text-slate-900 outline-none dark:text-slate-100"
+                                      aria-label={`Cantidad a vender de ${codigoVisible}`}
+                                    />
+                                    <span className="ml-1 shrink-0 text-[0.62rem] font-black text-slate-500 dark:text-slate-300">
+                                      kg
+                                    </span>
+                                  </div>
                                   {cantidadFormatoInvalido ? (
-                                    <p className="mt-2 text-xs font-semibold text-rose-700">
+                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
                                       Ingresa una cantidad mayor a 0.
                                     </p>
                                   ) : cantidadExcedeDisponible ? (
-                                    <p className="mt-2 text-xs font-semibold text-rose-700">
-                                      Cantidad máxima permitida: {kg(disponibleVenta)}.
+                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                      No puedes superar {kg(disponibleVenta)}.
                                     </p>
                                   ) : cantidadEntradaInvalida ? (
-                                    <p className="mt-2 text-xs font-semibold text-rose-700">
-                                      Ingresa un número válido hasta {kg(disponibleVenta)}.
+                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                      Número válido hasta {kg(disponibleVenta)}.
                                     </p>
                                   ) : null}
-                                </div>
-                                <div>
-                                  <label className="text-xs font-black text-slate-700">
-                                    Precio por kg
-                                  </label>
-                                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                                    Ingresa el precio de venta para este café.
-                                  </p>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="^[0-9]{0,8}$"
-                                    maxLength={8}
-                                    value={lote.precioKg}
-                                    onChange={(event) =>
-                                      updateLote(
-                                        lote.id,
-                                        'precioKg',
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder="Precio por kg"
-                                    className="mt-2 w-full rounded-xl border border-[#d7dcec] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92]"
-                                  />
+                                </label>
+                                <label className="min-w-0">
+                                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                                    Precio/kg
+                                  </span>
+                                  <div className="mt-1 flex h-9 items-center rounded-[9px] border border-[#d7dcec] bg-white px-2 focus-within:border-[#102d92] dark:border-slate-600 dark:bg-slate-950">
+                                    <span className="mr-1 shrink-0 text-[0.62rem] font-black text-slate-500 dark:text-slate-300">
+                                      $
+                                    </span>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="^[0-9]{0,8}$"
+                                      maxLength={8}
+                                      value={lote.precioKg}
+                                      onChange={(event) =>
+                                        updateLote(
+                                          lote.id,
+                                          'precioKg',
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="Precio"
+                                      className="min-w-0 flex-1 bg-transparent text-right text-[0.78rem] font-black text-slate-900 outline-none dark:text-slate-100"
+                                      aria-label={`Precio por kg de ${codigoVisible}`}
+                                    />
+                                  </div>
                                   {precioFormatoInvalido ? (
-                                    <p className="mt-2 text-xs font-semibold text-rose-700">
-                                      Ingresa un precio válido sin decimales.
+                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                      Ingresa un precio válido.
                                     </p>
                                   ) : null}
-                                </div>
+                                </label>
                               </div>
-                              <div className="mt-3 flex items-center justify-between rounded-[12px] bg-[#eef3ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                              <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[#eef3ff] px-3 py-2 text-[0.72rem] font-black text-[#102d92] dark:bg-blue-500/15 dark:text-blue-100">
                                 <span>Total estimado</span>
                                 <span>{money(cantidad * toNum(lote.precioKg))}</span>
                               </div>
-                              <div className="mt-3 grid grid-cols-2 gap-2">
+                              <div className="mt-2 grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => confirmarAjusteParcial(lote)}
                                   disabled={cantidadInvalida || precioInvalido}
-                                  className={`inline-flex min-h-[40px] items-center justify-center rounded-[12px] text-sm font-black text-white ${
+                                  className={`inline-flex min-h-[36px] items-center justify-center rounded-[10px] text-[0.68rem] font-black text-white ${
                                     cantidadInvalida || precioInvalido
-                                      ? 'bg-slate-400 cursor-not-allowed'
-                                      : 'bg-[#102d92]'
+                                      ? 'cursor-not-allowed bg-slate-400 dark:bg-slate-600'
+                                      : 'bg-[#102d92] dark:bg-blue-600'
                                   }`}
                                 >
-                                  Confirmar ajuste
+                                  Confirmar
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => cancelarAjusteParcial(lote.id)}
-                                  className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white text-sm font-black text-[#334b85]"
+                                  className="inline-flex min-h-[36px] items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[0.68rem] font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                                 >
                                   Cancelar
                                 </button>
@@ -2530,14 +2618,14 @@ export default function Ventas() {
                                   variant="error"
                                   title={alertaTarjeta.title}
                                   description={alertaTarjeta.detail}
-                                  className="mt-3"
+                                  className="mt-2"
                                 />
                               ) : ajustePendiente ? (
                                 <AppFeedbackMessage
                                   variant="warning"
-                                  title={`Ajuste pendiente en ${lote.tipoCafe} ${lote.calidad}.`}
+                                  title={`Ajuste pendiente en ${codigoVisible}.`}
                                   description="Confirma o cancela este ajuste."
-                                  className="mt-3"
+                                  className="mt-2"
                                 />
                               ) : null}
                             </>
@@ -2549,7 +2637,7 @@ export default function Ventas() {
                       <button
                         type="button"
                         onClick={() => setMostrarTodosCafeVenta(true)}
-                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
+                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100"
                       >
                         Ver más cafés
                       </button>
@@ -2561,14 +2649,21 @@ export default function Ventas() {
                     ) : null}
                   </div>
                 ) : null}
-                <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
-                  <div className="flex items-center justify-between text-sm font-black">
-                    <span>Total seleccionado</span>
-                    <span>{kg(totalKg)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-lg font-black">
-                    <span>Total estimado</span>
-                    <span>{money(totalEstimado)}</span>
+                <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 mt-4 space-y-3 rounded-[18px] border border-[#c7d8ff] bg-white/95 p-3 text-[#102d92] shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur dark:border-slate-700 dark:bg-slate-950/95 dark:text-blue-100">
+                <article className="rounded-[14px] border border-[#dbe4ff] bg-white/80 p-3 text-[#102d92] dark:border-slate-700 dark:bg-slate-900/80 dark:text-blue-100">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-[10px] bg-[#eef3ff] px-3 py-2 dark:bg-blue-500/15">
+                      <p className="text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-blue-100">
+                        Kg seleccionados
+                      </p>
+                      <p className="mt-0.5 text-sm font-black">{kg(totalKg)}</p>
+                    </div>
+                    <div className="rounded-[10px] bg-[#eef3ff] px-3 py-2 text-right dark:bg-blue-500/15">
+                      <p className="text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-blue-100">
+                        Total estimado
+                      </p>
+                      <p className="mt-0.5 text-sm font-black">{money(totalEstimado)}</p>
+                    </div>
                   </div>
                 </article>
                 {submitError && paso === 2 && modoVenta === 'PARCIAL' ? (
@@ -2584,12 +2679,8 @@ export default function Ventas() {
                         ? 'Confirma o cancela únicamente los cafés marcados antes de continuar.'
                         : submitError
                     }
-                    className="mt-4"
-                  >
-                    {submitError !== 'Todavía hay cafés sin confirmar.' ? (
-                      <InlineGuidedError message={getVentasGuidance(submitError)} />
-                    ) : null}
-                  </AppFeedbackMessage>
+                    className="mt-0"
+                  />
                 ) : submitError && paso === 2 && !modoInvalido ? (
                   <AppFeedbackMessage
                     variant="error"
@@ -2623,11 +2714,11 @@ export default function Ventas() {
                   </AppFeedbackMessage>
                 ) : null}
 
-                <div className="mt-4 grid grid-cols-[0.8fr_1.2fr] gap-3">
+                <div className="grid grid-cols-[0.8fr_1.2fr] gap-3">
                   <button
                     type="button"
                     onClick={volverPasoAnterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-3 py-3 text-sm font-semibold text-slate-600"
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#edf1fa] px-3 py-3 text-sm font-black text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <ArrowLeft size={16} />
                     Regresar
@@ -2638,8 +2729,8 @@ export default function Ventas() {
                     disabled={sinInventario || validandoPasoVenta}
                     className={`inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] px-3 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] ${
                       sinInventario || validandoPasoVenta
-                        ? 'cursor-not-allowed bg-[#7f93cf]'
-                        : 'bg-[#1f3fa7]'
+                        ? 'cursor-not-allowed bg-[#7f93cf] dark:bg-slate-600'
+                        : 'bg-[#1f3fa7] dark:bg-blue-600'
                     }`}
                   >
                     {validandoPasoVenta ? (
@@ -2654,6 +2745,7 @@ export default function Ventas() {
                       </>
                     )}
                   </button>
+                </div>
                 </div>
               </section>
             ) : null}
@@ -3188,6 +3280,11 @@ export default function Ventas() {
                     {kg(item.pesoAsignado)} vendidos · Ingreso:{' '}
                     {formatDateLabel(item.fechaEntrada)}
                   </p>
+                  {item.origenSublote ? (
+                    <p className="mt-0.5 text-xs font-bold text-slate-500">
+                      {item.origenSublote}
+                    </p>
+                  ) : null}
                   <p className="mt-0.5 text-xs font-semibold text-slate-500">
                     Inventario restante: {kg(item.pesoRestante)}
                   </p>

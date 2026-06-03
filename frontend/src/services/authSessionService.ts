@@ -20,6 +20,7 @@ type CachedUser = {
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
   otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
 };
 
 export type CachedAuthSession = {

@@ -12,6 +12,7 @@ import {
   setCachedOrganizationId,
 } from '../common/request-context';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActualizarGastoDto } from './dto/actualizar-gasto.dto';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
 
 // ─── Include reutilizable (definido aquí para que typeof funcione) ────────────
@@ -225,6 +226,92 @@ export class GastosService {
     });
 
     return this.formatearGasto(gasto, gasto.sublotes.length === 0);
+  }
+
+  async actualizarGasto(
+    id: string,
+    userId: string,
+    dto: ActualizarGastoDto,
+  ): Promise<GastoItem> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    const existente = await this.prisma.gastoOperativo.findFirst({
+      where: { id, organizacionId, deletedAt: null },
+      include: this.incluirSublotes(),
+    });
+
+    if (!existente) {
+      throw new NotFoundException(`Gasto con id "${id}" no encontrado`);
+    }
+
+    const nextSubloteIds = dto.asociarASublotes
+      ? (dto.subloteIds ?? existente.sublotes.map((item) => item.subloteId))
+      : [];
+    const actualizaSublotes =
+      typeof dto.asociarASublotes === 'boolean' || Array.isArray(dto.subloteIds);
+
+    if (actualizaSublotes && nextSubloteIds.length > 0) {
+      await this.validarSublotesExistentes(nextSubloteIds, organizacionId);
+    }
+
+    const gasto = await this.prisma.$transaction(async (tx) => {
+      const actualizado = await tx.gastoOperativo.update({
+        where: { id },
+        data: {
+          ...(dto.conceptoGasto !== undefined
+            ? { conceptoGasto: dto.conceptoGasto }
+            : {}),
+          ...(dto.descripcion !== undefined
+            ? { descripcion: dto.descripcion || null }
+            : {}),
+          ...(dto.montoGasto !== undefined ? { montoGasto: dto.montoGasto } : {}),
+          ...(dto.fechaGasto !== undefined
+            ? { fechaGasto: new Date(dto.fechaGasto) }
+            : {}),
+          ...(dto.tipoGasto !== undefined ? { tipoGasto: dto.tipoGasto } : {}),
+          ...(dto.estadoPago !== undefined ? { estadoPago: dto.estadoPago } : {}),
+        },
+        include: this.incluirSublotes(),
+      });
+
+      if (actualizaSublotes) {
+        await tx.gastoSublote.deleteMany({ where: { gastoOperativoId: id } });
+        if (nextSubloteIds.length > 0) {
+          await tx.gastoSublote.createMany({
+            data: nextSubloteIds.map((subloteId) => ({
+              gastoOperativoId: id,
+              subloteId,
+            })),
+          });
+        }
+        return tx.gastoOperativo.findUniqueOrThrow({
+          where: { id },
+          include: this.incluirSublotes(),
+        });
+      }
+
+      return actualizado;
+    });
+
+    return this.formatearGasto(gasto, gasto.sublotes.length === 0);
+  }
+
+  async eliminarGasto(id: string, userId: string): Promise<void> {
+    const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    const existente = await this.prisma.gastoOperativo.findFirst({
+      where: { id, organizacionId, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!existente) {
+      throw new NotFoundException(`Gasto con id "${id}" no encontrado`);
+    }
+
+    await this.prisma.gastoOperativo.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   /**

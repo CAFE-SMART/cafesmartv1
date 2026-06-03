@@ -39,6 +39,7 @@ model Organization {
   nombre           String                  @map("nombre")
   tipo             TipoOrganizacion        @map("id_tipo_organizacion")
   otroTipoDetalle  String?                 @map("otro_tipo_detalle")
+  descripcion      String?                 @map("descripcion")
   activo           Boolean                 @default(true) @map("estado")
   creadoEn         DateTime                @default(now()) @map("fecha_registro")
   clientes         Cliente[]

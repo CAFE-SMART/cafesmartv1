@@ -4,7 +4,6 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { Capacitor } from '@capacitor/core';
 import App from './App';
 import { CloudStatusProvider } from './context/CloudStatusContext';
-import { AiConversationProvider } from './context/AiConversationContext';
 import { ThemeProvider } from './theme/themeProvider';
 import { AccessibilityProvider } from './theme/accessibilityProvider';
 import { UserProvider } from './context/UserContext';
@@ -23,9 +22,7 @@ function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <AccessibilityProvider>
         <CloudStatusProvider>
-          <UserProvider>
-            <AiConversationProvider>{children}</AiConversationProvider>
-          </UserProvider>
+          <UserProvider>{children}</UserProvider>
         </CloudStatusProvider>
       </AccessibilityProvider>
     </ThemeProvider>

@@ -5,6 +5,7 @@ export type OrganizationSettingsResponse = {
   nombre: string;
   tipo: string;
   otroTipoDetalle: string | null;
+  descripcion: string | null;
 };
 
 export type UserProfileResponse = {
@@ -18,6 +19,7 @@ export type UserProfileResponse = {
 export function actualizarConfiguracionOrganizacion(input: {
   nombreOrganizacion: string;
   tipoOrganizacion: string;
+  descripcionOrganizacion?: string | null;
 }) {
   return apiFetch('/users/organization', {
     method: 'PATCH',

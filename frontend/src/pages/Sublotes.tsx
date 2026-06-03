@@ -3,12 +3,18 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarDays,
   ChevronRight,
+  CircleDollarSign,
   FlaskConical,
+  Gauge,
   Info,
   Pencil,
+  Package2,
   Scale,
   Tag,
+  Timer,
+  X,
 } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
@@ -76,6 +82,8 @@ type PendingWeightEdit = {
 };
 
 const SUBLOTES_PREVIEW_LIMIT = 4;
+const SECADO_PROCESS_TYPE_ID = 'virtual-en-secado';
+const SECADO_PROCESS_QUALITY_ID = 'virtual-en-proceso';
 
 function titleCase(value: string) {
   const trimmed = value.trim();
@@ -86,6 +94,56 @@ function titleCase(value: string) {
 
 function keyOf(value: string) {
   return value.trim().toUpperCase();
+}
+
+function getQualityStyles(calidad: string) {
+  const key = keyOf(calidad);
+
+  if (key === 'BUENO') {
+    return {
+      shell: 'border-emerald-200 bg-emerald-50/45 dark:border-emerald-500/50 dark:bg-emerald-950/25',
+      accent: 'border-t-4 border-t-emerald-400',
+      icon: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-100',
+      text: 'text-emerald-700 dark:text-emerald-100',
+      ring: 'border-emerald-400 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-700/30',
+      dot: 'bg-emerald-500',
+    };
+  }
+
+  if (key === 'REGULAR') {
+    return {
+      shell: 'border-amber-200 bg-amber-50/50 dark:border-amber-500/50 dark:bg-amber-950/25',
+      accent: 'border-t-4 border-t-amber-400',
+      icon: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      badge: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100',
+      text: 'text-amber-700 dark:text-amber-100',
+      ring: 'border-amber-400 bg-amber-50 dark:border-amber-400 dark:bg-amber-700/30',
+      dot: 'bg-amber-500',
+    };
+  }
+
+  if (key === 'MALO') {
+    return {
+      shell: 'border-rose-200 bg-rose-50/45 dark:border-rose-500/50 dark:bg-rose-950/25',
+      accent: 'border-t-4 border-t-rose-400',
+      icon: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100',
+      badge: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/50 dark:bg-rose-500/15 dark:text-rose-100',
+      text: 'text-rose-700 dark:text-rose-100',
+      ring: 'border-rose-400 bg-rose-50 dark:border-rose-400 dark:bg-rose-700/30',
+      dot: 'bg-rose-500',
+    };
+  }
+
+  return {
+    shell: 'border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-900',
+    accent: 'border-t-4 border-t-slate-300',
+    icon: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-100',
+    badge: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100',
+    text: 'text-slate-700 dark:text-slate-100',
+    ring: 'border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-800',
+    dot: 'bg-slate-400',
+  };
 }
 
 function formatKg(value: number) {
@@ -120,6 +178,17 @@ function formatDays(value: number) {
 
 function formatHumedad(value: number | null) {
   return formatHumidityWithClassification(value);
+}
+
+function getSubloteOriginLine(sublote: SubloteVisual) {
+  const originCode = sublote.codigoOrigen?.trim();
+  if (!originCode || sublote.procesoOrigen !== 'SECADO') {
+    return null;
+  }
+
+  return `Origen: ${originCode} · ${formatKg(sublote.pesoActual)} · ${formatDays(
+    getDaysForSublote(sublote),
+  )}`;
 }
 
 function formatFactor(value: number | null) {
@@ -435,6 +504,9 @@ export default function Sublotes() {
     calidadId: string;
   }>();
   const { isOnline, refreshHealth } = useCloudStatus();
+  const isSecadoProcessRoute =
+    tipoCafeId === SECADO_PROCESS_TYPE_ID ||
+    calidadId === SECADO_PROCESS_QUALITY_ID;
 
   const [detalle, setDetalle] = useState<LoteDetalleVisual | null>(null);
   const [loading, setLoading] = useState(true);
@@ -459,7 +531,7 @@ export default function Sublotes() {
   const [selectedSubloteId, setSelectedSubloteId] = useState<string | null>(
     null,
   );
-  const [showAllSublotes, setShowAllSublotes] = useState(false);
+  const [subloteSelectorOpen, setSubloteSelectorOpen] = useState(false);
   const [resultadosFinancieros, setResultadosFinancieros] =
     useState<ResultadosFinancierosSublote | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -475,10 +547,16 @@ export default function Sublotes() {
 
   const sublotesPreview = useMemo(() => {
     if (!detalle) return [];
-    return showAllSublotes
-      ? detalle.sublotes
-      : detalle.sublotes.slice(0, SUBLOTES_PREVIEW_LIMIT);
-  }, [detalle, showAllSublotes]);
+    const firstSublotes = detalle.sublotes.slice(0, SUBLOTES_PREVIEW_LIMIT);
+    if (!subloteActivo || firstSublotes.some((sublote) => sublote.id === subloteActivo.id)) {
+      return firstSublotes;
+    }
+
+    return [
+      subloteActivo,
+      ...firstSublotes.filter((sublote) => sublote.id !== subloteActivo.id),
+    ].slice(0, SUBLOTES_PREVIEW_LIMIT);
+  }, [detalle, subloteActivo]);
   const subloteCodeMap = useMemo(
     () => getSubloteCodeMap(detalle?.sublotes ?? []),
     [detalle],
@@ -503,6 +581,15 @@ export default function Sublotes() {
       return;
     }
 
+    if (isSecadoProcessRoute) {
+      setDetalle(null);
+      setSelectedSubloteId(null);
+      setResultadosFinancieros(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -521,7 +608,7 @@ export default function Sublotes() {
         const cached = readCachedDetail(tipoCafeId, calidadId);
         if (cached) {
           setDetalle(cached);
-          setShowAllSublotes(false);
+          setSubloteSelectorOpen(false);
           setOfflineNoticeVisible(!isOnline);
           return;
         }
@@ -555,7 +642,7 @@ export default function Sublotes() {
       };
 
       setDetalle(hydrated);
-      setShowAllSublotes(false);
+      setSubloteSelectorOpen(false);
       writeCachedDetail(tipoCafeId, calidadId, hydrated);
       setOfflineNoticeVisible(false);
     } catch (err) {
@@ -564,7 +651,7 @@ export default function Sublotes() {
     } finally {
       setLoading(false);
     }
-  }, [calidadId, isOnline, tipoCafeId]);
+  }, [calidadId, isOnline, isSecadoProcessRoute, tipoCafeId]);
 
   useEffect(() => {
     void cargar();
@@ -693,6 +780,21 @@ export default function Sublotes() {
         : null,
     );
   }, [detalle]);
+
+  useEffect(() => {
+    if (!subloteSelectorOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSubloteSelectorOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [subloteSelectorOpen]);
 
   useEffect(() => {
     if (!subloteActivo || !isOnline) {
@@ -1028,6 +1130,8 @@ export default function Sublotes() {
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);
   const financieroActivo = resultadosFinancieros ?? subloteActivo;
+  const qualityStyles = getQualityStyles(subloteActivo?.calidad ?? detalle?.lote.calidad ?? '');
+  const detalleQualityStyles = getQualityStyles(detalle?.lote.calidad ?? '');
   const editModalValue = editModal ? parseDecimalValue(editModal.value) : null;
   const editModalInvalid = Boolean(
     editModal &&
@@ -1050,7 +1154,7 @@ export default function Sublotes() {
   );
 
   return (
-    <div className="cs-workflow-page min-h-screen bg-[#f4f4f4] text-[#1f1f1f]">
+    <div className="cs-workflow-page min-h-screen bg-[#f4f4f4] pb-[calc(env(safe-area-inset-bottom)+96px)] text-[#1f1f1f] dark:bg-slate-950">
       <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white">
         <div className="mx-auto grid min-h-[56px] w-full max-w-[430px] grid-cols-[42px_1fr_auto] items-center gap-2 px-3 py-2">
           <button
@@ -1063,13 +1167,13 @@ export default function Sublotes() {
 
               navigate('/inventario');
             }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#2b2b2b]"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#dbe2ee] bg-white text-[#102d92] shadow-sm transition hover:bg-[#eef4ff] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100 dark:hover:bg-slate-700"
             aria-label="Volver"
           >
             <ArrowLeft size={18} strokeWidth={2.25} />
           </button>
 
-          <h1 className="text-center text-[0.95rem] font-black leading-none tracking-normal text-[#1c1c1c]">
+          <h1 className="text-center text-[0.95rem] font-black leading-none tracking-normal text-[#1c1c1c] dark:text-slate-100">
             {selectedSubloteId ? 'Detalles' : 'Sublotes'}
           </h1>
 
@@ -1117,11 +1221,38 @@ export default function Sublotes() {
           </div>
         ) : null}
 
+        {!loading && isSecadoProcessRoute ? (
+          <section className="cs-card rounded-[16px] border border-[#d6e2ff] bg-white px-4 py-5 text-center shadow-[0_8px_24px_rgba(47,74,164,0.08)] dark:border-slate-600 dark:bg-slate-900">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#eef4ff] text-[#2f4aa4] dark:bg-blue-500/20 dark:text-blue-100">
+              <FlaskConical size={22} strokeWidth={2.3} />
+            </div>
+            <h2 className="mt-3 text-[0.95rem] font-black text-[#1f2937] dark:text-slate-100">
+              Café en proceso de secado
+            </h2>
+            <p className="mt-2 text-[0.72rem] font-semibold leading-5 text-[#6b7280] dark:text-slate-300">
+              Este café está en proceso de secado. Revisa su avance en el
+              módulo de Secado.
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/inventario/secado/inicio', {
+                  state: { secadoView: 'pending', from: '/inventario' },
+                })
+              }
+              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f4aa4] px-4 text-[0.72rem] font-black text-white shadow-[0_10px_22px_rgba(47,74,164,0.18)]"
+            >
+              Ir a Secado
+              <ChevronRight size={15} strokeWidth={2.4} />
+            </button>
+          </section>
+        ) : null}
+
         {!loading && detalle && !subloteActivo ? (
-          <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+          <section className={`cs-card rounded-[16px] border px-3 py-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)] ${detalleQualityStyles.shell} ${detalleQualityStyles.accent}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
+                <p className={`text-[0.64rem] font-black uppercase tracking-[0.08em] ${detalleQualityStyles.text}`}>
                   {titleCase(detalle.lote.tipoCafe)}{' '}
                   {titleCase(detalle.lote.calidad)}
                 </p>
@@ -1129,7 +1260,7 @@ export default function Sublotes() {
                   Elige un sublote para revisar inventario, costos y acciones.
                 </p>
               </div>
-              <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
+              <span className={`rounded-full border px-2 py-1 text-[0.58rem] font-black ${detalleQualityStyles.badge}`}>
                 {detalle.sublotes.length} disponibles
               </span>
             </div>
@@ -1164,6 +1295,8 @@ export default function Sublotes() {
                   subloteCodeMap.get(sublote.id) ??
                   formatSubloteVisualCode(sublote, index);
                 const fullName = formatCoffeeFullName(sublote);
+                const originLine = getSubloteOriginLine(sublote);
+                const itemStyles = getQualityStyles(sublote.calidad);
 
                 return (
                   <button
@@ -1171,7 +1304,7 @@ export default function Sublotes() {
                     type="button"
                     onClick={() => setSelectedSubloteId(sublote.id)}
                     title={`${visualCode} · ${fullName}`}
-                    className="cs-card flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#ececec] bg-white px-3 py-2 text-left shadow-[0_3px_10px_rgba(15,23,42,0.035)] dark:border-slate-600 dark:bg-slate-900"
+                    className={`cs-card flex min-h-[62px] w-full items-center justify-between gap-3 rounded-[10px] border bg-white px-3 py-2 text-left shadow-[0_5px_16px_rgba(15,23,42,0.045)] dark:bg-slate-900 ${itemStyles.accent} ${itemStyles.ring}`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1187,17 +1320,17 @@ export default function Sublotes() {
                         ) : null}
                       </div>
                       <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
-                        {fullName} · {formatKg(sublote.pesoActual)}
+                        {originLine ?? `${fullName} · ${formatKg(sublote.pesoActual)}`}
                       </p>
-                      {showHumidityWarning ? (
+                      {showHumidityWarning && !originLine ? (
                         <p className="mt-1 text-[0.56rem] font-black text-orange-700 dark:text-amber-200">
                           {formatHumedad(sublote.humedad)}
                         </p>
-                      ) : (
+                      ) : !originLine ? (
                         <p className="mt-1 text-[0.52rem] font-semibold text-[#a5a5a5] dark:text-slate-400">
                           {formatDays(getDaysForSublote(sublote))} en bodega
                         </p>
-                      )}
+                      ) : null}
                     </div>
                     <span className="inline-flex shrink-0 items-center gap-1 text-[0.54rem] font-black uppercase text-[#2f4aa4] dark:text-blue-200">
                       Detalles
@@ -1211,10 +1344,10 @@ export default function Sublotes() {
             {hiddenSublotesCount > 0 ? (
               <button
                 type="button"
-                onClick={() => setShowAllSublotes(true)}
+                onClick={() => setSubloteSelectorOpen(true)}
                 className="cs-chip mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e3e8f5] bg-[#f7f9ff] text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4] dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100"
               >
-                Ver {hiddenSublotesCount} sublotes mas
+                Ver más
               </button>
             ) : null}
 
@@ -1224,17 +1357,17 @@ export default function Sublotes() {
         {!loading && subloteActivo ? (
           <div className="space-y-3">
             {detalle && detalle.sublotes.length > 1 ? (
-              <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+              <section className={`cs-card rounded-[16px] border px-3 py-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)] ${qualityStyles.shell} ${qualityStyles.accent}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
+                  <p className={`text-[0.64rem] font-black uppercase tracking-[0.08em] ${qualityStyles.text}`}>
                     Cambiar sublote
                   </p>
-                  <span className="text-[0.58rem] font-black text-[#8a8a8a] dark:text-slate-300">
+                  <span className={`rounded-full border px-2 py-1 text-[0.58rem] font-black ${qualityStyles.badge}`}>
                     {detalle.sublotes.length} disponibles
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  {detalle.sublotes.map((sublote, index) => {
+                  {sublotesPreview.map((sublote, index) => {
                     const active = sublote.id === subloteActivo.id;
                     const humidity = classifyHumidity(sublote.humedad);
                     const showHumidityWarning =
@@ -1245,15 +1378,21 @@ export default function Sublotes() {
                       subloteCodeMap.get(sublote.id) ??
                       formatSubloteVisualCode(sublote, index);
                     const fullName = formatCoffeeFullName(sublote);
+                    const originLine = getSubloteOriginLine(sublote);
+                    const itemStyles = getQualityStyles(sublote.calidad);
                     return (
                       <button
                         key={sublote.id}
                         type="button"
-                        onClick={() => setSelectedSubloteId(sublote.id)}
+                        onClick={() => {
+                          setSelectedSubloteId(sublote.id);
+                          setSubloteSelectorOpen(false);
+                        }}
+                        aria-label={`Seleccionar ${visualCode}${active ? ', seleccionado' : ''}`}
                         title={`${visualCode} · ${fullName}`}
-                        className={`flex min-w-0 items-center justify-between gap-2 rounded-[8px] border px-2.5 py-2 text-left transition ${
+                        className={`flex min-w-0 items-center justify-between gap-2 rounded-[10px] border px-2.5 py-2 text-left shadow-sm transition ${
                           active
-                            ? 'border-[#2f4aa4] bg-[#eef3ff] dark:border-blue-400 dark:bg-blue-700/40'
+                            ? `${itemStyles.ring} ${itemStyles.accent}`
                             : 'border-[#ececec] bg-white dark:border-slate-600 dark:bg-slate-900'
                         }`}
                       >
@@ -1269,42 +1408,58 @@ export default function Sublotes() {
                             ) : null}
                           </div>
                           <p className="mt-0.5 text-[0.58rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
-                            {fullName} · {formatKg(sublote.pesoActual)} ·{' '}
-                            {showHumidityWarning
-                              ? formatHumedad(sublote.humedad)
-                              : formatDays(getDaysForSublote(sublote))}
+                            {originLine ??
+                              `${fullName} · ${formatKg(sublote.pesoActual)} · ${
+                                showHumidityWarning
+                                  ? formatHumedad(sublote.humedad)
+                                  : formatDays(getDaysForSublote(sublote))
+                              }`}
                           </p>
                         </div>
                         <span
-                          className={`h-2 w-2 rounded-full ${active ? 'bg-[#2f4aa4]' : 'bg-[#d5d5d5]'}`}
+                          className={`h-2 w-2 rounded-full ${active ? itemStyles.dot : 'bg-[#d5d5d5]'}`}
                         />
                       </button>
                     );
                   })}
                 </div>
+                {detalle.sublotes.length > SUBLOTES_PREVIEW_LIMIT ? (
+                  <button
+                    type="button"
+                    onClick={() => setSubloteSelectorOpen(true)}
+                    className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#d5deee] bg-white px-3 text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4] transition hover:bg-[#f7f9ff] focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:border-slate-600 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-slate-800"
+                  >
+                    Ver más
+                  </button>
+                ) : null}
               </section>
             ) : null}
 
             <button
               type="button"
               onClick={() => setShowAnalysis((current) => !current)}
-              className="cs-card flex min-h-[36px] w-full items-center justify-between rounded-[8px] border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900"
+              className="cs-card flex min-h-[54px] w-full items-center justify-between rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-2.5 text-left shadow-[0_8px_22px_rgba(15,23,42,0.055)] dark:border-slate-600 dark:bg-slate-900"
             >
-              <span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${qualityStyles.icon}`}>
+                  <CircleDollarSign size={17} strokeWidth={2.3} />
+                </span>
+                <span className="min-w-0">
                 <span className="block text-[0.6rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
                   Análisis financiero
                 </span>
                 <span className="mt-0.5 block text-[0.5rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
-                  Utilidad, merma y valor monetario
+                  Utilidad, merma y valor del sublote
+                </span>
                 </span>
               </span>
-              <span className="text-[0.58rem] font-black text-[#2f4aa4] dark:text-blue-200">
+              <span className={`text-[0.58rem] font-black ${qualityStyles.text}`}>
                 {showAnalysis ? 'Ocultar' : 'Ver'}
               </span>
             </button>
 
             {showAnalysis ? (
-              <section className="cs-card rounded-[14px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+              <section className="cs-card rounded-[16px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.055)] dark:border-slate-600 dark:bg-slate-900">
                 <div className="flex items-center gap-2 text-[#1c1c1c]">
                   <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a] dark:text-slate-300">
                     <Tag size={14} strokeWidth={2.3} />
@@ -1314,34 +1469,39 @@ export default function Sublotes() {
                   </h2>
                 </div>
 
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
+                <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
                   <InfoField
                     label="Utilidad neta"
                     value={formatCurrency(financieroActivo?.utilidadNeta ?? 0)}
                     accent="price"
+                    icon={<CircleDollarSign size={13} />}
                   />
                   <InfoField
                     label="Merma kg"
                     value={formatKg(financieroActivo?.mermaKg ?? 0)}
+                    icon={<Scale size={13} />}
                   />
                   <InfoField
                     label="Merma %"
                     value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)}
+                    icon={<Gauge size={13} />}
                   />
                   <InfoField
                     label="Valor merma"
                     value={formatCurrency(financieroActivo?.mermaValor ?? 0)}
                     accent="price"
+                    icon={<Tag size={13} />}
                   />
                   <InfoField
                     label="Proporcion de merma"
                     value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)}
+                    icon={<Gauge size={13} />}
                   />
                 </div>
               </section>
             ) : null}
 
-            <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+            <section className={`cs-card rounded-[16px] border bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.055)] dark:bg-slate-900 ${qualityStyles.accent} dark:border-slate-600`}>
               <div className="flex items-center gap-2 text-[#1c1c1c]">
                 <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
                   <Info size={14} strokeWidth={2.4} />
@@ -1351,47 +1511,73 @@ export default function Sublotes() {
                 </h2>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
                 <InfoField
                   label="Sublote"
                   value={subloteActivoCode}
+                  icon={<Package2 size={13} />}
                 />
                 <InfoField
                   label="Tipo"
                   value={titleCase(subloteActivo.tipoCafe)}
+                  icon={<Info size={13} />}
                 />
                 <InfoField
                   label="Calidad"
                   value={titleCase(subloteActivo.calidad)}
+                  icon={<Tag size={13} />}
                 />
                 <InfoField
                   label="Peso"
                   value={formatKg(subloteActivo.pesoActual)}
+                  icon={<Scale size={13} />}
                 />
                 <InfoField
                   label="Precio/kg"
                   value={formatPricePerKg(subloteActivo.precioKg)}
                   accent="price"
+                  icon={<CircleDollarSign size={13} />}
                 />
                 <InfoField
                   label="Fecha de compra"
                   value={formatDateShort(subloteActivo.fechaIngreso)}
+                  icon={<CalendarDays size={13} />}
                 />
                 <InfoField
                   label="Tiempo en bodega"
                   value={formatDays(diasSubloteActivo)}
+                  icon={<Timer size={13} />}
                 />
+                {subloteActivo.codigoOrigen && subloteActivo.procesoOrigen === 'SECADO' ? (
+                  <>
+                    <InfoField
+                      label="Origen"
+                      value={subloteActivo.codigoOrigen}
+                      icon={<Package2 size={13} />}
+                    />
+                    <InfoField
+                      label="Proceso"
+                      value="Secado"
+                      icon={<FlaskConical size={13} />}
+                    />
+                  </>
+                ) : null}
               </div>
             </section>
 
-            <section className="cs-card rounded-[10px] border border-[#dcdcdc] bg-white px-2.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)] dark:border-slate-600 dark:bg-slate-900">
+            <section className="cs-card rounded-[16px] border border-[#dcdcdc] bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.055)] dark:border-slate-600 dark:bg-slate-900">
               <div className="flex items-center gap-2 text-[#1c1c1c]">
-                <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] ${qualityStyles.icon}`}>
                   <FlaskConical size={14} strokeWidth={2.3} />
                 </span>
-                <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
-                  Datos tecnicos
-                </h2>
+                <span>
+                  <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
+                    Datos tecnicos
+                  </h2>
+                  <p className="mt-0.5 text-[0.55rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
+                    Completa estos datos cuando tengas medición de calidad.
+                  </p>
+                </span>
               </div>
 
               <div className="mt-2 space-y-2 border-t border-[#f0f0f0] pt-2 dark:border-slate-600">
@@ -1414,13 +1600,13 @@ export default function Sublotes() {
         ) : null}
       </main>
 
-      {subloteActivo ? (
-        <footer className="bg-[#f4f4f4] px-3 pb-3 pt-1 dark:bg-slate-950">
+      {subloteActivo && !isSecadoProcessRoute ? (
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[#e5e7eb] bg-[#f4f4f4]/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 backdrop-blur dark:border-slate-700 dark:bg-slate-950/95">
           <div className="mx-auto grid w-full max-w-[430px] grid-cols-3 gap-1.5">
             <button
               type="button"
               onClick={() => navigate('/ventas')}
-              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#2f4aa4] px-1 text-[0.62rem] font-black text-white shadow-[0_6px_14px_rgba(47,74,164,0.14)]"
+              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f4aa4] px-1 text-[0.62rem] font-black text-white shadow-[0_8px_18px_rgba(47,74,164,0.20)]"
             >
               <Tag size={12} strokeWidth={2.25} />
               Vender sublote
@@ -1429,7 +1615,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={handleOpenWeightModal}
-              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
             >
               <Scale size={12} strokeWidth={2.2} />
               Ajustar peso
@@ -1442,13 +1628,113 @@ export default function Sublotes() {
                   `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
                 )
               }
-              className="flex h-[36px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
             >
               <Tag size={12} strokeWidth={2.2} />
               Ver gastos
             </button>
           </div>
         </footer>
+      ) : null}
+
+      {subloteSelectorOpen && detalle ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur-sm sm:items-center"
+          onClick={() => setSubloteSelectorOpen(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sublote-selector-title"
+            className="max-h-[78dvh] w-full max-w-[430px] overflow-hidden rounded-[18px] border border-[#dbe5f7] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+              <div>
+                <h2 id="sublote-selector-title" className="text-base font-black text-slate-950 dark:text-slate-100">
+                  Seleccionar sublote
+                </h2>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                  {detalle.sublotes.length} disponibles
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubloteSelectorOpen(false)}
+                aria-label="Cerrar selección de sublotes"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(78dvh-76px)] overflow-y-auto px-4 py-3">
+              <div className="grid grid-cols-1 gap-2">
+                {detalle.sublotes.map((sublote, index) => {
+                  const active = sublote.id === subloteActivo?.id;
+                  const humidity = classifyHumidity(sublote.humedad);
+                  const showHumidityWarning =
+                    humidity.quality === 'advertencia' ||
+                    humidity.quality === 'descuento' ||
+                    humidity.quality === 'rechazada';
+                  const visualCode =
+                    subloteCodeMap.get(sublote.id) ??
+                    formatSubloteVisualCode(sublote, index);
+                  const fullName = formatCoffeeFullName(sublote);
+                  const originLine = getSubloteOriginLine(sublote);
+                  const itemStyles = getQualityStyles(sublote.calidad);
+
+                  return (
+                    <button
+                      key={sublote.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSubloteId(sublote.id);
+                        setSubloteSelectorOpen(false);
+                      }}
+                      aria-label={`Seleccionar ${visualCode}${active ? ', seleccionado' : ''}`}
+                      className={`flex min-w-0 items-center justify-between gap-2 rounded-[10px] border px-3 py-2.5 text-left shadow-sm transition focus:outline-none focus:ring-4 focus:ring-blue-400/20 ${
+                        active
+                          ? `${itemStyles.ring} ${itemStyles.accent}`
+                          : 'border-[#ececec] bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-[0.75rem] font-black text-[#202020] dark:text-slate-100">
+                            {visualCode}
+                          </p>
+                          {active ? (
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[0.52rem] font-black uppercase text-blue-700 dark:bg-blue-500/15 dark:text-blue-100">
+                              Seleccionado
+                            </span>
+                          ) : null}
+                          {showHumidityWarning ? (
+                            <span className={`rounded-full px-1.5 py-0.5 text-[0.5rem] font-black uppercase ${humidity.toneClass}`}>
+                              {humidity.label}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-[0.6rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
+                          {originLine ??
+                            `${fullName} · ${formatKg(sublote.pesoActual)} · ${
+                              showHumidityWarning
+                                ? formatHumedad(sublote.humedad)
+                                : formatDays(getDaysForSublote(sublote))
+                            }`}
+                        </p>
+                      </div>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${active ? itemStyles.dot : 'bg-[#d5d5d5] dark:bg-slate-600'}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {editModal ? (
@@ -1676,18 +1962,27 @@ function InfoField({
   label,
   value,
   accent,
+  icon,
 }: {
   label: string;
   value: string;
   accent?: 'price';
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[0.52rem] font-black uppercase tracking-[0.08em] text-[#a8a8a8] dark:text-slate-300">
-        {label}
-      </p>
+    <div className="min-w-0 rounded-[10px] border border-[#ececec] bg-[#fafafa] px-2.5 py-2 shadow-[0_1px_0_rgba(15,23,42,0.02)] dark:border-slate-600 dark:bg-slate-800">
+      <div className="flex items-center gap-1.5">
+        {icon ? (
+          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[#9a9a9a] dark:bg-slate-900 dark:text-slate-200">
+            {icon}
+          </span>
+        ) : null}
+        <p className="truncate text-[0.5rem] font-black uppercase tracking-[0.08em] text-[#8f8f8f] dark:text-slate-300">
+          {label}
+        </p>
+      </div>
       <p
-        className={`mt-0.5 text-[0.72rem] font-black leading-tight text-[#232323] dark:text-slate-100 ${accent === 'price' ? 'text-[#c4551d] dark:text-amber-200' : ''}`}
+        className={`mt-1 text-[0.72rem] font-black leading-tight text-[#232323] dark:text-slate-100 ${accent === 'price' ? 'text-[#c4551d] dark:text-amber-200' : ''}`}
       >
         {value}
       </p>
@@ -1707,14 +2002,14 @@ function TechnicalField({
   onEdit: () => void;
 }) {
   return (
-    <div>
-      <p className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-[#a8a8a8] dark:text-slate-300">
+    <div className="rounded-[12px] border border-[#ececec] bg-[#fafafa] p-2.5 dark:border-slate-600 dark:bg-slate-800">
+      <p className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-[#8f8f8f] dark:text-slate-300">
         {label}
       </p>
       <button
         type="button"
         onClick={onEdit}
-        className="mt-1 flex h-[34px] w-full items-center justify-between rounded-[8px] border border-[#e2e2e2] bg-white px-2.5 text-left transition hover:border-[#b9c5e8] focus:border-[#2f4aa4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:hover:border-slate-500 dark:focus:border-blue-400"
+        className="mt-1 flex min-h-[38px] w-full items-center justify-between rounded-[10px] border border-[#e2e2e2] bg-white px-2.5 text-left transition hover:border-[#b9c5e8] focus:border-[#2f4aa4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:hover:border-slate-500 dark:focus:border-blue-400"
       >
         <p className="min-w-0 text-[0.82rem] font-black leading-none tracking-normal text-[#222222] dark:text-slate-100">
           <span>{value}</span>

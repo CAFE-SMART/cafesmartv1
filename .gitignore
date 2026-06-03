@@ -49,6 +49,7 @@ frontend/vite-*.out
 
 # archivos de apoyo
 *.txt
+!frontend/public/robots.txt
 
 # OS específicos
 .DS_Store

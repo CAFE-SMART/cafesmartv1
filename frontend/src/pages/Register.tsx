@@ -28,7 +28,9 @@ import { useRegisterForm } from '../hooks/useRegisterForm';
 import {
   getPasswordChecks,
   getPasswordStrength,
+  BUSINESS_DESCRIPTION_MAX_LENGTH,
   BUSINESS_NAME_MAX_LENGTH,
+  normalizeBusinessDescriptionInput,
   normalizeBusinessNameInput,
   normalizeHumanNameInput,
   PERSON_LASTNAME_MAX_LENGTH,
@@ -69,9 +71,9 @@ const businessTypes: BusinessType[] = [
 ];
 
 const colorByType: Record<TipoOrg, string> = {
-  COOPERATIVA: 'bg-[#eef4ff] text-[#2f5ec4]',
-  COMPRAVENTA: 'bg-[#fff5d8] text-[#b58214]',
-  PERSONALIZADO: 'bg-[#fff0f2] text-[#d24861]',
+  COOPERATIVA: 'bg-[#eef4ff] text-[#2f5ec4] dark:bg-blue-500/20 dark:text-blue-100',
+  COMPRAVENTA: 'bg-[#fff5d8] text-[#b58214] dark:bg-amber-500/20 dark:text-amber-100',
+  PERSONALIZADO: 'bg-[#fff0f2] text-[#d24861] dark:bg-rose-500/20 dark:text-rose-100',
 };
 
 const LOGIN_DRAFT_STORAGE_KEY = 'cafesmart:login-draft:v1';
@@ -115,6 +117,7 @@ function saveRegisterDraft(draft: RegisterDraft) {
 
   const hasProgress = Boolean(
     draft.nombreOrganizacion?.trim() ||
+      draft.descripcionOrganizacion?.trim() ||
       draft.tipoOrganizacion ||
       draft.otroTipoDetalle?.trim() ||
       draft.nombre?.trim() ||
@@ -185,6 +188,8 @@ export default function Register() {
     step,
     nombreOrganizacion,
     setNombreOrganizacion,
+    descripcionOrganizacion,
+    setDescripcionOrganizacion,
     tipoOrganizacion,
     setTipoOrganizacion,
     otroTipoDetalle,
@@ -229,6 +234,7 @@ export default function Register() {
         authMode: 'register',
         currentStep: step === 1 ? 1 : 2,
         nombreOrganizacion,
+        descripcionOrganizacion,
         tipoOrganizacion: tipoOrganizacion || undefined,
         otroTipoDetalle,
         nombre,
@@ -244,6 +250,7 @@ export default function Register() {
   }, [
     apellidos,
     correo,
+    descripcionOrganizacion,
     nombre,
     nombreOrganizacion,
     otroTipoDetalle,
@@ -258,6 +265,7 @@ export default function Register() {
         authMode: 'register',
         currentStep: step === 1 ? 1 : 2,
         nombreOrganizacion,
+        descripcionOrganizacion,
         tipoOrganizacion: tipoOrganizacion || undefined,
         otroTipoDetalle,
         nombre,
@@ -285,6 +293,7 @@ export default function Register() {
   }, [
     apellidos,
     correo,
+    descripcionOrganizacion,
     nombre,
     nombreOrganizacion,
     otroTipoDetalle,
@@ -371,8 +380,8 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
-      <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb]">
+    <div className="min-h-screen bg-[#f7f8fb] text-[#111827] dark:bg-slate-950 dark:text-slate-100">
+      <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb] dark:bg-slate-950">
         {step === 1 ? (
           <section
             className="flex min-h-screen flex-col"
@@ -384,17 +393,17 @@ export default function Register() {
               labelledBy="register-business-title"
             />
 
-            <div className="flex-1 px-4 pb-4 pt-5">
+            <div className="flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+96px)] pt-5">
               <RegisterProgress
                 step={step}
                 totalSteps={2}
                 progressPercent={progressPercent}
               />
 
-              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827]">
+              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827] dark:text-slate-100">
                 Comencemos configurando tu negocio
               </h2>
-              <p className="mt-2 text-sm font-medium leading-5 text-[#667085]">
+              <p className="mt-2 text-sm font-medium leading-5 text-[#667085] dark:text-slate-300">
                 Cuéntanos cómo opera tu negocio para preparar el sistema a tu
                 medida.
               </p>
@@ -430,7 +439,7 @@ export default function Register() {
               </div>
 
               <div className="mt-6">
-                <p className="mb-3 text-sm font-semibold text-[#344054]">
+                <p className="mb-3 text-sm font-semibold text-[#344054] dark:text-slate-200">
                   Tipo de negocio
                 </p>
                 <div
@@ -476,6 +485,28 @@ export default function Register() {
                   />
                 </div>
               ) : null}
+
+              <div className="mt-4">
+                <TextareaInput
+                  id="register-business-description"
+                  label="Descripción del negocio (opcional)"
+                  helpText="Opcional. Describe brevemente cómo opera tu negocio."
+                  value={descripcionOrganizacion}
+                  onChange={(value) => {
+                    setDescripcionOrganizacion(
+                      normalizeBusinessDescriptionInput(value),
+                    );
+                    setStepOneErrors((prev) => ({
+                      ...prev,
+                      descripcionOrganizacion: undefined,
+                    }));
+                  }}
+                  placeholder="Ej: Compra, inventario y venta de café en bodega local."
+                  error={stepOneErrors.descripcionOrganizacion}
+                  maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
+                  showCounter
+                />
+              </div>
             </div>
 
             <RegisterFooter
@@ -497,17 +528,17 @@ export default function Register() {
               labelledBy="register-admin-title"
             />
 
-            <div className="flex-1 px-4 pb-6 pt-5">
+            <div className="flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+96px)] pt-5">
               <RegisterProgress
                 step={step}
                 totalSteps={2}
                 progressPercent={progressPercent}
               />
 
-              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827]">
+              <h2 className="mt-4 text-[1.32rem] font-black leading-tight tracking-normal text-[#111827] dark:text-slate-100">
                 Paso 2: Datos del administrador
               </h2>
-              <p className="mt-2 text-sm font-medium leading-5 text-[#667085]">
+              <p className="mt-2 text-sm font-medium leading-5 text-[#667085] dark:text-slate-300">
                 Crea la cuenta principal para operar Café Smart con seguridad.
 
               </p>
@@ -516,16 +547,16 @@ export default function Register() {
                 <ToastNotification message="Revisa los campos resaltados." onDismiss={()=>setStepTwoErrors({})} />
               ) : null}
 
-              <div className="mt-5 rounded-[22px] border border-[#e6ebf3] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.07)]">
-                <div className="mb-5 flex items-start gap-4 rounded-[18px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-4">
+              <div className="mt-5 rounded-[22px] border border-[#e6ebf3] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-900">
+                <div className="mb-5 flex items-start gap-4 rounded-[18px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-4 dark:border-blue-500/30 dark:bg-blue-500/10">
                   <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#274ab8] text-white shadow-[0_10px_22px_rgba(39,74,184,0.22)]">
-                    <ShieldCheck size={23} />
+                    <ShieldCheck size={23} aria-hidden="true" />
                   </span>
                   <span>
-                    <span className="block text-sm font-black text-[#10224d]">
+                    <span className="block text-sm font-black text-[#10224d] dark:text-blue-100">
                       Cuenta administradora
                     </span>
-                    <span className="mt-1 block text-sm font-medium leading-5 text-[#45607f]">
+                    <span className="mt-1 block text-sm font-medium leading-5 text-[#45607f] dark:text-slate-300">
                       Gestionará usuarios, compras e inventario del sistema.
 
                     </span>
@@ -533,7 +564,7 @@ export default function Register() {
                 </div>
 
                 {hasGoogleFlow ? (
-                  <p className="mb-5 rounded-[14px] border border-[#d9e5fb] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#355070]">
+                  <p className="mb-5 rounded-[14px] border border-[#d9e5fb] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#355070] dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
                       Google completó tus datos. Revísalos y termina el registro.
 
                   </p>
@@ -637,19 +668,13 @@ export default function Register() {
                   <section className="space-y-3">
                     <SectionHeader label="Seguridad" />
                     <div>
-                    <label
+                      <label
                         htmlFor="register-admin-password"
-                        className="mb-2 block text-xs font-black text-[#344054]"
+                        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
                       >
                         Contraseña
                       </label>
-                      <div
-                        className={`flex h-[54px] items-center rounded-[14px] border bg-white px-4 shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition ${
-                          stepTwoErrors.password
-                            ? 'border-rose-300 bg-rose-50/50'
-                            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-                        }`}
-                      >
+                      <div className="relative">
                         <input
                           id="register-admin-password"
                           name="password"
@@ -666,8 +691,7 @@ export default function Register() {
                             }));
                           }}
                           maxLength={PASSWORD_MAX_LENGTH}
-                    placeholder="Crea una contraseña"
-
+                          placeholder="Crea una contraseña"
                           autoComplete="new-password"
                           aria-describedby={
                             stepTwoErrors.password
@@ -687,11 +711,15 @@ export default function Register() {
                               showPasswordLimitWarning();
                             }
                           }}
-                          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pr-11 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+                            stepTwoErrors.password
+                              ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
+                              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+                          }`}
                         />
                         <button
                           type="button"
-                          className="ml-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#9aa8bc] transition-colors hover:bg-[#f4f6fb] hover:text-[#536178]"
+                          className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:text-slate-100"
                           onClick={() => setShowPassword(!showPassword)}
                           aria-label={
                             showPassword
@@ -719,8 +747,8 @@ export default function Register() {
                         <span
                           className={`text-xs font-bold ${
                             password.length >= PASSWORD_MAX_LENGTH
-                              ? 'text-amber-600'
-                              : 'text-[#64748b]'
+                              ? 'text-amber-600 dark:text-amber-300'
+                              : 'text-[#64748b] dark:text-slate-300'
                           }`}
                         >
                           {password.length}/{PASSWORD_MAX_LENGTH}
@@ -735,7 +763,7 @@ export default function Register() {
                       />
                     </div>
 
-                    <TextInput
+                    <PasswordInput
                       id="register-admin-password-confirm"
                       label="Confirma tu contraseña"
                       value={confirmPassword}
@@ -747,17 +775,17 @@ export default function Register() {
                         }));
                       }}
                       placeholder="Vuelve a escribir tu contraseña"
-                      type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       error={stepTwoErrors.confirmPassword}
                       maxLength={PASSWORD_MAX_LENGTH}
-                      compactLabel
+                      showPassword={showPassword}
+                      onTogglePassword={() => setShowPassword(!showPassword)}
                     />
 
                     {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
                       <p
                         className={`text-xs font-semibold ${
-                          passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                          passwordsMatch ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'
                         }`}
                       >
                         {passwordsMatch
@@ -771,7 +799,7 @@ export default function Register() {
 
                   <button
                     type="submit"
-                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985]"
+                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/20 active:scale-[0.985] dark:bg-blue-600 dark:hover:bg-blue-500 dark:focus:ring-blue-400/25"
                   >
                     Crear cuenta
                   </button>
@@ -780,17 +808,32 @@ export default function Register() {
                     <div className="space-y-3 pt-1">
                       <Divider label="O continua con" />
                       {googleLoading ? (
-                        <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
+                        <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center dark:border-slate-700 dark:bg-slate-950">
                           <Loader
                             size={18}
                             className="mx-auto animate-spin text-[#274ab8]"
                           />
-                          <p className="mt-2 text-sm font-semibold text-slate-700">
+                          <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                             Validando Google...
                           </p>
                         </div>
                       ) : (
-                        <div className="flex justify-center">
+                        <div className="group relative mx-auto flex h-11 w-full max-w-[360px] items-center justify-center overflow-hidden rounded-lg focus-within:ring-4 focus-within:ring-[#274ab8]/15 dark:focus-within:ring-blue-400/25">
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-0 z-0 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition group-hover:border-slate-400 group-hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:group-hover:border-blue-400/70 dark:group-hover:bg-blue-950/35"
+                          >
+                            <span
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-base font-black leading-none text-[#4285f4]"
+                              aria-hidden="true"
+                            >
+                              G
+                            </span>
+                            <span>Continuar con Google</span>
+                          </button>
+                          <div className="absolute inset-0 z-10 opacity-0">
                           <GoogleLogin
                             onSuccess={(response) => {
                               setGoogleLoading(true);
@@ -802,6 +845,7 @@ export default function Register() {
                             size="large"
                             width="100%"
                           />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -838,19 +882,19 @@ function RegisterHeader({
   labelledBy: string;
 }) {
   return (
-    <header className="border-b border-[#e6ebf3] bg-[#f7f8fb] px-4 py-3">
+    <header className="border-b border-[#e6ebf3] bg-[#f7f8fb] px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
       <div className="relative flex min-h-[28px] items-center justify-center">
         <button
           type="button"
           onClick={onBack}
-          className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#111827]"
+          className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#111827] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 dark:bg-slate-800 dark:text-blue-100 dark:hover:bg-slate-700 dark:hover:text-white dark:focus:ring-blue-400/25"
           aria-label="Volver"
         >
           <ArrowLeft size={16} />
         </button>
         <h1
           id={labelledBy}
-          className="text-center text-xs font-black text-[#111827]"
+          className="text-center text-xs font-black text-[#111827] dark:text-slate-100"
         >
           {title}
         </h1>
@@ -872,35 +916,37 @@ function BusinessTypeCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-[14px] border px-4 py-4 text-left shadow-sm transition-all duration-200 active:scale-[0.985] ${
+      className={`w-full rounded-[14px] border px-4 py-4 text-left shadow-sm transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 active:scale-[0.985] dark:focus:ring-blue-400/25 ${
         selected
-          ? 'border-[#274ab8] bg-[#f3f7ff] shadow-[0_12px_28px_rgba(39,74,184,0.13),0_0_0_1px_rgba(39,74,184,0.16)]'
-          : 'border-[#dfe5f1] bg-white hover:-translate-y-0.5 hover:border-[#cbd6e8] hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)]'
+          ? 'border-[#274ab8] bg-[#f3f7ff] shadow-[0_12px_28px_rgba(39,74,184,0.13),0_0_0_1px_rgba(39,74,184,0.16)] dark:border-blue-400 dark:bg-blue-500/15 dark:shadow-[0_14px_30px_rgba(37,99,235,0.18)]'
+          : 'border-[#dfe5f1] bg-white hover:-translate-y-0.5 hover:border-[#cbd6e8] hover:shadow-[0_12px_24px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800'
       }`}
+      role="radio"
+      aria-checked={selected}
     >
       <div className="flex items-center gap-3">
         <span
           className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[11px] transition-all duration-200 ${
             selected
-              ? 'bg-[#274ab8] text-white shadow-[0_10px_22px_rgba(39,74,184,0.22)]'
+              ? 'bg-[#274ab8] text-white shadow-[0_10px_22px_rgba(39,74,184,0.22)] dark:bg-blue-500'
               : colorByType[type.value]
           }`}
         >
           {type.icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-black text-[#111827]">
+          <span className="block text-[13px] font-black text-[#111827] dark:text-slate-100">
             {type.label}
           </span>
-          <span className="mt-1 block text-[11px] font-medium leading-4 text-[#73829a]">
+          <span className="mt-1 block text-[11px] font-medium leading-4 text-[#73829a] dark:text-slate-300">
             {type.desc}
           </span>
         </span>
         <span
           className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
             selected
-              ? 'scale-100 border-[#274ab8] bg-[#274ab8] text-white'
-              : 'scale-95 border-[#c8d2e2] bg-white text-transparent'
+              ? 'scale-100 border-[#274ab8] bg-[#274ab8] text-white dark:border-blue-400 dark:bg-blue-500'
+              : 'scale-95 border-[#c8d2e2] bg-white text-transparent dark:border-slate-600 dark:bg-slate-950'
           }`}
           aria-hidden="true"
         >
@@ -983,7 +1029,7 @@ function TextInput({
       <div className="mb-2 flex items-center justify-between gap-3">
         <label
           htmlFor={id}
-          className={`block text-[#344054] ${
+          className={`block text-[#344054] dark:text-slate-200 ${
             compactLabel ? 'text-xs font-black' : 'text-sm font-semibold'
           }`}
         >
@@ -993,7 +1039,7 @@ function TextInput({
           <span
             id={counterId}
             className={`text-xs font-bold ${
-              value.length >= maxLength ? 'text-amber-600' : 'text-[#64748b]'
+              value.length >= maxLength ? 'text-amber-600 dark:text-amber-300' : 'text-[#64748b] dark:text-slate-300'
             }`}
           >
             {value.length}/{maxLength}
@@ -1033,10 +1079,10 @@ function TextInput({
         autoComplete={autoComplete}
         maxLength={maxLength}
         aria-describedby={describedBy || undefined}
-        className={`block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#a8b4c5] ${
+        className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
           error
-            ? 'border-rose-300 bg-rose-50/50'
-            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/10'
+            ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
+            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
         }`}
       />
       {limitWarningVisible && maxLength ? (
@@ -1046,6 +1092,213 @@ function TextInput({
           exiting={limitWarningExiting}
         />
       ) : null}
+      {error ? <FieldError id={errorId} message={error} /> : null}
+    </div>
+  );
+}
+
+function TextareaInput({
+  id,
+  label,
+  helpText,
+  value,
+  onChange,
+  placeholder,
+  error,
+  maxLength,
+  showCounter = false,
+}: {
+  id: string;
+  label: string;
+  helpText?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  error?: string;
+  maxLength?: number;
+  showCounter?: boolean;
+}) {
+  const errorId = `${id}-error`;
+  const counterId = `${id}-counter`;
+  const helpId = helpText ? `${id}-help` : undefined;
+  const limitWarningId = `${id}-limit-warning`;
+  const [limitWarningVisible, setLimitWarningVisible] = useState(false);
+  const [limitWarningExiting, setLimitWarningExiting] = useState(false);
+  const describedBy = [
+    helpId,
+    error ? errorId : null,
+    showCounter && maxLength ? counterId : null,
+    limitWarningVisible && maxLength ? limitWarningId : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const showLimitWarning = () => {
+    if (!maxLength) return;
+    setLimitWarningVisible(true);
+    setLimitWarningExiting(false);
+  };
+
+  useEffect(() => {
+    if (!limitWarningVisible) return;
+
+    const fadeTimer = window.setTimeout(() => {
+      setLimitWarningExiting(true);
+    }, 3400);
+    const clearTimer = window.setTimeout(() => {
+      setLimitWarningVisible(false);
+      setLimitWarningExiting(false);
+    }, 3800);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [limitWarningVisible]);
+
+  return (
+    <div>
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <label
+            htmlFor={id}
+            className="block text-sm font-semibold text-[#344054] dark:text-slate-200"
+          >
+            {label}
+          </label>
+          {helpText ? (
+            <p id={helpId} className="mt-1 text-xs font-medium text-[#667085] dark:text-slate-300">
+              {helpText}
+            </p>
+          ) : null}
+        </div>
+        {showCounter && maxLength ? (
+          <span
+            id={counterId}
+            className={`shrink-0 text-xs font-bold ${
+              value.length >= maxLength
+                ? 'text-amber-600 dark:text-amber-300'
+                : 'text-[#64748b] dark:text-slate-300'
+            }`}
+          >
+            {value.length}/{maxLength}
+          </span>
+        ) : null}
+      </div>
+      <textarea
+        id={id}
+        name={id}
+        value={value}
+        onChange={(event) => {
+          if (maxLength && event.target.value.length >= maxLength) {
+            showLimitWarning();
+          }
+
+          onChange(
+            maxLength
+              ? event.target.value.slice(0, maxLength)
+              : event.target.value,
+          );
+        }}
+        onKeyDown={(event) => {
+          if (
+            maxLength &&
+            value.length >= maxLength &&
+            event.key.length === 1 &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey
+          ) {
+            showLimitWarning();
+          }
+        }}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={3}
+        aria-describedby={describedBy || undefined}
+        className={`register-credential-input block min-h-[92px] w-full resize-none rounded-[14px] border px-4 py-3 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+          error
+            ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
+            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+        }`}
+      />
+      {limitWarningVisible && maxLength ? (
+        <CharacterLimitNotice
+          id={limitWarningId}
+          maxLength={maxLength}
+          exiting={limitWarningExiting}
+        />
+      ) : null}
+      {error ? <FieldError id={errorId} message={error} /> : null}
+    </div>
+  );
+}
+
+function PasswordInput({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  error,
+  maxLength,
+  showPassword,
+  onTogglePassword,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoComplete?: string;
+  error?: string;
+  maxLength?: number;
+  showPassword: boolean;
+  onTogglePassword: () => void;
+}) {
+  const errorId = `${id}-error`;
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          name={id}
+          type={showPassword ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => {
+            onChange(
+              maxLength
+                ? event.target.value.slice(0, maxLength)
+                : event.target.value,
+            );
+          }}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          maxLength={maxLength}
+          aria-describedby={error ? errorId : undefined}
+          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pr-11 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+            error
+              ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
+              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+          }`}
+        />
+        <button
+          type="button"
+          className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:text-slate-100"
+          onClick={onTogglePassword}
+          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        >
+          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+        </button>
+      </div>
       {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
@@ -1108,18 +1361,12 @@ function PhoneInput({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-xs font-black text-[#344054]"
+        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
       >
         {label}
       </label>
-      <div
-        className={`flex h-[54px] items-center overflow-hidden rounded-[14px] border bg-white shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition ${
-          error
-            ? 'border-rose-300 bg-rose-50/50'
-            : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-        }`}
-      >
-        <span className="flex h-full shrink-0 items-center border-r border-[#e5eaf3] bg-[#f8fafc] px-3 text-sm font-black text-[#274ab8]">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 bg-transparent text-sm font-black text-[#274ab8] dark:text-blue-100">
           +57
         </span>
         <input
@@ -1141,7 +1388,11 @@ function PhoneInput({
           autoComplete="tel-national"
           maxLength={12}
           aria-describedby={error ? errorId : undefined}
-          className="h-full min-w-0 flex-1 border-0 bg-transparent px-4 py-0 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pl-[4.15rem] text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+            error
+              ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
+              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+          }`}
         />
       </div>
       {error ? <FieldError id={errorId} message={error} /> : null}
@@ -1152,11 +1403,11 @@ function PhoneInput({
 function SectionHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="h-px flex-1 bg-[#edf1f7]" />
-      <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em] text-[#475569]">
+      <span className="h-px flex-1 bg-[#edf1f7] dark:bg-slate-700" />
+      <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em] text-[#475569] dark:text-slate-300">
         {label}
       </p>
-      <span className="h-px flex-1 bg-[#edf1f7]" />
+      <span className="h-px flex-1 bg-[#edf1f7] dark:bg-slate-700" />
     </div>
   );
 }
@@ -1180,14 +1431,14 @@ function PasswordRequirementCard({
   ];
 
   return (
-    <div className="mt-3 rounded-[15px] border border-[#e8edf6] bg-[#fbfcff] px-3.5 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)]">
+    <div className="mt-3 rounded-[15px] border border-[#e8edf6] bg-[#fbfcff] px-3.5 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.035)] dark:border-slate-700 dark:bg-slate-950">
       <div className="flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-xs font-black text-[#344054]">
+        <p className="min-w-0 flex-1 text-xs font-black text-[#344054] dark:text-slate-200">
           Seguridad:
           <span className={`ml-1 ${tone}`}>{label}</span>
         </p>
         <div
-          className="h-1.5 w-[74px] shrink-0 overflow-hidden rounded-full bg-[#e6ebf3]"
+          className="h-1.5 w-[74px] shrink-0 overflow-hidden rounded-full bg-[#e6ebf3] dark:bg-slate-700"
           aria-hidden="true"
         >
           <div
@@ -1239,14 +1490,14 @@ function PasswordRequirementItem({
   return (
     <span
       className={`inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold leading-4 transition ${
-        active ? 'text-[#047857]' : 'text-[#7b8798]'
+        active ? 'text-[#047857] dark:text-emerald-300' : 'text-[#7b8798] dark:text-slate-300'
       }`}
     >
       <span
         className={`inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border ${
           active
-            ? 'border-emerald-500 bg-emerald-500 text-white'
-            : 'border-[#cbd5e1] bg-white text-transparent'
+            ? 'border-emerald-500 bg-emerald-500 text-white dark:border-emerald-400 dark:bg-emerald-500'
+            : 'border-[#cbd5e1] bg-white text-transparent dark:border-slate-600 dark:bg-slate-900'
         }`}
         aria-hidden="true"
       >
@@ -1289,11 +1540,11 @@ function RegisterFooter({
   onContact: () => void;
 }) {
   return (
-    <footer className="mt-6 border-t border-[#e6ebf3] bg-[#f7f8fb]/95 px-4 py-4">
+    <footer className="mt-6 border-t border-[#e6ebf3] bg-[#f7f8fb]/95 px-4 py-4 dark:border-slate-800 dark:bg-slate-950/95">
       <button
         type="button"
         onClick={onPrimary}
-        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985] active:shadow-[0_10px_20px_rgba(40,75,193,0.18)]"
+        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/20 active:scale-[0.985] active:shadow-[0_10px_20px_rgba(40,75,193,0.18)] dark:bg-blue-600 dark:hover:bg-blue-500 dark:focus:ring-blue-400/25"
       >
         {primaryLabel}
         {icon}
@@ -1317,17 +1568,17 @@ function RegisterLinks({
         <button
           type="button"
           onClick={onHelp}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-[#d9e5fb] bg-white px-4 text-xs font-black text-[#274ab8] shadow-sm transition-all hover:bg-[#f3f7ff] active:scale-[0.97]"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-[#d9e5fb] bg-white px-4 text-xs font-black text-[#274ab8] shadow-sm transition-all hover:bg-[#f3f7ff] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 active:scale-[0.97] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800 dark:focus:ring-blue-400/25"
         >
-          <CircleHelp size={14} />
+          <CircleHelp size={14} aria-hidden="true" />
           Obtener ayuda
         </button>
         <button
           type="button"
           onClick={onContact}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#274ab8] active:scale-[0.97]"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 text-xs font-bold text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#274ab8] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 active:scale-[0.97] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:focus:ring-blue-400/25"
         >
-          <Headset size={14} />
+          <Headset size={14} aria-hidden="true" />
           Contacto
         </button>
       </div>
@@ -1338,23 +1589,24 @@ function RegisterLinks({
 function Divider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="h-px flex-1 bg-[#e3e8f0]" />
-      <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#93a1b6]">
+      <div className="h-px flex-1 bg-[#e3e8f0] dark:bg-slate-700" />
+      <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#93a1b6] dark:text-slate-400">
         {label}
       </span>
-      <div className="h-px flex-1 bg-[#e3e8f0]" />
+      <div className="h-px flex-1 bg-[#e3e8f0] dark:bg-slate-700" />
     </div>
   );
 }
 
 function FieldError({ id, message }: { id?: string; message: string }) {
   return (
-    <AppFeedbackMessage
+    <p
       id={id}
-      variant="error"
-      description={message}
-      className="mt-2"
-    />
+      role="alert"
+      className="mt-1.5 rounded-[10px] border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs font-semibold leading-5 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-100"
+    >
+      {message}
+    </p>
   );
 }
 
@@ -1413,19 +1665,19 @@ function SupportModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[20px] border border-[#e2e8f0] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.20)] animate-[cafesmartFadeScale_220ms_ease-out_both] sm:p-6 ${
+        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[20px] border border-[#e2e8f0] bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.20)] animate-[cafesmartFadeScale_220ms_ease-out_both] sm:p-6 dark:border-slate-700 dark:bg-slate-900 ${
           isHelp ? 'max-w-[480px]' : 'max-w-[480px] sm:max-w-[540px]'
         }`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={`flex items-start justify-between gap-4 ${isHelp ? 'mb-6' : 'mb-4'}`}>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#2563eb]">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#2563eb] dark:text-blue-300">
               Soporte
             </p>
             <h2
               id="register-support-title"
-              className={`${isHelp ? 'mt-3 text-3xl' : 'mt-2 text-2xl'} font-black leading-tight text-[#0f172a]`}
+              className={`${isHelp ? 'mt-3 text-3xl' : 'mt-2 text-2xl'} font-black leading-tight text-[#0f172a] dark:text-slate-100`}
             >
               {isHelp ? 'Ayuda básica' : 'Contacto'}
             </h2>
@@ -1433,7 +1685,7 @@ function SupportModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#334155] transition hover:bg-[#eef2f8] hover:text-[#0f172a] active:scale-95"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#334155] transition hover:bg-[#eef2f8] hover:text-[#0f172a] focus:outline-none focus:ring-4 focus:ring-[#2563eb]/15 active:scale-95 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:ring-blue-400/25"
             aria-label="Cerrar modal"
           >
             <X size={24} strokeWidth={2.4} />
@@ -1451,7 +1703,7 @@ function SupportModal({
         <button
           type="button"
           onClick={onClose}
-          className={`${isHelp ? 'mt-7 min-h-[54px]' : 'mt-4 min-h-[48px]'} shrink-0 w-full rounded-[12px] bg-[#2563eb] px-4 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition-all hover:bg-[#1d4ed8] active:scale-[0.985]`}
+          className={`${isHelp ? 'mt-7 min-h-[54px]' : 'mt-4 min-h-[48px]'} shrink-0 w-full rounded-[12px] bg-[#2563eb] px-4 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition-all hover:bg-[#1d4ed8] focus:outline-none focus:ring-4 focus:ring-blue-400/25 active:scale-[0.985] dark:bg-blue-600 dark:hover:bg-blue-500`}
         >
           Entendido
         </button>
@@ -1482,10 +1734,10 @@ function HelpModalContent() {
   return (
     <div>
       <div className="mb-6 flex items-start gap-4">
-        <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
-          <CircleHelp size={28} fill="currentColor" className="text-[#1d4ed8]" />
+        <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8] dark:bg-blue-500/20 dark:text-blue-100">
+          <CircleHelp size={28} fill="currentColor" className="text-[#1d4ed8] dark:text-blue-100" aria-hidden="true" />
         </span>
-        <p className="pt-1 text-base font-medium leading-7 text-[#475569]">
+        <p className="pt-1 text-base font-medium leading-7 text-[#475569] dark:text-slate-300">
           Sigue estos pasos para completar el registro de tu negocio.
         </p>
       </div>
@@ -1497,7 +1749,7 @@ function HelpModalContent() {
             <div className="grid grid-cols-[3rem_1fr] items-center gap-3 py-3">
               {/* Left column: ONLY numbered circle */}
               <div className="flex items-center justify-center">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-sm font-black text-[#1d4ed8] leading-none">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-sm font-black leading-none text-[#1d4ed8] dark:bg-blue-500/20 dark:text-blue-100">
                   {step.number}
                 </span>
               </div>
@@ -1505,10 +1757,10 @@ function HelpModalContent() {
 
               {/* Right column: title + description */}
               <span>
-                <span className="block text-sm font-black leading-5 text-[#0f172a]">
+                <span className="block text-sm font-black leading-5 text-[#0f172a] dark:text-slate-100">
                   {step.title}
                 </span>
-                <span className="mt-1 block text-sm font-medium leading-5 text-[#475569]">
+                <span className="mt-1 block text-sm font-medium leading-5 text-[#475569] dark:text-slate-300">
                   {step.text}
                 </span>
               </span>
@@ -1518,7 +1770,7 @@ function HelpModalContent() {
             {index < steps.length - 1 ? (
               <div className="grid grid-cols-[3rem_1fr] gap-3">
                 <div />
-                <div className="h-px bg-[#e2e8f0]" />
+                <div className="h-px bg-[#e2e8f0] dark:bg-slate-700" />
               </div>
             ) : null}
           </div>
@@ -1552,30 +1804,30 @@ function ContactModalContent() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]">
-          <Headset size={24} />
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8] dark:bg-blue-500/20 dark:text-blue-100">
+          <Headset size={24} aria-hidden="true" />
         </span>
-        <p className="pt-0.5 text-sm font-medium leading-6 text-[#475569]">
+        <p className="pt-0.5 text-sm font-medium leading-6 text-[#475569] dark:text-slate-300">
           Si tienes problemas con el registro, puedes comunicarte con nuestro
           equipo de soporte.
         </p>
       </div>
 
-      <div className="rounded-[12px] border border-[#e2e8f0] bg-white px-4 shadow-sm">
+      <div className="rounded-[12px] border border-[#e2e8f0] bg-white px-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
         {contactItems.map((item, index) => (
           <div key={item.title}>
             <div className="grid grid-cols-[2.25rem_1fr] items-start gap-3 py-3">
               <span
-                className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8]"
+                className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#1d4ed8] dark:bg-blue-500/20 dark:text-blue-100"
                 aria-hidden="true"
               >
                 {item.icon}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-black leading-5 text-[#0f172a]">
+                <span className="block text-sm font-black leading-5 text-[#0f172a] dark:text-slate-100">
                   {item.title}
                 </span>
-                <span className="mt-0.5 block max-w-full whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#2563eb]">
+                <span className="mt-0.5 block max-w-full whitespace-pre-line break-words text-sm font-semibold leading-5 text-[#2563eb] dark:text-blue-200">
                   {item.text}
                 </span>
               </span>
@@ -1583,7 +1835,7 @@ function ContactModalContent() {
             {index < contactItems.length - 1 ? (
               <div className="grid grid-cols-[2.25rem_1fr] gap-3">
                 <div />
-                <div className="h-px bg-[#e2e8f0]" />
+                <div className="h-px bg-[#e2e8f0] dark:bg-slate-700" />
               </div>
             ) : null}
           </div>
@@ -1598,9 +1850,9 @@ function ContactModalContent() {
 function InfoNotice({ text, compact = false }: { text: string; compact?: boolean }) {
   return (
     <div
-      className={`${compact ? 'mt-4 gap-2.5 px-3 py-3 text-xs leading-5' : 'mt-6 gap-3 px-4 py-4 text-sm leading-6'} flex items-center rounded-[12px] bg-[#f1f5ff] font-medium text-[#475569]`}
+      className={`${compact ? 'mt-4 gap-2.5 px-3 py-3 text-xs leading-5' : 'mt-6 gap-3 px-4 py-4 text-sm leading-6'} flex items-center rounded-[12px] bg-[#f1f5ff] font-medium text-[#475569] dark:bg-blue-500/10 dark:text-slate-300`}
     >
-      <Info size={compact ? 18 : 24} className="shrink-0 text-[#1d4ed8]" />
+      <Info size={compact ? 18 : 24} className="shrink-0 text-[#1d4ed8] dark:text-blue-100" aria-hidden="true" />
       <span>{text}</span>
     </div>
   );

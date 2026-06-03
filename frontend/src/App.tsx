@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { X } from 'lucide-react';
 import AppRoutes from './routes/AppRoutes';
@@ -6,8 +6,6 @@ import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { CafeSmartErrorState } from './components/CafeSmartErrorState';
 import { AppFeedbackMessage } from './components/AppFeedbackMessage';
 import { InternalLoadingScreen } from './components/InternalLoadingScreen';
-import { SyncQueueRunner } from './components/SyncQueueRunner';
-import { AiFloatingButton } from './components/ai/AiFloatingButton';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
@@ -34,6 +32,24 @@ const isPublicRoute = (path: string) =>
   path.startsWith('/restablecer') ||
   path.startsWith('/register') ||
   path.startsWith('/crear-empresa');
+
+const AiFloatingButton = lazy(() =>
+  import('./components/ai/AiFloatingButton').then((module) => ({
+    default: module.AiFloatingButton,
+  })),
+);
+
+const SyncQueueRunner = lazy(() =>
+  import('./components/SyncQueueRunner').then((module) => ({
+    default: module.SyncQueueRunner,
+  })),
+);
+
+const AiConversationProvider = lazy(() =>
+  import('./context/AiConversationContext').then((module) => ({
+    default: module.AiConversationProvider,
+  })),
+);
 
 class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -241,49 +257,93 @@ function GlobalSyncOverlay() {
 
 function GlobalAiAssistant() {
   const location = useLocation();
+  const isAuthFlow = isPublicRoute(location.pathname);
   const isAssistantPage = location.pathname.startsWith('/asistente');
   const isFinancialAiPage = location.pathname.includes(
     '/resumen-financiero/analisis',
   );
 
-  if (isAssistantPage || isFinancialAiPage) return null;
+  if (isAuthFlow || isAssistantPage || isFinancialAiPage) return null;
 
-  return <AiFloatingButton />;
+  return (
+    <Suspense fallback={null}>
+      <AiFloatingButton />
+    </Suspense>
+  );
 }
 
-function App() {
+function AppContent() {
+  const location = useLocation();
   const [showBootSplash, setShowBootSplash] = useState(true);
+  const bootSplashShownRef = useRef(false);
+  const isAuthFlow = isPublicRoute(location.pathname);
 
   useEffect(() => {
+    if (isAuthFlow) {
+      setShowBootSplash(false);
+      return undefined;
+    }
+
+    if (bootSplashShownRef.current) {
+      setShowBootSplash(false);
+      return undefined;
+    }
+
+    setShowBootSplash(true);
     const timerId = window.setTimeout(() => {
+      bootSplashShownRef.current = true;
       setShowBootSplash(false);
     }, BOOT_SPLASH_VISIBLE_MS);
 
     return () => {
       window.clearTimeout(timerId);
     };
-  }, []);
+  }, [isAuthFlow, location.pathname]);
 
+  if (showBootSplash && !isAuthFlow) {
+    return <AppLoadingScreen />;
+  }
+
+  const appBody = (
+    <>
+      {!isAuthFlow ? (
+        <>
+          <GlobalOfflineNotice />
+          <Suspense fallback={null}>
+            <SyncQueueRunner />
+          </Suspense>
+          <GlobalSyncOverlay />
+        </>
+      ) : null}
+      <GlobalAiAssistant />
+      <div id="app-content">
+        <AppRoutes />
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`min-h-screen ${themeClasses.pageBase}`}>
+      <a href="#app-content" className="skip-link">
+        Saltar al contenido principal
+      </a>
+      {isAuthFlow ? (
+        appBody
+      ) : (
+        <Suspense fallback={null}>
+          <AiConversationProvider>{appBody}</AiConversationProvider>
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+function App() {
   return (
     <BrowserRouter>
       <AppErrorBoundary>
         <PrivateRouteHistoryTracker />
-        {showBootSplash ? (
-          <AppLoadingScreen />
-        ) : (
-          <div className={`min-h-screen ${themeClasses.pageBase}`}>
-            <a href="#app-content" className="skip-link">
-              Saltar al contenido principal
-            </a>
-            <GlobalOfflineNotice />
-            <SyncQueueRunner />
-            <GlobalSyncOverlay />
-            <GlobalAiAssistant />
-            <div id="app-content">
-              <AppRoutes />
-            </div>
-          </div>
-        )}
+        <AppContent />
       </AppErrorBoundary>
     </BrowserRouter>
   );

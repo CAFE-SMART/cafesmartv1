@@ -63,6 +63,11 @@ import {
   guardarLimitesEntrada,
 } from '../services/bodegaApi';
 import {
+  guardarLimitesEntradaLocales,
+  obtenerLimitesEntradaLocales,
+  type LimitesTransaccion,
+} from '../services/limitesEntradaService';
+import {
   actualizarCliente,
   crearCliente,
   eliminarCliente,
@@ -93,6 +98,7 @@ import {
   clearSyncedOperations,
   retryOperation,
   syncAllPending,
+  syncOperationById,
   SYNC_QUEUE_EVENT,
   type SyncOperation,
   type SyncQueueSummary,
@@ -105,6 +111,7 @@ import {
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_MAX_LENGTH,
+  BUSINESS_DESCRIPTION_MAX_LENGTH,
   validateBusinessName,
 } from '../utils/registerValidators';
 import {
@@ -133,7 +140,6 @@ import granitoInteligente from '../assets/granito-inteligente.png';
 import {
   PESO_MAXIMO_ENTRADA_KG,
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
-  PESO_MINIMO_KG,
   PRECIO_MAXIMO_KG,
 } from '../utils/businessRules';
 
@@ -152,6 +158,8 @@ type ProfileSettings = {
   correo: string;
   telefono: string;
 };
+
+type LimitesTab = 'todos' | 'compra' | 'venta';
 
 const OFFLINE_BLOCKED_ACTION_MESSAGE =
   'Esta acción necesita conexión. Puedes guardar un borrador y finalizarlo cuando vuelvas a tener internet.';
@@ -302,7 +310,9 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
 
   if (
     message === 'Escribe el nombre de la empresa.' ||
+    message === 'Escribe el nombre del negocio.' ||
     message === 'Selecciona el tipo de empresa.' ||
+    message === 'Selecciona el tipo de negocio.' ||
     message === 'Usa al menos 3 caracteres.' ||
     message ===
       'El nombre del negocio es demasiado largo. Usa máximo 40 caracteres.' ||
@@ -343,12 +353,15 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'Escribe el nombre de la empresa.') {
+  if (
+    message === 'Escribe el nombre de la empresa.' ||
+    message === 'Escribe el nombre del negocio.'
+  ) {
     return createGuidedError(
-      message,
-      'Falta nombre de empresa.',
+      'Escribe el nombre del negocio.',
+      'Falta nombre del negocio.',
       'Tu negocio debe tener un nombre.',
-      'Escribe el nombre de tu empresa.',
+      'Escribe el nombre de tu negocio.',
     );
   }
 
@@ -405,12 +418,15 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
-  if (message === 'Selecciona el tipo de empresa.') {
+  if (
+    message === 'Selecciona el tipo de empresa.' ||
+    message === 'Selecciona el tipo de negocio.'
+  ) {
     return createGuidedError(
-      message,
+      'Selecciona el tipo de negocio.',
       'Falta el tipo.',
       '¿A que se dedica tu negocio?',
-      'Selecciona el tipo de empresa.',
+      'Selecciona el tipo de negocio.',
     );
   }
 
@@ -476,6 +492,10 @@ export default function Ajustes() {
     }),
     [],
   );
+  const initialLimites = useMemo(
+    () => obtenerLimitesEntradaLocales(initialConfig),
+    [initialConfig],
+  );
 
   const [profile, setProfile] = useState<ProfileSettings>(() => ({
     nombre: user?.name ?? '',
@@ -492,14 +512,24 @@ export default function Ajustes() {
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
   const [capacidadKg, setCapacidadKg] = useState('');
+  const [limitesTab, setLimitesTab] = useState<LimitesTab>('todos');
+  const [limitMinPesoCompraKg, setLimitMinPesoCompraKg] = useState(
+    String(initialLimites.minPesoCompraKg),
+  );
   const [limitMaxPesoKg, setLimitMaxPesoKg] = useState(
-    String(initialConfig.maxPesoKg),
+    String(initialLimites.maxPesoCompraKg),
+  );
+  const [limitMinPrecioCompraKg, setLimitMinPrecioCompraKg] = useState(
+    String(initialLimites.minPrecioCompraKg),
   );
   const [limitMaxPrecioKg, setLimitMaxPrecioKg] = useState(
-    String(initialConfig.maxPrecioKg),
+    String(initialLimites.maxPrecioCompraKg),
+  );
+  const [limitMinPrecioVentaKg, setLimitMinPrecioVentaKg] = useState(
+    String(initialLimites.minPrecioVentaKg),
   );
   const [limitMaxPrecioVentaKg, setLimitMaxPrecioVentaKg] = useState(
-    String(initialConfig.maxPrecioVentaKg),
+    String(initialLimites.maxPrecioVentaKg),
   );
   const [updatedAt, setUpdatedAt] = useState(initialConfig.updatedAt);
   const [inventarioActualKg, setInventarioActualKg] = useState(0);
@@ -575,6 +605,14 @@ export default function Ajustes() {
     getSyncQueueSummary(),
   );
   const [syncPanelOpen, setSyncPanelOpen] = useState(false);
+  const [syncAllRetrying, setSyncAllRetrying] = useState(false);
+  const [retryingSyncIds, setRetryingSyncIds] = useState<string[]>([]);
+  const [syncFeedback, setSyncFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const [syncDeleteCandidate, setSyncDeleteCandidate] =
+    useState<SyncOperation | null>(null);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [accessibilityModal, setAccessibilityModal] = useState<
     'screen-reader' | 'high-contrast' | 'font-scale' | null
@@ -625,11 +663,17 @@ export default function Ajustes() {
 
   const abrirEditorLimites = () => {
     clearFeedback();
+    setLimitesTab('todos');
     setIsEditingLimites(true);
     setIsEditingBodega(false);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
     setIsViewingPublicProfile(false);
+  };
+
+  const mostrarOpcionPendiente = () => {
+    clearFeedback();
+    setSuccess('Esta opción estará disponible más adelante.');
   };
 
   const abrirEditorPerfil = () => {
@@ -744,6 +788,8 @@ export default function Ajustes() {
         ? user.tipoOrganizacion.charAt(0) +
           user.tipoOrganizacion.slice(1).toLowerCase()
         : 'Compraventa');
+    const nextDescripcion =
+      user?.descripcionOrganizacion?.trim() || company.descripcion;
 
     if (
       !isEditingProfile &&
@@ -763,17 +809,15 @@ export default function Ajustes() {
       !isEditingCompany &&
       (!company.nombreEmpresa ||
         !company.tipoEmpresa ||
-        (company.nombreEmpresa === 'Mi empresa cafetera' && nombreOrganizacionReal))
+        (company.nombreEmpresa === 'Mi negocio cafetero' && nombreOrganizacionReal))
     ) {
       setCompany((prev) => ({
         nombreEmpresa:
-          !prev.nombreEmpresa || prev.nombreEmpresa === 'Mi empresa cafetera'
-            ? nombreOrganizacionReal || 'Mi empresa cafetera'
+          !prev.nombreEmpresa || prev.nombreEmpresa === 'Mi negocio cafetero'
+            ? nombreOrganizacionReal || 'Mi negocio cafetero'
             : prev.nombreEmpresa,
         tipoEmpresa: nextTipo,
-        descripcion:
-          prev.descripcion ||
-          'Configuración base para operar compras, inventario y ventas.',
+        descripcion: nextDescripcion,
       }));
     }
   }, [
@@ -790,6 +834,7 @@ export default function Ajustes() {
     user?.telefono,
     user?.nombreOrganizacion,
     user?.tipoOrganizacion,
+    user?.descripcionOrganizacion,
   ]);
 
   const cargarInventario = async () => {
@@ -951,22 +996,26 @@ export default function Ajustes() {
     const cargarConfiguracionBodega = async () => {
       try {
         const config = await obtenerConfiguracionBodega();
+        const limites = obtenerLimitesEntradaLocales(config);
         setNombreBodega(config.nombreBodega);
         setCapacidadKg(config.capacidadKg ? String(config.capacidadKg) : '');
-        setLimitMaxPesoKg(
-          String(config.maxPesoKg || PESO_MAXIMO_OPERATIVO_DEFAULT_KG),
-        );
-        setLimitMaxPrecioKg(String(config.maxPrecioKg || PRECIO_MAXIMO_KG));
-        setLimitMaxPrecioVentaKg(
-          String(config.maxPrecioVentaKg || PRECIO_MAXIMO_KG),
-        );
+        setLimitMinPesoCompraKg(String(limites.minPesoCompraKg));
+        setLimitMaxPesoKg(String(limites.maxPesoCompraKg));
+        setLimitMinPrecioCompraKg(String(limites.minPrecioCompraKg));
+        setLimitMaxPrecioKg(String(limites.maxPrecioCompraKg));
+        setLimitMinPrecioVentaKg(String(limites.minPrecioVentaKg));
+        setLimitMaxPrecioVentaKg(String(limites.maxPrecioVentaKg));
         setUpdatedAt(config.updatedAt);
       } catch {
+        const limites = obtenerLimitesEntradaLocales(initialConfig);
         setNombreBodega(initialConfig.nombreBodega);
         setCapacidadKg('');
-        setLimitMaxPesoKg(String(initialConfig.maxPesoKg));
-        setLimitMaxPrecioKg(String(initialConfig.maxPrecioKg));
-        setLimitMaxPrecioVentaKg(String(initialConfig.maxPrecioVentaKg));
+        setLimitMinPesoCompraKg(String(limites.minPesoCompraKg));
+        setLimitMaxPesoKg(String(limites.maxPesoCompraKg));
+        setLimitMinPrecioCompraKg(String(limites.minPrecioCompraKg));
+        setLimitMaxPrecioKg(String(limites.maxPrecioCompraKg));
+        setLimitMinPrecioVentaKg(String(limites.minPrecioVentaKg));
+        setLimitMaxPrecioVentaKg(String(limites.maxPrecioVentaKg));
         setUpdatedAt(initialConfig.updatedAt);
       }
     };
@@ -1125,30 +1174,46 @@ export default function Ajustes() {
       return;
     }
     if (!company.tipoEmpresa.trim()) {
-      const message = 'Selecciona el tipo de empresa.';
+      const message = 'Selecciona el tipo de negocio.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
       return;
     }
     const nombreEmpresa = normalizeCompanyName(company.nombreEmpresa);
+    const descripcionEmpresa = company.descripcion.trim().replace(/\s+/g, ' ');
     try {
-      await actualizarConfiguracionOrganizacion({
+      const organizacionActualizada = await actualizarConfiguracionOrganizacion({
         nombreOrganizacion: nombreEmpresa,
         tipoOrganizacion: company.tipoEmpresa,
+        descripcionOrganizacion: descripcionEmpresa || null,
       });
       setCompany((prev) => ({
         ...prev,
         nombreEmpresa,
+        descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
       }));
       companyBaselineRef.current = {
         ...company,
         nombreEmpresa,
+        descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
       };
+      if (user && token) {
+        await setSession({
+          token,
+          hasCompany,
+          user: {
+            ...user,
+            nombreOrganizacion: organizacionActualizada.nombre,
+            tipoOrganizacion: organizacionActualizada.tipo as typeof user.tipoOrganizacion,
+            otroTipoDetalle: organizacionActualizada.otroTipoDetalle ?? null,
+            descripcionOrganizacion: organizacionActualizada.descripcion ?? null,
+          },
+        });
+      }
       setIsEditingCompany(false);
-      setSuccess('Información de la empresa actualizada.');
+      setSuccess('Negocio actualizado correctamente.');
     } catch {
-      const message =
-        'No pudimos guardar la empresa. Revisa tu conexión e intenta nuevamente.';
+      const message = 'No pudimos guardar los cambios. Intenta nuevamente.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
     }
@@ -1274,8 +1339,11 @@ export default function Ajustes() {
   };
 
   const guardarLimites = async () => {
+    const pesoMin = Number(limitMinPesoCompraKg);
     const pesoMax = Number(limitMaxPesoKg);
+    const precioMin = Number(limitMinPrecioCompraKg);
     const precioMax = Number(limitMaxPrecioKg);
+    const precioVentaMin = Number(limitMinPrecioVentaKg);
     const precioVentaMax = Number(limitMaxPrecioVentaKg);
     clearFeedback();
 
@@ -1284,26 +1352,48 @@ export default function Ajustes() {
       return;
     }
 
+    if (!Number.isFinite(pesoMin) || pesoMin <= 0) {
+      setError('El peso mínimo debe ser mayor a 0 kg.');
+      return;
+    }
+
     if (
       !Number.isFinite(pesoMax) ||
-      pesoMax < PESO_MINIMO_KG ||
+      pesoMax < pesoMin ||
       pesoMax > PESO_MAXIMO_ENTRADA_KG
     ) {
-      setError(
-        `El peso máximo debe estar entre ${PESO_MINIMO_KG} y ${PESO_MAXIMO_ENTRADA_KG} kg.`,
-      );
+      setError('El peso máximo no puede ser menor que el peso mínimo.');
       return;
     }
 
-    if (!Number.isFinite(precioMax) || precioMax <= 0) {
-      setError('El precio máximo de compra debe ser mayor que 0.');
+    if (!Number.isFinite(precioMin) || precioMin <= 0) {
+      setError('El precio mínimo debe ser mayor a $0.');
       return;
     }
 
-    if (!Number.isFinite(precioVentaMax) || precioVentaMax <= 0) {
-      setError('El precio máximo de venta debe ser mayor que 0.');
+    if (!Number.isFinite(precioMax) || precioMax < precioMin) {
+      setError('El precio máximo no puede ser menor que el precio mínimo.');
       return;
     }
+
+    if (!Number.isFinite(precioVentaMin) || precioVentaMin <= 0) {
+      setError('El precio mínimo debe ser mayor a $0.');
+      return;
+    }
+
+    if (!Number.isFinite(precioVentaMax) || precioVentaMax < precioVentaMin) {
+      setError('El precio máximo no puede ser menor que el precio mínimo.');
+      return;
+    }
+
+    const limitesLocales: LimitesTransaccion = {
+      minPesoCompraKg: pesoMin,
+      maxPesoCompraKg: pesoMax,
+      minPrecioCompraKg: precioMin,
+      maxPrecioCompraKg: precioMax,
+      minPrecioVentaKg: precioVentaMin,
+      maxPrecioVentaKg: precioVentaMax,
+    };
 
     setGuardandoLimites(true);
     try {
@@ -1312,9 +1402,18 @@ export default function Ajustes() {
         maxPrecioKg: precioMax,
         maxPrecioVentaKg: precioVentaMax,
       });
-      setLimitMaxPesoKg(String(result.maxPesoKg));
-      setLimitMaxPrecioKg(String(result.maxPrecioKg));
-      setLimitMaxPrecioVentaKg(String(result.maxPrecioVentaKg));
+      const limitesGuardados = guardarLimitesEntradaLocales({
+        ...limitesLocales,
+        maxPesoCompraKg: result.maxPesoKg,
+        maxPrecioCompraKg: result.maxPrecioKg,
+        maxPrecioVentaKg: result.maxPrecioVentaKg,
+      });
+      setLimitMinPesoCompraKg(String(limitesGuardados.minPesoCompraKg));
+      setLimitMaxPesoKg(String(limitesGuardados.maxPesoCompraKg));
+      setLimitMinPrecioCompraKg(String(limitesGuardados.minPrecioCompraKg));
+      setLimitMaxPrecioKg(String(limitesGuardados.maxPrecioCompraKg));
+      setLimitMinPrecioVentaKg(String(limitesGuardados.minPrecioVentaKg));
+      setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
       setSuccess('Límites actualizados.');
       setIsEditingLimites(false);
     } catch {
@@ -1667,6 +1766,85 @@ export default function Ajustes() {
     }
   };
 
+  const reintentarSincronizacion = async () => {
+    if (isOffline) {
+      setSyncFeedback({
+        variant: 'warning',
+        message: OFFLINE_BLOCKED_ACTION_MESSAGE,
+      });
+      return;
+    }
+
+    setSyncFeedback(null);
+    setSyncAllRetrying(true);
+    try {
+      getSyncQueue()
+        .filter((operation) => operation.estado === 'ERROR')
+        .forEach((operation) => retryOperation(operation.idLocal));
+      const result = await syncAllPending();
+      setSyncQueue(getSyncQueue());
+      setSyncSummary(getSyncQueueSummary());
+      setSyncFeedback({
+        variant: result.failed > 0 ? 'error' : 'success',
+        message:
+          result.failed > 0
+            ? 'No pudimos sincronizar todos los registros. Revisa la información e intenta nuevamente.'
+            : 'Registro sincronizado correctamente.',
+      });
+    } finally {
+      setSyncAllRetrying(false);
+    }
+  };
+
+  const reintentarOperacionSync = async (operation: SyncOperation) => {
+    if (isOffline) {
+      setSyncFeedback({
+        variant: 'warning',
+        message: OFFLINE_BLOCKED_ACTION_MESSAGE,
+      });
+      return;
+    }
+
+    setSyncFeedback(null);
+    setRetryingSyncIds((current) =>
+      current.includes(operation.idLocal) ? current : [...current, operation.idLocal],
+    );
+    retryOperation(operation.idLocal);
+
+    try {
+      await syncOperationById(operation.idLocal);
+      const updatedQueue = getSyncQueue();
+      const updatedOperation = updatedQueue.find(
+        (item) => item.idLocal === operation.idLocal,
+      );
+      setSyncQueue(updatedQueue);
+      setSyncSummary(getSyncQueueSummary());
+      setSyncFeedback({
+        variant: updatedOperation?.estado === 'SINCRONIZADO' ? 'success' : 'error',
+        message:
+          updatedOperation?.estado === 'SINCRONIZADO'
+            ? 'Registro sincronizado correctamente.'
+            : 'No pudimos sincronizar este registro. Revisa la información e intenta nuevamente.',
+      });
+    } finally {
+      setRetryingSyncIds((current) =>
+        current.filter((idLocal) => idLocal !== operation.idLocal),
+      );
+    }
+  };
+
+  const confirmarEliminarOperacionSync = () => {
+    if (!syncDeleteCandidate) return;
+    deleteSyncOperation(syncDeleteCandidate.idLocal);
+    setSyncDeleteCandidate(null);
+    setSyncQueue(getSyncQueue());
+    setSyncSummary(getSyncQueueSummary());
+    setSyncFeedback({
+      variant: 'success',
+      message: 'Registro local eliminado de la cola de sincronización.',
+    });
+  };
+
   const procesosOperativos = [
     {
       id: 'secado',
@@ -1700,8 +1878,8 @@ export default function Ajustes() {
   const configuracionNegocio = [
     {
       id: 'info-empresa',
-      title: 'Empresa',
-      description: company.nombreEmpresa || 'Datos principales del negocio',
+      title: 'Negocio',
+      description: 'Nombre, tipo y descripción',
       icon: Building2,
       iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
@@ -1746,7 +1924,7 @@ export default function Ajustes() {
     {
       id: 'gestion-usuarios',
       title: 'Usuarios',
-      description: 'Próximamente',
+      description: 'Roles y permisos',
       icon: Users,
       iconStyle: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
       staticOnly: true,
@@ -1765,7 +1943,6 @@ export default function Ajustes() {
   const configuracionNegocioInactiva = new Set([
     'tipos-cafe',
     'calidades-cafe',
-    'limites-entrada',
     'gestion-usuarios',
   ]);
 
@@ -1822,7 +1999,7 @@ export default function Ajustes() {
     {
       id: 'screen-reader',
       title: 'Lector de pantalla',
-      description: 'Navegación accesible',
+      description: 'Mejora la navegación con asistencia',
       status: accessibilityPreferences.screenReaderMode
         ? 'Activado'
         : 'Desactivado',
@@ -1833,7 +2010,7 @@ export default function Ajustes() {
     {
       id: 'high-contrast',
       title: 'Alto contraste',
-      description: 'Vista mejorada',
+      description: 'Aumenta textos, bordes y contraste',
       status: accessibilityPreferences.highContrast
         ? 'Activado'
         : 'Desactivado',
@@ -1844,7 +2021,7 @@ export default function Ajustes() {
     {
       id: 'font-scale',
       title: 'Tamaño de fuente',
-      description: 'Texto adaptable',
+      description: 'Ajusta el texto en toda la app',
       status:
         accessibilityPreferences.fontScale === 'xlarge'
           ? 'Extra grande'
@@ -1887,15 +2064,7 @@ export default function Ajustes() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
-        <header className="relative flex items-center justify-center py-1">
-          <button
-            type="button"
-            onClick={() => navigate('/inicio')}
-            aria-label="Volver al inicio"
-            className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#dce2f1] bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <ArrowLeft size={18} />
-          </button>
+        <header className="flex items-center justify-center py-1">
           <h1 className="text-[1.7rem] font-black tracking-tight text-[#121826] dark:text-slate-100">
             Ajustes
           </h1>
@@ -2176,24 +2345,34 @@ export default function Ajustes() {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="cerrar-sesion-title"
-                className="w-full max-w-[390px] rounded-[24px] border border-[#dbe5f7] bg-[#f8fbff] p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+                className="w-full max-w-[390px] rounded-[22px] border border-[#dbe5f7] bg-[#f8fbff] p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                  <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-400/30">
                     <LogOut size={22} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <h2
                       id="cerrar-sesion-title"
-                      className="text-lg font-black text-slate-950"
+                      className="text-lg font-black text-slate-950 dark:text-slate-50"
                     >
                       ¿Cerrar sesión?
                     </h2>
-                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-600">
-                      Tu sesión actual se cerrará en este dispositivo.
+                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
+                      Tu sesión se cerrará en este dispositivo.
                     </p>
                   </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarConfirmacionCerrarSesion(false)}
+                    aria-label="Cerrar confirmación"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                  >
+                    <X size={17} aria-hidden="true" />
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 max-[330px]:grid-cols-1">
@@ -2201,16 +2380,17 @@ export default function Ajustes() {
                     type="button"
                     autoFocus
                     onClick={() => setMostrarConfirmacionCerrarSesion(false)}
-                    className="inline-flex h-12 items-center justify-center rounded-[15px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#1f3fa7] shadow-sm transition hover:bg-[#f3f6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15"
+                    className="inline-flex h-12 items-center justify-center rounded-[14px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#1f3fa7] shadow-sm transition hover:bg-[#f3f6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                   >
                     Permanecer
                   </button>
                   <button
                     type="button"
+                    disabled={cerrandoSesion}
                     onClick={() => void cerrarSesion()}
-                    className="inline-flex h-12 items-center justify-center rounded-[15px] bg-rose-600 px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
+                    className="inline-flex h-12 items-center justify-center rounded-[14px] bg-rose-600 px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20 disabled:cursor-wait disabled:opacity-70 dark:bg-rose-500 dark:hover:bg-rose-400"
                   >
-                    Cerrar sesión
+                    {cerrandoSesion ? 'Cerrando...' : 'Cerrar sesión'}
                   </button>
                 </div>
               </section>
@@ -2290,6 +2470,12 @@ export default function Ajustes() {
                     Tipo de negocio
                   </span>
                   {company.tipoEmpresa || 'Compraventa'}
+                </p>
+                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                    Descripción
+                  </span>
+                  {company.descripcion.trim() || 'Sin descripción registrada.'}
                 </p>
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-emerald-700">
                   <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-emerald-500">
@@ -2567,17 +2753,19 @@ export default function Ajustes() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (isOffline) {
-                        setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
-                        return;
-                      }
-                      void syncAllPending();
-                    }}
-                    disabled={syncSummary.pendientes === 0 || isOffline}
-                    className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void reintentarSincronizacion()}
+                    disabled={
+                      syncAllRetrying ||
+                      retryingSyncIds.length > 0 ||
+                      syncSummary.pendientes + syncSummary.errores === 0 ||
+                      isOffline
+                    }
+                    className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
                   >
-                    Reintentar
+                    {syncAllRetrying ? (
+                      <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                    ) : null}
+                    {syncAllRetrying ? 'Reintentando...' : 'Reintentar'}
                   </button>
                   <button
                     type="button"
@@ -2589,9 +2777,31 @@ export default function Ajustes() {
                   </button>
                 </div>
 
+                {syncFeedback ? (
+                  <AppFeedbackMessage
+                    variant={syncFeedback.variant}
+                    description={syncFeedback.message}
+                    className="mt-4"
+                  />
+                ) : null}
+
                 {syncQueue.length > 0 ? (
                   <div className="mt-4 space-y-2">
-                    {syncQueue.map((operation) => (
+                    {syncQueue.map((operation) => {
+                      const isRetrying = retryingSyncIds.includes(operation.idLocal);
+                      const technicalError =
+                        operation.error?.match(/property\s+[\w.]+\s+should not exist/i)?.[0] ??
+                        null;
+                      const friendlyError =
+                        operation.estado === 'ERROR'
+                          ? operation.modulo === 'VENTA'
+                            ? 'No pudimos sincronizar esta venta. Intenta nuevamente.'
+                            : operation.modulo === 'SECADO'
+                              ? 'No pudimos sincronizar este secado. Intenta nuevamente.'
+                              : 'No pudimos sincronizar este registro. Intenta nuevamente.'
+                          : null;
+
+                      return (
                       <div
                         key={operation.idLocal}
                         className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
@@ -2635,37 +2845,44 @@ export default function Ajustes() {
                           </span>
                         </div>
                         {operation.error ? (
-                          <p className="mt-2 text-[11px] font-semibold leading-4 text-red-700 dark:text-red-200">
-                            {operation.error}
-                          </p>
+                          <div className="mt-2 rounded-[10px] border border-red-100 bg-red-50 px-2.5 py-2 text-[11px] font-semibold leading-4 text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-100">
+                            <p>{technicalError ? friendlyError : operation.error}</p>
+                            {technicalError ? (
+                              <details className="mt-1 text-red-700 dark:text-red-200">
+                                <summary className="cursor-pointer font-black">
+                                  Detalle técnico
+                                </summary>
+                                <p className="mt-1 break-words">{technicalError}</p>
+                              </details>
+                            ) : null}
+                          </div>
                         ) : null}
                         {operation.estado === 'ERROR' ? (
                           <div className="mt-2 flex gap-2">
                             <button
                               type="button"
-                              onClick={() => {
-                                if (isOffline) {
-                                  setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
-                                  return;
-                                }
-                                retryOperation(operation.idLocal);
-                                void syncAllPending();
-                              }}
-                              className="rounded-[10px] bg-[#102d92] px-3 py-1.5 text-[11px] font-black text-white"
+                              onClick={() => void reintentarOperacionSync(operation)}
+                              disabled={isRetrying || syncAllRetrying || isOffline}
+                              className="inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-[10px] bg-[#102d92] px-3 py-1.5 text-[11px] font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
                             >
-                              Reintentar
+                              {isRetrying ? (
+                                <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
+                              ) : null}
+                              {isRetrying ? 'Reintentando...' : 'Reintentar'}
                             </button>
                             <button
                               type="button"
-                              onClick={() => deleteSyncOperation(operation.idLocal)}
-                              className="rounded-[10px] border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 dark:border-red-400/50 dark:bg-slate-900 dark:text-red-200"
+                              onClick={() => setSyncDeleteCandidate(operation)}
+                              disabled={isRetrying || syncAllRetrying}
+                              className="min-h-[32px] rounded-[10px] border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400/50 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-500/10"
                             >
                               Eliminar local
                             </button>
                           </div>
                         ) : null}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 ) : (
                   <CafeSmartEmptyState
@@ -2675,6 +2892,40 @@ export default function Ajustes() {
                 )}
             </CafeSmartModal>
           ) : null}
+          <CafeSmartModal
+            open={Boolean(syncDeleteCandidate)}
+            onClose={() => setSyncDeleteCandidate(null)}
+            labelledById="eliminar-sync-local-title"
+            title="¿Eliminar registro local?"
+            description="Este registro se quitará de la cola de sincronización. No se enviará al servidor."
+            className="max-w-[390px]"
+          >
+            <div className="flex items-start gap-3 rounded-[14px] border border-red-100 bg-red-50 px-3 py-3 dark:border-red-400/30 dark:bg-red-500/10">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-200">
+                <Trash2 size={18} aria-hidden="true" />
+              </span>
+              <p className="text-sm font-semibold leading-5 text-red-900 dark:text-red-100">
+                Elimina solo si ya no quieres intentar sincronizar este registro.
+              </p>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 max-[330px]:grid-cols-1">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setSyncDeleteCandidate(null)}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#1f3fa7] shadow-sm transition hover:bg-[#f3f6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarEliminarOperacionSync}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-rose-600 px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20 dark:bg-rose-500 dark:hover:bg-rose-400"
+              >
+                Eliminar local
+              </button>
+            </div>
+          </CafeSmartModal>
           {secadoPanel ? (
             <section className="overflow-hidden rounded-[18px] border border-[#dbe5ff] bg-white shadow-sm">
               <button
@@ -3027,6 +3278,8 @@ export default function Ajustes() {
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
+                  aria-label={`${item.title}: ${item.description}. Estado actual: ${item.status}.`}
+                  title={`${item.title}: ${item.status}`}
                   className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
                 >
                   <span className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}>
@@ -3038,9 +3291,6 @@ export default function Ajustes() {
                     </span>
                     <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
                       {item.description}
-                    </span>
-                    <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-200">
-                      {item.status}
                     </span>
                   </span>
                   <ChevronRight
@@ -3091,14 +3341,11 @@ export default function Ajustes() {
             {configuracionNegocio.map((item) => {
               const Icon = item.icon;
               const disabled = configuracionNegocioInactiva.has(item.id);
-              const statusLabel =
-                item.id === 'gestion-usuarios' ? 'Próximamente' : 'En desarrollo';
               return (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={item.onClick}
-                  disabled={disabled}
+                  onClick={disabled ? mostrarOpcionPendiente : item.onClick}
                   aria-disabled={disabled}
                   className={`flex w-full items-start gap-2.5 rounded-[12px] border px-3 py-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 ${
                     disabled
@@ -3134,11 +3381,6 @@ export default function Ajustes() {
                     >
                       {item.description}
                     </span>
-                    {disabled ? (
-                      <span className="mt-1 inline-flex rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.06em] text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                        {statusLabel}
-                      </span>
-                    ) : null}
                   </span>
                   <ChevronRight
                     size={14}
@@ -3164,8 +3406,7 @@ export default function Ajustes() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={item.onClick}
-                  disabled={disabled}
+                  onClick={disabled ? mostrarOpcionPendiente : item.onClick}
                   aria-disabled={disabled}
                   className={`flex w-full items-start gap-2.5 rounded-[12px] border px-3 py-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 ${
                     disabled
@@ -3244,16 +3485,16 @@ export default function Ajustes() {
 
         {isEditingCompany ? (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
-            <section className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <section className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[1.2rem] font-black text-slate-900">
-                  Editar empresa
+                <h3 className="text-[1.2rem] font-black text-slate-900 dark:text-slate-100">
+                  Editar negocio
                 </h3>
                 <button
                   type="button"
                   onClick={cerrarEditorEmpresa}
-                  aria-label="Cerrar edición de empresa"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar edición de negocio"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <X size={18} />
                 </button>
@@ -3262,90 +3503,113 @@ export default function Ajustes() {
               {limitNotice ? (
                 <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
-              <input
-                type="text"
-                value={company.nombreEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({
-                    ...prev,
-                    nombreEmpresa: event.target.value.slice(0, BUSINESS_NAME_MAX_LENGTH),
-                  }));
-                  if (event.target.value.length >= BUSINESS_NAME_MAX_LENGTH) {
-                    showLimitNotice('Llegaste al máximo de caracteres.');
-                  }
-                  clearFeedback();
-                }}
-                onBlur={() => {
-                  const validation = validateCompanyName(company.nombreEmpresa);
-                  const message = validation.isValid
-                    ? validateBusinessName(company.nombreEmpresa)
-                    : validation.message;
-                  if (message) {
-                    setError(message);
-                    setFloatingError(getAjustesGuidance(message));
-                  }
-                }}
-                maxLength={BUSINESS_NAME_MAX_LENGTH}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                placeholder="Nombre de la empresa"
-              />
+              <label htmlFor="settings-business-name" className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Nombre del negocio
+                </span>
+                <input
+                  id="settings-business-name"
+                  type="text"
+                  value={company.nombreEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({
+                      ...prev,
+                      nombreEmpresa: event.target.value.slice(0, BUSINESS_NAME_MAX_LENGTH),
+                    }));
+                    if (event.target.value.length >= BUSINESS_NAME_MAX_LENGTH) {
+                      showLimitNotice('Llegaste al máximo de caracteres.');
+                    }
+                    clearFeedback();
+                  }}
+                  onBlur={() => {
+                    const validation = validateCompanyName(company.nombreEmpresa);
+                    const message = validation.isValid
+                      ? validateBusinessName(company.nombreEmpresa)
+                      : validation.message;
+                    if (message) {
+                      setError(message);
+                      setFloatingError(getAjustesGuidance(message));
+                    }
+                  }}
+                  maxLength={BUSINESS_NAME_MAX_LENGTH}
+                  className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Nombre del negocio"
+                />
+              </label>
               <div className="-mt-1 flex justify-end">
                 <span
                   className={`text-xs font-bold ${
                     company.nombreEmpresa.length >= BUSINESS_NAME_MAX_LENGTH
-                      ? 'text-amber-600'
-                      : 'text-slate-500'
+                      ? 'text-amber-600 dark:text-amber-300'
+                      : 'text-slate-500 dark:text-slate-400'
                   }`}
                 >
                   {company.nombreEmpresa.length}/{BUSINESS_NAME_MAX_LENGTH}
                 </span>
               </div>
-              <SmartSelect
-                aria-label="Tipo de empresa"
-                value={company.tipoEmpresa}
-                onChange={(event) => {
-                  setCompany((prev) => ({
-                    ...prev,
-                    tipoEmpresa: event.target.value,
-                  }));
-                  clearFeedback();
-                }}
-                className="text-sm"
-              >
-                <option value="">Seleccionar tipo</option>
-                <option value="Cooperativa">Cooperativa</option>
-                <option value="Compraventa">Compraventa</option>
-                <option value="Otro">Otro</option>
-              </SmartSelect>
-              <textarea
-                value={company.descripcion}
-                onChange={(event) => {
-                  setCompany((prev) => ({
-                    ...prev,
-                    descripcion: event.target.value.slice(0, 200),
-                  }));
-                  if (event.target.value.length >= 200) {
-                    showLimitNotice('Llegaste al máximo de caracteres.');
-                  }
-                  clearFeedback();
-                }}
-                maxLength={200}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
-                rows={3}
-                placeholder="Descripción breve del negocio"
-              />
+              <label htmlFor="settings-business-type" className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Tipo de negocio
+                </span>
+                <SmartSelect
+                  id="settings-business-type"
+                  value={company.tipoEmpresa}
+                  onChange={(event) => {
+                    setCompany((prev) => ({
+                      ...prev,
+                      tipoEmpresa: event.target.value,
+                    }));
+                    clearFeedback();
+                  }}
+                  className="text-sm"
+                >
+                  <option value="">Seleccionar tipo</option>
+                  <option value="Compraventa">Compraventa</option>
+                  <option value="Cooperativa">Cooperativa</option>
+                  <option value="Otro">Personalizado</option>
+                </SmartSelect>
+              </label>
+              <label htmlFor="settings-business-description" className="block">
+                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                  Descripción del negocio (opcional)
+                </span>
+                <span className="mb-2 block text-xs font-medium text-slate-500 dark:text-slate-400">
+                  Opcional. Describe brevemente cómo opera tu negocio.
+                </span>
+                <textarea
+                  id="settings-business-description"
+                  value={company.descripcion}
+                  onChange={(event) => {
+                    setCompany((prev) => ({
+                      ...prev,
+                      descripcion: event.target.value.slice(
+                        0,
+                        BUSINESS_DESCRIPTION_MAX_LENGTH,
+                      ),
+                    }));
+                    if (event.target.value.length >= BUSINESS_DESCRIPTION_MAX_LENGTH) {
+                      showLimitNotice('Llegaste al máximo de caracteres.');
+                    }
+                    clearFeedback();
+                  }}
+                  maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
+                  className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  rows={3}
+                  placeholder="Ej: Compra, inventario y venta de café en bodega local."
+                />
+              </label>
               <div className="-mt-1 flex justify-end">
-                <span className="text-xs font-bold text-slate-500">
-                  {company.descripcion.length}/200
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  {company.descripcion.length}/{BUSINESS_DESCRIPTION_MAX_LENGTH}
                 </span>
               </div>
               {error && activeErrorSection === 'company' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
-              {success === 'Información de la empresa actualizada.' ? (
+              {success === 'Negocio actualizado correctamente.' ? (
                 <AppFeedbackMessage
                   variant="success"
-                  description="Información de la empresa actualizada."
+                  description="Negocio actualizado correctamente."
                   action={
                     <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
                       <X size={14} />
@@ -3360,12 +3624,12 @@ export default function Ajustes() {
                   className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white"
                 >
                   <Save size={15} />
-                  Guardar empresa
+                  Guardar negocio
                 </button>
                 <button
                   type="button"
                   onClick={cerrarEditorEmpresa}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85]"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 >
                   Cancelar
                 </button>
@@ -3383,16 +3647,16 @@ export default function Ajustes() {
 
       {isEditingBodega ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
-            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
             <div className="mt-4 flex items-center justify-between gap-3">
-              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827]">
+              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
                 Capacidad de bodega
               </h3>
               <button
                 type="button"
                 onClick={cerrarEditorBodega}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-transparent bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
                 aria-label="Cerrar"
               >
                 <X size={20} />
@@ -3404,7 +3668,7 @@ export default function Ajustes() {
                 <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
               <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
+                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-300">
                   Nombre
                 </p>
                 <input
@@ -3418,16 +3682,16 @@ export default function Ajustes() {
                     setNombreBodega(sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH));
                     clearFeedback();
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#173ea6] focus:ring-4 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/25"
                   placeholder="Bodega principal"
                 />
-                <p className="mt-1 text-right text-[0.62rem] font-bold text-slate-500">
+                <p className="mt-1 text-right text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
                   {nombreBodega.length}/{BODEGA_NAME_MAX_LENGTH}
                 </p>
               </div>
 
               <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
+                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-300">
                   Capacidad max. (kg)
                 </p>
                 <input
@@ -3448,45 +3712,45 @@ export default function Ajustes() {
                     );
                     clearFeedback();
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#173ea6] focus:ring-4 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/25"
                   placeholder="6000"
                 />
-                <p className="mt-1 text-[0.62rem] font-bold text-slate-500">
+                <p className="mt-1 text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
                   Máximo recomendado: 100.000 kg
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-[10px] bg-[#f6f7fd] px-3 py-2.5">
-                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500">
+                <div className="rounded-[10px] border border-slate-200 bg-[#f6f7fd] px-3 py-2.5 dark:border-slate-600 dark:bg-slate-950">
+                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500 dark:text-slate-300">
                     En bodega
                   </p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900">
+                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900 dark:text-slate-100">
                     {loadingStock
                       ? 'Cargando...'
                       : `${formatKg(inventarioActualKg)} kg`}
                   </p>
-                  <p className="mt-0.5 text-[0.58rem] text-slate-500">
+                  <p className="mt-0.5 text-[0.58rem] text-slate-500 dark:text-slate-400">
                     Almacenados
                   </p>
                 </div>
-                <div className="rounded-[10px] bg-[#f6f7fd] px-3 py-2.5">
-                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500">
+                <div className="rounded-[10px] border border-slate-200 bg-[#f6f7fd] px-3 py-2.5 dark:border-slate-600 dark:bg-slate-950">
+                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500 dark:text-slate-300">
                     Disponible
                   </p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900">
+                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900 dark:text-slate-100">
                     {capacidadRestante !== null
                       ? `${formatKg(capacidadRestante)} kg`
                       : 'Sin dato'}
                   </p>
-                  <p className="mt-0.5 text-[0.58rem] text-slate-500">Libres</p>
+                  <p className="mt-0.5 text-[0.58rem] text-slate-500 dark:text-slate-400">Libres</p>
                 </div>
               </div>
               <div>
                 <button
                   type="button"
                   onClick={guardarBodega}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
                   <Save size={14} />
                   Guardar cambios
@@ -3517,8 +3781,8 @@ export default function Ajustes() {
                   ) : null}
                 </div>
               ) : null}
-              <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500">
-                <CalendarDays size={12} className="text-[#102d92]" />
+              <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
+                <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
             </div>
@@ -3531,9 +3795,14 @@ export default function Ajustes() {
           <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
             <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
             <div className="mt-4 flex items-center justify-between gap-3">
-              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
-                Límites de Transacción
-              </h3>
+              <div className="min-w-0">
+                <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
+                  Límites de Transacción
+                </h3>
+                <p className="mt-1 text-[0.82rem] font-medium text-slate-500 dark:text-slate-300">
+                  Define los valores permitidos para compras y ventas.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={cerrarEditorLimites}
@@ -3544,73 +3813,183 @@ export default function Ajustes() {
               </button>
             </div>
 
+            <div className="mt-4 flex rounded-[14px] border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
+              {[
+                ['todos', 'Todos'],
+                ['compra', 'Compra'],
+                ['venta', 'Venta'],
+              ].map(([value, label]) => {
+                const active = limitesTab === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setLimitesTab(value as LimitesTab)}
+                    className={`min-h-[36px] flex-1 rounded-[11px] px-2 text-[0.82rem] font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
+                      active
+                        ? 'bg-[#102d92] text-white shadow-sm dark:bg-blue-600 dark:text-white'
+                        : 'border border-transparent text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
+                    }`}
+                    aria-pressed={active}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="mt-4 space-y-4">
-              <label className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
-                  Peso máximo en compra (kg)
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={limitMaxPesoKg}
-                  onChange={(event) => {
-                    const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
-                    setLimitMaxPesoKg(raw);
-                    clearFeedback();
-                  }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                  placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
-                />
-              </label>
+              {limitesTab === 'todos' || limitesTab === 'compra' ? (
+                <section className="space-y-3">
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-300">
+                    Compra
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Peso mínimo en compra (kg)
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={5}
+                        value={limitMinPesoCompraKg}
+                        onChange={(event) => {
+                          const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                          setLimitMinPesoCompraKg(raw);
+                          clearFeedback();
+                        }}
+                        className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        placeholder="5"
+                      />
+                    </label>
 
-              <label className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
-                  Precio máx. x kg (Compra)
-                </span>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
-                    $
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={limitMaxPrecioKg}
-                    onChange={(event) => {
-                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
-                      setLimitMaxPrecioKg(raw);
-                      clearFeedback();
-                    }}
-                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    placeholder="100000"
-                  />
-                </div>
-              </label>
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Peso máximo en compra (kg)
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={5}
+                        value={limitMaxPesoKg}
+                        onChange={(event) => {
+                          const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                          setLimitMaxPesoKg(raw);
+                          clearFeedback();
+                        }}
+                        className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
+                      />
+                    </label>
 
-              <label className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
-                  Precio máx. x kg (Venta)
-                </span>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
-                    $
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={limitMaxPrecioVentaKg}
-                    onChange={(event) => {
-                      const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
-                      setLimitMaxPrecioVentaKg(raw);
-                      clearFeedback();
-                    }}
-                    className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    placeholder="100000"
-                  />
-                </div>
-              </label>
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Precio mínimo x kg (Compra)
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={limitMinPrecioCompraKg}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            setLimitMinPrecioCompraKg(raw);
+                            clearFeedback();
+                          }}
+                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          placeholder="1000"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Precio máximo x kg (Compra)
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={limitMaxPrecioKg}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            setLimitMaxPrecioKg(raw);
+                            clearFeedback();
+                          }}
+                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          placeholder="100000"
+                        />
+                      </div>
+                    </label>
+                  </div>
+                </section>
+              ) : null}
+
+              {limitesTab === 'todos' || limitesTab === 'venta' ? (
+                <section className="space-y-3">
+                  <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-300">
+                    Venta
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Precio mínimo x kg (Venta)
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={limitMinPrecioVentaKg}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            setLimitMinPrecioVentaKg(raw);
+                            clearFeedback();
+                          }}
+                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          placeholder="1000"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        Precio máximo x kg (Venta)
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={limitMaxPrecioVentaKg}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            setLimitMaxPrecioVentaKg(raw);
+                            clearFeedback();
+                          }}
+                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          placeholder="100000"
+                        />
+                      </div>
+                    </label>
+                  </div>
+                </section>
+              ) : null}
 
               {error ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
@@ -3635,29 +4014,29 @@ export default function Ajustes() {
       ) : null}
 
       {peopleMode ? (
-        <div className="fixed inset-0 z-[80] bg-[#f4f7fb] text-slate-950">
+        <div className="fixed inset-0 z-[80] bg-[#f4f7fb] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="personas-admin-title"
-            className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb]"
+            className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb] dark:bg-slate-950"
           >
-            <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm">
+            <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
                     onClick={cerrarModuloPersonas}
                     aria-label="Volver a ajustes"
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100"
                   >
                     <ArrowLeft size={18} />
                   </button>
                   <div className="min-w-0">
-                  <h3 id="personas-admin-title" className="text-lg font-black text-slate-950">
+                  <h3 id="personas-admin-title" className="text-lg font-black text-slate-950 dark:text-slate-100">
                     Gestión de contactos
                   </h3>
-                  <p className="text-xs font-bold text-slate-500">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-300">
                     Clientes y productores registrados
                   </p>
                   </div>
@@ -3679,7 +4058,7 @@ export default function Ajustes() {
                   setPeopleSearch(sanitizeSearchInput(event.target.value));
                 }}
                 placeholder="Buscar por nombre, documento o teléfono"
-                className="mt-3 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7]"
+                className="mt-3 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {[
@@ -3693,8 +4072,8 @@ export default function Ajustes() {
                     onClick={() => setPeopleMode(option.value as Exclude<PeopleAdminMode, null>)}
                     className={`min-h-[34px] rounded-full px-3 text-xs font-black ${
                       peopleMode === option.value
-                        ? 'bg-[#102d92] text-white'
-                        : 'border border-[#dbe2f0] bg-white text-[#334b85]'
+                        ? 'bg-[#102d92] text-white dark:bg-blue-600'
+                        : 'border border-[#dbe2f0] bg-white text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
                     }`}
                   >
                     {option.label}
@@ -3704,12 +4083,12 @@ export default function Ajustes() {
                   <button
                     type="button"
                     onClick={() => setPeopleSortOpen((open) => !open)}
-                    className="min-h-[34px] rounded-full border border-[#dbe2f0] bg-white px-3 text-xs font-black text-[#334b85]"
+                    className="min-h-[34px] rounded-full border border-[#dbe2f0] bg-white px-3 text-xs font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   >
                     Ordenar por
                   </button>
                   {peopleSortOpen ? (
-                    <div className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-[14px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
+                    <div className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-[14px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)] dark:border-slate-700 dark:bg-slate-900">
                       {[
                         ['recent', 'Más recientes'],
                         ['oldest', 'Más antiguos'],
@@ -3727,8 +4106,8 @@ export default function Ajustes() {
                           }}
                           className={`block w-full rounded-[10px] px-3 py-2 text-left text-xs font-black ${
                             peopleSortMode === value
-                              ? 'bg-[#eef4ff] text-[#102d92]'
-                              : 'text-slate-700 hover:bg-slate-50'
+                              ? 'bg-[#102d92] text-white dark:bg-blue-600'
+                              : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
                           }`}
                         >
                           {label}
@@ -3738,7 +4117,7 @@ export default function Ajustes() {
                   ) : null}
                 </div>
               </div>
-              <p className="mt-3 text-xs font-black text-slate-500">
+              <p className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">
                 {peopleFiltered.length} contacto{peopleFiltered.length === 1 ? '' : 's'}
               </p>
               {peopleSearchResult.isSimilar ? (
@@ -3763,7 +4142,7 @@ export default function Ajustes() {
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {peopleLoading ? (
-                <p className="rounded-[16px] bg-[#f8faff] px-4 py-6 text-center text-sm font-bold text-slate-500">
+                <p className="rounded-[16px] bg-[#f8faff] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
                   Cargando registros...
                 </p>
               ) : peopleError ? (
@@ -3777,8 +4156,8 @@ export default function Ajustes() {
                   </button>
                 </AppFeedbackMessage>
               ) : peopleFiltered.length === 0 ? (
-                <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
-                  <p className="font-bold text-slate-800">
+                <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  <p className="font-bold text-slate-800 dark:text-slate-100">
                     Aún no hay contactos registrados
                   </p>
                   <button
@@ -3794,20 +4173,20 @@ export default function Ajustes() {
                   {peopleFiltered.map((item) => (
                     <article
                       key={item.id}
-                      className="rounded-[16px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3"
+                      className="rounded-[16px] border border-[#e2e8f4] bg-[#fbfcff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-slate-950">
+                          <p className="truncate text-sm font-black text-slate-950 dark:text-slate-100">
                             {item.nombre}
                           </p>
-                          <span className="mt-1 inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[0.62rem] font-black text-[#102d92]">
+                          <span className="mt-1 inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[0.62rem] font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100">
                             {item.contactType === 'cliente' ? 'Cliente' : 'Productor'}
                           </span>
-                          <p className="mt-1 text-xs font-bold text-slate-500">
+                          <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">
                             {item.tipoDocumento === 'NIT' ? 'NIT' : 'Cédula'}: {item.documento || 'Pendiente'}
                           </p>
-                          <p className="text-xs font-bold text-slate-400">
+                          <p className="text-xs font-bold text-slate-400 dark:text-slate-400">
                             {item.telefono ? formatPhoneNumber(item.telefono) : 'Teléfono no registrado'}
                           </p>
                         </div>
@@ -3817,7 +4196,7 @@ export default function Ajustes() {
                             onClick={() => setPeopleDetail(item)}
                             aria-label={`Ver detalle de ${item.nombre}`}
                             title="Ver detalle"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1f3fa7] shadow-sm"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1f3fa7] shadow-sm dark:bg-slate-800 dark:text-blue-100"
                           >
                             <Eye size={15} />
                           </button>
@@ -3826,7 +4205,7 @@ export default function Ajustes() {
                             onClick={() => abrirEdicionPersona(item)}
                             aria-label={`Editar ${item.nombre}`}
                             title="Editar"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[#1f3fa7]"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[#1f3fa7] dark:bg-blue-500/20 dark:text-blue-100"
                           >
                             <Pencil size={15} />
                           </button>
@@ -3835,7 +4214,7 @@ export default function Ajustes() {
                             onClick={() => setPeopleDeleteTarget(item)}
                             aria-label={`Eliminar ${item.nombre}`}
                             title="Eliminar"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-700"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -3846,7 +4225,7 @@ export default function Ajustes() {
                   <button
                     type="button"
                     onClick={iniciarRegistroPersona}
-                    className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6]"
+                    className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
                   >
                     Registrar contacto
                   </button>
@@ -3985,7 +4364,7 @@ export default function Ajustes() {
               <label className="block">
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
                   {peopleForm.tipoDocumento === 'NIT'
-                    ? 'Nombre de la empresa'
+                    ? 'Nombre del negocio'
                     : 'Nombre completo'}
                 </span>
               <input
@@ -4002,7 +4381,7 @@ export default function Ajustes() {
                 placeholder={
                   peopleForm.tipoDocumento
                     ? peopleForm.tipoDocumento === 'NIT'
-                      ? 'Nombre de la empresa'
+                      ? 'Nombre del negocio'
                       : 'Nombre completo'
                     : 'Primero selecciona el tipo de documento'
                 }
@@ -4091,7 +4470,7 @@ export default function Ajustes() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="people-draft-title"
-            className="w-full max-w-[390px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="w-full max-w-[390px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border dark:border-slate-700 dark:bg-slate-900"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -4153,27 +4532,27 @@ export default function Ajustes() {
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-rose-600">
                   ¿Eliminar contacto?
                 </p>
-                <h3 id="delete-contact-title" className="mt-1 text-lg font-black text-slate-950">
+                <h3 id="delete-contact-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
                   {peopleDeleteTarget.nombre}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setPeopleDeleteTarget(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                 aria-label="Cerrar eliminación"
               >
                 <X size={16} />
               </button>
             </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+            <p className="mt-3 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
               Esta acción no se puede deshacer. El contacto se eliminará permanentemente.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setPeopleDeleteTarget(null)}
-                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
               >
                 No eliminar
               </button>
@@ -4184,7 +4563,7 @@ export default function Ajustes() {
                   setPeopleDeleteTarget(null);
                   void eliminarPersona(target);
                 }}
-                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-rose-50 px-4 text-sm font-black text-rose-700 ring-1 ring-rose-100"
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-rose-600 px-4 text-sm font-black text-white ring-1 ring-rose-500/30"
               >
                 Eliminar
               </button>

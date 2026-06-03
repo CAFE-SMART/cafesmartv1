@@ -27,6 +27,7 @@ type User = {
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
 };
 
 type StoredUserShape = {
@@ -40,6 +41,7 @@ type StoredUserShape = {
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
 };
 
 type UserSessionInput = {
@@ -151,6 +153,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           nombreOrganizacion: parsed.nombreOrganizacion ?? null,
           tipoOrganizacion: parsed.tipoOrganizacion ?? null,
           otroTipoDetalle: parsed.otroTipoDetalle ?? null,
+          descripcionOrganizacion: parsed.descripcionOrganizacion ?? null,
         });
       } catch {
         await clearAuthStorage();

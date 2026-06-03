@@ -76,10 +76,12 @@ const FORM_INICIAL: GastoForm = {
 };
 const GASTO_CONCEPTO_MAX = 60;
 const GASTO_DESCRIPCION_MAX = 200;
-const GASTO_MONTO_MAX = 20000000;
+const GASTO_MONTO_MAX = 100000000;
+const GASTO_CONCEPTO_MIN = 4;
 const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
 const CONCEPTO_GASTO_TIENE_LETRA_REGEX = /\p{L}/u;
 const CONCEPTO_GASTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
+const CONCEPTO_GASTO_SOLO_REPETIDO_REGEX = /^([\p{L}\d])\1+$/u;
 
 function sanitizeMoneyInput(value: string, max = GASTO_MONTO_MAX) {
   const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
@@ -169,30 +171,46 @@ export default function Gastos() {
     const conceptoNormalizado = form.concepto.trim();
 
     if (!conceptoNormalizado) {
-      return UI_MESSAGES.forms.incompleteData.mensaje;
+      return 'Describe el gasto para identificarlo después.';
+    }
+
+    if (conceptoNormalizado.length < GASTO_CONCEPTO_MIN) {
+      return 'El concepto debe tener al menos 4 caracteres.';
     }
 
     if (CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(conceptoNormalizado)) {
-      return 'Describe el gasto con al menos una palabra.';
+      return 'No uses solo números como concepto del gasto.';
+    }
+
+    if (CONCEPTO_GASTO_SOLO_REPETIDO_REGEX.test(conceptoNormalizado.toLowerCase())) {
+      return 'El concepto debe incluir texto descriptivo.';
     }
 
     if (
       !CONCEPTO_GASTO_VALIDO_REGEX.test(conceptoNormalizado) ||
       !CONCEPTO_GASTO_TIENE_LETRA_REGEX.test(conceptoNormalizado)
     ) {
-      return 'El concepto contiene caracteres no válidos.';
+      return 'El concepto debe incluir texto descriptivo.';
     }
 
     if (!fechaValidacion.isValid) {
       return UI_MESSAGES.forms.invalidDate.mensaje;
     }
 
-    if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
-      return 'Revisa el valor ingresado para continuar.';
+    if (!form.monto.trim()) {
+      return 'Ingresa el monto del gasto.';
+    }
+
+    if (!Number.isFinite(montoNumero)) {
+      return 'Ingresa solo números válidos.';
+    }
+
+    if (montoNumero <= 0) {
+      return 'El monto debe ser mayor a $0.';
     }
 
     if (montoNumero > GASTO_MONTO_MAX) {
-      return 'El monto supera el límite permitido.';
+      return 'El monto máximo permitido es $100.000.000.';
     }
 
     if (form.aplicaA === 'SUBLOTES' && form.lotesIds.length === 0) {

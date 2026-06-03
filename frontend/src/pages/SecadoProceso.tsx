@@ -115,6 +115,16 @@ function formatLocalDateValue(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatLongDateLabel(value: string) {
+  const date = parseLocalDateValue(value);
+  if (!date) return value;
+  return date.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 function isDateValueInRange(value: string, min: string, max: string) {
   return value >= min && value <= max;
 }
@@ -577,7 +587,9 @@ export default function SecadoProceso() {
   );
   const maxSalidaPermitida = Math.min(totalEntrada, MAX_SECADO_OUTPUT_KG);
   const sourceQuality = keyOf(session?.calidad ?? '');
-  const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
+  const outputQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
+    (quality) => quality === sourceQuality,
+  );
   const outputEntries = [buenoKg, regularKg, maloKg].map((raw) => {
     const clean = raw.trim();
     const value = clean === '' ? 0 : Number(clean);
@@ -587,13 +599,18 @@ export default function SecadoProceso() {
       invalid: clean !== '' && (!Number.isFinite(value) || value < 0),
     };
   });
+  const relevantOutputEntries = outputEntries.filter((_, index) =>
+    outputQualities.includes((['BUENO', 'REGULAR', 'MALO'] as const)[index]),
+  );
   const [buenoEntry, regularEntry, maloEntry] = outputEntries;
   const bueno = outputQualities.includes('BUENO') ? buenoEntry.value : 0;
   const regular = outputQualities.includes('REGULAR') ? regularEntry.value : 0;
   const malo = outputQualities.includes('MALO') ? maloEntry.value : 0;
   const totalSalida = bueno + regular + malo;
   const hasResultadoIngresado =
-    buenoKg.trim() !== '' || regularKg.trim() !== '' || maloKg.trim() !== '';
+    (sourceQuality === 'BUENO' && buenoKg.trim() !== '') ||
+    (sourceQuality === 'REGULAR' && regularKg.trim() !== '') ||
+    (sourceQuality === 'MALO' && maloKg.trim() !== '');
   const merma = hasResultadoIngresado ? Math.max(0, totalEntrada - totalSalida) : 0;
   const mermaPct =
     totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
@@ -759,16 +776,27 @@ export default function SecadoProceso() {
       return;
     }
 
+    const fechaInicio = parseLocalDateValue(startDate);
+    const fechaFin = parseLocalDateValue(endDate);
+    if (!fechaInicio || !fechaFin) {
+      setError('Selecciona fechas válidas para continuar.');
+      return;
+    }
+    if (fechaFin < fechaInicio) {
+      setError('La fecha de finalización no puede ser anterior a la fecha de inicio.');
+      return;
+    }
+
     if (!hasResultadoIngresado) {
       setError('Debes registrar al menos un resultado de secado.');
       return;
     }
 
-    if (outputEntries.some((entry) => entry.invalid)) {
+    if (relevantOutputEntries.some((entry) => entry.invalid)) {
       setError('Ingresa un peso válido.');
       return;
     }
-    if (outputEntries.some((entry) => entry.value > maxSalidaPermitida)) {
+    if (relevantOutputEntries.some((entry) => entry.value > maxSalidaPermitida)) {
       setError('El resultado supera el peso disponible del secado.');
       return;
     }
@@ -1060,7 +1088,7 @@ export default function SecadoProceso() {
                 Fecha de inicio
               </label>
               <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">
-                {startDate}
+                {formatLongDateLabel(startDate)}
               </div>
               <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">
                 Fecha de finalización
@@ -1088,7 +1116,7 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida para café verde {titleCase(session.calidad)}.
+                Registra la salida en la calidad original: {titleCase(session.calidad)}.
               </p>
               <div className="mt-4 grid grid-cols-3 gap-2 max-[360px]:grid-cols-2">
                 {outputFields.map((field) => (

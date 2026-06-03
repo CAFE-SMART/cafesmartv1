@@ -57,6 +57,10 @@ import {
   obtenerConfiguracionBodega,
 } from '../services/bodegaApi';
 import {
+  configurarLimitesEntradaCache,
+  getLimitesEntradaSnapshot,
+} from '../services/limitesEntradaService';
+import {
   crearCompra,
   listarCompras,
   obtenerCatalogosCompra,
@@ -73,7 +77,6 @@ import {
   listarProductores,
   type ProductorItem,
 } from '../services/productoresService';
-import { PRECIO_MINIMO_KG } from '../utils/businessRules';
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import {
   formatPhoneNumber,
@@ -1295,8 +1298,7 @@ const MONTHS_ES = [
   'Diciembre',
 ];
 const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
-const PESO_MAXIMO_COMPRA_KG = 99999;
-const PRECIO_MAXIMO_KG = 100000;
+const getLimitesCompra = () => getLimitesEntradaSnapshot();
 
 function parseLocalDateValue(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -1567,11 +1569,20 @@ function leerCantidadCompra(valor: string) {
     return { valor: numero, error: 'La cantidad debe ser mayor a cero.' };
   }
 
-  if (numero > PESO_MAXIMO_COMPRA_KG) {
+  const limites = getLimitesCompra();
+
+  if (numero < limites.minPesoCompraKg) {
+    return {
+      valor: numero,
+      error: `El peso mínimo es ${formatoKg(limites.minPesoCompraKg)} kg.`,
+    };
+  }
+
+  if (numero > limites.maxPesoCompraKg) {
     return {
       valor: numero,
       error: `Solo puedes registrar hasta ${formatoKg(
-        PESO_MAXIMO_COMPRA_KG,
+        limites.maxPesoCompraKg,
       )} kg.`,
     };
   }
@@ -1594,15 +1605,17 @@ function leerPrecioCompra(valor: string) {
     return { valor: 0, error: 'Ingresa solo números.' };
   }
 
-  if (numero < PRECIO_MINIMO_KG) {
+  const limites = getLimitesCompra();
+
+  if (numero < limites.minPrecioCompraKg) {
     return { valor: numero, error: 'El precio por kilo es demasiado bajo.' };
   }
 
-  if (numero > PRECIO_MAXIMO_KG) {
+  if (numero > limites.maxPrecioCompraKg) {
     return {
       valor: numero,
       error: `El precio máximo permitido es ${formatoMoneda(
-        PRECIO_MAXIMO_KG,
+        limites.maxPrecioCompraKg,
       )} por kilogramo.`,
     };
   }
@@ -1630,6 +1643,19 @@ function calcularResumenSublotes(sublotes: SubloteForm[]) {
     totalKg,
     totalCompra,
   };
+}
+
+function tieneDatosSublote(sublote: SubloteForm) {
+  return Boolean(
+    sublote.tipoCafeId ||
+      sublote.calidadId ||
+      sublote.pesoInicial ||
+      sublote.precioKg,
+  );
+}
+
+function sublotesConDatos(sublotes: SubloteForm[]) {
+  return sublotes.filter(tieneDatosSublote);
 }
 
 function formatTotalKg(valor: number) {
@@ -1724,7 +1750,7 @@ function getCompraErrorMessage(error: unknown) {
     }
 
     if (error.code === 'COMPRA_CANTIDAD_INVALIDA') {
-      return 'La cantidad debe ser mayor a cero.';
+      return `El peso mínimo es ${formatoKg(getLimitesCompra().minPesoCompraKg)} kg.`;
     }
 
     if (error.code === 'COMPRA_CANTIDAD_NO_NUMERICA') {
@@ -1740,7 +1766,9 @@ function getCompraErrorMessage(error: unknown) {
     }
 
     if (error.code === 'COMPRA_PRECIO_INVALIDO') {
-      return 'El precio por kilo es demasiado bajo.';
+      return `El precio mínimo por kg es ${formatoMoneda(
+        getLimitesCompra().minPrecioCompraKg,
+      )}.`;
     }
 
     if (error.code === 'COMPRA_TIPO_CAFE_INVALIDO') {
@@ -2119,14 +2147,16 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
   }
 
   if (
+    normalizedMessage.includes('peso minimo') ||
+    normalizedMessage.includes('peso mínimo') ||
     normalizedMessage.includes('cantidad debe ser mayor') ||
     normalizedMessage.includes('peso valido')
   ) {
     return createGuidedError(
       message,
       'Revisa el peso.',
-      'El peso debe ser mayor a cero.',
-      'Ingresa una cantidad realista en kilogramos.',
+      `El peso mínimo es ${formatoKg(getLimitesCompra().minPesoCompraKg)} kg.`,
+      'Ingresa una cantidad dentro del rango permitido.',
     );
   }
 
@@ -2169,8 +2199,10 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Precio demasiado bajo.',
-      'El precio por kilo es demasiado bajo.',
-      'Ingresa un valor desde $1.000 por kg.',
+      `El precio mínimo por kg es ${formatoMoneda(
+        getLimitesCompra().minPrecioCompraKg,
+      )}.`,
+      'Ingresa un precio dentro del rango permitido.',
     );
   }
 
@@ -2399,10 +2431,11 @@ export default function Compras() {
         setProductores(
           dedupeProductorOptions((productoresData ?? []).map(mapProductorToOption)),
         );
-        setComprasRealizadas(comprasCacheadas);
-        setBodegaBloqueada(
-          bodegaData
-            ? resolverBodegaBloqueada(bodegaData.capacidadKg ?? null, comprasCacheadas)
+      setComprasRealizadas(comprasCacheadas);
+      configurarLimitesEntradaCache(bodegaData ?? null);
+      setBodegaBloqueada(
+        bodegaData
+          ? resolverBodegaBloqueada(bodegaData.capacidadKg ?? null, comprasCacheadas)
             : null,
         );
         setCatalogosFeedback('Información guardada en este dispositivo.');
@@ -2420,6 +2453,7 @@ export default function Compras() {
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
       );
       setComprasRealizadas(comprasData);
+      configurarLimitesEntradaCache(bodegaData);
       setBodegaBloqueada(
         resolverBodegaBloqueada(bodegaData.capacidadKg, comprasData),
       );
@@ -2773,6 +2807,10 @@ export default function Compras() {
     sublotes[sublotes.length - 1] ??
     null;
   const sublotesVisibles = subloteActual ? [subloteActual] : [];
+  const sublotesParaHistorial = useMemo(
+    () => sublotesConDatos(sublotes),
+    [sublotes],
+  );
   const resumenSubloteVisible = useMemo(
     () => calcularResumenSublotes(sublotesVisibles),
     [sublotesVisibles],
@@ -3659,7 +3697,7 @@ export default function Compras() {
         totalKg: resumen.totalKg,
         totalCompra: Number(respuesta.compra.totalCompra),
         capacidad: respuesta.capacidad ?? capacidadPrevia ?? undefined,
-        sublotes: sublotes.map((sublote) => {
+        sublotes: sublotesParaHistorial.map((sublote) => {
           const peso = leerCantidadCompra(sublote.pesoInicial).valor;
           return {
             id: sublote.id,
@@ -4022,7 +4060,7 @@ export default function Compras() {
               const precioError = mostrarErroresSublote
                 ? precioValidacion.error
                 : null;
-              const pesoMaximoPermitido = PESO_MAXIMO_COMPRA_KG;
+              const pesoMaximoPermitido = getLimitesCompra().maxPesoCompraKg;
               const capacidadDisponibleAntes =
                 getCapacidadDisponibleAntes(capacidadPrevia);
               const capacidadRestanteDespues =
@@ -4473,7 +4511,7 @@ export default function Compras() {
                                 event.target.value,
                                 sublote.precioKg,
                                 {
-                                  max: PRECIO_MAXIMO_KG,
+                                  max: getLimitesCompra().maxPrecioCompraKg,
                                 },
                               );
                               actualizarSubloteConAviso(
@@ -4482,7 +4520,7 @@ export default function Compras() {
                                 next.value,
                                 next.limited
                                   ? `El precio máximo permitido es ${formatoMoneda(
-                                      PRECIO_MAXIMO_KG,
+                                      getLimitesCompra().maxPrecioCompraKg,
                                     )} por kilogramo.`
                                   : undefined,
                               );
@@ -4544,14 +4582,6 @@ export default function Compras() {
                 </div>
               </div>
             </article>
-
-            {error && mostrarErrorFormulario ? (
-              <TransientFormAlert
-                message={getComprasGuidance(error)}
-                exiting={formAlertExiting}
-                anchorRef={formFeedbackRef}
-              />
-            ) : null}
 
             <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3">
               <button
@@ -4633,7 +4663,7 @@ export default function Compras() {
                   </h2>
                 </div>
                 <span className="shrink-0 rounded-full bg-[#edf3ff] px-2.5 py-1 text-[0.68rem] font-black text-[#173ea6]">
-                  {sublotes.length}
+                  {sublotesParaHistorial.length}
                 </span>
               </div>
               <p className="mt-1 px-1 text-[0.86rem] font-semibold leading-5 text-slate-500">
@@ -4641,7 +4671,7 @@ export default function Compras() {
                 un producto si lo necesitas.
               </p>
               <div className="mt-3 space-y-3">
-                {(sublotes.length > 2 ? sublotes.slice(-2) : sublotes).map((sublote) => {
+                {(sublotesParaHistorial.length > 2 ? sublotesParaHistorial.slice(-2) : sublotesParaHistorial).map((sublote) => {
                   const tipoCafe =
                     nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
                   const calidad =
@@ -4716,7 +4746,7 @@ export default function Compras() {
                   );
                 })}
               </div>
-              {sublotes.length > 2 ? (
+              {sublotesParaHistorial.length > 2 ? (
                 <button
                   type="button"
                   onClick={() => setMostrarHistorialSublotes(true)}
@@ -5420,7 +5450,7 @@ export default function Compras() {
                     Historial completo de la compra
                   </h2>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    {sublotes.length} registros · {formatTotalKg(resumen.totalKg)} · {formatoMoneda(resumen.totalCompra)}
+                    {sublotesParaHistorial.length} registros · {formatTotalKg(resumen.totalKg)} · {formatoMoneda(resumen.totalCompra)}
                   </p>
                 </div>
                 <button
@@ -5434,7 +5464,7 @@ export default function Compras() {
               </div>
             </header>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
-              {sublotes.map((sublote) => {
+              {sublotesParaHistorial.map((sublote) => {
                 const tipoCafe =
                   nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
                 const calidad =

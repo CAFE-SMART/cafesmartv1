@@ -5,18 +5,22 @@ import { listarClientes } from '../../../services/clientesService';
 import { obtenerLotes, obtenerDetalleLote, guardarPesosSublotes, type LoteDetalle, type LoteResumen } from '../../../services/lotesService';
 import { crearVenta, listarVentas } from '../../../services/ventasService';
 import { obtenerConfiguracionBodega, type ConfiguracionBodega } from '../../../services/bodegaApi';
+import {
+  configurarLimitesEntradaCache,
+  getLimitesEntradaSnapshot,
+} from '../../../services/limitesEntradaService';
 import { createOfflineDraft } from '../../../services/offlineDraftService';
 import { getOfflineCache, saveOfflineCache } from '../../../services/offlineCacheService';
 import { addSyncOperation } from '../../../services/syncQueueService';
 import { obtenerDeviceId } from '../../../utils/deviceId';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { getTodayLocalDateValue, validateBusinessDateRange, toIsoDateAtUtcNoon } from '../../../utils/date';
-import { PRECIO_MINIMO_KG } from '../../../utils/businessRules';
 import { VENTA_DRAFT_STORAGE_KEY, VENTA_FILTRO_TODOS } from '../constants';
 import type { VentaGuardadaResumen, ClienteOption, ClienteForm, ClienteFormErrors, LoteVenta, ModoVenta, Step, VentaParcialCardAlert, VentaFifoItem } from '../types';
-import { dedupeClientesOptions, distribuirPesoVerificado, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getPesoVerificado, getVentaSubmitMessage, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos, MAX_PRECIO_KG } from '../utils';
+import { dedupeClientesOptions, distribuirPesoVerificado, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getPesoVerificado, getVentaSubmitMessage, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos } from '../utils';
 import { ENABLE_SECADO_PROTOTYPE } from '../../../config/features';
 import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFlow';
+import { getSubloteCodeMap } from '../../../utils/coffeeCodes';
 import { sanitizeSearchInput } from '../../../utils/inputLimits';
 import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
 import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, sanitizeDigits as sanitizePersonDigits, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber } from '../../../utils/personValidation';
@@ -29,6 +33,16 @@ const VENTAS_RECIENTES_CACHE_KEY = 'ventas_recent';
 
 function detalleSublotesCacheKey(tipoCafeId: string, calidadId: string) {
   return `${INVENTORY_SUBLOTES_CACHE_KEY}:${tipoCafeId}:${calidadId}`;
+}
+
+function getSubloteOrigenVenta(sublote: {
+  codigoOrigen?: string | null;
+  procesoOrigen?: string | null;
+}) {
+  const originCode = sublote.codigoOrigen?.trim();
+  return originCode && sublote.procesoOrigen === 'SECADO'
+    ? `Origen: ${originCode}`
+    : null;
 }
 
 async function readVentaDraft() {
@@ -155,6 +169,7 @@ export function useVentas() {
           : lotesCache;
         setLotesVenta(mkLotes(lotesDisponibles));
         setClientes(clientesCache?.length ? dedupeClientesOptions(clientesCache.map(mapClienteToOption)) : []);
+        configurarLimitesEntradaCache(bodegaCache ?? null);
         setBodegaConfig(bodegaCache ?? null);
         if (ventasCache?.registros) {
           setVentasRealizadas(
@@ -180,7 +195,10 @@ export function useVentas() {
       ]);
       if (lotesResult.status === 'rejected') throw lotesResult.reason;
       if (clientesResult.status === 'rejected') setClientes([]);
-      if (bodegaResult.status === 'fulfilled') setBodegaConfig(bodegaResult.value);
+      if (bodegaResult.status === 'fulfilled') {
+        configurarLimitesEntradaCache(bodegaResult.value);
+        setBodegaConfig(bodegaResult.value);
+      }
       const lotes = lotesResult.value;
       const clientesData = clientesResult.status === 'fulfilled' ? clientesResult.value : [];
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes, { includeGeneratedOutputs: false }) : lotes;
@@ -387,8 +405,10 @@ export function useVentas() {
       const tipoSinPrecio = resumenDisponiblePorTipo.find((item) => preciosVentaTotalInvalidos.has(item.tipoCafeId));
       if (tipoSinPrecio) {
         const precio = preciosVentaTotal[tipoSinPrecio.tipoCafeId] ?? '';
+        const limitesVenta = getLimitesEntradaSnapshot();
         if (!precio.trim()) return 'Ingresa el precio por kilo.';
-        if (toNum(precio) > MAX_PRECIO_KG) return 'El precio supera el máximo permitido.';
+        if (toNum(precio) > limitesVenta.maxPrecioVentaKg) return 'El precio supera el máximo permitido.';
+        if (toNum(precio) < limitesVenta.minPrecioVentaKg) return 'El precio está por debajo del mínimo permitido.';
         return 'Ingresa solo números válidos.';
       }
       return null;
@@ -400,7 +420,9 @@ export function useVentas() {
       const disponible = getDisponibleVenta(l);
       if (l.cantidad > disponible) return `Cantidad máxima permitida: ${kg(disponible)}.`;
       if (!isValidCantidadInput(String(l.cantidad), disponible)) return `La cantidad ingresada no es válida en ${l.codigo}.`;
-      if (l.precio < PRECIO_MINIMO_KG) return `Ingresa un precio por kg válido en ${l.codigo}.`;
+      const limitesVenta = getLimitesEntradaSnapshot();
+      if (l.precio < limitesVenta.minPrecioVentaKg) return `Ingresa un precio por kg válido en ${l.codigo}.`;
+      if (l.precio > limitesVenta.maxPrecioVentaKg) return `El precio supera el máximo permitido en ${l.codigo}.`;
     }
     return null;
   }, [ajustesParcialesPendientes.length, fechaVentaValidacion.isValid, fechaVentaValidacion.message, lotesVenta.length, modoVenta, preciosVentaTotalInvalidos, resumenDisponiblePorTipo, lotesConCantidad]);
@@ -467,12 +489,14 @@ export function useVentas() {
   }, [lotesVenta]);
 
   const lotesVentaParcialFiltrados = React.useMemo(() => {
+    const codeMap = getSubloteCodeMap(lotesVenta);
     const resultado = fuzzySearch(lotesVenta, busquedaCafeVentaDebounced, (lote) => [
       lote.tipoCafe,
       lote.calidad,
       lote.codigo,
+      codeMap.get(lote.id) ?? '',
       `${lote.tipoCafe} ${lote.calidad}`,
-      `${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`,
+      `${lote.tipoCafe} ${lote.calidad} ${lote.codigo} ${codeMap.get(lote.id) ?? ''}`,
     ]);
     return resultado.items.filter((lote) => {
       const coincideTipo = tipoCafeFiltroVenta === VENTA_FILTRO_TODOS || norm(lote.tipoCafe) === norm(tipoCafeFiltroVenta);
@@ -481,14 +505,17 @@ export function useVentas() {
     });
   }, [busquedaCafeVentaDebounced, calidadFiltroVenta, lotesVenta, tipoCafeFiltroVenta]);
   const lotesVentaParcialUsaSimilares = React.useMemo(
-    () =>
-      fuzzySearch(lotesVenta, busquedaCafeVentaDebounced, (lote) => [
+    () => {
+      const codeMap = getSubloteCodeMap(lotesVenta);
+      return fuzzySearch(lotesVenta, busquedaCafeVentaDebounced, (lote) => [
         lote.tipoCafe,
         lote.calidad,
         lote.codigo,
+        codeMap.get(lote.id) ?? '',
         `${lote.tipoCafe} ${lote.calidad}`,
-        `${lote.tipoCafe} ${lote.calidad} ${lote.codigo}`,
-      ]).isSimilar,
+        `${lote.tipoCafe} ${lote.calidad} ${lote.codigo} ${codeMap.get(lote.id) ?? ''}`,
+      ]).isSimilar;
+    },
     [busquedaCafeVentaDebounced, lotesVenta],
   );
 
@@ -591,9 +618,10 @@ export function useVentas() {
       if (cantidad > disponible) return { title: `La cantidad supera el disponible de ${nombreCafe}.`, detail: `Disponible: ${kg(disponible)}.` };
       if (!isValidCantidadInput(cantidadTexto, disponible)) return { title: `Cantidad inválida en ${nombreCafe}.`, detail: `Ingresa un valor válido hasta ${kg(disponible)} con máximo 3 decimales.` };
       if (!precioTexto) return { title: `Falta el precio en ${nombreCafe}.`, detail: 'Ingresa el precio por kilo.' };
-      if (precio > MAX_PRECIO_KG) return { title: 'El precio supera el máximo permitido.', detail: `Usa un valor hasta ${money(MAX_PRECIO_KG)} por kg.` };
+      const limitesVenta = getLimitesEntradaSnapshot();
+      if (precio > limitesVenta.maxPrecioVentaKg) return { title: 'El precio supera el máximo permitido.', detail: `Usa un valor hasta ${money(limitesVenta.maxPrecioVentaKg)} por kg.` };
       if (!isValidPrecioInput(precioTexto)) return { title: `Precio inválido en ${nombreCafe}.`, detail: 'Ingresa un precio válido por kilogramo.' };
-      if (precio < PRECIO_MINIMO_KG) return { title: `El precio de ${nombreCafe} es demasiado bajo.`, detail: 'Ingresa un valor desde $1.000 por kg.' };
+      if (precio < limitesVenta.minPrecioVentaKg) return { title: `El precio de ${nombreCafe} es demasiado bajo.`, detail: `Ingresa un valor desde ${money(limitesVenta.minPrecioVentaKg)} por kg.` };
       if (pesoVerificadoInvalido(lote)) return { title: `Revisa el peso de ${nombreCafe}.`, detail: `No puede superar el disponible: ${kg(disponible)}.` };
       if (!skipConfirmCheck && !ajustesVentaParcialConfirmados[lote.id]) return { title: `Confirma el ajuste de ${nombreCafe}.`, detail: 'Presiona "Confirmar ajuste" para agregarlo a la venta.' };
       return null;
@@ -664,6 +692,7 @@ export function useVentas() {
             tipoCafe: string;
             calidad: string;
             nombreCafe: string;
+            origenSublote?: string | null;
             fifoPosition: number;
             fechaEntrada: string;
             costoBase: number | null;
@@ -690,6 +719,7 @@ export function useVentas() {
                 tipoCafe: sublote.tipoCafe,
                 calidad: sublote.calidad,
                 nombreCafe: formatCoffeeFullName(sublote),
+                origenSublote: getSubloteOrigenVenta(sublote),
                 fifoPosition: index + 1,
                 fechaEntrada: sublote.fechaIngreso,
                 costoBase: Number.isFinite(sublote.costoPorKg) ? sublote.costoPorKg : null,
@@ -724,6 +754,7 @@ export function useVentas() {
               tipoCafe: entry.tipoCafe,
               calidad: entry.calidad,
               nombreCafe: entry.nombreCafe,
+              origenSublote: entry.origenSublote,
               fifoPosition: entry.fifoPosition,
               pesoAsignado: asignado,
               pesoRestante: entry.disponibleKg,
@@ -806,6 +837,7 @@ export function useVentas() {
         tipoCafe: string;
         calidad: string;
         nombreCafe: string;
+        origenSublote?: string | null;
         fifoPosition: number;
         fechaEntrada: string;
         costoBase: number | null;
@@ -828,6 +860,7 @@ export function useVentas() {
               tipoCafe: sublote.tipoCafe,
               calidad: sublote.calidad,
               nombreCafe: formatCoffeeFullName(sublote),
+              origenSublote: getSubloteOrigenVenta(sublote),
               fifoPosition: index + 1,
               fechaEntrada: sublote.fechaIngreso,
               costoBase: Number.isFinite(sublote.costoPorKg) ? sublote.costoPorKg : null,
@@ -865,6 +898,7 @@ export function useVentas() {
             tipoCafe: entry.tipoCafe,
             calidad: entry.calidad,
             nombreCafe: entry.nombreCafe,
+            origenSublote: entry.origenSublote,
             fifoPosition: entry.fifoPosition,
             pesoAsignado: asignado,
             pesoRestante: entry.disponibleKg,
@@ -1029,13 +1063,14 @@ export function useVentas() {
         if (campo === 'precioKg') {
           const nextValue = valor.replace(/[^\d]/g, '').slice(0, 8);
           const precio = toNum(nextValue);
+          const limitesVenta = getLimitesEntradaSnapshot();
 
-          if (nextValue && precio > MAX_PRECIO_KG) {
+          if (nextValue && precio > limitesVenta.maxPrecioVentaKg) {
             setVentaParcialCardAlerts((current) => ({
               ...current,
               [id]: {
                 title: 'El precio ingresado supera el máximo permitido.',
-                detail: `Usa un valor hasta ${money(MAX_PRECIO_KG)} por kg.`,
+                detail: `Usa un valor hasta ${money(limitesVenta.maxPrecioVentaKg)} por kg.`,
               },
             }));
             return lote;
@@ -1255,6 +1290,7 @@ export function useVentas() {
           .filter((sublote) => sublote.pesoActual > 0)
           .sort((a, b) => new Date(a.fechaIngreso).getTime() - new Date(b.fechaIngreso).getTime());
         let pool = sublotesOrdenados.map((sublote, index) => ({
+          subloteId: sublote.id,
           sublote,
           fifoPosition: index + 1,
           disponibleKg: round2(sublote.pesoActual),
@@ -1276,6 +1312,7 @@ export function useVentas() {
             tipoCafe: entry.sublote.tipoCafe,
             calidad: entry.sublote.calidad,
             nombreCafe: formatCoffeeFullName(entry.sublote),
+            origenSublote: getSubloteOrigenVenta(entry.sublote),
             fifoPosition: entry.fifoPosition,
             pesoAsignado: asignado,
             pesoRestante: round2(entry.disponibleKg - asignado),

@@ -26,6 +26,7 @@ export type AuthResponse = {
     nombreOrganizacion?: string | null;
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
     otroTipoDetalle?: string | null;
+    descripcionOrganizacion?: string | null;
   };
   hasCompany: boolean;
 };
@@ -231,6 +232,7 @@ export const authService = {
     nombreOrganizacion: string;
     tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
     otroTipoDetalle?: string;
+    descripcionOrganizacion?: string;
     nombre: string;
     telefono: string;
     correo: string;
@@ -284,6 +286,7 @@ export const authService = {
     nombreOrganizacion: string;
     tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
     otroTipoDetalle?: string;
+    descripcionOrganizacion?: string;
     telefono: string;
     password: string;
   }): Promise<AuthResponse> {

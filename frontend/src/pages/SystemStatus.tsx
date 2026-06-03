@@ -24,6 +24,7 @@ type RegisterProcessState = {
   hasGoogleFlow: boolean;
   googleToken?: string;
   nombreOrganizacion: string;
+  descripcionOrganizacion?: string;
   tipoOrganizacion: TipoOrg;
   otroTipoDetalle?: string;
   nombre: string;
@@ -154,6 +155,7 @@ export default function SystemStatus() {
             telefono: processState.telefono,
             password: processState.password,
             nombreOrganizacion: processState.nombreOrganizacion,
+            descripcionOrganizacion: processState.descripcionOrganizacion,
             tipoOrganizacion: toAuthTipoOrganizacion(
               processState.tipoOrganizacion,
             ),
@@ -165,6 +167,7 @@ export default function SystemStatus() {
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
+            descripcionOrganizacion: processState.descripcionOrganizacion,
             tipoOrganizacion: toAuthTipoOrganizacion(
               processState.tipoOrganizacion,
             ),
@@ -189,6 +192,10 @@ export default function SystemStatus() {
               response.user.nombreOrganizacion ?? processState.nombreOrganizacion,
             tipoOrganizacion: response.user.tipoOrganizacion ?? null,
             otroTipoDetalle: response.user.otroTipoDetalle ?? null,
+            descripcionOrganizacion:
+              response.user.descripcionOrganizacion ??
+              processState.descripcionOrganizacion ??
+              null,
           },
           token: response.access_token,
           hasCompany: response.hasCompany,

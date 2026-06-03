@@ -8,6 +8,7 @@ import {
   hasAtLeastOneSurname,
   isValidPhone,
   normalizeBusinessNameInput,
+  normalizeBusinessDescriptionInput,
   validatePersonLastName,
   validatePersonName,
   type RegisterLocationState,
@@ -16,6 +17,7 @@ import {
   type TipoOrg,
   type TipoOrgSelection,
   validateBusinessName,
+  validateBusinessDescription,
 } from '../utils/registerValidators';
 import { getPhoneDigits } from '../utils/formatPhone';
 import { normalizePossiblyMojibake } from '../utils/jwt';
@@ -36,6 +38,9 @@ export function useRegisterForm({
 
   const [nombreOrganizacion, setNombreOrganizacion] = useState(
     () => draft?.nombreOrganizacion ?? '',
+  );
+  const [descripcionOrganizacion, setDescripcionOrganizacion] = useState(
+    () => draft?.descripcionOrganizacion ?? '',
   );
   const [tipoOrganizacion, setTipoOrganizacion] =
     useState<TipoOrgSelection>(() => draft?.tipoOrganizacion ?? '');
@@ -123,9 +128,16 @@ export function useRegisterForm({
     setError(null);
     const nextErrors: StepOneErrors = {};
     const businessNameError = validateBusinessName(nombreOrganizacion);
+    const businessDescriptionError = validateBusinessDescription(
+      descripcionOrganizacion,
+    );
 
     if (businessNameError) {
       nextErrors.nombreOrganizacion = businessNameError;
+    }
+
+    if (businessDescriptionError) {
+      nextErrors.descripcionOrganizacion = businessDescriptionError;
     }
 
     if (!tipoOrganizacion) {
@@ -153,6 +165,9 @@ export function useRegisterForm({
     setError(null);
     const nextErrors: StepTwoErrors = {};
     const businessNameError = validateBusinessName(nombreOrganizacion);
+    const businessDescriptionError = validateBusinessDescription(
+      descripcionOrganizacion,
+    );
 
     if (businessNameError) {
       setError('Falta el nombre del negocio.');
@@ -168,6 +183,15 @@ export function useRegisterForm({
       setStepOneErrors({
         tipoOrganizacion:
           'Selecciona el tipo de negocio que mejor describe tu operación.',
+      });
+      setStep(1);
+      return;
+    }
+
+    if (businessDescriptionError) {
+      setError('Revisa la descripción del negocio.');
+      setStepOneErrors({
+        descripcionOrganizacion: businessDescriptionError,
       });
       setStep(1);
       return;
@@ -248,6 +272,9 @@ export function useRegisterForm({
         hasGoogleFlow,
         googleToken: routeState.googleToken,
         nombreOrganizacion: normalizeBusinessNameInput(nombreOrganizacion).trim(),
+        descripcionOrganizacion:
+          normalizeBusinessDescriptionInput(descripcionOrganizacion).trim() ||
+          undefined,
         tipoOrganizacion: tipoOrganizacion as TipoOrg,
         otroTipoDetalle:
           tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()
@@ -265,6 +292,8 @@ export function useRegisterForm({
     step,
     nombreOrganizacion,
     setNombreOrganizacion,
+    descripcionOrganizacion,
+    setDescripcionOrganizacion,
     tipoOrganizacion,
     setTipoOrganizacion,
     otroTipoDetalle,

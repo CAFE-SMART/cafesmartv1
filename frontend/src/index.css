@@ -401,6 +401,40 @@ select::selection {
   color: #ffffff;
 }
 
+.login-credential-input:-webkit-autofill,
+.login-credential-input:-webkit-autofill:hover,
+.login-credential-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #1e3a8a;
+  transition: background-color 9999s ease-out;
+}
+
+.dark .login-credential-input:-webkit-autofill,
+.dark .login-credential-input:-webkit-autofill:hover,
+.dark .login-credential-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #020617 inset;
+  caret-color: #bfdbfe;
+}
+
+.register-credential-input:-webkit-autofill,
+.register-credential-input:-webkit-autofill:hover,
+.register-credential-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #274ab8;
+  transition: background-color 9999s ease-out;
+}
+
+.dark .register-credential-input:-webkit-autofill,
+.dark .register-credential-input:-webkit-autofill:hover,
+.dark .register-credential-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #020617 inset;
+  caret-color: #bfdbfe;
+}
+
 h1,
 h2,
 h3,

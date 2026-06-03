@@ -111,6 +111,87 @@ function getModuleErrorMessage(operation: SyncOperation, error: unknown) {
   return message;
 }
 
+function pickPayloadFields(
+  payload: Record<string, unknown>,
+  allowedFields: string[],
+) {
+  return Object.fromEntries(
+    allowedFields
+      .filter((field) => Object.prototype.hasOwnProperty.call(payload, field))
+      .map((field) => [field, payload[field]]),
+  );
+}
+
+function sanitizeSyncPayload(operation: SyncOperation) {
+  const payload =
+    operation.payload && typeof operation.payload === 'object'
+      ? (operation.payload as Record<string, unknown>)
+      : { payload: operation.payload };
+
+  if (operation.modulo === 'VENTA') {
+    return pickPayloadFields(payload, [
+      'fecha',
+      'clienteId',
+      'detalles',
+      'deviceId',
+      'localId',
+    ]);
+  }
+
+  if (operation.modulo === 'SECADO' && operation.endpoint === '/secado/transformar') {
+    return pickPayloadFields(payload, ['sessionId', 'deviceId', 'fuentes', 'salidas']);
+  }
+
+  if (operation.modulo === 'COMPRA') {
+    return pickPayloadFields(payload, [
+      'fecha',
+      'productorId',
+      'deviceId',
+      'localId',
+      'clientMutationId',
+      'sublotes',
+    ]);
+  }
+
+  if (operation.modulo === 'GASTO') {
+    return pickPayloadFields(payload, [
+      'conceptoGasto',
+      'descripcion',
+      'montoGasto',
+      'fechaGasto',
+      'tipoGasto',
+      'estadoPago',
+      'deviceId',
+      'localId',
+      'clientMutationId',
+      'syncStatus',
+      'asociarASublotes',
+      'subloteIds',
+    ]);
+  }
+
+  const {
+    clientMutationId,
+    syncStatus,
+    syncError,
+    createdOffline,
+    updatedOffline,
+    retryCount,
+    lastError,
+    ...payloadToSend
+  } = payload;
+
+  void clientMutationId;
+  void syncStatus;
+  void syncError;
+  void createdOffline;
+  void updatedOffline;
+  void retryCount;
+  void lastError;
+
+  return payloadToSend;
+}
+
 function readQueue(): SyncOperation[] {
   if (typeof window === 'undefined') return [];
 
@@ -270,14 +351,7 @@ async function syncOperation(operation: SyncOperation) {
   try {
     const response = await apiFetch(operation.endpoint, {
       method: operation.method,
-      body: JSON.stringify({
-        ...(operation.payload && typeof operation.payload === 'object'
-          ? (operation.payload as Record<string, unknown>)
-          : { payload: operation.payload }),
-        clientMutationId: operation.clientMutationId,
-        deviceId: operation.deviceId,
-        localId: operation.clientMutationId,
-      }),
+      body: JSON.stringify(sanitizeSyncPayload(operation)),
     });
     markSynced(operation.idLocal, response);
     return { ok: true as const };
@@ -285,6 +359,13 @@ async function syncOperation(operation: SyncOperation) {
     markError(operation.idLocal, getModuleErrorMessage(operation, error));
     return { ok: false as const, error };
   }
+}
+
+export async function syncOperationById(idLocal: string) {
+  const operation = getSyncQueue().find((item) => item.idLocal === idLocal);
+  if (!operation) return { ok: false as const, error: 'Registro no encontrado.' };
+
+  return syncOperation(operation);
 }
 
 let activeSyncPromise: Promise<{

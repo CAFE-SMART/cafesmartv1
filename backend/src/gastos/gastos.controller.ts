@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ActualizarEstadoGastoDto } from './dto/actualizar-estado-gasto.dto';
+import { ActualizarGastoDto } from './dto/actualizar-gasto.dto';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
 import { GastosService } from './gastos.service';
 
@@ -82,5 +84,25 @@ export class GastosController {
       req.user.sub,
       dto.estadoPago,
     );
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  async actualizar(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: ActualizarGastoDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.gastosService.actualizarGasto(id, req.user.sub, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async eliminar(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    await this.gastosService.eliminarGasto(id, req.user.sub);
   }
 }

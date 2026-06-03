@@ -1100,8 +1100,8 @@ export default function Inventario() {
     };
     if (percentage > 100) {
       return {
-        title: 'Bodega por encima de la capacidad registrada.',
-        text: 'Revisa el espacio físico disponible y actualiza la capacidad si es necesario.',
+        title: 'Bodega casi llena.',
+        text: 'Revisa el espacio antes de continuar.',
         variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
@@ -1111,8 +1111,8 @@ export default function Inventario() {
     }
     if (percentage >= 95) {
       return {
-        title: 'La bodega está casi llena.',
-        text: 'Puedes continuar comprando si lo necesitas, pero revisa el espacio disponible.',
+        title: 'Bodega casi llena.',
+        text: 'Revisa el espacio antes de continuar.',
         variant: 'error' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
@@ -1122,8 +1122,8 @@ export default function Inventario() {
     }
     if (percentage >= 80) {
       return {
-        title: 'La bodega se está llenando.',
-        text: 'La bodega está cerca de su capacidad. Revisa el espacio disponible antes de continuar.',
+        title: 'Bodega casi llena.',
+        text: 'Revisa el espacio antes de continuar.',
         variant: 'warning' as const,
         primary: 'Ir a ventas',
         secondary: 'Editar bodega',
@@ -1156,6 +1156,7 @@ export default function Inventario() {
   );
   const canOpenSecadoProcess =
     ENABLE_SECADO_PROTOTYPE &&
+    typeKey === 'VERDE' &&
     (activeSecadoSessions.length > 0 ||
       lots.some((lot) => getGeneralCoffeeTypeKey(lot.tipoCafe) === 'VERDE'));
   const showOfflineEmptyState = !loading && offlineCacheMissing;

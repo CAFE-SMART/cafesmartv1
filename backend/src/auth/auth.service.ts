@@ -84,6 +84,7 @@ export class AuthService {
         nombreOrganizacion: dto.nombreOrganizacion,
         tipoOrganizacion: dto.tipoOrganizacion,
         otroTipoDetalle: dto.otroTipoDetalle,
+        descripcionOrganizacion: dto.descripcionOrganizacion,
         nombre: dto.nombre,
         correo: normalizedEmail,
         telefono: dto.telefono,
@@ -144,6 +145,7 @@ export class AuthService {
         nombreOrganizacion: dto.nombreOrganizacion,
         tipoOrganizacion: dto.tipoOrganizacion,
         otroTipoDetalle: dto.otroTipoDetalle,
+        descripcionOrganizacion: dto.descripcionOrganizacion,
         nombre: dto.nombre,
         correo: googleEmail,
         telefono: dto.telefono,
@@ -704,6 +706,7 @@ export class AuthService {
         nombre?: string;
         tipo?: string;
         otroTipoDetalle?: string | null;
+        descripcion?: string | null;
       };
     } = {};
     try {
@@ -731,6 +734,7 @@ export class AuthService {
         nombreOrganizacion: sessionData.organizacion?.nombre ?? null,
         tipoOrganizacion: sessionData.organizacion?.tipo ?? null,
         otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,
+        descripcionOrganizacion: sessionData.organizacion?.descripcion ?? null,
       },
     };
   }

@@ -40,6 +40,8 @@ export type CrearGastoPayload = {
   subloteIds?: string[];
 };
 
+export type ActualizarGastoPayload = Partial<CrearGastoPayload>;
+
 export type GastoTipo = CrearGastoPayload['tipoGasto'];
 export type GastoEstadoPago = CrearGastoPayload['estadoPago'];
 export type GastoAplicaA = 'GENERAL' | 'SUBLOTES';
@@ -99,6 +101,25 @@ export async function actualizarEstadoGasto(
   }) as GastoItem;
   invalidateApiCache();
   return response;
+}
+
+export async function actualizarGasto(
+  id: string,
+  payload: ActualizarGastoPayload,
+) {
+  const response = await apiFetch(`/gastos/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }) as GastoItem;
+  invalidateApiCache();
+  return response;
+}
+
+export async function eliminarGasto(id: string) {
+  await apiFetch(`/gastos/${id}`, {
+    method: 'DELETE',
+  });
+  invalidateApiCache();
 }
 
 export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {

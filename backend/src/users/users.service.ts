@@ -17,6 +17,7 @@ type CreateAdminWithOrganizationInput = {
   nombreOrganizacion: string;
   tipoOrganizacion: TipoOrganizacion;
   otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
   nombre: string;
   correo: string;
   telefono: string;
@@ -27,6 +28,7 @@ type CreateAdminWithOrganizationInput = {
 type UpdateOrganizationSettingsInput = {
   nombreOrganizacion: string;
   tipoOrganizacion: string;
+  descripcionOrganizacion?: string | null;
 };
 
 @Injectable()
@@ -53,6 +55,7 @@ export class UsersService {
             nombre: true,
             tipo: true,
             otroTipoDetalle: true,
+            descripcion: true,
           },
         },
       },
@@ -74,6 +77,7 @@ export class UsersService {
             nombre: true,
             tipo: true,
             otroTipoDetalle: true,
+            descripcion: true,
           },
         },
       },
@@ -146,6 +150,9 @@ export class UsersService {
           nombre: input.nombreOrganizacion,
           tipo: input.tipoOrganizacion,
           otroTipoDetalle: input.otroTipoDetalle ?? null,
+          descripcion: this.normalizeOptionalDescription(
+            input.descripcionOrganizacion,
+          ),
         },
       });
 
@@ -248,6 +255,9 @@ export class UsersService {
   ) {
     const nombre = input.nombreOrganizacion.trim();
     const tipo = this.normalizeTipoOrganizacion(input.tipoOrganizacion);
+    const descripcion = this.normalizeOptionalDescription(
+      input.descripcionOrganizacion,
+    );
 
     if (!nombre) {
       throw new BadRequestException(
@@ -272,15 +282,22 @@ export class UsersService {
         data: {
           nombre,
           tipo,
+          descripcion,
         },
         select: {
           id: true,
           nombre: true,
           tipo: true,
           otroTipoDetalle: true,
+          descripcion: true,
         },
       });
     });
+  }
+
+  private normalizeOptionalDescription(value?: string | null) {
+    const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
+    return normalized ? normalized.slice(0, 200) : null;
   }
 
   private normalizeTipoOrganizacion(value: string): TipoOrganizacion {

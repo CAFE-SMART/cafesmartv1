@@ -3,7 +3,7 @@ import {
   type GuidedErrorMessage,
 } from '../../components/forms/GuidedError';
 import { ApiRequestError } from '../../services/apiService';
-import { PRECIO_MINIMO_KG } from '../../utils/businessRules';
+import { getLimitesEntradaSnapshot } from '../../services/limitesEntradaService';
 import type { LoteVenta, VentaParcialCardAlert } from './types';
 import type { ClienteItem } from '../../services/clientesService';
 import { LoteResumen } from '../../services/lotesService';
@@ -17,7 +17,7 @@ export const money = (v: number) =>
   `$${v.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 
 export const MAX_CANTIDAD_KG = 1000000;
-export const MAX_PRECIO_KG = 10000000;
+export const getLimitesVenta = () => getLimitesEntradaSnapshot();
 
 function normalizeNumericText(value: string) {
   return value.trim();
@@ -68,12 +68,13 @@ export const isValidCantidadInput = (value: string, disponible: number) => {
 };
 
 export const isValidPrecioInput = (value: string) => {
+  const limites = getLimitesVenta();
   const precio = parseNumericInput(value, {
     allowDecimal: false,
     maxDecimals: 0,
-    maxValue: MAX_PRECIO_KG,
+    maxValue: limites.maxPrecioVentaKg,
   });
-  return precio !== null && precio > 0;
+  return precio !== null && precio >= limites.minPrecioVentaKg;
 };
 
 export const soloDigitos = (v: string) => v.replace(/\D/g, '');
@@ -498,7 +499,9 @@ export function getVentaSubmitMessage(error: unknown) {
     }
 
     if (error.code === 'VENTA_PRECIO_INVALIDO') {
-      return 'El precio por kg debe ser mínimo $1,000.';
+      return `El precio por kg debe estar entre ${money(
+        getLimitesVenta().minPrecioVentaKg,
+      )} y ${money(getLimitesVenta().maxPrecioVentaKg)}.`;
     }
 
     if (error.code === 'VENTA_SUBLOTE_INVALIDO') {

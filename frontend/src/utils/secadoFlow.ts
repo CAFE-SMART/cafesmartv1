@@ -81,7 +81,10 @@ function keyOf(value: string) {
 }
 
 function nowIso() {
-  return new Date().toISOString();
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0),
+  ).toISOString();
 }
 
 function isLocalDateValue(value: string) {
@@ -482,6 +485,10 @@ function canApplySessionToLot(session: SecadoSession, lot: LoteResumen) {
 
 function buildGeneratedOutputs(session: SecadoSession) {
   const completedAt = session.completedAt ?? session.updatedAt;
+  const originCode =
+    session.sublotes[0]?.codigo?.trim() ||
+    session.sublotes[0]?.etiqueta?.trim() ||
+    null;
 
   const outputs = [
     {
@@ -525,6 +532,8 @@ function buildGeneratedOutputs(session: SecadoSession) {
     fechaIngreso: completedAt,
     diasEnBodega: daysSince(completedAt),
     creadoEn: completedAt,
+    codigoOrigen: originCode,
+    procesoOrigen: originCode ? 'SECADO' : null,
     costoTotal: 0,
     totalVentas: 0,
     pesoVendido: 0,

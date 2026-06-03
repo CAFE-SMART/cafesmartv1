@@ -2,8 +2,10 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
+  MaxLength,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -45,6 +47,14 @@ export class RegisterGoogleDto {
   @IsString({ message: 'Debes especificar el tipo de negocio.' })
   @IsNotEmpty()
   otroTipoDetalle?: string;
+
+  @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))
+  @IsOptional()
+  @IsString({ message: 'La descripcion del negocio debe ser texto.' })
+  @MaxLength(200, {
+    message: 'La descripcion no puede superar los 200 caracteres.',
+  })
+  descripcionOrganizacion?: string;
 
   @Transform(({ value }) => {
     const digits = String(value ?? '').replace(/\D/g, '');

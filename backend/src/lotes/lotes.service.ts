@@ -4,7 +4,11 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  TipoMovimientoInventario,
+  TipoReferenciaInventario,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   getCachedOrganizationId,
@@ -67,6 +71,8 @@ export type LoteSubloteResponseItem = {
   fechaIngreso: string;
   diasEnBodega: number;
   creadoEn: string;
+  codigoOrigen?: string | null;
+  procesoOrigen?: 'SECADO' | null;
 } & SubloteFinanciero;
 
 export type LoteDetalleResponse = {
@@ -651,8 +657,6 @@ export class LotesService {
     const sublotesParaCodigo = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
-        tipoCafeId,
-        calidadId,
         compra: {
           deletedAt: null,
           organizacionId,
@@ -667,6 +671,59 @@ export class LotesService {
       },
     });
     const codigosSublote = this.generarMapaCodigosSublote(sublotesParaCodigo);
+    const movimientosSalidaSecado =
+      await this.prisma.inventarioMovimiento.findMany({
+        where: {
+          organizacionId,
+          subloteId: { in: subloteIds },
+          referenciaTipo: TipoReferenciaInventario.SECADO,
+          tipoMovimiento: TipoMovimientoInventario.SECADO,
+          cantidad: { gt: 0 },
+        },
+        select: {
+          subloteId: true,
+          referenciaId: true,
+        },
+      });
+    const referenciasSecado = [
+      ...new Set(movimientosSalidaSecado.map((movimiento) => movimiento.referenciaId)),
+    ];
+    const movimientosOrigenSecado =
+      referenciasSecado.length > 0
+        ? await this.prisma.inventarioMovimiento.findMany({
+            where: {
+              organizacionId,
+              referenciaId: { in: referenciasSecado },
+              referenciaTipo: TipoReferenciaInventario.SECADO,
+              tipoMovimiento: TipoMovimientoInventario.SECADO,
+              cantidad: { lt: 0 },
+              subloteId: { not: null },
+            },
+            select: {
+              subloteId: true,
+              referenciaId: true,
+            },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [];
+    const origenPorReferencia = new Map<string, string>();
+    for (const movimiento of movimientosOrigenSecado) {
+      if (!movimiento.subloteId || origenPorReferencia.has(movimiento.referenciaId)) {
+        continue;
+      }
+      origenPorReferencia.set(
+        movimiento.referenciaId,
+        codigosSublote.get(movimiento.subloteId) ?? movimiento.subloteId,
+      );
+    }
+    const origenPorSublote = new Map<string, string>();
+    for (const movimiento of movimientosSalidaSecado) {
+      if (!movimiento.subloteId) continue;
+      const codigoOrigen = origenPorReferencia.get(movimiento.referenciaId);
+      if (codigoOrigen) {
+        origenPorSublote.set(movimiento.subloteId, codigoOrigen);
+      }
+    }
     const sublotesOrganizacion = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
@@ -845,6 +902,8 @@ export class LotesService {
       if (fechaIngreso > fecha) fecha = fechaIngreso;
       if (sublote.creadoEn > creadoEn) creadoEn = sublote.creadoEn;
 
+      const codigoOrigen = origenPorSublote.get(sublote.id) ?? null;
+
       return {
         id: sublote.id,
         codigo: codigosSublote.get(sublote.id) ?? `SUB-${index + 1}`,
@@ -861,6 +920,8 @@ export class LotesService {
         fechaIngreso: fechaIngreso.toISOString(),
         diasEnBodega: this.calcularDiasEnBodega(fechaIngreso),
         creadoEn: sublote.creadoEn.toISOString(),
+        codigoOrigen,
+        procesoOrigen: codigoOrigen ? ('SECADO' as const) : null,
         ...financiero,
       };
     });

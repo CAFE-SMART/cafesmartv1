@@ -25,6 +25,7 @@ export class UsersController {
     dto: {
       nombreOrganizacion: string;
       tipoOrganizacion: string;
+      descripcionOrganizacion?: string | null;
     },
     @Req() req: { user: { sub: string } },
   ) {

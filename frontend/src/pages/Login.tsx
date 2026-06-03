@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, LogOut, Loader } from 'lucide-react';
-import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import { Capacitor } from '@capacitor/core';
+import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, Loader } from 'lucide-react';
+import type { CredentialResponse } from '@react-oauth/google';
 
 import {
   createGuidedError,
@@ -194,11 +193,6 @@ function clearLoginDraft() {
 export default function Login() {
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
   const isGoogleAuthEnabled = Boolean(googleClientId);
-  const isAndroidApp = Capacitor.getPlatform() === 'android';
-  const googleButtonWidth =
-    typeof window !== 'undefined'
-      ? String(Math.min(360, Math.max(180, window.innerWidth - 72)))
-      : '320';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -209,13 +203,11 @@ export default function Login() {
   const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleButtonMissing, setGoogleButtonMissing] = useState(isAndroidApp);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedAccountName, setRememberedAccountName] = useState('');
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
   const restoredLoginDraftRef = useRef(false);
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
   const { setSession, token, hasCompany, hydrated } = useUser();
@@ -333,23 +325,6 @@ export default function Login() {
   }, [recoveryNotice]);
 
   useEffect(() => {
-    if (!isGoogleAuthEnabled || isAndroidApp || googleLoading) {
-      return;
-    }
-
-    setGoogleButtonMissing(false);
-
-    const timerId = window.setTimeout(() => {
-      const iframe = googleButtonRef.current?.querySelector('iframe');
-      setGoogleButtonMissing(!iframe);
-    }, 1600);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [googleLoading, isAndroidApp, isGoogleAuthEnabled]);
-
-  useEffect(() => {
     if (!email.trim() || !emailTouched) {
       return;
     }
@@ -404,37 +379,6 @@ export default function Login() {
     });
 
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  };
-
-  const resetForm = () => {
-    setEmail('');
-    setPassword('');
-    clearLoginDraft();
-    setError(null);
-    setEmailFieldError(null);
-    setEmailFieldTone('assist');
-    setPasswordFieldError(null);
-    setEmailTouched(false);
-  };
-
-  const handleExitApp = async () => {
-    const capacitorApp = (window as any)?.Capacitor?.Plugins?.App;
-    if (capacitorApp?.exitApp) {
-      await capacitorApp.exitApp();
-      return;
-    }
-
-    const electronApi = (window as any)?.electronAPI;
-    if (electronApi?.closeApp) {
-      electronApi.closeApp();
-      return;
-    }
-
-    window.close();
-    if (!window.closed) {
-      resetForm();
-      navigate('/', { replace: true });
-    }
   };
 
   const getEmailGuidance = (message: string): GuidedErrorMessage =>
@@ -734,29 +678,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
+    <div className="flex min-h-screen flex-col bg-gray-50 font-sans text-gray-800 dark:bg-slate-950 dark:text-slate-100">
       <main className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:p-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 w-full max-w-[480px]">
+        <div className="w-full max-w-[480px] rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-8 dark:border-slate-700 dark:bg-slate-900">
           <div className="relative mb-7 flex items-start justify-center">
             <CafeSmartLogo
               size="md"
               compact
               className="animate-[cafesmartFadeScale_360ms_ease-out_both]"
             />
-            <button
-              type="button"
-              onClick={() => void handleExitApp()}
-              className="absolute right-0 top-0 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
-              aria-label="Salir de la aplicación"
-            >
-              Salir
-              <LogOut size={16} className="text-gray-500" />
-            </button>
           </div>
 
           <div className="animate-[cafesmartFadeUp_380ms_ease-out_120ms_both]">
-<h2 className="text-2xl sm:text-3xl font-bold text-center text-[#0f172a] mb-2">Iniciar sesión</h2>
-            <p className="mx-auto mb-5 max-w-[300px] text-center text-sm text-gray-500 sm:mb-8">
+<h2 className="mb-2 text-center text-2xl font-bold text-[#0f172a] sm:text-3xl dark:text-slate-100">Iniciar sesión</h2>
+            <p className="mx-auto mb-5 max-w-[300px] text-center text-sm text-gray-500 sm:mb-8 dark:text-slate-300">
               Bienvenido de nuevo a la gestión inteligente de CaféSmart
             </p>
           </div>
@@ -782,14 +717,14 @@ export default function Login() {
             <div
               role="status"
               aria-live="polite"
-              className={`mb-4 flex items-start gap-2.5 rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#334155] shadow-[0_10px_26px_rgba(30,58,138,0.08)] transition-all duration-300 ${
+              className={`mb-4 flex items-start gap-2.5 rounded-2xl border border-[#dbeafe] bg-[#f8fbff] px-4 py-3 text-sm font-semibold leading-5 text-[#334155] shadow-[0_10px_26px_rgba(30,58,138,0.08)] transition-all duration-300 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100 ${
                 recoveryNoticeExiting
                   ? '-translate-y-1 opacity-0'
                   : 'translate-y-0 opacity-100'
               }`}
             >
               <span
-                className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#1e3a8a] shadow-sm ring-1 ring-[#dbeafe]"
+                className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#1e3a8a] shadow-sm ring-1 ring-[#dbeafe] dark:bg-blue-500/20 dark:text-blue-100 dark:ring-blue-400/30"
                 aria-hidden="true"
               >
                 <Check size={15} strokeWidth={3} />
@@ -804,24 +739,28 @@ export default function Login() {
             className="space-y-4 sm:space-y-6 animate-[cafesmartFadeUp_420ms_ease-out_220ms_both]"
           >
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-Correo electrónico
+              <label
+                htmlFor="login-email"
+                className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200"
+              >
+                Correo electrónico
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
+                  aria-hidden="true"
+                />
                 <input
+                  id="login-email"
                   type="email"
+                  autoComplete="email"
                   aria-describedby={emailFieldError ? 'login-email-error' : undefined}
 
 
-                  className={`block w-full pl-10 pr-9 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10 ${
+                  className={`login-credential-input block w-full rounded-xl border px-3 py-3 pl-10 pr-9 text-slate-900 caret-[#1e3a8a] transition-all placeholder:text-slate-500 selection:bg-blue-200 selection:text-slate-950 focus:border-[#1e3a8a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/25 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
                     emailFieldError && emailFieldTone === 'error'
-                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-red-100'
-                      : emailFieldError
-                        ? 'border-slate-300 bg-slate-50/70'
-                        : 'border-gray-200'
+                      ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
+                      : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950'
                   }`}
 
                   placeholder="ejemplo@correo.com"
@@ -842,8 +781,8 @@ Correo electrónico
                   }}
                 />
                 {emailFieldError && emailFieldTone === 'error' ? (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <AlertCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
                   </div>
                 ) : null}
               </div>
@@ -858,7 +797,12 @@ Correo electrónico
 
             <div>
               <div className="flex justify-between items-center mb-2">
-<label className="block text-sm font-bold text-slate-700 dark:text-slate-200">Contraseña</label>
+                <label
+                  htmlFor="login-password"
+                  className="block text-sm font-bold text-slate-700 dark:text-slate-200"
+                >
+                  Contraseña
+                </label>
                 <button
                   type="button"
                   onClick={() => navigate('/recuperar')}
@@ -868,19 +812,22 @@ Correo electrónico
                 </button>
               </div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400 dark:text-slate-300" />
-                </div>
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500 dark:text-slate-300"
+                  aria-hidden="true"
+                />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
 
 
                   aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
 
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:outline-none transition-all text-gray-700 placeholder-gray-400 text-lg tracking-wider dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                  className={`login-credential-input block w-full rounded-xl border px-3 py-3 pl-10 pr-11 text-slate-900 caret-[#1e3a8a] transition-all placeholder:text-slate-500 selection:bg-blue-200 selection:text-slate-950 focus:border-[#1e3a8a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/25 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
                     passwordFieldError
-                      ? 'border-red-300 bg-red-50/40 focus:border-red-300 focus:ring-4 focus:ring-red-100 dark:border-red-400/60 dark:bg-red-500/15 dark:focus:ring-red-400/20'
-                      : 'border-gray-200 bg-white focus:border-[#1e3a8a]/55 focus:bg-white focus:ring-4 focus:ring-[#1e3a8a]/10 dark:border-slate-700 dark:bg-slate-900 dark:focus:bg-slate-900 dark:focus:ring-blue-400/20'
+                      ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
+                      : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950'
                   }`}
                   placeholder="********"
                   value={password}
@@ -891,13 +838,20 @@ Correo electrónico
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-300 dark:hover:text-white"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 transition-colors hover:text-gray-600 dark:text-slate-300 dark:hover:text-slate-100" />
+                    <EyeOff
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400 transition-colors hover:text-gray-600 dark:text-slate-300 dark:hover:text-slate-100" />
+                    <Eye
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    />
                   )}
                 </button>
               </div>
@@ -969,23 +923,23 @@ Correo electrónico
 
           {canUseGoogleAuth && (
             <div className="mt-5 sm:mt-8 mb-4 sm:mb-6 flex items-center animate-[cafesmartFadeUp_420ms_ease-out_320ms_both]">
-              <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-sm font-semibold text-gray-500">
+              <div className="flex-1 border-t border-gray-200 dark:border-slate-700"></div>
+              <span className="px-4 text-sm font-semibold text-gray-500 dark:text-slate-400">
                 O CONTINUA CON
               </span>
-              <div className="flex-1 border-t border-gray-200"></div>
+              <div className="flex-1 border-t border-gray-200 dark:border-slate-700"></div>
             </div>
           )}
 
           {canUseGoogleAuth && googleLoading && (
             <div className="mb-6 flex flex-col items-center justify-center py-8 animate-[cafesmartFadeUp_420ms_ease-out_360ms_both]">
               <div className="relative w-16 h-16 mb-4">
-                <Loader className="w-16 h-16 text-[#1e3a8a] animate-spin" />
+                <Loader className="h-16 w-16 animate-spin text-[#1e3a8a] dark:text-blue-300" />
               </div>
-              <p className="text-center text-sm font-semibold text-gray-700 mb-2">
+              <p className="mb-2 text-center text-sm font-semibold text-gray-700 dark:text-slate-200">
                 Procesando inicio de sesión...
               </p>
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-sm text-gray-500 dark:text-slate-300">
                 Espera un momento mientras validamos tu cuenta.
               </p>
             </div>
@@ -993,34 +947,21 @@ Correo electrónico
 
           {canUseGoogleAuth && !googleLoading && (
             <div className="mb-5 sm:mb-6 w-full animate-[cafesmartFadeUp_420ms_ease-out_380ms_both]">
-              <div
-                ref={googleButtonRef}
-                className="flex min-h-[44px] w-full items-center justify-center overflow-hidden"
-              >
-                {googleButtonMissing || isAndroidApp ? (
-                  <button
-                    type="button"
-                    onClick={openGoogleRedirect}
-                    className="flex h-11 w-full max-w-[360px] items-center justify-center gap-3 rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700"
+              <div className="flex min-h-[44px] w-full items-center justify-center">
+                <button
+                  type="button"
+                  onClick={openGoogleRedirect}
+                  className="flex h-11 w-full max-w-[360px] items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:hover:border-blue-400/70 dark:hover:bg-blue-950/35 dark:focus:ring-blue-400/25"
+                  aria-label="Continuar con Google"
+                >
+                  <span
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-base font-black leading-none"
+                    aria-hidden="true"
                   >
-                    <span className="text-lg font-black text-[#4285f4]">G</span>
-                    Continuar con Google
-                  </button>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    text="continue_with"
-                    theme="outline"
-                    size="large"
-                    shape="rectangular"
-                    logo_alignment="left"
-                    width={googleButtonWidth}
-                    containerProps={{
-                      className: 'flex min-h-[44px] w-full justify-center',
-                    }}
-                  />
-                )}
+                    <span className="text-[#4285f4]">G</span>
+                  </span>
+                  <span>Continuar con Google</span>
+                </button>
               </div>
             </div>
           )}
@@ -1033,9 +974,12 @@ Correo electrónico
             />
           )}
 
-          <p className="mt-5 sm:mt-8 text-center text-sm text-slate-600 animate-[cafesmartFadeUp_420ms_ease-out_420ms_both]">
+          <p className="mt-5 text-center text-sm font-semibold text-slate-600 animate-[cafesmartFadeUp_420ms_ease-out_420ms_both] sm:mt-8 dark:text-slate-300">
             ¿No tienes una cuenta?{' '}
-            <Link to="/register" className="font-bold text-[#1e3a8a] hover:underline">
+            <Link
+              to="/register"
+              className="inline-flex rounded-md font-black text-[#1e3a8a] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 dark:text-blue-300 dark:focus:ring-blue-400/25"
+            >
               Regístrate gratis
             </Link>
           </p>
@@ -1043,7 +987,7 @@ Correo electrónico
       </main>
 
       <footer className="px-4 py-3 sm:p-6 text-center">
-        <p className="text-sm text-slate-500 font-medium">
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
           Copyright 2024 Cafe Smart Inc. Todos los derechos reservados.
         </p>
       </footer>

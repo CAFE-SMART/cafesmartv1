@@ -42,6 +42,8 @@ export type SubloteDetalle = {
   fechaIngreso: string;
   diasEnBodega: number;
   creadoEn: string;
+  codigoOrigen?: string | null;
+  procesoOrigen?: 'SECADO' | null;
   costoTotal: number;
   totalVentas: number;
   pesoVendido: number;

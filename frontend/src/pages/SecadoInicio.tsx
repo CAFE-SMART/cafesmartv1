@@ -581,6 +581,11 @@ export default function SecadoInicio() {
   ]);
 
   const volver = () => {
+    clearSecadoDraft();
+    setSelectedWeights({});
+    setDraftWeightsToRestore(null);
+    setPendingDraft(null);
+    setShowDraftModal(false);
     navigate(
       originPath,
       originPath === '/inventario'
@@ -1095,8 +1100,8 @@ export default function SecadoInicio() {
         <DraftRecoveryModal
           labelledById="secado-draft-title"
           describedById="secado-draft-description"
-          heading="Secado en progreso"
-          message="Tienes secados pendiente. ¿Deseas continuar o iniciar uno nuevo?"
+          heading="Selección de secado guardada"
+          message="Tienes una selección pendiente, pero el secado aún no se ha iniciado. Puedes continuarla o empezar de nuevo."
           primaryLabel="Continuar secado"
           onPrimary={continuarBorradorSecado}
           onSecondary={empezarSecadoSinBorrador}
