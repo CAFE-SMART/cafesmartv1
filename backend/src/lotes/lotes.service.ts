@@ -181,7 +181,7 @@ type SubloteFinancieroInput = {
 
 @Injectable()
 export class LotesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private calcularFinancieroSublote(
     sublote: SubloteFinancieroInput,
@@ -514,8 +514,8 @@ export class LotesService {
         humedadPromedio:
           lote.pesoConHumedad > 0
             ? this.redondearUnDecimal(
-                lote.humedadPonderada / lote.pesoConHumedad,
-              )
+              lote.humedadPonderada / lote.pesoConHumedad,
+            )
             : null,
         fecha: lote.fecha.toISOString(),
         fechaPrimerIngreso: lote.fechaPrimerIngreso.toISOString(),

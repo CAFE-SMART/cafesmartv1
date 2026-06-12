@@ -132,9 +132,9 @@ const TIPOS_DOCUMENTO_CLIENTE: Array<{
   value: DocumentType;
   label: string;
 }> = [
-  { value: 'CC', label: 'Cédula de ciudadanía' },
-  { value: 'NIT', label: 'NIT' },
-];
+    { value: 'CC', label: 'Cédula de ciudadanía' },
+    { value: 'NIT', label: 'NIT' },
+  ];
 const CLIENTE_FORM_INICIAL: ClienteForm = {
   nombre: '',
   tipoDocumento: 'CC',
@@ -159,11 +159,10 @@ const norm = (v: string) =>
 const keyOf = (v: string) => v.trim().toUpperCase();
 
 function personFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${
-    hasError
-      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
-      : 'border-[#dde4f1] focus:border-[#173ea6]'
-  }`;
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${hasError
+    ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+    : 'border-[#dde4f1] focus:border-[#173ea6]'
+    }`;
 }
 
 function PersonFieldError({ message }: { message: string }) {
@@ -1256,16 +1255,16 @@ export default function Ventas() {
         const normalizado =
           campo === 'precioKg'
             ? sanitizeIntegerVentaInput(
-                valor,
-                precioMaximoVentaPermitido,
-                l.precioKg,
-              )
+              valor,
+              precioMaximoVentaPermitido,
+              l.precioKg,
+            )
             : sanitizeDecimalVentaInput(
-                valor,
-                campo === 'pesoVerificadoKg'
-                  ? l.disponibleKg
-                  : getDisponibleVenta(l),
-              );
+              valor,
+              campo === 'pesoVerificadoKg'
+                ? l.disponibleKg
+                : getDisponibleVenta(l),
+            );
 
         const updatedLote = { ...l, [campo]: normalizado };
 
@@ -1293,13 +1292,13 @@ export default function Ventas() {
       prev.map((item) =>
         item.id === lote.id
           ? {
-              ...item,
-              pesoVerificadoKg: '',
-              cantidadKg:
-                modoVenta === 'PARCIAL'
-                  ? String(round2(lote.disponibleKg))
-                  : item.cantidadKg,
-            }
+            ...item,
+            pesoVerificadoKg: '',
+            cantidadKg:
+              modoVenta === 'PARCIAL'
+                ? String(round2(lote.disponibleKg))
+                : item.cantidadKg,
+          }
           : item,
       ),
     );

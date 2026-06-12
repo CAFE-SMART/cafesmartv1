@@ -92,7 +92,7 @@ function GlobalOfflineNotice() {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0f4ff] text-[#2b4cbd]">
           <WifiOff size={28} strokeWidth={2} />
         </div>
-
+        
         <h2 className="text-center text-[1.12rem] font-bold text-slate-900">
           Modo sin conexión
         </h2>
@@ -101,7 +101,7 @@ function GlobalOfflineNotice() {
           Guardamos tus cambios en este dispositivo. Se sincronizarán
           automáticamente cuando vuelva el internet.
         </p>
-
+       
         <button
           type="button"
           onClick={() => setIsOpen(false)}
