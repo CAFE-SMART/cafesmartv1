@@ -43,14 +43,24 @@ export class BodegaController {
   @HttpCode(HttpStatus.OK)
   async actualizarLimites(
     @Body()
-    body: { maxPesoKg: number; maxPrecioKg: number; maxPrecioVentaKg: number },
+    body: {
+      minPesoKg: number;
+      maxPesoKg: number;
+      minPrecioKg: number;
+      maxPrecioKg: number;
+      minPrecioVentaKg: number;
+      maxPrecioVentaKg: number;
+    },
     @Req() req: { user: { sub: string } },
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
     return this.bodegaService.actualizarLimites(
       organizacionId,
+      body.minPesoKg,
       body.maxPesoKg,
+      body.minPrecioKg,
       body.maxPrecioKg,
+      body.minPrecioVentaKg,
       body.maxPrecioVentaKg,
     );
   }

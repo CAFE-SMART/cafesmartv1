@@ -155,4 +155,11 @@ export class UsersService {
       },
     });
   }
+
+  async updatePasswordByEmail(email: string, passwordHash: string) {
+    return this.prisma.user.update({
+      where: { correo: email.trim().toLowerCase() },
+      data: { password: passwordHash },
+    });
+  }
 }

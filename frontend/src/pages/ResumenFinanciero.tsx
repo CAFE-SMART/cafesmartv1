@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   CalendarDays,
   Clock,
+  Eye,
+  EyeOff,
   LineChart,
   Lock,
   PackageCheck,
@@ -11,6 +13,7 @@ import {
   RefreshCcw,
   Scale,
   ShoppingCart,
+  TrendingDown,
   TrendingUp,
   Wallet,
   X,
@@ -164,10 +167,47 @@ function getFinancialAccessErrorMessage(error: unknown) {
   return 'No pudimos validar la contraseña. Intenta de nuevo.';
 }
 
+/** Genera el texto asistente inteligente para la utilidad estimada */
+function getUtilidadAsistente(
+  utilidad: number,
+  periodoLabel: string,
+  hasData: boolean,
+): { texto: string; emoji: string; positivo: boolean } {
+  if (!hasData) {
+    return {
+      texto: `Registra compras, ventas o gastos para ver tu balance ${periodoLabel}.`,
+      emoji: '📊',
+      positivo: true,
+    };
+  }
+  if (utilidad > 0) {
+    const formatted = formatCurrency(utilidad);
+    return {
+      texto: `¡Vas bien! Has ganado ${formatted} ${periodoLabel}. Sigue vendiendo para aumentar tu utilidad.`,
+      emoji: '🟢',
+      positivo: true,
+    };
+  }
+  if (utilidad < 0) {
+    const perdida = formatCurrency(Math.abs(utilidad));
+    return {
+      texto: `Atención: estás perdiendo ${perdida} ${periodoLabel}. Tus compras y gastos superan tus ventas. Revisa tus costos o aumenta las ventas.`,
+      emoji: '🔴',
+      positivo: false,
+    };
+  }
+  return {
+    texto: `Tu balance está en cero ${periodoLabel}. Lo que vendes cubre exactamente tus compras y gastos.`,
+    emoji: '⚖️',
+    positivo: true,
+  };
+}
+
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -175,6 +215,8 @@ export default function ResumenFinanciero() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<PeriodoFinanciero>('DIARIO');
   const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -200,6 +242,14 @@ export default function ResumenFinanciero() {
   const handleUnlock = async () => {
     if (!password.trim()) {
       setAccessError('Escribe la contraseña del administrador.');
+      return;
+    }
+    if (!confirmPassword.trim()) {
+      setAccessError('Confirma la contraseña del administrador.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAccessError('Las contraseñas no coinciden.');
       return;
     }
 
@@ -240,7 +290,7 @@ export default function ResumenFinanciero() {
     year: 'numeric',
   });
   const periodoLabel =
-    periodo === 'DIARIO' ? 'del día' : 'de los últimos 7 días';
+    periodo === 'DIARIO' ? 'hoy' : 'en los últimos 7 días';
   const movimientosDelPeriodo = useMemo(() => {
     const ahora = new Date();
     const inicio = new Date(ahora);
@@ -405,6 +455,11 @@ export default function ResumenFinanciero() {
     };
   }, [movimientosDelPeriodo, utilidadEstimada]);
 
+  const asistente = useMemo(
+    () => getUtilidadAsistente(utilidadEstimada, periodoLabel, hasData),
+    [utilidadEstimada, periodoLabel, hasData],
+  );
+
   return (
     <div className="min-h-screen bg-[#f7f9fc] px-4 py-3 pb-20 text-slate-900">
       <main className="mx-auto w-full max-w-[430px] py-1">
@@ -418,7 +473,7 @@ export default function ResumenFinanciero() {
             <ArrowLeft size={16} />
           </button>
           <h1 className="text-center text-[0.9rem] font-black text-[#111827]">
-            Resultado financiero
+            Resumen financiero
           </h1>
           {authorized ? (
             <button
@@ -455,24 +510,66 @@ export default function ResumenFinanciero() {
               Ingresa la contraseña del administrador para ver balance, merma y
               movimientos.
             </p>
-            <input
-              type="password"
-              maxLength={72}
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (accessError) setAccessError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  void handleUnlock();
-                }
-              }}
-              aria-invalid={Boolean(accessError)}
-              aria-describedby="financial-access-error"
-              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#1D4ED8] aria-[invalid=true]:border-rose-300"
-              placeholder="Contraseña"
-            />
+            <div className="relative mt-4">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                maxLength={72}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (accessError) setAccessError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void handleUnlock();
+                  }
+                }}
+                aria-invalid={Boolean(accessError)}
+                className="w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] py-2.5 pl-3 pr-10 text-[0.78rem] font-semibold outline-none focus:border-[#1D4ED8] aria-[invalid=true]:border-rose-300"
+                placeholder="Contraseña"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <div className="relative mt-3">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                maxLength={72}
+                value={confirmPassword}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value);
+                  if (accessError) setAccessError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void handleUnlock();
+                  }
+                }}
+                className="w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] py-2.5 pl-3 pr-10 text-[0.78rem] font-semibold outline-none focus:border-[#1D4ED8]"
+                placeholder="Confirmar contraseña"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label={showConfirmPassword ? 'Ocultar confirmación' : 'Mostrar confirmación'}
+              >
+                {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/login', { state: { mode: 'forgot' } })}
+              className="mt-3 block mx-auto text-center text-xs font-black text-[#1D4ED8] hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
             <div
               id="financial-access-error"
               aria-live="polite"
@@ -521,15 +618,7 @@ export default function ResumenFinanciero() {
           </section>
         ) : (
           <>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[0.64rem] font-black uppercase tracking-[0.12em] text-[#64748b]">
-                  Resumen financiero
-                </p>
-                <h2 className="mt-0.5 text-[1.45rem] font-black leading-none text-[#071126]">
-                  Finanzas
-                </h2>
-              </div>
+            <div className="mt-3 flex items-center justify-end">
               <div className="inline-flex min-h-[34px] items-center gap-1.5 rounded-[10px] border border-[#dfe6f2] bg-white px-2.5 text-[0.68rem] font-bold text-[#111827] shadow-sm">
                 <CalendarDays size={13} className="text-[#1D4ED8]" />
                 {periodoActual}
@@ -557,30 +646,23 @@ export default function ResumenFinanciero() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-white/80">
-                    Utilidad estimada {periodoLabel}
+                    Utilidad estimada {periodo === 'DIARIO' ? 'de hoy' : 'últimos 7 días'}
                   </p>
                   <p className="mt-2 text-[1.7rem] font-black leading-none tracking-normal">
                     {loading ? '...' : formatCurrency(utilidadEstimada)}
                   </p>
                 </div>
                 <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/18">
-                  <TrendingUp size={24} />
+                  {utilidadEstimada >= 0 ? (
+                    <TrendingUp size={24} />
+                  ) : (
+                    <TrendingDown size={24} />
+                  )}
                 </span>
               </div>
-              {hasData ? (
-                <p className="mt-2 text-[0.6rem] font-semibold leading-4 text-white/75">
-                  Ventas menos compras y gastos {periodoLabel}.
-                </p>
-              ) : (
-                <div className="mt-2 space-y-1 text-white/75">
-                  <p className="text-[0.62rem] font-black leading-4">
-                    Aún no tienes movimientos registrados
-                  </p>
-                  <p className="text-[0.6rem] font-semibold leading-4">
-                    Registra compras, ventas o gastos para ver tu balance
-                  </p>
-                </div>
-              )}
+              <p className="mt-3 text-[0.6rem] font-semibold leading-[1.55] text-white/85">
+                {asistente.texto}
+              </p>
               <p className="mt-3 inline-flex items-center gap-1.5 text-[0.62rem] font-bold text-white/75">
                 <Clock size={12} />
                 Actualizado: hoy
@@ -865,65 +947,94 @@ export default function ResumenFinanciero() {
               </button>
             </section>
 
+            {/* Modal historial — pantalla flotante grande */}
             {historialAbierto ? (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-5 py-8 backdrop-blur-sm">
-                <section className="flex max-h-[72vh] w-full max-w-[350px] flex-col overflow-hidden rounded-[14px] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.24)]">
-                  <div className="flex shrink-0 items-center justify-between border-b border-[#eef2f7] px-3.5 py-2.5">
+              <div
+                className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) setHistorialAbierto(false);
+                }}
+              >
+                <section className="flex w-full max-w-[430px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.22)] sm:rounded-[18px] sm:mx-4"
+                  style={{ maxHeight: '88vh' }}
+                >
+                  {/* Header del modal */}
+                  <div className="flex shrink-0 items-center justify-between border-b border-[#eef2f7] px-5 py-4">
                     <div>
-                      <p className="text-[0.88rem] font-black text-[#111827]">
-                        Historial
+                      <p className="text-[0.95rem] font-black text-[#111827]">
+                        Historial de movimientos
                       </p>
-                      <p className="text-[0.6rem] font-semibold text-slate-500">
+                      <p className="mt-0.5 text-[0.65rem] font-semibold text-slate-500">
                         {periodo === 'DIARIO'
                           ? 'Movimientos de hoy'
-                          : 'Movimientos de los últimos 7 días'}
+                          : 'Movimientos de los últimos 7 días'}{' '}
+                        · {movimientosDelPeriodo.length} registros
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setHistorialAbierto(false)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f1f5fb] text-slate-500"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f5fb] text-slate-500 hover:bg-[#e5ecf8]"
                       aria-label="Cerrar historial"
                     >
-                      <X size={15} />
+                      <X size={16} />
                     </button>
                   </div>
-                  <div className="min-h-0 max-h-[360px] flex-1 overflow-y-scroll px-3.5 py-1.5 pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
-                    {movimientosDelPeriodo.map((item) => {
-                      const copy = getMovimientoCopy(item);
-                      const Icon = copy.icon;
-                      return (
-                        <article
-                          key={`historial-${item.tipo}-${item.id}`}
-                          className="flex items-center gap-2 border-b border-[#eef2f7] py-2 last:border-b-0"
-                        >
-                          <span
-                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
+
+                  {/* Lista scrollable */}
+                  <div className="flex-1 overflow-y-auto px-5 py-2 [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[5px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                    {movimientosDelPeriodo.length === 0 ? (
+                      <p className="py-8 text-center text-[0.72rem] font-semibold text-slate-400">
+                        Sin movimientos en este periodo.
+                      </p>
+                    ) : (
+                      movimientosDelPeriodo.map((item) => {
+                        const copy = getMovimientoCopy(item);
+                        const Icon = copy.icon;
+                        return (
+                          <article
+                            key={`historial-${item.tipo}-${item.id}`}
+                            className="flex items-center gap-3 border-b border-[#f1f4f9] py-3.5 last:border-b-0"
                           >
-                            <Icon size={14} />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[0.72rem] font-black text-[#111827]">
-                              {copy.title}
-                            </p>
-                            <p className="truncate text-[0.6rem] font-semibold text-slate-500">
-                              {copy.detail}
-                            </p>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-[0.58rem] font-semibold text-slate-500">
-                              {formatDate(item.fecha)}
-                            </p>
-                            <p
-                              className={`mt-0.5 text-[0.64rem] font-black ${copy.amountTone}`}
+                            <span
+                              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
                             >
-                              {copy.sign ? `${copy.sign} ` : ''}
-                              {formatCurrency(item.valor)}
-                            </p>
-                          </div>
-                        </article>
-                      );
-                    })}
+                              <Icon size={16} />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[0.8rem] font-black text-[#111827]">
+                                {copy.title}
+                              </p>
+                              <p className="truncate text-[0.65rem] font-semibold text-slate-500">
+                                {copy.detail}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-[0.62rem] font-semibold text-slate-400">
+                                {formatDate(item.fecha)}
+                              </p>
+                              <p
+                                className={`mt-0.5 text-[0.75rem] font-black ${copy.amountTone}`}
+                              >
+                                {copy.sign ? `${copy.sign} ` : ''}
+                                {formatCurrency(item.valor)}
+                              </p>
+                            </div>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Footer del modal */}
+                  <div className="shrink-0 border-t border-[#eef2f7] px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setHistorialAbierto(false)}
+                      className="w-full rounded-full bg-[#f1f5fb] py-2.5 text-[0.75rem] font-black text-[#1D4ED8]"
+                    >
+                      Cerrar
+                    </button>
                   </div>
                 </section>
               </div>

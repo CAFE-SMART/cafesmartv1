@@ -595,7 +595,10 @@ export default function GastosOperativos() {
               aria-invalid={Boolean(fieldErrors.concepto)}
               aria-describedby={undefined}
               onChange={(event) => {
-                const soloLetrasYEspacios = event.target.value.replace(/[^\p{L}\s]/gu, '');
+                const soloLetrasYEspacios = event.target.value.replace(
+                  /[^\p{L}\s]/gu,
+                  '',
+                );
                 setConcepto(soloLetrasYEspacios.slice(0, CONCEPTO_MAX_LENGTH));
                 limpiarErrorCampo('concepto');
               }}

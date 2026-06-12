@@ -48,6 +48,40 @@ export class VentasService {
     );
 
     try {
+      const [minPrecioVentaStr, maxPrecioVentaStr] = this.prisma.parametroOrganizacion
+        ? await Promise.all([
+            this.prisma.parametroOrganizacion.findUnique({
+              where: {
+                organizacionId_nombre: {
+                  organizacionId: organizacionIdFinal,
+                  nombre: 'min_precio_venta_kg',
+                },
+              },
+            }),
+            this.prisma.parametroOrganizacion.findUnique({
+              where: {
+                organizacionId_nombre: {
+                  organizacionId: organizacionIdFinal,
+                  nombre: 'max_precio_venta_kg',
+                },
+              },
+            }),
+          ])
+        : [null, null];
+
+      const minPrecioVenta = minPrecioVentaStr?.valor ? Number(minPrecioVentaStr.valor) : 1000;
+      const maxPrecioVenta = maxPrecioVentaStr?.valor ? Number(maxPrecioVentaStr.valor) : 100000;
+
+      for (const [index, detalle] of input.detalles.entries()) {
+        if (detalle.precioKg < minPrecioVenta || detalle.precioKg > maxPrecioVenta) {
+          throw new VentaValidacionCriticaError(
+            'VENTA_PRECIO_INVALIDO',
+            `El precio por kg debe estar entre $${minPrecioVenta.toLocaleString('es-CO')} y $${maxPrecioVenta.toLocaleString('es-CO')}.`,
+            { index, subloteId: detalle.subloteId },
+          );
+        }
+      }
+
       return await procesarVenta(
         {
           ...input,

@@ -418,7 +418,7 @@ function datosPasoVenta(step: Step) {
   };
 }
 
-function getVentasGuidance(message: string): GuidedErrorMessage {
+function getVentasGuidance(message: string, minPrecio: number, maxPrecio: number): GuidedErrorMessage {
   if (message.includes('nombre')) {
     return createGuidedError(
       message,
@@ -506,12 +506,13 @@ function getVentasGuidance(message: string): GuidedErrorMessage {
   if (
     message.includes('precio por kg') ||
     message.includes('precio mínimo') ||
-    message.includes('precio no puede')
+    message.includes('precio no puede') ||
+    message.includes('precio por kg está fuera')
   ) {
     return createGuidedError(
       message,
       'Precio por kg inválido.',
-      `Debe estar entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${PRECIO_MAXIMO_KG.toLocaleString('es-CO')}/kg.`,
+      `Debe estar entre $${minPrecio.toLocaleString('es-CO')} y $${maxPrecio.toLocaleString('es-CO')}/kg.`,
       'Revisa el precio marcado.',
     );
   }
@@ -609,16 +610,16 @@ function getCantidadLoteGuidance(
       `Falta ingresar la cantidad a vender en ${lote.codigo}.`,
       'Falta ingresar la cantidad a vender.',
       'Escribe una cantidad antes de continuar.',
-      `Ingresa al menos ${PESO_MINIMO_KG} kg.`,
+      `Ingresa al menos 0.01 kg.`,
     );
   }
 
-  if (cantidad < PESO_MINIMO_KG) {
+  if (cantidad < 0.01) {
     return createGuidedError(
-      `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${lote.codigo}.`,
+      `La cantidad debe ser mínimo 0.01 kg en ${lote.codigo}.`,
       'Cantidad muy baja.',
-      `La cantidad mínima es ${PESO_MINIMO_KG} kg.`,
-      `Ingresa al menos ${PESO_MINIMO_KG} kg.`,
+      `La cantidad mínima es 0.01 kg.`,
+      `Ingresa al menos 0.01 kg.`,
     );
   }
 
@@ -634,6 +635,7 @@ function getPrecioLoteGuidance(
   lote: LoteVenta,
   precio: number,
   precioIngresado: boolean,
+  minPrecioVenta: number,
   precioMaximo: number,
 ): GuidedErrorMessage {
   if (!precioIngresado) {
@@ -641,16 +643,16 @@ function getPrecioLoteGuidance(
       `Falta elegir el precio por kg en ${lote.codigo}.`,
       'Falta elegir el precio por kg.',
       'Escribe el valor por kilo antes de continuar.',
-      `Ingresa un valor entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+      `Ingresa un valor entre $${minPrecioVenta.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
     );
   }
 
-  if (precio < PRECIO_MINIMO_KG) {
+  if (precio < minPrecioVenta) {
     return createGuidedError(
       `El precio por kg es muy bajo en ${lote.codigo}.`,
       'Precio por kg muy bajo.',
-      `El mínimo es $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
-      `Ingresa al menos $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+      `El mínimo es $${minPrecioVenta.toLocaleString('es-CO')}/kg.`,
+      `Ingresa al menos $${minPrecioVenta.toLocaleString('es-CO')}/kg.`,
     );
   }
 
@@ -666,6 +668,7 @@ function getPrecioTipoGuidance(
   tipoCafe: string,
   precio: number,
   precioIngresado: boolean,
+  minPrecioVenta: number,
   precioMaximo: number,
 ): GuidedErrorMessage {
   const cafe = formatCoffeeLabel(tipoCafe);
@@ -675,16 +678,16 @@ function getPrecioTipoGuidance(
       `Falta elegir el precio por kg para café ${cafe}.`,
       'Falta elegir el precio por kg.',
       `Define el precio para café ${cafe} antes de continuar.`,
-      `Ingresa un valor entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+      `Ingresa un valor entre $${minPrecioVenta.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
     );
   }
 
-  if (precio < PRECIO_MINIMO_KG) {
+  if (precio < minPrecioVenta) {
     return createGuidedError(
       `El precio por kg es muy bajo para café ${cafe}.`,
       'Precio por kg muy bajo.',
-      `El mínimo es $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
-      `Ingresa al menos $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+      `El mínimo es $${minPrecioVenta.toLocaleString('es-CO')}/kg.`,
+      `Ingresa al menos $${minPrecioVenta.toLocaleString('es-CO')}/kg.`,
     );
   }
 
@@ -759,6 +762,8 @@ export default function Ventas() {
   const [clienteFormError, setClienteFormError] = React.useState<string | null>(
     null,
   );
+  const [minPrecioVentaKg, setMinPrecioVentaKg] =
+    React.useState(PRECIO_MINIMO_KG);
   const [maxPrecioVentaKg, setMaxPrecioVentaKg] =
     React.useState(PRECIO_MAXIMO_KG);
   const precioMaximoVentaPermitido = Math.min(
@@ -781,6 +786,7 @@ export default function Ventas() {
       ]);
       if (bodegaConfig) {
         setMaxPrecioVentaKg(bodegaConfig.maxPrecioVentaKg || PRECIO_MAXIMO_KG);
+        setMinPrecioVentaKg(bodegaConfig.minPrecioVentaKg || PRECIO_MINIMO_KG);
       }
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
@@ -805,9 +811,43 @@ export default function Ventas() {
           ),
         ),
       });
-      setLotesVenta(
-        mkLotes(lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote))),
+      const lotesFiltrados = lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote));
+      const lotesDetalles = await Promise.all(
+        lotesFiltrados.map((lote) =>
+          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).catch(() => null)
+        )
       );
+
+      const list: LoteVenta[] = [];
+      for (let i = 0; i < lotesFiltrados.length; i++) {
+        const lote = lotesFiltrados[i];
+        const detail = lotesDetalles[i];
+        if (!detail) continue;
+
+        const sublotesList = ENABLE_SECADO_PROTOTYPE
+          ? applySecadoToDetalle(detail, lote.tipoCafeId, lote.calidadId, {
+              includeGeneratedOutputs: false,
+            })?.sublotes ?? []
+          : detail.sublotes;
+
+        for (const sub of sublotesList) {
+          if (sub.pesoActual > 0) {
+            list.push({
+              id: sub.id,
+              codigo: sub.etiqueta,
+              tipoCafeId: sub.tipoCafeId,
+              tipoCafe: sub.tipoCafe,
+              calidadId: sub.calidadId,
+              calidad: sub.calidad,
+              disponibleKg: sub.pesoActual,
+              cantidadKg: '',
+              precioKg: '',
+              pesoVerificadoKg: '',
+            });
+          }
+        }
+      }
+      setLotesVenta(list);
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
     } catch (e) {
       setSecadoExcluidoVenta({ sublotes: 0, kg: 0 });
@@ -908,7 +948,7 @@ export default function Ventas() {
     for (const item of resumenDisponiblePorTipo) {
       const precioVentaItem = toNum(preciosVentaTotal[item.tipoCafeId] ?? '');
       if (
-        precioVentaItem < PRECIO_MINIMO_KG ||
+        precioVentaItem < minPrecioVentaKg ||
         precioVentaItem > precioMaximoVentaPermitido
       ) {
         invalidos.add(item.tipoCafeId);
@@ -916,7 +956,7 @@ export default function Ventas() {
     }
 
     return invalidos;
-  }, [precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
+  }, [minPrecioVentaKg, precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
   const preciosVentaTotalFaltantes = React.useMemo(
     () =>
       resumenDisponiblePorTipo.some(
@@ -944,18 +984,27 @@ export default function Ventas() {
         return `Ingresa un precio por kg válido para café ${formatCoffeeLabel(tipoSinPrecio.tipoCafe)}.`;
       }
 
+      if (totalDisponibleVenta < PESO_MINIMO_KG) {
+        return `La cantidad total a vender debe ser mínimo ${PESO_MINIMO_KG} kg.`;
+      }
+
       return null;
     }
     if (!lotesConCantidad.length)
       return 'Ingresa al menos una cantidad para continuar.';
+
+    if (totalKg < PESO_MINIMO_KG) {
+      return `La cantidad total a vender debe ser mínimo ${PESO_MINIMO_KG} kg.`;
+    }
+
     for (const l of lotesConCantidad) {
       if (pesoVerificadoInvalido(l))
         return `El peso verificado no puede superar el disponible en ${l.codigo}.`;
-      if (l.cantidad < PESO_MINIMO_KG)
-        return `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${l.codigo}.`;
+      if (l.cantidad < 0.01)
+        return `La cantidad debe ser mínimo 0.01 kg en ${l.codigo}.`;
       if (l.cantidad > getDisponibleVenta(l))
         return `La cantidad supera el disponible en ${l.codigo}.`;
-      if (l.precio < PRECIO_MINIMO_KG || l.precio > precioMaximoVentaPermitido)
+      if (l.precio < minPrecioVentaKg || l.precio > precioMaximoVentaPermitido)
         return `Ingresa un precio por kg válido en ${l.codigo}.`;
     }
     return null;
@@ -965,9 +1014,12 @@ export default function Ventas() {
     lotesVenta.length,
     modoVenta,
     preciosVentaTotalInvalidos,
+    minPrecioVentaKg,
     precioMaximoVentaPermitido,
     resumenDisponiblePorTipo,
     lotesConCantidad,
+    totalDisponibleVenta,
+    totalKg,
   ]);
 
   const hayCantidadParcial = React.useMemo(
@@ -978,25 +1030,32 @@ export default function Ventas() {
     if (modoVenta !== 'PARCIAL') return false;
     return lotesVenta.some((lote) => {
       const cantidadIngresada = lote.cantidadKg.trim() !== '';
-      if (!cantidadIngresada) return false;
+      const precioIngresado = lote.precioKg.trim() !== '';
+      // Si el usuario no tocó ningún campo, ignorar este sublote (es opcional)
+      if (!cantidadIngresada && !precioIngresado) return false;
       const cantidad = toNum(lote.cantidadKg);
+      const precio = toNum(lote.precioKg);
+      // Si inició el llenado, ambos campos son obligatorios y deben ser válidos
       return (
-        cantidad < PESO_MINIMO_KG ||
+        !cantidadIngresada ||
+        !precioIngresado ||
+        cantidad < 0.01 ||
         cantidad > getDisponibleVenta(lote) ||
-        toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
-        toNum(lote.precioKg) > precioMaximoVentaPermitido ||
+        precio < minPrecioVentaKg ||
+        precio > precioMaximoVentaPermitido ||
         pesoVerificadoInvalido(lote)
       );
     });
-  }, [lotesVenta, modoVenta, precioMaximoVentaPermitido]);
+  }, [lotesVenta, modoVenta, minPrecioVentaKg, precioMaximoVentaPermitido]);
   const puedeAvanzarPaso2 =
     !fechaVentaValidacion.isValid || modoVenta === null
       ? false
       : modoVenta === 'TOTAL'
         ? resumenDisponiblePorTipo.length > 0 &&
-        preciosVentaTotalInvalidos.size === 0 &&
-        !lotesVenta.some(pesoVerificadoInvalido)
-        : hayCantidadParcial && !parcialConErrores;
+          preciosVentaTotalInvalidos.size === 0 &&
+          !lotesVenta.some(pesoVerificadoInvalido) &&
+          totalDisponibleVenta >= PESO_MINIMO_KG
+        : hayCantidadParcial && !parcialConErrores && totalKg >= PESO_MINIMO_KG;
 
   const siguiente = React.useCallback(() => {
     if (paso === 1) {
@@ -1080,12 +1139,6 @@ export default function Ventas() {
     setRegistroErrorMensaje(null);
 
     try {
-      type PoolEntry = {
-        subloteId: string;
-        disponibleKg: number;
-      };
-
-      const pools = new Map<string, PoolEntry[]>();
       const detalles = [] as Array<{
         subloteId: string;
         pesoVendido: number;
@@ -1093,78 +1146,28 @@ export default function Ventas() {
       }>;
 
       for (const lote of lotesConCantidad) {
-        const poolKey = `${lote.tipoCafeId}::${lote.calidadId}`;
+        const pesoVerificado = getPesoVerificado(lote);
+        let pesoVendido = round2(lote.cantidad);
 
-        if (!pools.has(poolKey)) {
-          const detalleBase = await obtenerDetalleLote(
-            lote.tipoCafeId,
-            lote.calidadId,
-          );
-          const detalle = ENABLE_SECADO_PROTOTYPE
-            ? applySecadoToDetalle(
-              detalleBase,
-              lote.tipoCafeId,
-              lote.calidadId,
-              {
-                includeGeneratedOutputs: false,
-              },
-            )
-            : detalleBase;
-          let pool = (detalle?.sublotes ?? [])
-            .filter((sublote) => sublote.pesoActual > 0)
-            .sort(
-              (a, b) =>
-                new Date(a.fechaIngreso).getTime() -
-                new Date(b.fechaIngreso).getTime(),
-            )
-            .map((sublote) => ({
-              subloteId: sublote.id,
-              disponibleKg: round2(sublote.pesoActual),
-            }));
-
-          const pesoVerificado = getPesoVerificado(lote);
-          const totalPool = round2(
-            pool.reduce((sum, item) => sum + item.disponibleKg, 0),
-          );
-
-          if (pesoVerificado !== null && pesoVerificado < totalPool) {
-            pool = distribuirPesoVerificado(pool, pesoVerificado);
-            await guardarPesosSublotes(
-              pool.map((entry) => ({
-                id: entry.subloteId,
-                pesoActual: entry.disponibleKg,
-                motivo: 'Calibración antes de venta',
-              })),
-            );
+        if (pesoVerificado !== null && pesoVerificado !== lote.disponibleKg) {
+          await guardarPesosSublotes([
+            {
+              id: lote.id, // lote.id is the subloteId
+              pesoActual: pesoVerificado,
+              motivo: 'Calibración antes de venta',
+            },
+          ]);
+          if (pesoVendido > pesoVerificado) {
+            pesoVendido = pesoVerificado;
           }
-
-          pools.set(poolKey, pool);
         }
 
-        const pool = pools.get(poolKey) ?? [];
-        let restante = round2(lote.cantidad);
-
-        for (const entry of pool) {
-          if (restante <= 0) break;
-          if (entry.disponibleKg <= 0) continue;
-
-          const asignado = round2(Math.min(restante, entry.disponibleKg));
-          if (asignado <= 0) continue;
-
+        if (pesoVendido > 0) {
           detalles.push({
-            subloteId: entry.subloteId,
-            pesoVendido: asignado,
+            subloteId: lote.id, // lote.id is the subloteId
+            pesoVendido,
             precioKg: round2(lote.precio),
           });
-
-          entry.disponibleKg = round2(entry.disponibleKg - asignado);
-          restante = round2(restante - asignado);
-        }
-
-        if (restante > 0.001) {
-          throw new Error(
-            `La cantidad supera el disponible en ${lote.codigo}.`,
-          );
         }
       }
 
@@ -1263,12 +1266,28 @@ export default function Ventas() {
                 : getDisponibleVenta(l),
             );
 
-        return { ...l, [campo]: normalizado };
+        const updatedLote = { ...l, [campo]: normalizado };
+
+        if (campo === 'pesoVerificadoKg') {
+          const nextDisponibleVenta = getDisponibleVenta(updatedLote);
+          const currentCantidad = toNum(l.cantidadKg);
+          const oldDisponibleVenta = getDisponibleVenta(l);
+
+          if (
+            currentCantidad > nextDisponibleVenta ||
+            Math.abs(currentCantidad - oldDisponibleVenta) < 0.001
+          ) {
+            updatedLote.cantidadKg = String(round2(nextDisponibleVenta));
+          }
+        }
+
+        return updatedLote;
       }),
     );
   };
 
   const usarPesoRegistrado = (lote: LoteVenta) => {
+    setLoteAjustandoId(null);
     setLotesVenta((prev) =>
       prev.map((item) =>
         item.id === lote.id
@@ -1320,9 +1339,7 @@ export default function Ventas() {
         limit: LIMITE_CLIENTES_RECIENTES,
         orden: 'recientes',
       });
-      setClientes(
-        dedupeClientesOptions(clientesData.map(mapClienteToOption)),
-      );
+      setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
     } catch {
       // La recarga de clientes no debe bloquear la venta.
     }
@@ -1422,12 +1439,12 @@ export default function Ventas() {
       return;
     }
 
-    navigate('/inicio');
+    navigate(-1);
   };
 
   const confirmarCancelarVenta = () => {
     setMostrarModalCancelar(false);
-    navigate('/inicio');
+    navigate(-1);
   };
 
   const validarClienteForm = React.useCallback(() => {
@@ -1675,7 +1692,9 @@ export default function Ventas() {
 
           <div className="mt-8">
             <div className="flex items-center justify-between text-[0.95rem] font-medium text-slate-600">
-              <span>Paso {paso}: {pasoActual.titulo}</span>
+              <span>
+                Paso {paso}: {pasoActual.titulo}
+              </span>
               <span className="text-slate-400">{paso} de 3</span>
             </div>
             <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
@@ -1717,372 +1736,370 @@ export default function Ventas() {
             {paso === 2 ? (
               <div className="flex flex-col gap-4">
                 <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
-                    Cliente seleccionado
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {clienteSeleccionado?.nombre ?? 'Sin cliente'}
-                  </p>
-                  {clienteSeleccionado?.id !== 'general' && (
-                    <p className="text-xs text-slate-600">
-                      {clienteSeleccionado?.documento ?? 'Selección pendiente'}
+                  <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
+                    <p className="text-xs font-medium text-slate-500">
+                      Cliente seleccionado
                     </p>
-                  )}
-                </div>
-
-                <div className="mt-4 rounded-[18px] border border-[#dbe1f1] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(20,35,85,0.02)]">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays size={15} className="shrink-0 text-slate-400" />
-                      <span className="text-[0.85rem] font-semibold text-slate-800">
-                        Fecha de venta
-                      </span>
-                    </div>
-                    <input
-                      type="date"
-                      value={fechaVenta}
-                      min={BUSINESS_MIN_DATE_VALUE}
-                      max={getTodayLocalDateValue()}
-                      onChange={(event) => {
-                        setFechaVenta(event.target.value);
-                        setSubmitError(null);
-                      }}
-                      className="bg-transparent text-[0.95rem] font-semibold text-slate-900 outline-none"
-                    />
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {clienteSeleccionado?.nombre ?? 'Sin cliente'}
+                    </p>
+                    {clienteSeleccionado?.id !== 'general' && (
+                      <p className="text-xs text-slate-600">
+                        {clienteSeleccionado?.documento ??
+                          'Selección pendiente'}
+                      </p>
+                    )}
                   </div>
-                  {fechaVentaInvalida ? (
+
+                  <div className="mt-4 rounded-[18px] border border-[#dbe1f1] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(20,35,85,0.02)]">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays
+                          size={15}
+                          className="shrink-0 text-slate-400"
+                        />
+                        <span className="text-[0.85rem] font-semibold text-slate-800">
+                          Fecha de venta
+                        </span>
+                      </div>
+                      <input
+                        type="date"
+                        value={fechaVenta}
+                        min={BUSINESS_MIN_DATE_VALUE}
+                        max={getTodayLocalDateValue()}
+                        onChange={(event) => {
+                          setFechaVenta(event.target.value);
+                          setSubmitError(null);
+                        }}
+                        className="bg-transparent text-[0.95rem] font-semibold text-slate-900 outline-none"
+                      />
+                    </div>
+                    {fechaVentaInvalida ? (
+                      <InlineGuidedError
+                        message={getVentasGuidance(
+                          fechaVentaValidacion.message ??
+                            'Selecciona la fecha de venta.',
+                          minPrecioVentaKg,
+                          precioMaximoVentaPermitido,
+                        )}
+                        className="mt-2"
+                      />
+                    ) : null}
+                  </div>
+
+                  <h2 className="mt-5 text-[1.12rem] font-semibold text-slate-900">
+                    ¿Cómo deseas realizar la venta?
+                  </h2>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoVenta('PARCIAL');
+                        setIntentoPaso2(false);
+                      }}
+                      disabled={sinInventario}
+                      className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
+                        modoVenta === 'PARCIAL'
+                          ? 'border-[#1D4ED8] bg-[#eef2ff]'
+                          : sinInventario
+                            ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
+                            : modoInvalido
+                              ? 'border-[#f2c17b] bg-[#fff9ef]'
+                              : 'border-[#e3e7f3] bg-white'
+                      }`}
+                    >
+                      <p className="text-base font-black text-slate-900">
+                        Venta parcial
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Seleccionar cantidad a vender
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoVenta('TOTAL');
+                        setIntentoPaso2(false);
+                      }}
+                      disabled={sinInventario}
+                      className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
+                        modoVenta === 'TOTAL'
+                          ? 'border-[#1D4ED8] bg-[#eef2ff]'
+                          : sinInventario
+                            ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
+                            : modoInvalido
+                              ? 'border-[#f2c17b] bg-[#fff9ef]'
+                              : 'border-[#e3e7f3] bg-white'
+                      }`}
+                    >
+                      <p className="text-base font-black text-slate-900">
+                        Venta total
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Vender todo el inventario disponible
+                      </p>
+                    </button>
+                  </div>
+                  {sinInventario ? (
                     <InlineGuidedError
                       message={getVentasGuidance(
-                        fechaVentaValidacion.message ??
-                        'Selecciona la fecha de venta.',
+                        'No hay lotes disponibles para vender.',
+                        minPrecioVentaKg,
+                        precioMaximoVentaPermitido,
                       )}
                       className="mt-2"
                     />
                   ) : null}
-                </div>
+                  {modoInvalido ? (
+                    <InlineGuidedError
+                      message={getVentasGuidance(
+                        'Selecciona como deseas realizar la venta.',
+                        minPrecioVentaKg,
+                        precioMaximoVentaPermitido,
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
 
-                <h2 className="mt-5 text-[1.12rem] font-semibold text-slate-900">
-                  ¿Cómo deseas realizar la venta?
-                </h2>
-
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModoVenta('PARCIAL');
-                      setIntentoPaso2(false);
-                    }}
-                    disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${modoVenta === 'PARCIAL'
-                      ? 'border-[#1D4ED8] bg-[#eef2ff]'
-                      : sinInventario
-                        ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
-                        : modoInvalido
-                          ? 'border-[#f2c17b] bg-[#fff9ef]'
-                          : 'border-[#e3e7f3] bg-white'
-                      }`}
-                  >
-                    <p className="text-base font-black text-slate-900">
-                      Venta parcial
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Seleccionar cantidad a vender
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModoVenta('TOTAL');
-                      setIntentoPaso2(false);
-                    }}
-                    disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${modoVenta === 'TOTAL'
-                      ? 'border-[#1D4ED8] bg-[#eef2ff]'
-                      : sinInventario
-                        ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
-                        : modoInvalido
-                          ? 'border-[#f2c17b] bg-[#fff9ef]'
-                          : 'border-[#e3e7f3] bg-white'
-                      }`}
-                  >
-                    <p className="text-base font-black text-slate-900">
-                      Venta total
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Vender todo el inventario disponible
-                    </p>
-                  </button>
-                </div>
-                {sinInventario ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(
-                      'No hay lotes disponibles para vender.',
-                    )}
-                    className="mt-2"
-                  />
-                ) : null}
-                {modoInvalido ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(
-                      'Selecciona como deseas realizar la venta.',
-                    )}
-                    className="mt-2"
-                  />
-                ) : null}
-
-                {modoVenta === 'TOTAL' ? (
-                  <div className="mt-6 space-y-4">
-                    <div className="text-center">
-                      <h2 className="text-[1.2rem] font-black leading-tight text-slate-950">
-                        Se venderá todo el café disponible en inventario
-                      </h2>
-                      <p className="mt-2 text-sm font-semibold text-slate-500">
-                        Incluye todos los tipos y calidades disponibles.
-                      </p>
-                      {haySecadoExcluido ? (
-                        <p className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-3 text-left text-xs font-semibold leading-5 text-amber-800">
-                          No se tendrán en cuenta los sublotes que se encuentran
-                          en proceso de secado ({secadoExcluidoVenta.sublotes}{' '}
-                          sublote
-                          {secadoExcluidoVenta.sublotes === 1 ? '' : 's'}
-                          {secadoExcluidoVenta.kg > 0
-                            ? `, ${kg(secadoExcluidoVenta.kg)}`
-                            : ''}
-                          ).
+                  {modoVenta === 'TOTAL' ? (
+                    <div className="mt-6 space-y-4">
+                      <div className="text-center">
+                        <h2 className="text-[1.2rem] font-black leading-tight text-slate-950">
+                          Se venderá todo el café disponible en inventario
+                        </h2>
+                        <p className="mt-2 text-sm font-semibold text-slate-500">
+                          Incluye todos los tipos y calidades disponibles.
                         </p>
-                      ) : null}
-                    </div>
-
-                    <article className="rounded-[18px] bg-white p-4 shadow-sm">
-                      <p className="text-[0.85rem] font-semibold text-slate-800">
-                        Resumen por tipo
-                      </p>
-                      <div className="mt-4 max-h-[180px] divide-y divide-slate-100 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
-                        {resumenDisponiblePorTipo.map((item) => (
-                          <div
-                            key={item.tipoCafeId}
-                            className="flex items-center justify-between py-3"
-                          >
-                            <span className="font-semibold text-slate-600">
-                              Café {formatCoffeeLabel(item.tipoCafe)}
-                            </span>
-                            <span className="font-black text-slate-950">
-                              {kg(item.pesoKg)}
-                            </span>
-                          </div>
-                        ))}
+                        {haySecadoExcluido ? (
+                          <p className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-3 text-left text-xs font-semibold leading-5 text-amber-800">
+                            No se tendrán en cuenta los sublotes que se
+                            encuentran en proceso de secado (
+                            {secadoExcluidoVenta.sublotes} sublote
+                            {secadoExcluidoVenta.sublotes === 1 ? '' : 's'}
+                            {secadoExcluidoVenta.kg > 0
+                              ? `, ${kg(secadoExcluidoVenta.kg)}`
+                              : ''}
+                            ).
+                          </p>
+                        ) : null}
                       </div>
-                    </article>
 
-                    <article className="rounded-[18px] border border-[#e2e7f2] bg-[#f8faff] p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-base font-semibold text-slate-700">
-                          Total a vender
-                        </span>
-                        <span className="text-[1.55rem] font-black text-slate-950">
-                          {kg(totalDisponibleVenta)}
-                        </span>
-                      </div>
-                    </article>
-
-                    <div className="rounded-[18px] bg-white p-4 shadow-sm">
-                      <p className="text-[0.85rem] font-semibold text-slate-800">
-                        Precio por kg por tipo
-                      </p>
-                      <div className="mt-3 max-h-[260px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
-                        {resumenDisponiblePorTipo.map((item) => {
-                          const precioTipo =
-                            preciosVentaTotal[item.tipoCafeId] ?? '';
-                          const precioTipoVacio = precioTipo.trim() === '';
-                          const precioTipoFueraRango =
-                            !precioTipoVacio &&
-                            (toNum(precioTipo) < PRECIO_MINIMO_KG ||
-                              toNum(precioTipo) > precioMaximoVentaPermitido);
-                          const precioTipoInvalido =
-                            modoVenta === 'TOTAL' &&
-                            (intentoPaso2 || precioTipo.trim() !== '') &&
-                            (precioTipoVacio || precioTipoFueraRango);
-
-                          return (
-                            <div key={item.tipoCafeId}>
-                              <div className="mb-1 flex items-center justify-between gap-3">
-                                <span className="text-sm font-black text-slate-800">
-                                  Café {formatCoffeeLabel(item.tipoCafe)}
-                                </span>
-                                <span className="text-xs font-semibold text-slate-500">
-                                  {kg(item.pesoKg)}
-                                </span>
-                              </div>
-                              <label
-                                className={`flex min-h-[56px] items-center rounded-[14px] border bg-[#f8faff] px-4 ${precioTipoInvalido
-                                  ? 'border-[#ef4444]'
-                                  : 'border-[#d7dcec]'
-                                  }`}
-                              >
-                                <span className="mr-3 text-xl font-black text-[#1D4ED8]">
-                                  $
-                                </span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  maxLength={6}
-                                  value={precioTipo}
-                                  onChange={(event) => {
-                                    const raw = sanitizeIntegerVentaInput(
-                                      event.target.value,
-                                      precioMaximoVentaPermitido,
-                                      precioTipo,
-                                    );
-                                    setPreciosVentaTotal((actual) => ({
-                                      ...actual,
-                                      [item.tipoCafeId]: raw,
-                                    }));
-                                  }}
-                                  placeholder="Ej. 14500"
-                                  className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
-                                />
-                              </label>
-                              <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
-                                Máx. $100.000/kg
-                              </p>
-                              {precioTipoInvalido ? (
-                                <InlineGuidedError
-                                  message={getPrecioTipoGuidance(
-                                    item.tipoCafe,
-                                    toNum(precioTipo),
-                                    !precioTipoVacio,
-                                    precioMaximoVentaPermitido,
-                                  )}
-                                  className="mt-2"
-                                />
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {precioTotalInvalido ? (
-                        <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                          {preciosVentaTotalFaltantes
-                            ? 'Falta definir el precio por kg de uno o más tipos de café.'
-                            : 'Revisa el precio por kg de los tipos marcados.'}
+                      <article className="rounded-[18px] bg-white p-4 shadow-sm">
+                        <p className="text-[0.85rem] font-semibold text-slate-800">
+                          Resumen por tipo
                         </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
-                {modoVenta === 'PARCIAL' ? (
-                  <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
-                    {lotesVenta.map((lote) => {
-                      const cantidad = toNum(lote.cantidadKg);
-                      const cantidadIngresada = lote.cantidadKg.trim() !== '';
-                      const precioIngresado = lote.precioKg.trim() !== '';
-                      const disponibleVenta = getDisponibleVenta(lote);
-                      const ajustePesoKg = round2(
-                        lote.disponibleKg - disponibleVenta,
-                      );
-                      const pesoVerificadoError = pesoVerificadoInvalido(lote);
-                      const estaAjustandoPeso = loteAjustandoId === lote.id;
-                      const cantidadFalta = intentoPaso2 && !cantidadIngresada;
-                      const cantidadFueraRango =
-                        cantidadIngresada &&
-                        (cantidad < PESO_MINIMO_KG ||
-                          cantidad > disponibleVenta);
-                      const cantidadInvalida =
-                        modoVenta === 'PARCIAL' &&
-                        (cantidadFalta || cantidadFueraRango);
-                      const precioFalta = intentoPaso2 && !precioIngresado;
-                      const precioFueraRango =
-                        precioIngresado &&
-                        (toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
-                          toNum(lote.precioKg) > precioMaximoVentaPermitido);
-                      const precioInvalido =
-                        modoVenta === 'PARCIAL' &&
-                        (precioFalta || precioFueraRango);
-                      return (
-                        <article
-                          key={lote.id}
-                          className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-4"
-                        >
-                          <p className="text-lg font-semibold text-[#1D4ED8]">
-                            {lote.codigo}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {coffeeWithQuality(lote.tipoCafe, lote.calidad)}
-                          </p>
-                          <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[0.85rem] font-semibold text-slate-800">
-                                  Peso para vender
-                                </p>
-                                <p className="mt-1 text-base font-black text-slate-900">
-                                  {kg(disponibleVenta)}
-                                </p>
-                                <p className="text-[0.72rem] leading-5 text-slate-500">
-                                  Registrado: {kg(lote.disponibleKg)}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setLoteAjustandoId((actual) =>
-                                    actual === lote.id ? null : lote.id,
-                                  )
-                                }
-                                className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#1D4ED8]"
-                                aria-expanded={estaAjustandoPeso}
-                              >
-                                <Scale size={14} />
-                                Ajustar
-                              </button>
+                        <div className="mt-4 max-h-[180px] divide-y divide-slate-100 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                          {resumenDisponiblePorTipo.map((item) => (
+                            <div
+                              key={item.tipoCafeId}
+                              className="flex items-center justify-between py-3"
+                            >
+                              <span className="font-semibold text-slate-600">
+                                Café {formatCoffeeLabel(item.tipoCafe)}
+                              </span>
+                              <span className="font-black text-slate-950">
+                                {kg(item.pesoKg)}
+                              </span>
                             </div>
-                            {estaAjustandoPeso ? (
-                              <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <label
-                                    className="text-xs font-black text-slate-600"
-                                    htmlFor={`peso-${lote.id}`}
-                                  >
-                                    Peso total actual
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => usarPesoRegistrado(lote)}
-                                    className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#1D4ED8] shadow-sm"
-                                  >
-                                    Usar registrado
-                                  </button>
+                          ))}
+                        </div>
+                      </article>
+
+                      <article className="rounded-[18px] border border-[#e2e7f2] bg-[#f8faff] p-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-base font-semibold text-slate-700">
+                            Total a vender
+                          </span>
+                          <span className="text-[1.55rem] font-black text-slate-950">
+                            {kg(totalDisponibleVenta)}
+                          </span>
+                        </div>
+                      </article>
+
+                      <div className="rounded-[18px] bg-white p-4 shadow-sm">
+                        <p className="text-[0.85rem] font-semibold text-slate-800">
+                          Precio por kg por tipo
+                        </p>
+                        <div className="mt-3 max-h-[260px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                          {resumenDisponiblePorTipo.map((item) => {
+                            const precioTipo =
+                              preciosVentaTotal[item.tipoCafeId] ?? '';
+                            const precioTipoVacio = precioTipo.trim() === '';
+                            const precioTipoFueraRango =
+                              !precioTipoVacio &&
+                              (toNum(precioTipo) < PRECIO_MINIMO_KG ||
+                                toNum(precioTipo) > precioMaximoVentaPermitido);
+                            const precioTipoInvalido =
+                              modoVenta === 'TOTAL' &&
+                              (intentoPaso2 || precioTipo.trim() !== '') &&
+                              (precioTipoVacio || precioTipoFueraRango);
+
+                            return (
+                              <div key={item.tipoCafeId}>
+                                <div className="mb-1 flex items-center justify-between gap-3">
+                                  <span className="text-sm font-black text-slate-800">
+                                    Café {formatCoffeeLabel(item.tipoCafe)}
+                                  </span>
+                                  <span className="text-xs font-semibold text-slate-500">
+                                    {kg(item.pesoKg)}
+                                  </span>
                                 </div>
-                                <input
-                                  id={`peso-${lote.id}`}
-                                  type="range"
-                                  min={0}
-                                  max={lote.disponibleKg}
-                                  step="0.1"
-                                  value={disponibleVenta}
-                                  onChange={(event) =>
-                                    updateLote(
-                                      lote.id,
-                                      'pesoVerificadoKg',
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="mt-3 w-full accent-[#102d92]"
-                                />
-                                <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
-                                  <Scale
-                                    size={16}
-                                    className="shrink-0 text-[#1D4ED8]"
-                                  />
+                                <label
+                                  className={`flex min-h-[56px] items-center rounded-[14px] border bg-[#f8faff] px-4 ${
+                                    precioTipoInvalido
+                                      ? 'border-[#ef4444]'
+                                      : 'border-[#d7dcec]'
+                                  }`}
+                                >
+                                  <span className="mr-3 text-xl font-black text-[#1D4ED8]">
+                                    $
+                                  </span>
                                   <input
                                     type="text"
-                                    inputMode="decimal"
-                                    maxLength={12}
-                                    value={lote.pesoVerificadoKg}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength={6}
+                                    value={precioTipo}
+                                    onChange={(event) => {
+                                      const raw = sanitizeIntegerVentaInput(
+                                        event.target.value,
+                                        precioMaximoVentaPermitido,
+                                        precioTipo,
+                                      );
+                                      setPreciosVentaTotal((actual) => ({
+                                        ...actual,
+                                        [item.tipoCafeId]: raw,
+                                      }));
+                                    }}
+                                    placeholder="Ej. 14500"
+                                    className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
+                                  />
+                                </label>
+                                <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
+                                  Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                </p>
+                                {precioTipoInvalido ? (
+                                  <InlineGuidedError
+                                    message={getPrecioTipoGuidance(
+                                      item.tipoCafe,
+                                      toNum(precioTipo),
+                                      !precioTipoVacio,
+                                      minPrecioVentaKg,
+                                      precioMaximoVentaPermitido,
+                                    )}
+                                    className="mt-2"
+                                  />
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {precioTotalInvalido ? (
+                          <p className="mt-2 text-xs font-semibold text-[#b42318]">
+                            {preciosVentaTotalFaltantes
+                              ? 'Falta definir el precio por kg de uno o más tipos de café.'
+                              : 'Revisa el precio por kg de los tipos marcados.'}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {modoVenta === 'PARCIAL' ? (
+                    <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
+                      {lotesVenta.map((lote) => {
+                        const cantidad = toNum(lote.cantidadKg);
+                        const cantidadIngresada = lote.cantidadKg.trim() !== '';
+                        const precioIngresado = lote.precioKg.trim() !== '';
+                        const disponibleVenta = getDisponibleVenta(lote);
+                        // Desactivados para no mostrar en la UI de Ajuste de Peso
+                        const ajustePesoKg = 0;
+                        const pesoVerificadoError = false;
+                        const estaAjustandoPeso = false;
+                        // El sublote está "activo" si el usuario llenó al menos uno de los campos
+                        const subloteActivo = cantidadIngresada || precioIngresado;
+                        // Si el usuario intentó avanzar Y el sublote está activo, validar ambos campos
+                        // Si solo uno está lleno, mostrar error en el faltante inmediatamente
+                        const cantidadFalta =
+                          subloteActivo && !cantidadIngresada;
+                        const cantidadFueraRango =
+                          cantidadIngresada &&
+                          (cantidad < PESO_MINIMO_KG ||
+                            cantidad > disponibleVenta);
+                        const cantidadInvalida =
+                          modoVenta === 'PARCIAL' &&
+                          (cantidadFalta || cantidadFueraRango);
+                        const precioFalta = subloteActivo && !precioIngresado;
+                        const precioFueraRango =
+                          precioIngresado &&
+                          (toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
+                            toNum(lote.precioKg) > precioMaximoVentaPermitido);
+                        const precioInvalido =
+                          modoVenta === 'PARCIAL' &&
+                          (precioFalta || precioFueraRango);
+                        return (
+                          <article
+                            key={lote.id}
+                            className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-4"
+                          >
+                            <p className="text-lg font-semibold text-[#1D4ED8]">
+                              {lote.codigo}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              {coffeeWithQuality(lote.tipoCafe, lote.calidad)}
+                            </p>
+                            <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[0.85rem] font-semibold text-slate-800">
+                                    Peso para vender
+                                  </p>
+                                  <p className="mt-1 text-base font-black text-slate-900">
+                                    {kg(disponibleVenta)}
+                                  </p>
+                                  <p className="text-[0.72rem] leading-5 text-slate-500">
+                                    Registrado: {kg(lote.disponibleKg)}
+                                  </p>
+                                </div>
+                                {/* El botón Ajustar y su panel fueron desactivados y comentados
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-slate-100 px-3 text-[0.72rem] font-black text-slate-400 opacity-50 cursor-not-allowed"
+                                  aria-expanded={estaAjustandoPeso}
+                                >
+                                  <Scale size={14} />
+                                  Ajustar
+                                </button>
+                                */}
+                              </div>
+                              {/* 
+                              {estaAjustandoPeso ? (
+                                <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <label
+                                      className="text-xs font-black text-slate-600"
+                                      htmlFor={`peso-${lote.id}`}
+                                    >
+                                      Peso total actual
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => usarPesoRegistrado(lote)}
+                                      className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#1D4ED8] shadow-sm"
+                                    >
+                                      Usar registrado
+                                    </button>
+                                  </div>
+                                  <input
+                                    id={`peso-${lote.id}`}
+                                    type="range"
+                                    min={0}
+                                    max={lote.disponibleKg}
+                                    step="0.01"
+                                    value={lote.pesoVerificadoKg === '' ? 0 : disponibleVenta}
                                     onChange={(event) =>
                                       updateLote(
                                         lote.id,
@@ -2090,170 +2107,219 @@ export default function Ventas() {
                                         event.target.value,
                                       )
                                     }
-                                    placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                                    className={`w-full bg-transparent text-sm font-semibold outline-none ${pesoVerificadoError
-                                      ? 'text-[#b42318]'
-                                      : 'text-slate-900'
-                                      }`}
+                                    className="mt-3 w-full accent-[#102d92]"
                                   />
-                                  <span className="text-xs font-black text-slate-400">
-                                    kg
-                                  </span>
-                                </label>
-                              </div>
-                            ) : null}
-                            {pesoVerificadoError ? (
-                              <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                                El peso verificado debe estar entre 0 y{' '}
-                                {kg(lote.disponibleKg)}.
-                              </p>
-                            ) : ajustePesoKg > 0 ? (
-                              <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
-                                Peso ajustado: se vendera sobre{' '}
-                                {kg(disponibleVenta)}.
-                              </p>
-                            ) : null}
-                          </div>
-
-                          {modoVenta === 'PARCIAL' ? (
-                            <>
-                              <div className="mt-3 grid grid-cols-2 gap-2">
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  maxLength={12}
-                                  value={lote.cantidadKg}
-                                  onChange={(event) =>
-                                    updateLote(
-                                      lote.id,
-                                      'cantidadKg',
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="Cantidad kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${cantidadInvalida
-                                    ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                    : 'border-[#d7dcec] bg-white text-slate-900'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  maxLength={6}
-                                  value={lote.precioKg}
-                                  onChange={(event) =>
-                                    updateLote(
-                                      lote.id,
-                                      'precioKg',
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="Precio por kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${precioInvalido
-                                    ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                    : 'border-[#d7dcec] bg-white text-slate-900'
-                                    }`}
-                                />
-                              </div>
-                              {cantidadInvalida ? (
-                                <InlineGuidedError
-                                  message={getCantidadLoteGuidance(
-                                    lote,
-                                    cantidad,
-                                    cantidadIngresada,
-                                  )}
-                                  className="mt-2"
-                                />
+                                  <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
+                                    <Scale
+                                      size={16}
+                                      className="shrink-0 text-[#1D4ED8]"
+                                    />
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      maxLength={12}
+                                      value={lote.pesoVerificadoKg}
+                                      onChange={(event) =>
+                                        updateLote(
+                                          lote.id,
+                                          'pesoVerificadoKg',
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder={`Actual: ${kg(lote.disponibleKg)}`}
+                                      className={`w-full bg-transparent text-sm font-semibold outline-none ${
+                                        pesoVerificadoError
+                                          ? 'text-[#b42318]'
+                                          : 'text-slate-900'
+                                      }`}
+                                    />
+                                    <span className="text-xs font-black text-slate-400">
+                                      kg
+                                    </span>
+                                  </label>
+                                </div>
                               ) : null}
-                              {precioInvalido ? (
-                                <InlineGuidedError
-                                  message={getPrecioLoteGuidance(
-                                    lote,
-                                    toNum(lote.precioKg),
-                                    precioIngresado,
-                                    precioMaximoVentaPermitido,
-                                  )}
-                                  className="mt-2"
-                                />
-                              ) : null}
-                              <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
-                                <p className="pl-1">Máx. disponible</p>
-                                <p className="pr-1 text-right">
-                                  Máx. $100.000/kg
+                              {pesoVerificadoError ? (
+                                <p className="mt-2 text-xs font-semibold text-[#b42318]">
+                                  El peso verificado debe estar entre 0 y{' '}
+                                  {kg(lote.disponibleKg)}.
                                 </p>
-                              </div>
-                            </>
-                          ) : (
-                            <p className="mt-3 text-sm text-slate-600">
-                              En modo total se vende el peso disponible
-                              verificado: {kg(disponibleVenta)}.
-                            </p>
-                          )}
-                        </article>
-                      );
-                    })}
-                  </div>
-                ) : null}
-                {parcialSinSeleccion ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(
-                      'Ingresa una cantidad en al menos un lote para continuar.',
-                    )}
-                    className="mt-2"
-                  />
-                ) : null}
-              </section>
+                              ) : ajustePesoKg > 0 ? (
+                                <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
+                                  Peso ajustado: se vendera sobre{' '}
+                                  {kg(disponibleVenta)}.
+                                </p>
+                              ) : null}
+                              */}
+                            </div>
 
-              {/* Resumen de venta y botones en un card aparte */}
-              <div className="rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
-                <article className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] p-4 text-[#1D4ED8] shadow-sm">
-                  <p className="text-[0.95rem] font-bold text-[#4c5c80]">
-                    Resumen de venta
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#d6e2ff] pt-3">
-                    <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5">
-                      <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
-                        Total kg
-                      </p>
-                      <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
-                        {kg(totalKg)}
-                      </p>
+                            {modoVenta === 'PARCIAL' ? (
+                              <>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    maxLength={12}
+                                    value={lote.cantidadKg}
+                                    onChange={(event) =>
+                                      updateLote(
+                                        lote.id,
+                                        'cantidadKg',
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder="Cantidad kg"
+                                    className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${
+                                      cantidadInvalida
+                                        ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
+                                        : 'border-[#d7dcec] bg-white text-slate-900'
+                                    }`}
+                                  />
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength={6}
+                                    value={lote.precioKg}
+                                    onChange={(event) =>
+                                      updateLote(
+                                        lote.id,
+                                        'precioKg',
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder="Precio por kg"
+                                    className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${
+                                      precioInvalido
+                                        ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
+                                        : 'border-[#d7dcec] bg-white text-slate-900'
+                                    }`}
+                                  />
+                                </div>
+                                {cantidadInvalida ? (
+                                  <InlineGuidedError
+                                    message={getCantidadLoteGuidance(
+                                      lote,
+                                      cantidad,
+                                      cantidadIngresada,
+                                    )}
+                                    className="mt-2"
+                                  />
+                                ) : null}
+                                {precioInvalido ? (
+                                  <InlineGuidedError
+                                    message={getPrecioLoteGuidance(
+                                      lote,
+                                      toNum(lote.precioKg),
+                                      precioIngresado,
+                                      minPrecioVentaKg,
+                                      precioMaximoVentaPermitido,
+                                    )}
+                                    className="mt-2"
+                                  />
+                                ) : null}
+                                <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
+                                  <p className="pl-1">Máx. disponible</p>
+                                  <p className="pr-1 text-right">
+                                    Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                  </p>
+                                </div>
+                              </>
+                            ) : (
+                              <p className="mt-3 text-sm text-slate-600">
+                                En modo total se vende el peso disponible
+                                verificado: {kg(disponibleVenta)}.
+                              </p>
+                            )}
+                          </article>
+                        );
+                      })}
                     </div>
-                    <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5 text-right">
-                      <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
-                        Total estimado
-                      </p>
-                      <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
-                        {money(totalEstimado)}
-                      </p>
-                    </div>
-                  </div>
-                </article>
+                  ) : null}
+                  {parcialSinSeleccion ? (
+                    <InlineGuidedError
+                      message={getVentasGuidance(
+                        'Ingresa una cantidad en al menos un lote para continuar.',
+                        minPrecioVentaKg,
+                        precioMaximoVentaPermitido,
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
+                  {intentoPaso2 && totalKg < PESO_MINIMO_KG && modoVenta === 'PARCIAL' && hayCantidadParcial ? (
+                    <InlineGuidedError
+                      message={createGuidedError(
+                        'La cantidad total de venta debe ser mínimo 5 kg.',
+                        'Cantidad total insuficiente.',
+                        `La suma de todos los sublotes a vender debe ser mínimo ${PESO_MINIMO_KG} kg. Actualmente tienes ${kg(totalKg)}.`,
+                        'Ingresa más cantidad o selecciona otros sublotes.',
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
+                  {intentoPaso2 && totalDisponibleVenta < PESO_MINIMO_KG && modoVenta === 'TOTAL' ? (
+                    <InlineGuidedError
+                      message={createGuidedError(
+                        'La cantidad total disponible debe ser mínimo 5 kg.',
+                        'Inventario total insuficiente.',
+                        `Para realizar una venta total, debes tener mínimo ${PESO_MINIMO_KG} kg de café disponible. Actualmente tienes ${kg(totalDisponibleVenta)}.`,
+                        'Registra una compra para aumentar tu inventario.',
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
+                </section>
 
-                <div className="mt-4 grid gap-3">
-                  <button
-                    type="button"
-                    onClick={siguiente}
-                    disabled={sinInventario}
-                    className={`inline-flex min-h-[56px] w-full items-center justify-center rounded-full px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition ${sinInventario
-                      ? 'cursor-not-allowed bg-blue-300'
-                      : 'bg-[#1D4ED8] hover:bg-[#1e40af] active:scale-[0.99]'
+                {/* Resumen de venta y botones en un card aparte */}
+                <div className="rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
+                  <article className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] p-4 text-[#1D4ED8] shadow-sm">
+                    <p className="text-[0.95rem] font-bold text-[#4c5c80]">
+                      Resumen de venta
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#d6e2ff] pt-3">
+                      <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5">
+                        <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
+                          Total kg
+                        </p>
+                        <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
+                          {kg(totalKg)}
+                        </p>
+                      </div>
+                      <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5 text-right">
+                        <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
+                          Total estimado
+                        </p>
+                        <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
+                          {money(totalEstimado)}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+
+                  <div className="mt-4 grid gap-3">
+                    <button
+                      type="button"
+                      onClick={siguiente}
+                      disabled={sinInventario}
+                      className={`inline-flex min-h-[56px] w-full items-center justify-center rounded-full px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition ${
+                        sinInventario
+                          ? 'cursor-not-allowed bg-blue-300'
+                          : 'bg-[#1D4ED8] hover:bg-[#1e40af] active:scale-[0.99]'
                       }`}
-                  >
-                    Siguiente paso
-                  </button>
-                  <button
-                    type="button"
-                    onClick={anterior}
-                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Regresar
-                  </button>
+                    >
+                      Siguiente paso
+                    </button>
+                    <button
+                      type="button"
+                      onClick={anterior}
+                      className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Regresar
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
             {paso === 1 ? (
               <section className="space-y-4">
@@ -2269,10 +2335,11 @@ export default function Ventas() {
                     void refrescarClientes();
                     setSubmitError(null);
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'BUSCAR'
-                    ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
-                    : 'border-[#e3e7f3]'
-                    }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
+                    clienteMetodo === 'BUSCAR'
+                      ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
+                      : 'border-[#e3e7f3]'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
@@ -2287,10 +2354,11 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'BUSCAR'
-                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
-                        : 'border-slate-300'
-                        }`}
+                      className={`h-6 w-6 rounded-full border-2 ${
+                        clienteMetodo === 'BUSCAR'
+                          ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                          : 'border-slate-300'
+                      }`}
                     />
                   </div>
                 </button>
@@ -2309,7 +2377,8 @@ export default function Ventas() {
                       Recientes
                     </p>
 
-                    {mostrarResultadosClientes && clientesRecientes.length === 0 ? (
+                    {mostrarResultadosClientes &&
+                    clientesRecientes.length === 0 ? (
                       <div className="rounded-[14px] border border-dashed border-[#d5dced] bg-white px-4 py-5 text-center text-sm text-slate-500">
                         <p className="font-semibold text-slate-700">
                           {sinClientesRegistrados
@@ -2331,10 +2400,11 @@ export default function Ventas() {
                               key={cliente.id}
                               type="button"
                               onClick={() => seleccionarCliente(cliente)}
-                              className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${selected
+                              className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${
+                                selected
                                   ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                                   : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
-                                }`}
+                              }`}
                             >
                               <p className="truncate text-[0.88rem] font-medium text-slate-900">
                                 {cliente.nombre}
@@ -2366,10 +2436,11 @@ export default function Ventas() {
                 <button
                   type="button"
                   onClick={() => seleccionarCliente(CLIENTE_GENERAL)}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'GENERAL'
-                    ? 'border-[#1D4ED8] bg-[#eef4ff] ring-1 ring-[#1f3fa7]'
-                    : 'border-[#e3e7f3]'
-                    }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
+                    clienteMetodo === 'GENERAL'
+                      ? 'border-[#1D4ED8] bg-[#eef4ff] ring-1 ring-[#1f3fa7]'
+                      : 'border-[#e3e7f3]'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
@@ -2384,10 +2455,11 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'GENERAL'
-                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
-                        : 'border-slate-300'
-                        }`}
+                      className={`h-6 w-6 rounded-full border-2 ${
+                        clienteMetodo === 'GENERAL'
+                          ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                          : 'border-slate-300'
+                      }`}
                     />
                   </div>
                 </button>
@@ -2401,10 +2473,11 @@ export default function Ventas() {
                     setClienteFormError(null);
                     setMostrarModal(true);
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'REGISTRAR'
-                    ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
-                    : 'border-[#e3e7f3]'
-                    }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
+                    clienteMetodo === 'REGISTRAR'
+                      ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
+                      : 'border-[#e3e7f3]'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
@@ -2419,10 +2492,11 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'REGISTRAR'
-                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
-                        : 'border-slate-300'
-                        }`}
+                      className={`h-6 w-6 rounded-full border-2 ${
+                        clienteMetodo === 'REGISTRAR'
+                          ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                          : 'border-slate-300'
+                      }`}
                     />
                   </div>
                 </button>
@@ -2491,7 +2565,11 @@ export default function Ventas() {
 
                 {submitError ? (
                   <InlineGuidedError
-                    message={getVentasGuidance(submitError)}
+                    message={getVentasGuidance(
+                      submitError,
+                      minPrecioVentaKg,
+                      precioMaximoVentaPermitido,
+                    )}
                     className="mt-4"
                   />
                 ) : null}
@@ -2571,10 +2649,11 @@ export default function Ventas() {
                     type="button"
                     onClick={() => setMostrarModalConfirmar(true)}
                     disabled={guardandoVenta || botonConfirmarPresionado}
-                    className={`inline-flex min-h-[56px] items-center justify-center gap-2 rounded-full px-5 py-4 text-[1rem] font-medium text-white transition ${guardandoVenta || botonConfirmarPresionado
-                      ? 'bg-blue-300 cursor-wait'
-                      : 'bg-[#1D4ED8] hover:bg-[#1e40af] shadow-[0_8px_20px_rgba(29,78,216,0.22)] active:scale-[0.99]'
-                      }`}
+                    className={`inline-flex min-h-[56px] items-center justify-center gap-2 rounded-full px-5 py-4 text-[1rem] font-medium text-white transition ${
+                      guardandoVenta || botonConfirmarPresionado
+                        ? 'bg-blue-300 cursor-wait'
+                        : 'bg-[#1D4ED8] hover:bg-[#1e40af] shadow-[0_8px_20px_rgba(29,78,216,0.22)] active:scale-[0.99]'
+                    }`}
                   >
                     {guardandoVenta || botonConfirmarPresionado ? (
                       <>
@@ -2657,10 +2736,11 @@ export default function Ventas() {
                           setLimiteSelectorCliente(LIMITE_CLIENTES_MODAL);
                           setClientesSelector([]);
                         }}
-                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${activo
-                          ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
-                          : 'text-slate-500'
-                          }`}
+                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${
+                          activo
+                            ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
+                            : 'text-slate-500'
+                        }`}
                       >
                         {orden.label}
                       </button>
@@ -2683,7 +2763,9 @@ export default function Ventas() {
                   quedanClientesPorCargar &&
                   !cargandoClientesSelector
                 ) {
-                  if (clientesSelectorFiltrados.length > limiteSelectorCliente) {
+                  if (
+                    clientesSelectorFiltrados.length > limiteSelectorCliente
+                  ) {
                     setLimiteSelectorCliente(
                       (actual) => actual + LIMITE_CLIENTES_MODAL,
                     );
@@ -2694,7 +2776,8 @@ export default function Ventas() {
                 }
               }}
             >
-              {cargandoClientesSelector && clientesSelectorVisibles.length === 0 ? (
+              {cargandoClientesSelector &&
+              clientesSelectorVisibles.length === 0 ? (
                 <div className="rounded-[16px] border border-[#e6ebf5] bg-[#fafbff] px-4 py-8 text-center">
                   <RefreshCw
                     size={24}
@@ -2759,16 +2842,18 @@ export default function Ventas() {
                           key={cliente.id}
                           type="button"
                           onClick={() => seleccionarCliente(cliente)}
-                          className={`flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 text-left transition ${activo
-                            ? 'border-[#1D4ED8] bg-[#f4f7ff]'
-                            : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
-                            }`}
+                          className={`flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 text-left transition ${
+                            activo
+                              ? 'border-[#1D4ED8] bg-[#f4f7ff]'
+                              : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
+                          }`}
                         >
                           <span
-                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${activo
-                              ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
-                              : 'border-[#aebbd1] bg-white text-transparent'
-                              }`}
+                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                              activo
+                                ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
+                                : 'border-[#aebbd1] bg-white text-transparent'
+                            }`}
                             aria-hidden="true"
                           >
                             {activo ? (
@@ -3036,7 +3121,7 @@ export default function Ventas() {
 
                 {clienteFormError ? (
                   <InlineGuidedError
-                    message={getVentasGuidance(clienteFormError)}
+                    message={getVentasGuidance(clienteFormError, minPrecioVentaKg, precioMaximoVentaPermitido)}
                   />
                 ) : null}
               </div>

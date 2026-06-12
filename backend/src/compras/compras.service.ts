@@ -243,6 +243,76 @@ export class ComprasService {
             input.productorId,
           );
 
+          const [minPesoStr, maxPesoStr, minPrecioStr, maxPrecioStr] = tx.parametroOrganizacion
+            ? await Promise.all([
+                tx.parametroOrganizacion.findUnique({
+                  where: {
+                    organizacionId_nombre: {
+                      organizacionId: organizacionIdFinal,
+                      nombre: 'min_peso_kg',
+                    },
+                  },
+                  select: { valor: true },
+                }),
+                tx.parametroOrganizacion.findUnique({
+                  where: {
+                    organizacionId_nombre: {
+                      organizacionId: organizacionIdFinal,
+                      nombre: 'max_peso_kg',
+                    },
+                  },
+                  select: { valor: true },
+                }),
+                tx.parametroOrganizacion.findUnique({
+                  where: {
+                    organizacionId_nombre: {
+                      organizacionId: organizacionIdFinal,
+                      nombre: 'min_precio_kg',
+                    },
+                  },
+                  select: { valor: true },
+                }),
+                tx.parametroOrganizacion.findUnique({
+                  where: {
+                    organizacionId_nombre: {
+                      organizacionId: organizacionIdFinal,
+                      nombre: 'max_precio_kg',
+                    },
+                  },
+                  select: { valor: true },
+                }),
+              ])
+            : [null, null, null, null];
+
+          const minPeso = minPesoStr?.valor ? Number(minPesoStr.valor) : 5;
+          const maxPeso = maxPesoStr?.valor ? Number(maxPesoStr.valor) : 99999;
+          const minPrecio = minPrecioStr?.valor ? Number(minPrecioStr.valor) : 1000;
+          const maxPrecio = maxPrecioStr?.valor ? Number(maxPrecioStr.valor) : 100000;
+
+          for (const [index, sublote] of input.sublotes.entries()) {
+            if (sublote.pesoInicial < minPeso) {
+              throw new CompraValidacionCriticaError(
+                'COMPRA_CANTIDAD_INVALIDA',
+                `La cantidad de la compra debe ser minimo ${minPeso} kg.`,
+                { index },
+              );
+            }
+            if (sublote.pesoInicial > maxPeso) {
+              throw new CompraValidacionCriticaError(
+                'COMPRA_CANTIDAD_INVALIDA',
+                `La cantidad de la compra no puede superar ${maxPeso} kg.`,
+                { index },
+              );
+            }
+            if (sublote.precioKg < minPrecio || sublote.precioKg > maxPrecio) {
+              throw new CompraValidacionCriticaError(
+                'COMPRA_PRECIO_INVALIDO',
+                `El precio por kg debe estar entre $${minPrecio.toLocaleString('es-CO')} y $${maxPrecio.toLocaleString('es-CO')}.`,
+                { index },
+              );
+            }
+          }
+
           const compraProcesada = procesarCompra(input, contextoCapacidad);
 
           if (compraProcesada.capacidad.nivel === 'requiere_configuracion') {

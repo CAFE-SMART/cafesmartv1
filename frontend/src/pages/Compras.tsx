@@ -254,7 +254,9 @@ function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
 
 function getSubloteFieldErrors(
   sublote: SubloteForm,
+  minPesoKg: number,
   maxPesoKg: number,
+  minPrecioKg: number,
   maxPrecioKg: number,
 ) {
   const pesoText = sublote.pesoInicial.trim();
@@ -271,16 +273,16 @@ function getSubloteFieldErrors(
 
   if (!pesoText) {
     errors.peso = 'Ingresa el peso.';
-  } else if (!Number.isFinite(peso) || peso < PESO_MINIMO_KG) {
-    errors.peso = `El peso mínimo es ${new Intl.NumberFormat('es-CO').format(PESO_MINIMO_KG)} kg.`;
+  } else if (!Number.isFinite(peso) || peso < minPesoKg) {
+    errors.peso = `El peso mínimo es ${new Intl.NumberFormat('es-CO').format(minPesoKg)} kg.`;
   } else if (peso > maxPesoKg) {
     errors.peso = `El peso no puede superar ${new Intl.NumberFormat('es-CO').format(maxPesoKg)} kg.`;
   }
 
   if (!precioText) {
     errors.precio = 'Ingresa el precio por kilo.';
-  } else if (!Number.isFinite(precio) || precio < PRECIO_MINIMO_KG) {
-    errors.precio = `El precio mínimo es $${new Intl.NumberFormat('es-CO').format(PRECIO_MINIMO_KG)}/kg.`;
+  } else if (!Number.isFinite(precio) || precio < minPrecioKg) {
+    errors.precio = `El precio mínimo es $${new Intl.NumberFormat('es-CO').format(minPrecioKg)}/kg.`;
   } else if (precio > maxPrecioKg) {
     errors.precio = `El precio no puede superar $${new Intl.NumberFormat('es-CO').format(maxPrecioKg)}/kg.`;
   }
@@ -309,10 +311,12 @@ function getSingleSubloteErrorMessage(
 
 function isSubloteCompletado(
   sublote: SubloteForm,
+  minPesoKg: number,
   maxPesoKg: number,
+  minPrecioKg: number,
   maxPrecioKg: number,
 ) {
-  const errors = getSubloteFieldErrors(sublote, maxPesoKg, maxPrecioKg);
+  const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
   return countSubloteErrors(errors) === 0;
 }
 
@@ -819,7 +823,9 @@ export default function Compras() {
     nuevoTotal: number;
     porcentaje: number;
   } | null>(null);
-  const [maxPesoKg, setMaxPesoKg] = useState(MAX_PESO_OPERATIVO_DEFAULT_KG);
+  const [minPesoKg, setMinPesoKg] = useState(PESO_MINIMO_KG);
+  const [maxPesoKg, setMaxPesoKg] = useState(PESO_MAXIMO_OPERATIVO_DEFAULT_KG);
+  const [minPrecioKg, setMinPrecioKg] = useState(PRECIO_MINIMO_KG);
   const [maxPrecioKg, setMaxPrecioKg] = useState(PRECIO_MAXIMO_KG);
 
   const [step, setStep] = useState<Step>(1);
@@ -855,8 +861,10 @@ export default function Compras() {
             pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
             ? pesoMaximoConfig
             : MAX_PESO_OPERATIVO_DEFAULT_KG;
+        setMinPesoKg(bodegaConfig.minPesoKg ?? PESO_MINIMO_KG);
         setMaxPesoKg(maximoConfigurado);
-        setMaxPrecioKg(bodegaConfig.maxPrecioKg || PRECIO_MAXIMO_KG);
+        setMinPrecioKg(bodegaConfig.minPrecioKg ?? PRECIO_MINIMO_KG);
+        setMaxPrecioKg(bodegaConfig.maxPrecioKg ?? PRECIO_MAXIMO_KG);
       }
     } catch (err) {
       console.warn('No se pudo cargar toda la informacion de compras:', err);
@@ -899,13 +907,15 @@ export default function Compras() {
   );
   const resumen = useMemo(() => {
     const totalKg = sublotes.reduce(
-      (acc, sublote) => acc + (Number(sublote.pesoInicial.replace(',', '.')) || 0),
+      (acc, sublote) =>
+        acc + (Number(sublote.pesoInicial.replace(',', '.')) || 0),
       0,
     );
     const totalCompra = sublotes.reduce(
       (acc, sublote) =>
         acc +
-        (Number(sublote.pesoInicial.replace(',', '.')) || 0) * (Number(sublote.precioKg) || 0),
+        (Number(sublote.pesoInicial.replace(',', '.')) || 0) *
+          (Number(sublote.precioKg) || 0),
       0,
     );
     return { totalKg, totalCompra };
@@ -926,14 +936,14 @@ export default function Compras() {
         Boolean(sublote.tipoCafeId) &&
         Boolean(sublote.calidadId) &&
         Number.isFinite(peso) &&
-        peso >= PESO_MINIMO_KG &&
+        peso >= minPesoKg &&
         peso <= maxPesoKg &&
         Number.isFinite(precio) &&
-        precio >= PRECIO_MINIMO_KG &&
+        precio >= minPrecioKg &&
         precio <= maxPrecioKg
       );
     });
-  }, [fechaCompraValidacion.isValid, maxPesoKg, maxPrecioKg, sublotes]);
+  }, [fechaCompraValidacion.isValid, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg, sublotes]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -1041,7 +1051,7 @@ export default function Compras() {
     sublotes[sublotes.length - 1] ??
     null;
   const subloteActualListo = subloteActual
-    ? isSubloteCompletado(subloteActual, maxPesoKg, maxPrecioKg)
+    ? isSubloteCompletado(subloteActual, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg)
     : false;
   const sublotesVisibles = sublotes;
   const sublotesAgregados = sublotesVisibles.filter(
@@ -1089,9 +1099,9 @@ export default function Compras() {
       !actual.tipoCafeId ||
       !actual.calidadId ||
       !Number.isFinite(Number(actual.pesoInicial.replace(',', '.'))) ||
-      Number(actual.pesoInicial.replace(',', '.')) < PESO_MINIMO_KG ||
+      Number(actual.pesoInicial.replace(',', '.')) < minPesoKg ||
       !Number.isFinite(Number(actual.precioKg)) ||
-      Number(actual.precioKg) < PRECIO_MINIMO_KG
+      Number(actual.precioKg) < minPrecioKg
     ) {
       setMostrarErrorFormulario(true);
       setError('Completa este cafe antes de agregar otro.');
@@ -1491,7 +1501,7 @@ export default function Compras() {
     }
 
     for (const [index, sublote] of sublotes.entries()) {
-      const errors = getSubloteFieldErrors(sublote, maxPesoKg, maxPrecioKg);
+      const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
       const errorCount = countSubloteErrors(errors);
 
       if (errorCount === 1) {
@@ -1933,7 +1943,9 @@ export default function Compras() {
 
         <div className="mt-8">
           <div className="flex items-center justify-between text-[0.95rem] font-medium text-slate-600">
-            <span>Paso {step}: {pasoActual.titulo}</span>
+            <span>
+              Paso {step}: {pasoActual.titulo}
+            </span>
             <span className="text-slate-400">{step} de 3</span>
           </div>
           <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
@@ -1951,14 +1963,16 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarBusqueda}
-              className={`w-full rounded-[20px] border bg-white px-4 py-3.5 text-left transition ${productorSelectionMode === 'buscar'
+              className={`w-full rounded-[20px] border bg-white px-4 py-3.5 text-left transition ${
+                productorSelectionMode === 'buscar'
                   ? 'border-[#1D4ED8]'
                   : 'border-[#e3e7f3]'
                 }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${productorSelectionMode === 'buscar'
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+                    productorSelectionMode === 'buscar'
                       ? 'bg-[#1D4ED8] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
                     }`}
@@ -1974,7 +1988,8 @@ export default function Compras() {
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${productorSelectionMode === 'buscar'
+                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    productorSelectionMode === 'buscar'
                       ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
                     }`}
@@ -1988,7 +2003,8 @@ export default function Compras() {
             <div
               className="overflow-hidden transition-all duration-300 ease-in-out"
               style={{
-                maxHeight: productorSelectionMode === 'buscar' ? '420px' : '0px',
+                maxHeight:
+                  productorSelectionMode === 'buscar' ? '420px' : '0px',
                 opacity: productorSelectionMode === 'buscar' ? 1 : 0,
                 marginTop: productorSelectionMode === 'buscar' ? '12px' : '0px',
               }}
@@ -1998,10 +2014,15 @@ export default function Compras() {
                   Recientes
                 </p>
 
-                {productoresFiltrados.length === 0 && sinProductoresRegistrados ? (
+                {productoresFiltrados.length === 0 &&
+                sinProductoresRegistrados ? (
                   <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-5 text-center text-sm text-slate-500">
-                    <p className="font-medium text-slate-600">Aún no tienes productores registrados.</p>
-                    <p className="mt-1 text-[0.82rem]">Registra uno para iniciar la compra.</p>
+                    <p className="font-medium text-slate-600">
+                      Aún no tienes productores registrados.
+                    </p>
+                    <p className="mt-1 text-[0.82rem]">
+                      Registra uno para iniciar la compra.
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -2012,10 +2033,11 @@ export default function Compras() {
                           key={productor.id}
                           type="button"
                           onClick={() => seleccionarProductor(productor)}
-                          className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${activo
+                          className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${
+                            activo
                               ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
-                            }`}
+                          }`}
                         >
                           <p className="truncate text-[0.88rem] font-medium text-slate-900">
                             {productor.nombre}
@@ -2047,14 +2069,16 @@ export default function Compras() {
             <button
               type="button"
               onClick={seleccionarGenerico}
-              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${productorSelectionMode === 'generico'
+              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
+                productorSelectionMode === 'generico'
                   ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
                 }`}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${productorSelectionMode === 'generico'
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+                    productorSelectionMode === 'generico'
                       ? 'bg-[#1D4ED8] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
                     }`}
@@ -2070,7 +2094,8 @@ export default function Compras() {
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${productorSelectionMode === 'generico'
+                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    productorSelectionMode === 'generico'
                       ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
                     }`}
@@ -2128,8 +2153,8 @@ export default function Compras() {
               )}
 
               {error &&
-                mostrarErrorFormulario &&
-                error.includes('Selecciona un productor') ? (
+              mostrarErrorFormulario &&
+              error.includes('Selecciona un productor') ? (
                 <p className="mb-3 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.82rem] font-semibold leading-5 text-rose-600">
                   Selecciona un productor para continuar.
                 </p>
@@ -2208,7 +2233,8 @@ export default function Compras() {
                     const calidad =
                       nombreCalidadPorId.get(sublote.calidadId) ??
                       'Calidad por definir';
-                    const peso = Number(sublote.pesoInicial.replace(',', '.')) || 0;
+                    const peso =
+                      Number(sublote.pesoInicial.replace(',', '.')) || 0;
                     const totalItem = peso * Number(sublote.precioKg || 0);
                     const visual = iconoTipoCafe(tipoCafe);
 
@@ -2358,7 +2384,9 @@ export default function Compras() {
                 mostrarErrorFormulario && step === 2;
               const subloteErrors = getSubloteFieldErrors(
                 sublote,
+                minPesoKg,
                 maxPesoKg,
+                minPrecioKg,
                 maxPrecioKg,
               );
               const subloteErrorCount = countSubloteErrors(subloteErrors);
@@ -2429,9 +2457,7 @@ export default function Compras() {
                             : 'border-[#dfe5f2] font-medium text-slate-400'
                           }`}
                       >
-                        <option value="">
-                          Seleccionar tipo de café
-                        </option>
+                        <option value="">Seleccionar tipo de café</option>
                         {tiposCafe.map((tipoCafe) => (
                           <option key={tipoCafe.id} value={tipoCafe.id}>
                             {tipoCafe.nombre}
@@ -2469,17 +2495,19 @@ export default function Compras() {
                                 calidad.id,
                                 )
                             }
-                            className={`rounded-[18px] border-2 px-2 py-3 text-sm font-semibold transition ${activo
+                            className={`rounded-[18px] border-2 px-2 py-3 text-sm font-semibold transition ${
+                              activo
                                 ? `${visual.borde} ${visual.texto} bg-white shadow-sm`
                                 : 'border-[#cbd5e1] bg-white text-slate-700 hover:border-slate-400'
-                              }`}
+                            }`}
                           >
                             <span className="flex flex-col items-center gap-1.5">
                               <span
-                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${activo
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                                  activo
                                     ? visual.fondo
                                     : 'bg-slate-100 text-slate-500'
-                                  }`}
+                                }`}
                               >
                                 {visual.icono}
                               </span>
@@ -2532,7 +2560,7 @@ export default function Compras() {
                           className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${pesoError
                               ? 'border-rose-400 focus:border-rose-500'
                               : 'border-[#e4e8f3] focus:border-[#1D4ED8]'
-                            }`}
+                          }`}
                           placeholder="ej. 25"
                         />
                         <p className="mt-1 text-[0.62rem] font-semibold text-slate-400">
@@ -2596,10 +2624,11 @@ export default function Compras() {
               type="button"
               onClick={agregarSublote}
               disabled={!subloteActualListo}
-              className={`inline-flex w-full min-h-[56px] items-center justify-center gap-3 rounded-[22px] border border-dashed px-5 py-4 text-sm font-semibold transition ${subloteActualListo
+              className={`inline-flex w-full min-h-[56px] items-center justify-center gap-3 rounded-[22px] border border-dashed px-5 py-4 text-sm font-semibold transition ${
+                subloteActualListo
                   ? 'border-[#ccd4e8] bg-white text-[#1D4ED8]'
                   : 'cursor-not-allowed border-[#e5e7eb] bg-slate-50 text-slate-400'
-                }`}
+              }`}
             >
               <Plus size={20} />
               Agregar más café
@@ -2739,7 +2768,8 @@ export default function Compras() {
                     nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
                   const calidad =
                     nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
-                  const peso = Number(sublote.pesoInicial.replace(',', '.')) || 0;
+                  const peso =
+                    Number(sublote.pesoInicial.replace(',', '.')) || 0;
                   const totalItem = peso * Number(sublote.precioKg || 0);
                   const visual = iconoTipoCafe(tipoCafe);
 
@@ -3170,9 +3200,7 @@ export default function Compras() {
 
             {mostrarErrorFormulario && error ? (
               <div className="mt-4">
-                <InlineGuidedError
-                  message={getComprasGuidance(error)}
-                />
+                <InlineGuidedError message={getComprasGuidance(error)} />
               </div>
             ) : null}
 
@@ -3280,7 +3308,8 @@ export default function Compras() {
                           setLimiteSelectorProductor(LIMITE_PRODUCTORES_MODAL);
                           setProductoresSelector([]);
                         }}
-                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${activo
+                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${
+                          activo
                             ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
                             : 'text-slate-500'
                           }`}
@@ -3385,13 +3414,15 @@ export default function Compras() {
                               seleccionarProductor(productor);
                             }
                           }}
-                          className={`flex cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 transition ${activo
+                          className={`flex cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 transition ${
+                            activo
                               ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
                             }`}
                         >
                           <span
-                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${activo
+                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                              activo
                                 ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                                 : 'border-[#aebbd1] bg-white text-transparent'
                               }`}

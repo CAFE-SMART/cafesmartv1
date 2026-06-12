@@ -29,8 +29,7 @@ import {
   obtenerConfiguracionBodega,
 } from '../services/bodegaApi';
 
-const sectionTitleClass =
-  'text-[0.9rem] font-semibold text-slate-800';
+const sectionTitleClass = 'text-[0.9rem] font-semibold text-slate-800';
 const cardClass =
   'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
 
@@ -610,7 +609,8 @@ export default function Inicio() {
                 <div>
                   <p className={sectionTitleClass}>Capacidad en bodega</p>
                   <p className="mt-1 text-[0.76rem] font-medium leading-5 text-slate-600">
-                    Revisa cuánto espacio queda antes de registrar nuevas compras.
+                    Revisa cuánto espacio queda antes de registrar nuevas
+                    compras.
                   </p>
                 </div>
                 <button
@@ -681,7 +681,9 @@ export default function Inicio() {
 
             <section className="px-5 py-3">
               <div>
-                <p className={sectionTitleClass}>Sublotes m&aacute;s antiguos</p>
+                <p className={sectionTitleClass}>
+                  Sublotes m&aacute;s antiguos
+                </p>
                 <p className="mt-1 text-[0.76rem] font-medium text-slate-600">
                   Los 3 sublotes que llevan más tiempo en bodega.
                 </p>

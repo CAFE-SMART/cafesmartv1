@@ -131,7 +131,9 @@ export default function SecadoResumen() {
             pesoKg: finalized.outputMaloKg ?? 0,
             humedad: finalized.outputMaloHumedad ?? null,
           },
-        ].filter((salida) => salida.pesoKg > 0) as TransformarSecadoPayload['salidas'];
+        ].filter(
+          (salida) => salida.pesoKg > 0,
+        ) as TransformarSecadoPayload['salidas'];
 
         await persistirSecadoRemoto(
           {
@@ -170,15 +172,18 @@ export default function SecadoResumen() {
     (session?.outputBuenoKg ?? 0) +
     (session?.outputRegularKg ?? 0) +
     (session?.outputMaloKg ?? 0);
-  const sublotesOrigen = session?.sublotes
-    .map((sublote) => sublote.etiqueta)
-    .filter((etiqueta) => etiqueta.trim().length > 0) ?? [];
+  const sublotesOrigen =
+    session?.sublotes
+      .map((sublote) => sublote.etiqueta)
+      .filter((etiqueta) => etiqueta.trim().length > 0) ?? [];
   const origenLabel =
     (session?.sublotes.length ?? 0) === 1
       ? 'Sublote original'
       : 'Sublotes originales';
   const origenValue =
-    sublotesOrigen.length > 0 ? sublotesOrigen.join(', ') : session?.loteCodigo ?? '';
+    sublotesOrigen.length > 0
+      ? sublotesOrigen.join(', ')
+      : (session?.loteCodigo ?? '');
 
   if (!session) {
     return (

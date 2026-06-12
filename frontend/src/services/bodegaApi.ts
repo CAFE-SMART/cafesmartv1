@@ -3,15 +3,21 @@ import { apiFetch } from './apiService';
 export type ConfiguracionBodega = {
   nombreBodega: string;
   capacidadKg: number | null;
+  minPesoKg: number;
   maxPesoKg: number;
+  minPrecioKg: number;
   maxPrecioKg: number;
+  minPrecioVentaKg: number;
   maxPrecioVentaKg: number;
   updatedAt: string;
 };
 
 export type LimitesEntrada = {
+  minPesoKg: number;
   maxPesoKg: number;
+  minPrecioKg: number;
   maxPrecioKg: number;
+  minPrecioVentaKg: number;
   maxPrecioVentaKg: number;
 };
 

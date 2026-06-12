@@ -1,4 +1,4 @@
-﻿import {
+import {
   HttpException,
   HttpStatus,
   Injectable,
@@ -11,9 +11,12 @@ import { OAuth2Client } from 'google-auth-library';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
+import { sendRecoveryEmail } from './mail.helper';
 
 @Injectable()
 export class AuthService {
+  private resetTokens = new Map<string, { code: string; expiresAt: Date }>();
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -350,5 +353,62 @@ export class AuthService {
         otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,
       },
     };
+  }
+
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
+    if (!user) {
+      return { message: 'Código de recuperación enviado' };
+    }
+
+    // Generate a 6-digit numeric code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in memory map with 15 minutes expiration
+    this.resetTokens.set(normalizedEmail, {
+      code,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    });
+
+    await sendRecoveryEmail(this.configService, normalizedEmail, code);
+
+    return { message: 'Código de recuperación enviado' };
+  }
+
+  async resetPassword(email: string, code: string, passwordNew: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const entry = this.resetTokens.get(normalizedEmail);
+
+    if (!entry) {
+      throw new HttpException(
+        { message: 'El código de recuperación es inválido o ha expirado.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (entry.expiresAt < new Date()) {
+      this.resetTokens.delete(normalizedEmail);
+      throw new HttpException(
+        { message: 'El código de recuperación ha expirado.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (entry.code !== code.trim()) {
+      throw new HttpException(
+        { message: 'El código de recuperación es incorrecto.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(passwordNew, 10);
+    await this.usersService.updatePasswordByEmail(
+      normalizedEmail,
+      hashedPassword,
+    );
+    this.resetTokens.delete(normalizedEmail);
+
+    return { message: 'Contraseña restablecida con éxito' };
   }
 }

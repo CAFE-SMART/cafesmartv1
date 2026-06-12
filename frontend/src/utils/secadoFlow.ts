@@ -110,7 +110,10 @@ function writeStorage(sessions: SecadoSession[]) {
   secadoSessionsMemory = sessions;
 }
 
-function updateSession(sessionId: string, updater: (session: SecadoSession) => SecadoSession) {
+function updateSession(
+  sessionId: string,
+  updater: (session: SecadoSession) => SecadoSession,
+) {
   writeStorage(
     readStorage().map((session) =>
       session.id === sessionId ? updater(session) : session,

@@ -171,7 +171,7 @@ export default function SecadoInicio() {
 
   const iniciarSeleccionado = () => {
     if (!loteSeleccionado || hasPending) return;
-    navigate(`/inventario/lote/${loteSeleccionado.id}/secado`);
+    navigate(`/inventario/${loteSeleccionado.tipoCafeId}/${loteSeleccionado.calidadId}/secado`);
   };
 
   return (
@@ -354,7 +354,7 @@ export default function SecadoInicio() {
                       type="button"
                       onClick={() =>
                         navigate(
-                          `/inventario/lote/${activeSession.loteId}/secado`,
+                          `/inventario/${activeSession.tipoCafeId}/${activeSession.calidadId}/secado`,
                         )
                       }
                       className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#1D4ED8]"

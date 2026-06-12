@@ -158,13 +158,15 @@ export default function SecadoProceso() {
     : null;
   const isNewFlow = !sessionId && pendingData !== null;
 
-  const locationState = location.state as { gastoSecadoRegistrado?: boolean } | null;
+  const locationState = location.state as {
+    gastoSecadoRegistrado?: boolean;
+  } | null;
   const [showExpenseSuccessToast, setShowExpenseSuccessToast] = useState(false);
 
   useEffect(() => {
     if (locationState?.gastoSecadoRegistrado) {
       setShowExpenseSuccessToast(true);
-      
+
       // Clear navigation state to avoid showing it on refresh
       navigate(location.pathname + location.search, {
         replace: true,
@@ -176,7 +178,12 @@ export default function SecadoProceso() {
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [locationState?.gastoSecadoRegistrado, location.pathname, location.search, navigate]);
+  }, [
+    locationState?.gastoSecadoRegistrado,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     sessionId ?? null,
@@ -196,17 +203,17 @@ export default function SecadoProceso() {
     session?.draftEndDate ?? getTodayLocalDateValue(),
   );
   const [buenoKg, setBuenoKg] = useState(
-    session?.draftBuenoKg ?? session?.outputBuenoKg
+    (session?.draftBuenoKg ?? session?.outputBuenoKg)
       ? String(session?.draftBuenoKg ?? session?.outputBuenoKg)
       : '',
   );
   const [regularKg, setRegularKg] = useState(
-    session?.draftRegularKg ?? session?.outputRegularKg
+    (session?.draftRegularKg ?? session?.outputRegularKg)
       ? String(session?.draftRegularKg ?? session?.outputRegularKg)
       : '',
   );
   const [maloKg, setMaloKg] = useState(
-    session?.draftMaloKg ?? session?.outputMaloKg
+    (session?.draftMaloKg ?? session?.outputMaloKg)
       ? String(session?.draftMaloKg ?? session?.outputMaloKg)
       : '',
   );
@@ -237,11 +244,15 @@ export default function SecadoProceso() {
   );
   const sourceQuality = keyOf(session?.calidad ?? pendingCalidad);
   const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
-  const bueno = outputQualities.includes('BUENO') ? Number(String(buenoKg).replace(',', '.')) || 0 : 0;
+  const bueno = outputQualities.includes('BUENO')
+    ? Number(String(buenoKg).replace(',', '.')) || 0
+    : 0;
   const regular = outputQualities.includes('REGULAR')
     ? Number(String(regularKg).replace(',', '.')) || 0
     : 0;
-  const malo = outputQualities.includes('MALO') ? Number(String(maloKg).replace(',', '.')) || 0 : 0;
+  const malo = outputQualities.includes('MALO')
+    ? Number(String(maloKg).replace(',', '.')) || 0
+    : 0;
   const totalSalida = bueno + regular + malo;
   const hasSecadoOutput = totalSalida > 0;
   const merma = hasSecadoOutput ? Math.max(0, totalEntrada - totalSalida) : 0;
@@ -702,7 +713,8 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Ingresa el peso final en seco para cada calidad de café obtenido.
+                Ingresa el peso final en seco para cada calidad de café
+                obtenido.
               </p>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {outputFields.map((field) => (
@@ -778,17 +790,13 @@ export default function SecadoProceso() {
                   <p className="mt-1 text-lg font-black">{kg(totalEntrada)}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-700">
-                    Salida
-                  </p>
+                  <p className="text-xs font-semibold text-slate-700">Salida</p>
                   <p className="mt-1 text-lg font-black">
                     {hasSecadoOutput ? kg(totalSalida) : '--'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-700">
-                    Merma
-                  </p>
+                  <p className="text-xs font-semibold text-slate-700">Merma</p>
                   {hasSecadoOutput ? (
                     <>
                       <p className="mt-1 text-lg font-black text-rose-600">

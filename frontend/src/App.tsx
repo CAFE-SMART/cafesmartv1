@@ -96,11 +96,12 @@ function GlobalOfflineNotice() {
         <h2 className="text-center text-[1.12rem] font-bold text-slate-900">
           Modo sin conexión
         </h2>
-        
+
         <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-          Guardamos tus cambios en este dispositivo. Se sincronizarán automáticamente cuando vuelva el internet.
+          Guardamos tus cambios en este dispositivo. Se sincronizarán
+          automáticamente cuando vuelva el internet.
         </p>
-        
+       
         <button
           type="button"
           onClick={() => setIsOpen(false)}

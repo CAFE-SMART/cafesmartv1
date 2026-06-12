@@ -687,7 +687,7 @@ export class LotesService {
 
       return {
         id: sublote.id,
-        etiqueta: `Sublote ${index + 1}`,
+        etiqueta: `${sublote.tipoCafe.nombre.trim().charAt(0).toLowerCase()}${sublote.calidad.nombre.trim().charAt(0).toLowerCase()}-${index + 1}`,
         tipoCafeId: sublote.tipoCafe.id,
         tipoCafe: sublote.tipoCafe.nombre,
         calidadId: sublote.calidad.id,
@@ -971,6 +971,9 @@ export class LotesService {
       select: {
         id: true,
         pesoInicial: true,
+        pesoActual: true,
+        tipoCafeId: true,
+        calidadId: true,
       },
     });
 
@@ -1003,16 +1006,36 @@ export class LotesService {
       }
     }
 
-    await this.prisma.$transaction(
-      sublotes.map((sublote) =>
-        this.prisma.sublote.update({
+    await this.prisma.$transaction(async (tx) => {
+      for (const sublote of sublotes) {
+        const existente = existentesPorId.get(sublote.id)!;
+        const diff = Number(sublote.pesoActual) - Number(existente.pesoActual);
+
+        await tx.sublote.update({
           where: { id: sublote.id },
           data: {
             pesoActual: sublote.pesoActual,
           },
-        }),
-      ),
-    );
+        });
+
+        if (Math.abs(diff) > 0.001) {
+          await tx.inventario.update({
+            where: {
+              organizacionId_tipoCafeId_calidadId: {
+                organizacionId,
+                tipoCafeId: existente.tipoCafeId,
+                calidadId: existente.calidadId,
+              },
+            },
+            data: {
+              pesoTotal: {
+                increment: new Prisma.Decimal(diff.toFixed(2)),
+              },
+            },
+          });
+        }
+      }
+    });
 
     return { totalActualizados: sublotes.length };
   }

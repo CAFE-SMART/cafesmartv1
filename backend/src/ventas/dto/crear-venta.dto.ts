@@ -25,7 +25,7 @@ export class CreateVentaDetalleDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'El peso vendido debe ser un numero' })
-  @Min(PESO_MINIMO_KG, { message: 'El peso vendido debe ser minimo 5 kg' })
+  @Min(0.01, { message: 'El peso vendido debe ser minimo 0.01 kg' })
   pesoVendido: number;
 
   @Type(() => Number)
