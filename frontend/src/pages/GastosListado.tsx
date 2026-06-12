@@ -165,7 +165,7 @@ export default function GastosListado() {
         </header>
 
         <section className="mt-3 rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3">
-          <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+          <p className="text-[0.85rem] font-semibold text-slate-800">
             Total acumulado
           </p>
           <p className="mt-1 text-[1.25rem] font-black text-[#102d92]">
@@ -221,7 +221,7 @@ export default function GastosListado() {
         <section className="mt-3 space-y-2">
           {!loading && gastosFiltrados.length > 0 ? (
             <div className="flex items-center justify-between px-1">
-              <p className="text-[0.56rem] font-black uppercase tracking-[0.12em] text-[#73829a]">
+              <p className="text-[0.85rem] font-semibold text-slate-800">
                 {estadoFiltro === 'PENDIENTE'
                   ? 'Gastos pendientes'
                   : estadoFiltro === 'PAGADO'
@@ -273,7 +273,7 @@ export default function GastosListado() {
                         {gasto.conceptoGasto}
                       </p>
                       {shouldShowExpenseType(gasto) ? (
-                        <p className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.08em] text-slate-400">
+                        <p className="mt-1 text-xs font-semibold text-slate-700">
                           {titleCase(gasto.tipoGasto)}
                         </p>
                       ) : null}
@@ -285,10 +285,10 @@ export default function GastosListado() {
                   <div className="mt-2 flex items-center justify-between gap-3 text-[0.6rem] font-semibold text-slate-500">
                     <span>{formatRelativeDate(gasto.fechaGasto)}</span>
                     <span
-                      className={`rounded-full px-2 py-1 text-[0.52rem] font-black uppercase ${
+                      className={`rounded-full px-2 py-1 text-xs font-bold ${
                         gasto.estadoPago === 'PAGADO'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-amber-50 text-amber-700'
+                          ? 'bg-emerald-50 text-emerald-800'
+                          : 'bg-amber-55 bg-amber-50 text-amber-800'
                       }`}
                     >
                       {titleCase(gasto.estadoPago)}

@@ -65,7 +65,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
     <div className="min-h-screen bg-[#f7f8fb] px-4 py-8 text-slate-900">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
         <section className="w-full rounded-[16px] border border-[#dfe5f1] bg-white px-5 py-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#274ab8]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#1D4ED8]">
             <Coffee size={21} strokeWidth={2.4} />
           </div>
 
@@ -81,7 +81,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
           <button
             type="button"
             onClick={onStart}
-            className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-[0.78rem] font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+            className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-[0.78rem] font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
           >
             Comenzar ahora
             <ArrowRight size={16} />
@@ -266,7 +266,7 @@ export default function SystemStatus() {
       <div className="mx-auto w-full max-w-[320px] rounded-[14px] border border-white/80 bg-white/90 p-5 text-center shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
         {status === 'creating' ? (
           <>
-            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]">
               <LoaderCircle className="h-5 w-5 animate-spin" />
             </div>
             <h1 className="mt-3 text-[0.95rem] font-black text-[#121826]">
@@ -290,7 +290,7 @@ export default function SystemStatus() {
             <button
               type="button"
               onClick={() => void executeRegistration(true)}
-              className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#eef0fb] px-4 py-2 text-[0.68rem] font-black text-[#102d92]"
+              className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#eef0fb] px-4 py-2 text-[0.68rem] font-black text-[#1D4ED8]"
             >
               Reintentar
             </button>

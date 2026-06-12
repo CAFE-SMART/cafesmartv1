@@ -244,10 +244,10 @@ function getCoffeeTone(tipoCafe: string, calidad?: string) {
     icon: <Coffee size={18} strokeWidth={2.2} />,
     accent: 'bg-[#2f4aa4]',
     border: 'border-[#c7d2fe]',
-    iconBox: 'bg-[#eef3ff] text-[#2f4aa4]',
+    iconBox: 'bg-[#eef3ff] text-[#1D4ED8]',
     soft: 'bg-[#f8faff]',
-    chip: 'bg-[#eef3ff] text-[#2f4aa4]',
-    text: 'text-[#2f4aa4]',
+    chip: 'bg-[#eef3ff] text-[#1D4ED8]',
+    text: 'text-[#1D4ED8]',
   };
 }
 
@@ -521,10 +521,12 @@ export default function Sublotes() {
     field: EditField;
     value: string;
   } | null>(null);
+  const [editModalError, setEditModalError] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{
     value: string;
     reason: string;
   } | null>(null);
+  const [weightModalError, setWeightModalError] = useState<string | null>(null);
   const [selectedSubloteId, setSelectedSubloteId] = useState<string | null>(
     null,
   );
@@ -805,6 +807,7 @@ export default function Sublotes() {
 
     const currentValue =
       subloteActivo.humedad === null ? '' : String(subloteActivo.humedad);
+    setEditModalError(null);
     setEditModal({ field: 'humedad', value: currentValue });
   }, [subloteActivo]);
 
@@ -812,6 +815,7 @@ export default function Sublotes() {
     if (!subloteActivo) return;
 
     const currentValue = subloteActivo.factor;
+    setEditModalError(null);
     setEditModal({
       field: 'factor',
       value: currentValue === null ? '' : String(currentValue),
@@ -820,31 +824,42 @@ export default function Sublotes() {
 
   const handleOpenWeightModal = useCallback(() => {
     if (!subloteActivo) return;
+    setWeightModalError(null);
     setWeightModal({ value: String(subloteActivo.pesoActual), reason: '' });
   }, [subloteActivo]);
+
+  const closeEditModal = useCallback(() => {
+    setEditModal(null);
+    setEditModalError(null);
+  }, []);
+
+  const closeWeightModal = useCallback(() => {
+    setWeightModal(null);
+    setWeightModalError(null);
+  }, []);
 
   const handleConfirmWeight = useCallback(() => {
     if (!weightModal || !subloteActivo || !tipoCafeId || !calidadId) return;
 
     const parsed = Number(weightModal.value.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed < 0) {
-      setError('El nuevo peso no es válido.');
+      setWeightModalError('El nuevo peso no es válido.');
       return;
     }
 
     const nextWeight = Number(parsed.toFixed(2));
     if (nextWeight > MAX_AJUSTE_PESO_KG) {
-      setError('El peso no puede superar los 99.999 kg.');
+      setWeightModalError('El peso no puede superar los 99.999 kg.');
       return;
     }
 
     if (nextWeight > subloteActivo.pesoInicial) {
-      setError('El peso no puede superar el peso inicial del sublote.');
+      setWeightModalError('El peso no puede superar el peso inicial del sublote.');
       return;
     }
 
     const reason = weightModal.reason.trim().slice(0, MAX_MOTIVO_AJUSTE_LENGTH);
-    setError(null);
+    setWeightModalError(null);
     setWeightModal(null);
 
     setDetalle((current) => {
@@ -925,11 +940,11 @@ export default function Sublotes() {
         parsed !== null &&
         (!Number.isFinite(parsed) || parsed < 8 || parsed > 14)
       ) {
-        setError('La humedad no es valida. Debe estar entre 8 y 14.');
+        setEditModalError('La humedad no es válida. Debe estar entre 8 % y 14 %.');
         return;
       }
 
-      setError(null);
+      setEditModalError(null);
       setEditModal(null);
 
       const nextHumedad = parsed === null ? null : Number(parsed.toFixed(1));
@@ -992,11 +1007,11 @@ export default function Sublotes() {
       parsed !== null &&
       (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_AJUSTE_PESO_KG)
     ) {
-      setError('El factor no es válido.');
+      setEditModalError('El factor no es válido.');
       return;
     }
 
-    setError(null);
+    setEditModalError(null);
     setEditModal(null);
 
     if (parsed !== null && (parsed < 84 || parsed > 100)) {
@@ -1086,8 +1101,9 @@ export default function Sublotes() {
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-[#1f1f1f]">
-      <header className="sticky top-0 z-20 border-b border-[#e9edf3] bg-white">
-        <div className="mx-auto grid h-[56px] w-full max-w-[430px] grid-cols-[44px_1fr_44px] items-center px-3">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfbfb] shadow-sm flex flex-col relative">
+        <header className="sticky top-0 z-20 border-b border-[#e9edf3] bg-white">
+          <div className="grid h-[56px] w-full grid-cols-[44px_1fr_44px] items-center px-3">
           <button
             type="button"
             onClick={() => {
@@ -1125,20 +1141,8 @@ export default function Sublotes() {
         </div>
       </header>
 
-      {(offlineNoticeVisible || !isOnline) && (
-        <div className="border-b border-[#ececec] bg-white px-4 py-3">
-          <div
-            className="mx-auto max-w-[430px] rounded-[14px] border border-[#d9e2f5] bg-[#f7f9ff] px-4 py-3 text-sm font-semibold leading-5 text-[#4d5d7c]"
-            role="status"
-            aria-live="polite"
-          >
-            Estás sin conexión. Puedes seguir consultando estos datos; los cambios se sincronizarán cuando vuelva internet.
-          </div>
-        </div>
-      )}
-
       <main
-        className={`mx-auto w-full max-w-[430px] px-3 pt-3 ${
+        className={`w-full px-3 pt-3 flex-1 ${
           subloteActivo ? 'pb-40' : 'pb-4'
         }`}
       >
@@ -1171,7 +1175,7 @@ export default function Sublotes() {
           </div>
         ) : null}
 
-        {!loading && detalle && !subloteActivo ? (
+        {detalle && !subloteActivo ? (
           <section
             className={`overflow-hidden rounded-[18px] border bg-white shadow-[0_10px_26px_rgba(15,23,42,0.055)] ${loteTone?.border ?? 'border-[#e1e6ef]'}`}
             aria-labelledby="sublotes-heading"
@@ -1181,14 +1185,14 @@ export default function Sublotes() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
                   <span
-                    className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${loteTone?.iconBox ?? 'bg-[#eef3ff] text-[#2f4aa4]'}`}
+                    className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${loteTone?.iconBox ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
                   >
                     {loteTone?.icon}
                   </span>
                   <div className="min-w-0">
                     <p
                       id="sublotes-heading"
-                      className="text-[0.86rem] font-semibold uppercase tracking-[0.05em] text-[#263247]"
+                      className="text-[0.98rem] font-semibold text-[#263247]"
                     >
                       {formatCoffeeLabel(detalle.lote.tipoCafe)}{' '}
                       {titleCase(detalle.lote.calidad)}
@@ -1199,7 +1203,7 @@ export default function Sublotes() {
                   </div>
                 </div>
                 <span
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-[0.78rem] font-semibold ${loteTone?.chip ?? 'bg-[#eef3ff] text-[#2f4aa4]'}`}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[0.78rem] font-semibold ${loteTone?.chip ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
                 >
                   {pluralLabel(
                     detalle.sublotes.length,
@@ -1277,7 +1281,7 @@ export default function Sublotes() {
                 <button
                   type="button"
                   onClick={() => setShowAllSublotes(true)}
-                  className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#d9e2f5] bg-[#f7f9ff] px-4 text-sm font-semibold text-[#2f4aa4] transition hover:bg-[#eef3ff] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                  className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#d9e2f5] bg-[#f7f9ff] px-4 text-sm font-semibold text-[#1D4ED8] transition hover:bg-[#eef3ff] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
                 >
                   Ver{' '}
                   {pluralLabel(
@@ -1291,12 +1295,12 @@ export default function Sublotes() {
           </section>
         ) : null}
 
-        {!loading && subloteActivo ? (
+        {subloteActivo ? (
           <div className="space-y-3">
             {detalle && detalle.sublotes.length > 1 ? (
               <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[0.82rem] font-semibold uppercase tracking-[0.05em] text-[#283044]">
+                  <p className="text-[0.9rem] font-semibold text-[#283044]">
                     Cambiar sublote
                   </p>
                   <span className="text-[0.78rem] font-medium text-[#667085]">
@@ -1349,11 +1353,11 @@ export default function Sublotes() {
                 aria-expanded={showAnalysis}
               >
                 <span className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#2f4aa4]">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
                     <BarChart3 size={18} strokeWidth={2.2} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[0.84rem] font-semibold uppercase tracking-[0.05em] text-[#283044]">
+                    <span className="block text-[0.94rem] font-semibold text-[#283044]">
                       Análisis financiero
                     </span>
                     <span className="mt-0.5 block text-[0.78rem] font-medium text-[#667085]">
@@ -1361,7 +1365,7 @@ export default function Sublotes() {
                     </span>
                   </span>
                 </span>
-                <span className="shrink-0 text-[0.82rem] font-semibold text-[#2f4aa4]">
+                <span className="shrink-0 text-[0.82rem] font-semibold text-[#1D4ED8]">
                   {showAnalysis ? 'Ocultar' : 'Ver'}
                 </span>
               </button>
@@ -1429,7 +1433,7 @@ export default function Sublotes() {
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#f2f4f7] text-[#667085]">
                   <Info size={17} strokeWidth={2.4} />
                 </span>
-                <h2 className="text-[0.86rem] font-semibold uppercase tracking-[0.05em] text-[#283044]">
+                <h2 className="text-[0.94rem] font-semibold text-[#283044]">
                   Información básica
                 </h2>
               </div>
@@ -1484,7 +1488,7 @@ export default function Sublotes() {
                   <FlaskConical size={17} strokeWidth={2.3} />
                 </span>
                 <div>
-                  <h2 className="text-[0.86rem] font-semibold uppercase tracking-[0.05em] text-[#283044]">
+                  <h2 className="text-[0.94rem] font-semibold text-[#283044]">
                     Datos técnicos
                   </h2>
                   <p className="mt-0.5 text-sm font-medium leading-5 text-[#667085]">
@@ -1519,7 +1523,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={() => navigate('/ventas')}
-              className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#2f4aa4] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,74,164,0.16)] transition hover:bg-[#263f93] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             >
               <Tag size={17} strokeWidth={2.25} />
               Vender sublote
@@ -1528,7 +1532,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={handleOpenWeightModal}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             >
               <Scale size={17} strokeWidth={2.2} />
               Ajustar peso
@@ -1541,7 +1545,7 @@ export default function Sublotes() {
                   `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
                 )
               }
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             >
               <Tag size={17} strokeWidth={2.2} />
               Ver gastos
@@ -1590,23 +1594,30 @@ export default function Sublotes() {
                     : current,
                 )
               }
-              className="mt-4 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-3 text-[1.1rem] font-semibold text-[#1f1f1f] outline-none focus:border-[#2f4aa4] focus:ring-2 focus:ring-[#d9e2f5]"
+              className="mt-4 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-3 text-[1.1rem] font-semibold text-[#1f1f1f] outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
               placeholder={
                 editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 86'
               }
             />
+            {editModalError ? (
+              <InlineGuidedError
+                message={getSublotesGuidance(editModalError)}
+                className="mt-3"
+              />
+            ) : null}
+
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setEditModal(null)}
-                className="min-h-[42px] rounded-[10px] border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                onClick={closeEditModal}
+                className="min-h-[42px] rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleConfirmEdit}
-                className="min-h-[42px] rounded-[10px] bg-[#2f4aa4] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#263f93] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                className="min-h-[42px] rounded-full bg-[#1D4ED8] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
               >
                 Guardar
               </button>
@@ -1632,7 +1643,7 @@ export default function Sublotes() {
               </h2>
               <button
                 type="button"
-                onClick={() => setWeightModal(null)}
+                onClick={closeWeightModal}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f4f4] text-[#667085] transition hover:bg-[#e7e9ee] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
                 aria-label="Cerrar"
               >
@@ -1656,10 +1667,10 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3">
-              <label className="mb-1.5 block text-[0.8rem] font-semibold uppercase tracking-[0.05em] text-[#6b7280]">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-800">
                 Nuevo peso
               </label>
-              <div className="flex items-center rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 focus-within:border-[#2f4aa4] focus-within:ring-2 focus-within:ring-[#d9e2f5]">
+              <div className="flex items-center rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#d9e2f5]">
                 <input
                   type="text"
                   inputMode="decimal"
@@ -1692,7 +1703,7 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3">
-              <label className="mb-1.5 block text-[0.8rem] font-semibold uppercase tracking-[0.05em] text-[#6b7280]">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-800">
                 Motivo (opcional)
               </label>
               <textarea
@@ -1712,24 +1723,31 @@ export default function Sublotes() {
                   )
                 }
                 placeholder="Ej: secado, evaporación, ajuste manual"
-                className="min-h-[78px] w-full resize-none rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-[0.95rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#2f4aa4] focus:ring-2 focus:ring-[#d9e2f5]"
+                className="min-h-[78px] w-full resize-none rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-[0.95rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
               />
               <p className="mt-1 text-right text-[0.76rem] font-semibold text-slate-400">
                 {weightModal.reason.length}/{MAX_MOTIVO_AJUSTE_LENGTH}
               </p>
             </div>
 
+            {weightModalError ? (
+              <InlineGuidedError
+                message={getSublotesGuidance(weightModalError)}
+                className="mt-3"
+              />
+            ) : null}
+
             <button
               type="button"
               onClick={handleConfirmWeight}
-              className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-[10px] bg-[#1f3fa7] px-4 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(31,63,167,0.18)] transition hover:bg-[#17348e] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             >
               Guardar ajuste
             </button>
             <button
               type="button"
-              onClick={() => setWeightModal(null)}
-              className="mt-2 inline-flex min-h-[36px] w-full items-center justify-center text-sm font-semibold text-[#667085] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              onClick={closeWeightModal}
+              className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             >
               Cancelar
             </button>
@@ -1760,13 +1778,14 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={() => setFactorNotice(null)}
-              className="mt-3 min-h-[42px] w-full rounded-[10px] bg-amber-500 px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+              className="mt-3 min-h-[42px] w-full rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
               Entendido
             </button>
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -1788,7 +1807,7 @@ function InfoField({
     neutral: 'border-[#edf1f7] bg-[#fbfcfe] text-[#667085]',
     green: 'border-[#d5f0e4] bg-[#f5fffa] text-[#0d7b67]',
     amber: 'border-[#f5dfad] bg-[#fffaf0] text-[#b77900]',
-    blue: 'border-[#d9e2f5] bg-[#f7f9ff] text-[#2f4aa4]',
+    blue: 'border-[#d9e2f5] bg-[#f7f9ff] text-[#1D4ED8]',
   }[surface];
 
   return (
@@ -1799,7 +1818,7 @@ function InfoField({
             {icon}
           </span>
         ) : null}
-        <p className="truncate text-[0.7rem] font-semibold uppercase tracking-[0.05em] text-[#98a2b3]">
+        <p className="truncate text-[0.8rem] font-semibold text-slate-700">
           {label}
         </p>
       </div>
@@ -1825,13 +1844,13 @@ function TechnicalField({
 }) {
   return (
     <div>
-      <p className="text-[0.72rem] font-semibold uppercase tracking-[0.05em] text-[#98a2b3]">
+      <p className="text-[0.8rem] font-semibold text-slate-700">
         {label}
       </p>
       <button
         type="button"
         onClick={onEdit}
-        className="mt-1.5 flex min-h-[48px] w-full items-center justify-between rounded-[12px] border border-[#e2e7ef] bg-[#fbfcfe] px-3 text-left transition hover:border-[#b9c5e8] hover:bg-white focus:border-[#2f4aa4] focus:outline-none focus:ring-2 focus:ring-[#d9e2f5]"
+        className="mt-1.5 flex min-h-[48px] w-full items-center justify-between rounded-[12px] border border-[#e2e7ef] bg-[#fbfcfe] px-3 text-left transition hover:border-[#b9c5e8] hover:bg-white focus:border-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#d9e2f5]"
         aria-label={`Editar ${label.toLowerCase()}: ${value}`}
       >
         <p className="min-w-0 text-[0.98rem] font-semibold leading-tight tracking-normal text-[#222222]">

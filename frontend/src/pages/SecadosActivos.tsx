@@ -58,29 +58,20 @@ function qualityTone(value: string) {
   if (key === 'BUENO') {
     return {
       dot: 'bg-[#0d7b67]',
-      chip: 'bg-[#e9fbf4] text-[#0d7b67]',
-      card: 'border-[#bfe8d8] bg-[#f5fffa]',
-      icon: 'bg-[#e9fbf4] text-[#0d7b67]',
-      button: 'bg-[#0d7b67] hover:bg-[#096452]',
+      rightCircle: 'bg-[#e9fbf4] text-[#0d7b67]',
     };
   }
 
   if (key === 'REGULAR') {
     return {
       dot: 'bg-[#d29309]',
-      chip: 'bg-[#fff7df] text-[#946200]',
-      card: 'border-[#f2d28a] bg-[#fffdf4]',
-      icon: 'bg-[#fff7df] text-[#b77900]',
-      button: 'bg-[#b77900] hover:bg-[#946200]',
+      rightCircle: 'bg-[#fff7df] text-[#d29309]',
     };
   }
 
   return {
     dot: 'bg-[#d92d20]',
-    chip: 'bg-[#ffe7e4] text-[#b42318]',
-    card: 'border-[#f4b7b1] bg-[#fff6f5]',
-    icon: 'bg-[#ffe7e4] text-[#b42318]',
-    button: 'bg-[#b42318] hover:bg-[#971f15]',
+    rightCircle: 'bg-[#ffe7e4] text-[#d92d20]',
   };
 }
 
@@ -132,10 +123,10 @@ export default function SecadosActivos() {
 
         <main className="px-4 pb-6 pt-4">
           <section className="overflow-hidden rounded-[20px] border border-[#cfe4ff] bg-white shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
-            <div className="h-1.5 bg-[#2f4aa4]" />
+            <div className="h-1.5 bg-[#1D4ED8]" />
             <div className="p-4">
               <div className="flex items-start gap-3">
-                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef3ff] text-[#2f4aa4]">
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef3ff] text-[#1D4ED8]">
                   <CircleDashed size={23} />
                 </span>
                 <div>
@@ -143,8 +134,7 @@ export default function SecadosActivos() {
                     Café que está en secado
                   </h2>
                   <p className="mt-1.5 text-sm leading-5 text-slate-500">
-                    Revisa los procesos abiertos y registra el resultado cuando
-                    el café esté listo.
+                    Cuando tu café termine el proceso de secado físico, regresa a esta pantalla para registrar las cantidades finales obtenidas y dar salida al lote.
                   </p>
                 </div>
               </div>
@@ -197,7 +187,7 @@ export default function SecadosActivos() {
                     state: { preferredTypeKey: 'VERDE' },
                   })
                 }
-                className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-semibold text-white"
+                className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white"
               >
                 Iniciar secado
               </button>
@@ -209,18 +199,18 @@ export default function SecadosActivos() {
                 return (
                   <article
                     key={session.id}
-                    className={`rounded-[20px] border px-4 py-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)] ${tone.card}`}
+                    className="rounded-[20px] border border-[#e4e9f2] bg-white px-4 py-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
                         <span
-                          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${tone.icon}`}
+                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#f2f4f7] text-[#475467]"
                         >
                           <Coffee size={20} />
                         </span>
                         <div className="min-w-0">
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[0.72rem] font-semibold ${tone.chip}`}
+                            className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[0.72rem] font-semibold text-slate-700"
                           >
                             En secado
                           </span>
@@ -236,13 +226,13 @@ export default function SecadosActivos() {
                           </p>
                         </div>
                       </div>
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#102d92]">
+                      <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone.rightCircle}`}>
                         <CircleDashed size={17} />
                       </span>
                     </div>
 
                     <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div className="rounded-[13px] bg-white/80 px-3 py-2">
+                      <div className="rounded-[13px] bg-slate-50 px-3 py-2">
                         <Scale size={14} className="text-slate-400" />
                         <p className="mt-1 text-[0.72rem] text-slate-500">
                           Entrada
@@ -251,7 +241,7 @@ export default function SecadosActivos() {
                           {kg(totalEntrada(session))}
                         </p>
                       </div>
-                      <div className="rounded-[13px] bg-white/80 px-3 py-2">
+                      <div className="rounded-[13px] bg-slate-50 px-3 py-2">
                         <CalendarDays size={14} className="text-slate-400" />
                         <p className="mt-1 text-[0.72rem] text-slate-500">
                           Inicio
@@ -260,7 +250,7 @@ export default function SecadosActivos() {
                           {startedLabel(session.startedAt).replace('Iniciado ', '')}
                         </p>
                       </div>
-                      <div className="rounded-[13px] bg-white/80 px-3 py-2">
+                      <div className="rounded-[13px] bg-slate-50 px-3 py-2">
                         <CheckCircle2 size={14} className="text-slate-400" />
                         <p className="mt-1 text-[0.72rem] text-slate-500">
                           Estado
@@ -278,7 +268,7 @@ export default function SecadosActivos() {
                           `/inventario/secado/${session.id}/finalizar?step=finish`,
                         )
                       }
-                      className={`mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] px-4 text-[0.92rem] font-semibold text-white transition ${tone.button}`}
+                      className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-[#1D4ED8] hover:bg-[#1e40af] px-4 text-[0.92rem] font-semibold text-white transition"
                     >
                       Finalizar secado
                     </button>
@@ -289,7 +279,7 @@ export default function SecadosActivos() {
                 <button
                   type="button"
                   onClick={() => setShowAll(true)}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white text-sm font-semibold text-[#102d92] shadow-sm"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white text-sm font-semibold text-[#1D4ED8] shadow-sm"
                 >
                   Ver {hiddenCount} más
                 </button>

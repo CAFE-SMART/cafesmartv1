@@ -115,6 +115,24 @@ export default function SecadoResumen() {
       setPersistError(null);
 
       try {
+        const salidas: TransformarSecadoPayload['salidas'] = [
+          {
+            calidad: 'BUENO',
+            pesoKg: finalized.outputBuenoKg,
+            humedad: finalized.outputBuenoHumedad,
+          },
+          {
+            calidad: 'REGULAR',
+            pesoKg: finalized.outputRegularKg,
+            humedad: finalized.outputRegularHumedad,
+          },
+          {
+            calidad: 'MALO',
+            pesoKg: finalized.outputMaloKg ?? 0,
+            humedad: finalized.outputMaloHumedad ?? null,
+          },
+        ].filter((salida) => salida.pesoKg > 0) as TransformarSecadoPayload['salidas'];
+
         await persistirSecadoRemoto(
           {
             sessionId: finalized.id,
@@ -123,23 +141,7 @@ export default function SecadoResumen() {
               id: sublote.id,
               pesoKg: sublote.pesoActual,
             })),
-            salidas: [
-              {
-                calidad: 'BUENO',
-                pesoKg: finalized.outputBuenoKg,
-                humedad: finalized.outputBuenoHumedad,
-              },
-              {
-                calidad: 'REGULAR',
-                pesoKg: finalized.outputRegularKg,
-                humedad: finalized.outputRegularHumedad,
-              },
-              {
-                calidad: 'MALO',
-                pesoKg: finalized.outputMaloKg ?? 0,
-                humedad: finalized.outputMaloHumedad ?? null,
-              },
-            ].filter((salida) => salida.pesoKg > 0),
+            salidas,
           },
           finalized.sublotes,
         );
@@ -168,6 +170,15 @@ export default function SecadoResumen() {
     (session?.outputBuenoKg ?? 0) +
     (session?.outputRegularKg ?? 0) +
     (session?.outputMaloKg ?? 0);
+  const sublotesOrigen = session?.sublotes
+    .map((sublote) => sublote.etiqueta)
+    .filter((etiqueta) => etiqueta.trim().length > 0) ?? [];
+  const origenLabel =
+    (session?.sublotes.length ?? 0) === 1
+      ? 'Sublote original'
+      : 'Sublotes originales';
+  const origenValue =
+    sublotesOrigen.length > 0 ? sublotesOrigen.join(', ') : session?.loteCodigo ?? '';
 
   if (!session) {
     return (
@@ -179,7 +190,7 @@ export default function SecadoResumen() {
             onClick={() =>
               navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
             }
-            className="mt-4 h-11 rounded-full bg-[#0647d6] px-5 text-xs font-black text-white"
+            className="mt-4 h-11 rounded-full bg-[#1D4ED8] px-5 text-xs font-black text-white"
           >
             Volver a inventario
           </button>
@@ -226,12 +237,18 @@ export default function SecadoResumen() {
         ) : null}
 
         <section className="mt-5 w-full rounded-[12px] bg-white p-4 text-left shadow-sm">
-          <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
+          <p className="text-[0.85rem] font-semibold text-slate-800">
             Resumen del secado
           </p>
           <div className="mt-4 space-y-3 text-[0.72rem]">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Lote</span>
+              <span className="text-slate-500">{origenLabel}</span>
+              <span className="max-w-[65%] text-right font-black">
+                {origenValue}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Sublote original</span>
               <span className="font-black">{session.loteCodigo}</span>
             </div>
             <div className="flex items-center justify-between">
@@ -243,9 +260,9 @@ export default function SecadoResumen() {
               <span className="font-black">{kg(totalSalida)}</span>
             </div>
             <div className="rounded-[10px] bg-slate-50 px-3 py-3">
-              <div className="flex items-center justify-between text-xs font-black uppercase">
+              <div className="flex items-center justify-between text-sm font-semibold text-slate-800">
                 <span>Total en inventario seco</span>
-                <span className="text-[0.9rem] text-[#0647d6]">
+                <span className="text-[0.9rem] text-[#1D4ED8]">
                   {kg(totalSalida)}
                 </span>
               </div>
@@ -260,7 +277,7 @@ export default function SecadoResumen() {
             onClick={() =>
               navigate('/inventario', { state: { preferredTypeKey: 'VERDE' } })
             }
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0647d6] text-[0.68rem] font-black text-white disabled:opacity-50"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] text-[0.68rem] font-black text-white disabled:opacity-50"
           >
             {persisting ? (
               <>
@@ -285,7 +302,7 @@ export default function SecadoResumen() {
                 },
               })
             }
-            className="mt-2 h-10 w-full rounded-[8px] bg-slate-100 text-[0.68rem] font-black text-[#0647d6] disabled:opacity-50"
+            className="mt-2 h-10 w-full rounded-[8px] bg-slate-100 text-[0.68rem] font-black text-[#1D4ED8] disabled:opacity-50"
           >
             Ir a inventario
           </button>
@@ -297,7 +314,7 @@ export default function SecadoResumen() {
           <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
             <LoaderCircle
               size={28}
-              className="mx-auto animate-spin text-[#1f3fa7]"
+              className="mx-auto animate-spin text-[#1D4ED8]"
             />
             <p className="mt-2 text-sm font-black text-slate-900">
               Registrando secado
@@ -306,7 +323,7 @@ export default function SecadoResumen() {
               Actualizando inventario...
             </p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#102d92]" />
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1D4ED8]" />
             </div>
           </div>
         </div>

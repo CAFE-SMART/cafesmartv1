@@ -21,7 +21,6 @@ import {
 } from '../services/bodegaApi';
 import {
   applySecadoToLots,
-  getActiveSecadoSession,
   getActiveSecadoSessions,
 } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
@@ -42,6 +41,20 @@ const TYPE_ORDER = [
 const BULTO_KG = 40.7;
 function keyOf(value: string) {
   return value.trim().toUpperCase();
+}
+
+function normalizeTextKey(value: string) {
+  return value
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+function isVerdeType(value: string) {
+  const key = normalizeTextKey(value);
+
+  return key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE');
 }
 
 function formatNumber(value: number) {
@@ -191,7 +204,7 @@ function coffeeVisual(name: string) {
   return {
     icon: <Coffee size={18} />,
     bg: 'bg-[#eef1ff]',
-    text: 'text-[#102d92]',
+    text: 'text-[#1D4ED8]',
     ring: '#102d92',
   };
 }
@@ -254,7 +267,7 @@ function CapacityRing({
         <div className="mt-2 flex items-center justify-between gap-3">
           <div>
             <p
-              className="text-[2.1rem] font-extrabold leading-none text-[#102d92]"
+              className="text-[2.1rem] font-extrabold leading-none text-[#1D4ED8]"
               style={{ fontWeight: 900 }}
             >
               {formatNumber(totalKg)} kg
@@ -266,14 +279,14 @@ function CapacityRing({
               Configura la capacidad para calcular la ocupación.
             </p>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#102d92] shadow-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#1D4ED8] shadow-sm">
             <Coffee size={18} />
           </div>
         </div>
         <button
           type="button"
           onClick={onAdjust}
-          className="mt-3 text-[0.72rem] font-black text-[#102d92]"
+          className="mt-3 text-[0.72rem] font-black text-[#1D4ED8]"
         >
           Ajustar bodega
         </button>
@@ -367,7 +380,7 @@ function CapacityRing({
         <button
           type="button"
           onClick={onAdjust}
-          className="text-right text-[0.68rem] font-black text-slate-400 transition hover:text-[#102d92]"
+          className="text-right text-[0.68rem] font-black text-slate-400 transition hover:text-[#1D4ED8]"
         >
           Ajustar bodega
         </button>
@@ -414,11 +427,10 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span
-            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${
-              isProcess
-                ? 'bg-[#fff2cc] text-[#946200]'
-                : 'bg-[#f2f3f7] text-slate-700'
-            }`}
+            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${isProcess
+              ? 'bg-[#fff2cc] text-[#946200]'
+              : 'bg-[#f2f3f7] text-slate-700'
+              }`}
           >
             {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
@@ -506,10 +518,10 @@ function SecadoProcessCard({
   const fecha = Number.isNaN(startedAt.getTime())
     ? 'Hoy'
     : startedAt.toLocaleDateString('es-CO', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
 
   return (
     <button
@@ -563,7 +575,7 @@ export default function Inventario() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [typeKey, setTypeKey] = useState('');
-  const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
+  const sortKey = 'OLDEST';
   const [preferredApplied, setPreferredApplied] = useState(false);
   const [bodegaConfig, setBodegaConfig] = useState<{
     nombreBodega: string;
@@ -790,37 +802,31 @@ export default function Inventario() {
     () =>
       ENABLE_SECADO_PROTOTYPE
         ? [...getActiveSecadoSessions()].sort(
-            (a, b) =>
-              new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-          )
+          (a, b) =>
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        )
         : [],
     [lots],
   );
-  const activeSessionBase = ENABLE_SECADO_PROTOTYPE
-    ? getActiveSecadoSession()
-    : null;
-  const activeSession =
-    activeSessionBase && lots.some((lot) => lot.id === activeSessionBase.loteId)
-      ? activeSessionBase
-      : null;
+
+  const isGreenInventoryView = isVerdeType(typeKey);
+
   const secadoTarget =
-    ENABLE_SECADO_PROTOTYPE && typeKey === 'VERDE' && orderedLots.length > 0
+    ENABLE_SECADO_PROTOTYPE && isGreenInventoryView && orderedLots.length > 0
       ? orderedLots[0]
       : null;
   const showGlobalEmptyState = !loading && !error && lots.length === 0;
 
   return (
     <div
-      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
-        showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
-      }`}
+      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
+        }`}
     >
       <main
-        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
-          showGlobalEmptyState
-            ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
-            : 'flex-col gap-5'
-        }`}
+        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${showGlobalEmptyState
+          ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
+          : 'flex-col gap-5'
+          }`}
       >
         {!showGlobalEmptyState ? (
           <CapacityRing
@@ -832,18 +838,6 @@ export default function Inventario() {
 
         {!showGlobalEmptyState ? (
           <section className="flex flex-wrap items-center gap-3">
-            <div className="w-full max-w-[180px]">
-              <select
-                value={sortKey}
-                onChange={(event) =>
-                  setSortKey(event.target.value as 'OLDEST' | 'NEWEST')
-                }
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-[#f5f6fb] px-3 py-2.5 text-[1rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
-              >
-                <option value="OLDEST">Más antiguo</option>
-                <option value="NEWEST">Más reciente</option>
-              </select>
-            </div>
             <div className="flex flex-wrap gap-2.5">
               {[
                 { key: '', label: 'Todos' },
@@ -865,11 +859,10 @@ export default function Inventario() {
 
                       setTypeKey(item.key);
                     }}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
-                        : 'border-[#d8deea] bg-white text-slate-600'
-                    }`}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${active
+                      ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
+                      : 'border-[#d8deea] bg-white text-slate-600'
+                      }`}
                   >
                     {displayCoffeeName(item.label)}
                   </button>
@@ -877,6 +870,21 @@ export default function Inventario() {
               })}
             </div>
           </section>
+        ) : null}
+
+        {isGreenInventoryView && secadoTarget ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
+              )
+            }
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-[1rem] font-bold text-white shadow-sm hover:bg-[#0d2475] transition"
+          >
+            <SunMedium size={18} />
+            Iniciar secado
+          </button>
         ) : null}
 
         {showGlobalEmptyState ? (
@@ -942,31 +950,17 @@ export default function Inventario() {
           </section>
         ) : null}
 
-        {typeKey === 'VERDE' && activeSession ? (
+        {isGreenInventoryView && activeSecadoSessions.length > 0 ? (
           <button
             type="button"
             onClick={() => navigate('/inventario/secados')}
             className="inline-flex w-full items-center justify-center gap-2 text-[0.82rem] font-semibold text-[#647cb8]"
           >
             <CircleDashed size={15} />
-            Ver secados activos
+            Ver {activeSecadoSessions.length} secado
+            {activeSecadoSessions.length === 1 ? '' : 's'} activo
+            {activeSecadoSessions.length === 1 ? '' : 's'}
             <ArrowRight size={15} />
-          </button>
-        ) : null}
-
-        {typeKey === 'VERDE' && secadoTarget ? (
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                `/inventario/${secadoTarget.tipoCafeId}/${secadoTarget.calidadId}/secado`,
-              )
-            }
-            translate="no"
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.16)]"
-          >
-            <SunMedium size={17} />
-            Iniciar secado
           </button>
         ) : null}
 
@@ -1041,10 +1035,10 @@ export default function Inventario() {
         ) : null}
 
         {!loading &&
-        !error &&
-        typeKey !== '' &&
-        typeKey !== 'EN SECADO' &&
-        orderedLots.length > 0 ? (
+          !error &&
+          typeKey !== '' &&
+          typeKey !== 'EN SECADO' &&
+          orderedLots.length > 0 ? (
           <section className={inventoryListClass(orderedLots.length)}>
             {orderedLots.map((lot) => (
               <QualityLotCard
@@ -1098,7 +1092,7 @@ export default function Inventario() {
                     );
                     setErrorBodega(null);
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
                 />
               </div>
               <div>
@@ -1116,7 +1110,7 @@ export default function Inventario() {
                     );
                     setErrorBodega(null);
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
                   placeholder="600000"
                 />
                 <p className="mt-1 text-[0.66rem] font-semibold text-slate-400">
@@ -1134,7 +1128,7 @@ export default function Inventario() {
                 type="button"
                 onClick={() => void guardarBodegaLocal()}
                 disabled={guardandoBodega}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-[0.9rem] font-black text-white disabled:opacity-60"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-[0.9rem] font-black text-white disabled:opacity-60"
               >
                 <Save size={15} />
                 {guardandoBodega ? 'Guardando...' : 'Guardar cambios'}

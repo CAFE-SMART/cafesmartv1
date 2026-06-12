@@ -386,10 +386,10 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] text-[0.72rem] font-black text-white transition ${
+                className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full text-[0.72rem] font-black text-white transition ${
                   loading
-                    ? 'cursor-wait bg-[#8398dc]'
-                    : 'bg-[#284bc1] shadow-[0_16px_30px_rgba(40,75,193,0.20)] hover:bg-[#203fa8]'
+                    ? 'cursor-wait bg-blue-300'
+                    : 'bg-[#1D4ED8] shadow-[0_16px_30px_rgba(29,78,216,0.20)] hover:bg-[#1e40af]'
                 }`}
               >
                 {loading ? (

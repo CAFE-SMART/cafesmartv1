@@ -445,7 +445,7 @@ export default function ResumenFinanciero() {
 
         {!authorized ? (
           <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
-            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]">
               <Lock size={18} />
             </span>
             <h2 className="mt-3 text-[1rem] font-black text-[#111827]">
@@ -470,7 +470,7 @@ export default function ResumenFinanciero() {
               }}
               aria-invalid={Boolean(accessError)}
               aria-describedby="financial-access-error"
-              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#102d92] aria-[invalid=true]:border-rose-300"
+              className="mt-4 w-full rounded-[8px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-2.5 text-[0.78rem] font-semibold outline-none focus:border-[#1D4ED8] aria-[invalid=true]:border-rose-300"
               placeholder="Contraseña"
             />
             <div
@@ -488,14 +488,14 @@ export default function ResumenFinanciero() {
               type="button"
               onClick={() => void handleUnlock()}
               disabled={loading}
-              className="mt-1 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white disabled:opacity-70"
+              className="mt-1 inline-flex min-h-[38px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-[0.7rem] font-black text-white disabled:opacity-70"
             >
               {loading ? 'Validando...' : 'Ver resumen financiero'}
             </button>
           </section>
         ) : !summary ? (
           <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
-            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]">
+            <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]">
               <RefreshCcw
                 size={18}
                 className={loading || refreshing ? 'animate-spin' : ''}
@@ -513,7 +513,7 @@ export default function ResumenFinanciero() {
               <button
                 type="button"
                 onClick={() => void cargar()}
-                className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white"
+                className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-[0.7rem] font-black text-white"
               >
                 Intentar de nuevo
               </button>
@@ -531,7 +531,7 @@ export default function ResumenFinanciero() {
                 </h2>
               </div>
               <div className="inline-flex min-h-[34px] items-center gap-1.5 rounded-[10px] border border-[#dfe6f2] bg-white px-2.5 text-[0.68rem] font-bold text-[#111827] shadow-sm">
-                <CalendarDays size={13} className="text-[#102d92]" />
+                <CalendarDays size={13} className="text-[#1D4ED8]" />
                 {periodoActual}
               </div>
             </div>
@@ -544,7 +544,7 @@ export default function ResumenFinanciero() {
                   onClick={() => setPeriodo(item)}
                   className={`min-h-[34px] rounded-[8px] text-[0.68rem] font-black transition ${
                     periodo === item
-                      ? 'bg-white text-[#102d92] shadow-sm'
+                      ? 'bg-white text-[#1D4ED8] shadow-sm'
                       : 'text-[#64748b]'
                   }`}
                 >
@@ -627,7 +627,7 @@ export default function ResumenFinanciero() {
               <section className="mt-3 rounded-[14px] border border-[#e5eaf3] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <LineChart size={15} className="text-[#102d92]" />
+                    <LineChart size={15} className="text-[#1D4ED8]" />
                     <div>
                       <p className="text-[0.78rem] font-black text-[#111827]">
                         Tendencia del balance
@@ -782,7 +782,7 @@ export default function ResumenFinanciero() {
                   <button
                     type="button"
                     onClick={() => setHistorialAbierto(true)}
-                    className="rounded-full bg-[#f1f5fb] px-2.5 py-1.5 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#102d92]"
+                    className="rounded-full bg-[#f1f5fb] px-2.5 py-1.5 text-[0.56rem] font-black uppercase tracking-[0.08em] text-[#1D4ED8]"
                   >
                     Ver historial
                   </button>

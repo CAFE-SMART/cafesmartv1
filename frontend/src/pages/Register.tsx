@@ -306,7 +306,7 @@ export default function Register() {
               {error ? <AlertBanner message={error} className="mb-4" /> : null}
 
               <div className="mb-5 flex items-start gap-3 rounded-[12px] border border-[#d9e5fb] bg-[#f1f6ff] px-4 py-3">
-                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#274ab8] text-white">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
                   <Info size={14} />
                 </span>
                 <p className="text-sm font-semibold leading-5 text-[#355070]">
@@ -442,7 +442,7 @@ export default function Register() {
                     className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
                       stepTwoErrors.password
                         ? 'border-rose-300 bg-rose-50/50'
-                        : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                        : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
                     }`}
                   >
                     <input
@@ -532,7 +532,7 @@ export default function Register() {
 
                 <button
                   type="submit"
-                  className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+                  className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
                 >
                   Crear cuenta
                 </button>
@@ -544,7 +544,7 @@ export default function Register() {
                       <div className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-4 text-center">
                         <Loader
                           size={18}
-                          className="mx-auto animate-spin text-[#274ab8]"
+                          className="mx-auto animate-spin text-[#1D4ED8]"
                         />
                         <p className="mt-2 text-sm font-semibold text-slate-700">
                           Validando Google...
@@ -636,7 +636,7 @@ function BusinessTypeCard({
       onClick={onSelect}
       className={`w-full rounded-[13px] border px-4 py-4 text-left transition ${
         selected
-          ? 'border-[#274ab8] bg-[#f6f8ff] shadow-[0_0_0_1px_rgba(39,74,184,0.10)]'
+          ? 'border-[#1D4ED8] bg-[#f6f8ff] shadow-[0_0_0_1px_rgba(39,74,184,0.10)]'
           : 'border-[#dfe5f1] bg-white hover:border-[#cbd6e8]'
       }`}
     >
@@ -659,7 +659,7 @@ function BusinessTypeCard({
         <span
           className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
             selected
-              ? 'border-[#274ab8] bg-[#274ab8] text-white'
+              ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
               : 'border-[#c8d2e2] text-transparent'
           }`}
           aria-hidden="true"
@@ -730,7 +730,7 @@ function TextInput({
         className={`block min-h-[50px] w-full rounded-[10px] border px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-[#a8b4c5] ${
           error
             ? 'border-rose-300 bg-rose-50/50'
-            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/10'
+            : 'border-[#dfe5f1] bg-white focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#274ab8]/10'
         }`}
       />
       {error ? <FieldError message={error} /> : null}
@@ -769,7 +769,7 @@ function RegisterFooter({
       <button
         type="button"
         onClick={onPrimary}
-        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#203fa8]"
+        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
       >
         {primaryLabel}
         {icon}
@@ -796,7 +796,7 @@ function RegisterLinks({
         <button
           type="button"
           onClick={onHelp}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
         >
           <CircleHelp size={13} />
           Ver ayuda
@@ -804,7 +804,7 @@ function RegisterLinks({
         <button
           type="button"
           onClick={onContact}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#274ab8]"
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
         >
           <Headset size={13} />
           Contactar soporte
@@ -863,7 +863,7 @@ function SupportModal({
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#274ab8]">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
               Soporte
             </p>
             <h2
@@ -913,7 +913,7 @@ function SupportModal({
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-[44px] w-full rounded-full bg-[#284bc1] px-4 text-sm font-black text-white transition hover:bg-[#203fa8]"
+          className="mt-5 min-h-[44px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
         >
           Entendido
         </button>

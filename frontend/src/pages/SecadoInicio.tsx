@@ -182,7 +182,7 @@ export default function SecadoInicio() {
             <button
               type="button"
               onClick={volver}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]"
               aria-label="Volver"
             >
               <ArrowLeft size={18} />
@@ -210,7 +210,7 @@ export default function SecadoInicio() {
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-[0.85rem] font-semibold text-slate-800">
                   Secados pendientes
                 </p>
                 <h2 className="mt-2 text-[1.2rem] font-black text-[#111827]">
@@ -220,7 +220,7 @@ export default function SecadoInicio() {
               <button
                 type="button"
                 onClick={cargarPendientes}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]"
                 aria-label="Actualizar pendientes"
               >
                 <RefreshCcw size={16} />
@@ -260,7 +260,7 @@ export default function SecadoInicio() {
                       onClick={() =>
                         navigate(`/inventario/secado/${session.id}/finalizar`)
                       }
-                      className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+                      className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white"
                     >
                       Finalizar secado
                       <ArrowRight size={16} />
@@ -297,7 +297,7 @@ export default function SecadoInicio() {
                       <SunMedium size={22} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      <p className="text-[0.85rem] font-semibold text-slate-800">
                         Secado activo
                       </p>
                       <h2 className="mt-2 text-[1.35rem] font-black text-[#111827]">
@@ -315,7 +315,7 @@ export default function SecadoInicio() {
                       <p className="text-xs font-semibold text-slate-500">
                         Cantidad
                       </p>
-                      <p className="mt-1 text-xl font-black text-[#102d92]">
+                      <p className="mt-1 text-xl font-black text-[#1D4ED8]">
                         {formatKg(totalSecadoKg(activeSession))} kg
                       </p>
                     </div>
@@ -357,7 +357,7 @@ export default function SecadoInicio() {
                           `/inventario/lote/${activeSession.loteId}/secado`,
                         )
                       }
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#102d92]"
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#cbd6f2] bg-white px-4 text-sm font-black text-[#1D4ED8]"
                     >
                       Ver detalle
                     </button>
@@ -368,7 +368,7 @@ export default function SecadoInicio() {
                           `/inventario/secado/${activeSession.id}/finalizar`,
                         )
                       }
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white"
                     >
                       Finalizar secado
                     </button>
@@ -384,7 +384,7 @@ export default function SecadoInicio() {
                 <section className="rounded-[22px] bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      <p className="text-[0.85rem] font-semibold text-slate-800">
                         Lotes verdes
                       </p>
                       <h2 className="mt-2 text-[1.2rem] font-black text-[#111827]">
@@ -394,7 +394,7 @@ export default function SecadoInicio() {
                     <button
                       type="button"
                       onClick={() => void cargar()}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]"
                       aria-label="Actualizar lotes"
                     >
                       <RefreshCcw size={16} />
@@ -475,10 +475,10 @@ export default function SecadoInicio() {
                 </section>
 
                 <section className="rounded-[20px] bg-white p-4 shadow-sm">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-[0.85rem] font-semibold text-slate-800">
                     Total seleccionado
                   </p>
-                  <p className="mt-2 text-[1.6rem] font-black text-[#102d92]">
+                  <p className="mt-2 text-[1.6rem] font-black text-[#1D4ED8]">
                     {loteSeleccionado
                       ? `${formatKg(loteSeleccionado.pesoActual)} kg`
                       : '0 kg'}

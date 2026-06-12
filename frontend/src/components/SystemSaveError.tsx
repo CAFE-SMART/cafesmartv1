@@ -104,7 +104,7 @@ export function SystemSaveError({
             type="button"
             onClick={onRetry}
             disabled={retrying}
-            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCcw size={16} className={retrying ? 'animate-spin' : ''} />
             {retrying ? 'Reintentando...' : 'Reintentar'}
@@ -112,7 +112,7 @@ export function SystemSaveError({
           <button
             type="button"
             onClick={onHome}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#d9deeb] bg-[#f8faff] px-4 text-base font-semibold text-[#102d92]"
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#d9deeb] bg-[#f8faff] px-4 text-base font-semibold text-[#1D4ED8]"
           >
             <Home size={16} />
             Volver al inicio
@@ -133,7 +133,7 @@ export function SystemSaveError({
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-black uppercase text-[#102d92]">
+                <p className="text-sm font-black uppercase text-[#1D4ED8]">
                   Soporte
                 </p>
                 <h3 className="mt-1 text-[1.25rem] font-black text-slate-900">
@@ -171,7 +171,7 @@ export function SystemSaveError({
                     )
                   }
                   rows={4}
-                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#102d92]"
+                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#1D4ED8]"
                   placeholder="Ej. Guardaba una compra de 125 kg para Juan Perez y falló al confirmar."
                 />
                 <p className="mt-1 text-right text-xs font-semibold text-slate-400">
@@ -180,7 +180,7 @@ export function SystemSaveError({
                 <button
                   type="button"
                   onClick={() => void submitSupport()}
-                  className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-base font-black text-white"
+                  className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-base font-black text-white"
                 >
                   <Send size={15} />
                   Enviar a soporte

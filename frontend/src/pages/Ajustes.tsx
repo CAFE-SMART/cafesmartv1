@@ -670,7 +670,7 @@ export default function Ajustes() {
       title: 'Proceso de secado',
       description: 'Tiempo y humedad',
       icon: Droplets,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
       onClick: abrirProcesoSecado,
     },
     {
@@ -678,7 +678,7 @@ export default function Ajustes() {
       title: 'Gastos operativos',
       description: 'Listado y registro',
       icon: Wallet,
-      iconStyle: 'bg-[#eef2ff] text-[#102d92]',
+      iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
       onClick: () => navigate('/gastos'),
     },
   ] as const;
@@ -788,11 +788,11 @@ export default function Ajustes() {
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
               <div className="h-16 w-16 rounded-full bg-[#eef2ff] p-1 shadow-inner">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#102d92]">
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#1D4ED8]">
                   <UserCircle2 size={31} />
                 </div>
               </div>
-              <div className="absolute -right-1 -bottom-1 rounded-full bg-[#102d92] p-1.5 text-white">
+              <div className="absolute -right-1 -bottom-1 rounded-full bg-[#1D4ED8] p-1.5 text-white">
                 <Settings size={10} />
               </div>
             </div>
@@ -813,7 +813,7 @@ export default function Ajustes() {
             <button
               type="button"
               onClick={abrirEditorPerfil}
-              className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#102d92]"
+              className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[12px] border border-[#d6deef] bg-[#f9fbff] px-3 text-xs font-semibold text-[#1D4ED8]"
               aria-label="Editar datos del perfil"
             >
               Editar
@@ -1068,7 +1068,7 @@ export default function Ajustes() {
               <button
                 type="button"
                 onClick={guardarEmpresa}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white mt-2"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.9rem] font-semibold text-white mt-2"
               >
                 <Save size={14} />
                 Guardar empresa
@@ -1115,8 +1115,11 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border ${error === 'Escribe el nombre del usuario.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
-                  placeholder="Nombre completo"
+                  placeholder="Ej: Juan Pérez"
                 />
+                <p className="mt-1 text-right text-[0.72rem] font-semibold text-slate-400">
+                  {profile.nombre.length}/70
+                </p>
                 {error === 'Escribe el nombre del usuario.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
                     <InlineGuidedError message={getAjustesGuidance(error)} />
@@ -1140,8 +1143,11 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border ${error === 'El correo electrónico no es válido. Verifica que esté bien escrito.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
-                  placeholder="Correo electrónico"
+                  placeholder="Ej: nombre@empresa.com"
                 />
+                <p className="mt-1 text-right text-[0.72rem] font-semibold text-slate-400">
+                  {profile.correo.length}/100
+                </p>
                 {error ===
                   'El correo electrónico no es válido. Verifica que esté bien escrito.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1167,8 +1173,11 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   className={`w-full rounded-[14px] border ${error === 'El teléfono debe tener 10 dígitos y empezar con 3.' ? 'border-rose-400 bg-rose-50' : 'border-[#dde4f1] bg-[#f7f9fd]'} px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6]`}
-                  placeholder="3001234567"
+                  placeholder="Ej: 3001234567"
                 />
+                <p className="mt-1 text-right text-[0.72rem] font-semibold text-slate-400">
+                  {profile.telefono.length}/10
+                </p>
                 {error ===
                   'El teléfono debe tener 10 dígitos y empezar con 3.' && (
                   <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1179,7 +1188,7 @@ export default function Ajustes() {
               <button
                 type="button"
                 onClick={guardarPerfil}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white mt-2"
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.9rem] font-semibold text-white mt-2"
               >
                 <Save size={14} />
                 Guardar perfil
@@ -1279,7 +1288,7 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={guardarBodega}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.9rem] font-semibold text-white"
                 >
                   <Save size={14} />
                   Guardar cambios
@@ -1289,7 +1298,7 @@ export default function Ajustes() {
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500">
-                <CalendarDays size={12} className="text-[#102d92]" />
+                <CalendarDays size={12} className="text-[#1D4ED8]" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
             </div>
@@ -1413,7 +1422,7 @@ export default function Ajustes() {
                   type="button"
                   onClick={guardarLimites}
                   disabled={guardandoLimites}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white disabled:opacity-70"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.9rem] font-semibold text-white disabled:opacity-70"
                 >
                   {guardandoLimites ? (
                     <LoaderCircle size={16} className="animate-spin" />
@@ -1444,7 +1453,7 @@ export default function Ajustes() {
             aria-labelledby="no-active-secado-title"
           >
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef2ff] text-[#102d92]">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef2ff] text-[#1D4ED8]">
                 <CircleDashed size={22} />
               </span>
               <div>
@@ -1470,7 +1479,7 @@ export default function Ajustes() {
                     state: { preferredTypeKey: 'VERDE' },
                   });
                 }}
-                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-semibold text-white"
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white"
               >
                 Iniciar secado
               </button>

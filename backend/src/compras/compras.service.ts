@@ -9,7 +9,6 @@ import {
   Compra,
   Prisma,
   Sublote,
-  TipoOrganizacion,
   TipoReferenciaInventario,
   TipoMovimientoInventario,
 } from '@prisma/client';
@@ -165,13 +164,12 @@ export class ComprasService {
     }));
   }
 
-  async obtenerCatalogos(userId: string): Promise<{
+  async obtenerCatalogos(_userId: string): Promise<{
     tiposCafe: CatalogoItem[];
     calidades: CatalogoItem[];
   }> {
     await this.asegurarCatalogosBase(this.prisma);
 
-    const tipoOrganizacion = await this.obtenerTipoOrganizacionUsuario(userId);
     const [tiposCafe, calidades] = await Promise.all([
       this.prisma.tipoCafe.findMany({
         select: { id: true, nombre: true },
@@ -183,17 +181,8 @@ export class ComprasService {
       }),
     ]);
 
-    const tiposCafeUnicos = dedupeCatalogoItems(
-      tiposCafe,
-      TIPOS_CAFE_BASE,
-    ).filter(
-      (tipoCafe) =>
-        tipoOrganizacion !== TipoOrganizacion.COMPRAVENTA ||
-        claveCatalogo(tipoCafe.nombre) !== 'TRILLADO',
-    );
-
     return {
-      tiposCafe: tiposCafeUnicos,
+      tiposCafe: dedupeCatalogoItems(tiposCafe, TIPOS_CAFE_BASE),
       calidades: dedupeCatalogoItems(calidades, CALIDADES_BASE),
     };
   }
@@ -517,21 +506,6 @@ export class ComprasService {
     }
 
     return usuario.organizacionId;
-  }
-
-  private async obtenerTipoOrganizacionUsuario(
-    userId: string,
-  ): Promise<TipoOrganizacion | null> {
-    const usuario = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        organizacion: {
-          select: { tipo: true },
-        },
-      },
-    });
-
-    return usuario?.organizacion?.tipo ?? null;
   }
 
   /**

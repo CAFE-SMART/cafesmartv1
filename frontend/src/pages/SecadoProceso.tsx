@@ -18,6 +18,7 @@ import {
   Play,
   Save,
   SunMedium,
+  X,
 } from 'lucide-react';
 import {
   createGuidedError,
@@ -27,6 +28,7 @@ import {
 import {
   getSecadoSession,
   saveSecadoResults,
+  saveSecadoDraft,
   startSecadoWithWeights,
   SecadoValidationError,
 } from '../utils/secadoFlow';
@@ -71,9 +73,12 @@ function clampDecimalInput(value: string, maxDigits: number, maxValue: number) {
 }
 
 function dateInput(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return getTodayLocalDateValue();
-  return date.toISOString().slice(0, 10);
+  if (!value.trim()) return getTodayLocalDateValue();
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return getTodayLocalDateValue();
+
+  return getTodayLocalDateValue(parsed);
 }
 
 function money(value: number) {
@@ -135,14 +140,43 @@ type PendingSecadoData = {
   selectedWeights: Record<string, number>;
 };
 
+function isPendingSecadoData(value: unknown): value is PendingSecadoData {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Partial<PendingSecadoData>;
+  return Boolean(candidate.detalle && candidate.selectedWeights);
+}
+
 export default function SecadoProceso() {
   const navigate = useNavigate();
   const location = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
 
-  const pendingData = (location.state as PendingSecadoData | null) ?? null;
+  const pendingData = isPendingSecadoData(location.state)
+    ? location.state
+    : null;
   const isNewFlow = !sessionId && pendingData !== null;
+
+  const locationState = location.state as { gastoSecadoRegistrado?: boolean } | null;
+  const [showExpenseSuccessToast, setShowExpenseSuccessToast] = useState(false);
+
+  useEffect(() => {
+    if (locationState?.gastoSecadoRegistrado) {
+      setShowExpenseSuccessToast(true);
+      
+      // Clear navigation state to avoid showing it on refresh
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: { ...locationState, gastoSecadoRegistrado: undefined },
+      });
+
+      const timer = setTimeout(() => {
+        setShowExpenseSuccessToast(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [locationState?.gastoSecadoRegistrado, location.pathname, location.search, navigate]);
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     sessionId ?? null,
@@ -154,17 +188,27 @@ export default function SecadoProceso() {
       : 'config',
   );
   const [startDate, setStartDate] = useState(
-    session ? dateInput(session.startedAt) : dateInput(''),
+    session
+      ? dateInput(session.draftStartDate ?? session.startedAt)
+      : dateInput(''),
   );
-  const [endDate, setEndDate] = useState(getTodayLocalDateValue());
+  const [endDate, setEndDate] = useState(
+    session?.draftEndDate ?? getTodayLocalDateValue(),
+  );
   const [buenoKg, setBuenoKg] = useState(
-    session?.outputBuenoKg ? String(session.outputBuenoKg) : '',
+    session?.draftBuenoKg ?? session?.outputBuenoKg
+      ? String(session?.draftBuenoKg ?? session?.outputBuenoKg)
+      : '',
   );
   const [regularKg, setRegularKg] = useState(
-    session?.outputRegularKg ? String(session.outputRegularKg) : '',
+    session?.draftRegularKg ?? session?.outputRegularKg
+      ? String(session?.draftRegularKg ?? session?.outputRegularKg)
+      : '',
   );
   const [maloKg, setMaloKg] = useState(
-    session?.outputMaloKg ? String(session.outputMaloKg) : '',
+    session?.draftMaloKg ?? session?.outputMaloKg
+      ? String(session?.draftMaloKg ?? session?.outputMaloKg)
+      : '',
   );
   const [withExpense, setWithExpense] = useState(false);
   const [secadoExpenses, setSecadoExpenses] = useState<GastoItem[]>([]);
@@ -193,11 +237,11 @@ export default function SecadoProceso() {
   );
   const sourceQuality = keyOf(session?.calidad ?? pendingCalidad);
   const outputQualities = ['BUENO', 'REGULAR', 'MALO'] as const;
-  const bueno = outputQualities.includes('BUENO') ? Number(buenoKg) || 0 : 0;
+  const bueno = outputQualities.includes('BUENO') ? Number(String(buenoKg).replace(',', '.')) || 0 : 0;
   const regular = outputQualities.includes('REGULAR')
-    ? Number(regularKg) || 0
+    ? Number(String(regularKg).replace(',', '.')) || 0
     : 0;
-  const malo = outputQualities.includes('MALO') ? Number(maloKg) || 0 : 0;
+  const malo = outputQualities.includes('MALO') ? Number(String(maloKg).replace(',', '.')) || 0 : 0;
   const totalSalida = bueno + regular + malo;
   const hasSecadoOutput = totalSalida > 0;
   const merma = hasSecadoOutput ? Math.max(0, totalEntrada - totalSalida) : 0;
@@ -246,12 +290,21 @@ export default function SecadoProceso() {
 
         const gastosUnicos = new Map<string, GastoItem>();
         resultados.flat().forEach((gasto) => {
-          if (gasto.tipoGasto === 'SECADO') {
+          const isSecadoType = gasto.tipoGasto === 'SECADO';
+          const isCreatedAfterStart =
+            new Date(gasto.createdAt).getTime() >=
+            new Date(session.startedAt).getTime() - 60000;
+
+          if (isSecadoType || isCreatedAfterStart) {
             gastosUnicos.set(gasto.id, gasto);
           }
         });
 
-        setSecadoExpenses([...gastosUnicos.values()]);
+        const list = [...gastosUnicos.values()];
+        setSecadoExpenses(list);
+        if (list.length > 0) {
+          setWithExpense(true);
+        }
       } catch {
         if (!cancelled) {
           setSecadoExpenses([]);
@@ -268,7 +321,7 @@ export default function SecadoProceso() {
     return () => {
       cancelled = true;
     };
-  }, [session?.id]);
+  }, [session?.id, session?.startedAt, locationState?.gastoSecadoRegistrado]);
 
   const totalGastoSecado = useMemo(
     () => secadoExpenses.reduce((sum, gasto) => sum + gasto.montoGasto, 0),
@@ -383,6 +436,18 @@ export default function SecadoProceso() {
   };
 
   const handleExpenseYes = () => {
+    setWithExpense(true);
+
+    if (activeSessionId) {
+      saveSecadoDraft(activeSessionId, {
+        startDate,
+        endDate,
+        buenoKg: bueno,
+        regularKg: regular,
+        maloKg: malo,
+      });
+    }
+
     if (tieneGastoSecado) {
       setShowExpenseWarning(true);
       return;
@@ -433,7 +498,7 @@ export default function SecadoProceso() {
           <button
             type="button"
             onClick={handleBack}
-            className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-[#1f4fd8]"
+            className="absolute left-4 inline-flex h-8 w-8 items-center justify-center text-slate-900"
             aria-label="Volver"
           >
             <ArrowLeft size={18} />
@@ -447,6 +512,25 @@ export default function SecadoProceso() {
           </h1>
         </header>
 
+        {showExpenseSuccessToast ? (
+          <div className="mx-4 mt-3 flex items-center justify-between rounded-[12px] bg-emerald-50 border border-emerald-200 p-3 text-emerald-800 shadow-sm transition-all transform duration-300 ease-out">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span className="text-xs font-semibold text-emerald-950">
+                ¡Gasto de secado registrado exitosamente!
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowExpenseSuccessToast(false)}
+              className="text-emerald-500 hover:text-emerald-700 transition"
+              aria-label="Cerrar notificación"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : null}
+
         {step === 'config' ? (
           <main className="flex flex-col gap-4 px-4 py-4">
             <section className="relative h-36 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#294730,#d7b46a)] p-4 text-white shadow-sm">
@@ -459,7 +543,7 @@ export default function SecadoProceso() {
             </section>
 
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
-              <label className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
+              <label className="text-[0.85rem] font-semibold text-slate-800">
                 Fecha de inicio de secado
               </label>
               <div className="mt-2 flex h-12 items-center gap-3 rounded-[12px] bg-slate-100 px-3">
@@ -479,7 +563,7 @@ export default function SecadoProceso() {
             </section>
 
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
-              <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
+              <p className="text-[0.85rem] font-semibold text-slate-800">
                 Resumen del secado
               </p>
               <div className="mt-3 flex items-center justify-between">
@@ -521,7 +605,7 @@ export default function SecadoProceso() {
               onClick={
                 isNewFlow ? confirmarInicioSecado : () => setStep('active')
               }
-              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)]"
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] text-xs font-black text-white shadow-[0_12px_22px_rgba(29,78,216,0.2)] hover:bg-[#1e40af] transition"
             >
               Iniciar proceso <Play size={15} fill="currentColor" />
             </button>
@@ -533,10 +617,10 @@ export default function SecadoProceso() {
             <section className="relative h-44 w-full overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#5a783e,#eccb78_52%,#71562f)] p-4 shadow-sm">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_15%,rgba(255,255,255,.75),transparent_18%),linear-gradient(180deg,rgba(255,255,255,.08),rgba(8,24,44,.4))]" />
               <div className="relative flex h-full items-end">
-                <span className="inline-flex items-center gap-2 rounded-[12px] bg-white/80 px-3 py-2 text-xs font-black text-slate-700">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-2 text-xs font-black text-slate-700">
                   <SunMedium
                     size={17}
-                    className="rounded-full bg-[#0647d6] p-1 text-white"
+                    className="rounded-full bg-[#1D4ED8] p-1 text-white"
                   />
                   Proceso Activo
                 </span>
@@ -557,14 +641,14 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={() => setStep('finish')}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] text-xs font-black text-white shadow-[0_12px_22px_rgba(29,78,216,0.2)] hover:bg-[#1e40af] transition"
               >
                 Finalizar secado <CheckCircle2 size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/inicio')}
-                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#0647d6]"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#1D4ED8] hover:text-[#1e40af] transition"
               >
                 <ArrowLeft size={15} /> Ir a inicio
               </button>
@@ -575,23 +659,38 @@ export default function SecadoProceso() {
         {step === 'finish' ? (
           <main className="flex flex-col gap-4 px-4 py-4">
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
-              <label className="text-[0.62rem] font-black uppercase text-slate-500">
-                Fecha de inicio
-              </label>
-              <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">
-                {startDate}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[0.85rem] font-semibold text-slate-800">
+                    Fecha de inicio
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    readOnly
+                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-sm font-black outline-none text-slate-700 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[0.85rem] font-semibold text-slate-800">
+                    Fecha de finalización
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={BUSINESS_MIN_DATE_VALUE}
+                    max={getTodayLocalDateValue()}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setEndDate(value);
+                      if (activeSessionId) {
+                        saveSecadoDraft(activeSessionId, { endDate: value });
+                      }
+                    }}
+                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-sm font-black outline-none"
+                  />
+                </div>
               </div>
-              <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">
-                Fecha de finalización
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                min={BUSINESS_MIN_DATE_VALUE}
-                max={getTodayLocalDateValue()}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-black outline-none"
-              />
               {fechaSecadoError ? (
                 <InlineGuidedError
                   message={getSecadoGuidance(fechaSecadoError)}
@@ -603,34 +702,55 @@ export default function SecadoProceso() {
             <section className="rounded-[16px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black">Resultado del secado</h2>
               <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra los kilos secos obtenidos por calidad.
+                Ingresa el peso final en seco para cada calidad de café obtenido.
               </p>
-              {outputFields.map((field) => (
-                <label key={field.quality} className="mt-4 block">
-                  <span className="text-[0.62rem] font-black uppercase text-slate-500">
-                    {field.label}
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    maxLength={8}
-                    value={field.value}
-                    onChange={(event) => {
-                      field.setter(
-                        clampDecimalInput(
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {outputFields.map((field) => (
+                  <div key={field.quality} className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-800 text-center truncate">
+                      {field.label.replace('Seco ', '')}
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      maxLength={8}
+                      value={field.value}
+                      onChange={(event) => {
+                        const nextValue = clampDecimalInput(
                           event.target.value,
                           7,
                           MAX_SECADO_OUTPUT_KG,
-                        ),
-                      );
-                      setError(null);
-                      setMostrarConfirmacionMermaCero(false);
-                    }}
-                    className="mt-2 h-12 w-full rounded-[12px] bg-slate-100 px-4 text-center text-lg font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
-                    placeholder="0"
-                  />
-                </label>
-              ))}
+                        );
+                        field.setter(nextValue);
+                        setError(null);
+                        setMostrarConfirmacionMermaCero(false);
+                        if (activeSessionId) {
+                          const nextBueno =
+                            field.quality === 'BUENO'
+                              ? Number(String(nextValue).replace(',', '.')) || 0
+                              : bueno;
+                          const nextRegular =
+                            field.quality === 'REGULAR'
+                              ? Number(String(nextValue).replace(',', '.')) || 0
+                              : regular;
+                          const nextMalo =
+                            field.quality === 'MALO'
+                              ? Number(String(nextValue).replace(',', '.')) || 0
+                              : malo;
+
+                          saveSecadoDraft(activeSessionId, {
+                            buenoKg: nextBueno,
+                            regularKg: nextRegular,
+                            maloKg: nextMalo,
+                          });
+                        }
+                      }}
+                      className="mt-2 h-10 w-full rounded-[10px] bg-slate-100 px-2 text-center text-sm font-black outline-none focus:ring-1 focus:ring-[#0647d6]"
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
               {!hasSecadoOutput ? (
                 <p className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[0.78rem] font-semibold leading-5 text-amber-800">
                   Registra al menos una salida seca en bueno, regular o malo
@@ -646,19 +766,19 @@ export default function SecadoProceso() {
             </section>
 
             <section className="overflow-hidden rounded-[16px] bg-white shadow-sm">
-              <div className="flex items-center gap-2 bg-[#0647d6] px-4 py-3 text-xs font-black uppercase text-white">
+              <div className="flex items-center gap-2 bg-[#0647d6] px-4 py-3 text-sm font-semibold text-white">
                 <Save size={15} />
-                Resumen de totales
+                Resumen del secado
               </div>
               <div className="grid grid-cols-3 gap-2 p-4 text-center">
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                  <p className="text-xs font-semibold text-slate-700">
                     Entrada
                   </p>
                   <p className="mt-1 text-lg font-black">{kg(totalEntrada)}</p>
                 </div>
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                  <p className="text-xs font-semibold text-slate-700">
                     Salida
                   </p>
                   <p className="mt-1 text-lg font-black">
@@ -666,7 +786,7 @@ export default function SecadoProceso() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[0.6rem] font-black uppercase text-slate-400">
+                  <p className="text-xs font-semibold text-slate-700">
                     Merma
                   </p>
                   {hasSecadoOutput ? (
@@ -690,30 +810,17 @@ export default function SecadoProceso() {
                   )}
                 </div>
               </div>
-              {hasSecadoOutput ? (
-                <div className="border-t border-slate-100 px-4 pb-4">
-                  <p className="mb-2 text-[0.6rem] font-black uppercase text-slate-400">
-                    Salida por calidad
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 text-center text-[0.72rem] font-bold text-slate-600">
-                    <span className="rounded-[10px] bg-emerald-50 px-2 py-2 text-emerald-700">
-                      Bueno<br />{kg(bueno)}
-                    </span>
-                    <span className="rounded-[10px] bg-amber-50 px-2 py-2 text-amber-700">
-                      Regular<br />{kg(regular)}
-                    </span>
-                    <span className="rounded-[10px] bg-rose-50 px-2 py-2 text-rose-700">
-                      Malo<br />{kg(malo)}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
             </section>
 
             <section className="rounded-[18px] bg-white p-4 shadow-sm">
               <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8ff] text-[#0647d6]">
+                <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8ff] text-[#0647d6]">
                   <Save size={16} />
+                  {tieneGastoSecado ? (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[0.58rem] font-black text-white shadow-sm ring-2 ring-white">
+                      {secadoExpenses.length}
+                    </span>
+                  ) : null}
                 </span>
                 <div>
                   <p className="text-sm font-black">
@@ -723,7 +830,7 @@ export default function SecadoProceso() {
                     {loadingSecadoExpenses
                       ? 'Revisando gastos registrados...'
                       : tieneGastoSecado
-                        ? `Gasto de secado registrado: ${money(totalGastoSecado)}`
+                        ? `${secadoExpenses.length} gasto${secadoExpenses.length > 1 ? 's' : ''} registrado${secadoExpenses.length > 1 ? 's' : ''}: ${money(totalGastoSecado)}`
                         : 'Registra mano de obra, combustible u otros costos del secado.'}
                   </p>
                 </div>
@@ -732,14 +839,14 @@ export default function SecadoProceso() {
                 <button
                   type="button"
                   onClick={() => setWithExpense(false)}
-                  className={`h-9 rounded-full border text-xs font-black ${!withExpense ? 'border-[#0647d6] text-[#0647d6]' : 'border-slate-200 text-slate-400'}`}
+                  className={`h-9 rounded-full border text-xs font-black ${!withExpense ? 'border-[#1D4ED8] text-[#1D4ED8]' : 'border-slate-200 text-slate-400'}`}
                 >
                   No
                 </button>
                 <button
                   type="button"
                   onClick={handleExpenseYes}
-                  className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#b6c6ff] text-[#0647d6]' : 'bg-slate-100 text-slate-400'}`}
+                  className={`h-9 rounded-full text-xs font-black ${withExpense ? 'bg-[#dce8ff] text-[#1D4ED8]' : 'bg-slate-100 text-slate-400'}`}
                 >
                   Sí
                 </button>
@@ -750,7 +857,7 @@ export default function SecadoProceso() {
               type="button"
               onClick={finalizar}
               disabled={!hasSecadoOutput}
-              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300 hover:bg-[#1e40af] transition"
             >
               <CheckCircle2 size={16} />
               Finalizar secado
@@ -782,14 +889,14 @@ export default function SecadoProceso() {
                   setShowExpenseWarning(false);
                   registrarGastoSecado();
                 }}
-                className="h-10 rounded-[12px] bg-[#102d92] text-[0.72rem] font-black text-white"
+                className="h-10 rounded-full bg-[#1D4ED8] text-[0.72rem] font-black text-white hover:bg-[#1e40af] transition shadow-[0_4px_12px_rgba(29,78,216,0.16)]"
               >
                 Agregar otro gasto
               </button>
               <button
                 type="button"
                 onClick={() => setShowExpenseWarning(false)}
-                className="h-10 rounded-[12px] bg-slate-100 text-[0.72rem] font-black text-slate-600"
+                className="h-10 rounded-full bg-slate-100 text-[0.72rem] font-black text-slate-600 hover:bg-slate-200 transition"
               >
                 Mantener el gasto actual
               </button>
@@ -819,14 +926,14 @@ export default function SecadoProceso() {
               <button
                 type="button"
                 onClick={guardarResultadoSecado}
-                className="flex min-h-[52px] w-full items-center justify-center rounded-[16px] bg-[#102d92] px-5 text-sm font-black text-white"
+                className="flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-sm font-black text-white hover:bg-[#1e40af] transition shadow-[0_12px_22px_rgba(29,78,216,0.18)]"
               >
                 Sí, registrar así
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarConfirmacionMermaCero(false)}
-                className="flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-slate-100 px-5 text-sm font-black text-[#102d92]"
+                className="flex min-h-[48px] w-full items-center justify-center rounded-full bg-slate-100 px-5 text-sm font-black text-[#1D4ED8] hover:bg-slate-200 transition"
               >
                 Ajustar peso
               </button>

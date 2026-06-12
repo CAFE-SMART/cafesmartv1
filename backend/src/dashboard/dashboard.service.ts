@@ -435,34 +435,37 @@ export class DashboardService {
     const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
 
     const [
-      comprasHoy,
-      ventasHoy,
-      gastosHoy,
+      comprasAggregate,
+      ventasAggregate,
+      gastosAggregate,
       kgCompradosHoy,
-      totalComprasHoy,
-      totalVentasHoy,
-      totalGastosHoy,
       totalProductores,
       resumenInventario,
       kgCapacidad,
       inventarioBodega,
       sublotesAntiguos,
     ] = await Promise.all([
-      this.prisma.compra.count({
+      this.prisma.compra.aggregate({
+        _count: { id: true },
+        _sum: { totalCompra: true },
         where: {
           organizacionId,
           deletedAt: null,
           fecha: { gte: inicioDia, lt: finDia },
         },
       }),
-      this.prisma.venta.count({
+      this.prisma.venta.aggregate({
+        _count: { id: true },
+        _sum: { totalVenta: true },
         where: {
           organizacionId,
           deletedAt: null,
           fecha: { gte: inicioDia, lt: finDia },
         },
       }),
-      this.prisma.gastoOperativo.count({
+      this.prisma.gastoOperativo.aggregate({
+        _count: { id: true },
+        _sum: { montoGasto: true },
         where: {
           organizacionId,
           deletedAt: null,
@@ -480,30 +483,6 @@ export class DashboardService {
           },
         },
       }),
-      this.prisma.compra.aggregate({
-        _sum: { totalCompra: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-          fecha: { gte: inicioDia, lt: finDia },
-        },
-      }),
-      this.prisma.venta.aggregate({
-        _sum: { totalVenta: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-          fecha: { gte: inicioDia, lt: finDia },
-        },
-      }),
-      this.prisma.gastoOperativo.aggregate({
-        _sum: { montoGasto: true },
-        where: {
-          organizacionId,
-          deletedAt: null,
-          fechaGasto: { gte: inicioDia, lt: finDia },
-        },
-      }),
       this.prisma.productor.count({
         where: {
           organizacionId,
@@ -517,13 +496,13 @@ export class DashboardService {
     ]);
 
     return {
-      comprasHoy,
-      ventasHoy,
-      gastosHoy,
+      comprasHoy: comprasAggregate._count.id ?? 0,
+      ventasHoy: ventasAggregate._count.id ?? 0,
+      gastosHoy: gastosAggregate._count.id ?? 0,
       kgCompradosHoy: Number(kgCompradosHoy._sum.pesoInicial ?? 0),
-      totalComprasHoy: Number(totalComprasHoy._sum.totalCompra ?? 0),
-      totalVentasHoy: Number(totalVentasHoy._sum.totalVenta ?? 0),
-      totalGastosHoy: Number(totalGastosHoy._sum.montoGasto ?? 0),
+      totalComprasHoy: Number(comprasAggregate._sum.totalCompra ?? 0),
+      totalVentasHoy: Number(ventasAggregate._sum.totalVenta ?? 0),
+      totalGastosHoy: Number(gastosAggregate._sum.montoGasto ?? 0),
       totalProductores,
       kgActual: resumenInventario.kgActual,
       kgCapacidad,

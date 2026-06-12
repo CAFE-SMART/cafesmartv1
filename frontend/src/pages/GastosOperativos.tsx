@@ -57,7 +57,7 @@ const FIELD_ORDER: FieldKey[] = ['concepto', 'monto', 'fecha', 'sublotes'];
 const MONTO_MAXIMO_GASTO = 99999999;
 const CONCEPTO_MAX_LENGTH = 60;
 const DESCRIPCION_MAX_LENGTH = 200;
-const CONCEPTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
+const CONCEPTO_VALIDO_REGEX = /^[\p{L}\s]+$/u;
 const CONCEPTO_TIENE_LETRA_REGEX = /\p{L}/u;
 const CONCEPTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 
@@ -83,7 +83,7 @@ function getInputClassName(hasError: boolean, extraClasses = '') {
   return `w-full rounded-[8px] border bg-white outline-none transition ${extraClasses} ${
     hasError
       ? 'border-rose-300 bg-rose-50/60 text-rose-950 placeholder:text-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
-      : 'border-slate-200 focus:border-[#102d92] focus:ring-1 focus:ring-[#102d92]/20'
+      : 'border-slate-200 focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#102d92]/20'
   }`;
 }
 
@@ -269,6 +269,18 @@ export default function GastosOperativos() {
     }
   }, [subloteIdsDesdeRuta, vieneDeSecado]);
 
+  const volverAlOrigen = () => {
+    if (secadoReturnTo) {
+      navigate(secadoReturnTo, {
+        replace: true,
+        state: { gastoSecadoRegistrado: false },
+      });
+      return;
+    }
+
+    navigate(-1);
+  };
+
   const limpiarErrorCampo = (field: FieldKey) => {
     setFieldErrors((prev) => {
       if (!prev[field]) {
@@ -337,22 +349,19 @@ export default function GastosOperativos() {
     const fechaValidacion = validateBusinessDateRange(fecha);
 
     const conceptoNormalizado = concepto.trim();
+    const lettersCount = (conceptoNormalizado.match(/\p{L}/gu) || []).length;
 
     if (!conceptoNormalizado) {
       errors.concepto = getFieldGuidance('concepto', {
         whatOverride: 'Escribe el concepto del gasto.',
       });
-    } else if (CONCEPTO_SOLO_NUMEROS_REGEX.test(conceptoNormalizado)) {
-      errors.concepto = getFieldGuidance('concepto', {
-        whatOverride: 'Describe el gasto con al menos una palabra.',
-      });
     } else if (!CONCEPTO_VALIDO_REGEX.test(conceptoNormalizado)) {
       errors.concepto = getFieldGuidance('concepto', {
-        whatOverride: 'El concepto contiene caracteres no válidos.',
+        whatOverride: 'Solo se permiten letras y espacios.',
       });
-    } else if (!CONCEPTO_TIENE_LETRA_REGEX.test(conceptoNormalizado)) {
+    } else if (lettersCount < 3) {
       errors.concepto = getFieldGuidance('concepto', {
-        whatOverride: 'El concepto contiene caracteres no válidos.',
+        whatOverride: 'El concepto debe ser descriptivo (mínimo 3 letras).',
       });
     }
 
@@ -557,7 +566,7 @@ export default function GastosOperativos() {
         <div className="relative min-h-[32px]">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={volverAlOrigen}
             className="absolute left-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-white"
             aria-label="Volver"
           >
@@ -586,7 +595,8 @@ export default function GastosOperativos() {
               aria-invalid={Boolean(fieldErrors.concepto)}
               aria-describedby={undefined}
               onChange={(event) => {
-                setConcepto(event.target.value.slice(0, CONCEPTO_MAX_LENGTH));
+                const soloLetrasYEspacios = event.target.value.replace(/[^\p{L}\s]/gu, '');
+                setConcepto(soloLetrasYEspacios.slice(0, CONCEPTO_MAX_LENGTH));
                 limpiarErrorCampo('concepto');
               }}
             />
@@ -596,9 +606,14 @@ export default function GastosOperativos() {
                 className="mt-2"
               />
             ) : (
-              <p className="ml-1 text-right text-[0.62rem] font-semibold text-slate-400">
-                {concepto.length}/{CONCEPTO_MAX_LENGTH}
-              </p>
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[0.62rem] font-semibold text-slate-400">
+                  Solo se permiten letras y espacios en el concepto del gasto.
+                </span>
+                <p className="text-[0.62rem] font-semibold text-slate-400">
+                  {concepto.length}/{CONCEPTO_MAX_LENGTH}
+                </p>
+              </div>
             )}
           </div>
 
@@ -822,7 +837,7 @@ export default function GastosOperativos() {
                   Seleccionar sublotes
                 </label>
                 {sublotesSeleccionados.length > 0 ? (
-                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-xs font-bold text-[#102d92] animate-in zoom-in">
+                  <span className="rounded bg-[#f0f4ff] px-2 py-0.5 text-xs font-bold text-[#1D4ED8] animate-in zoom-in">
                     {sublotesSeleccionados.length} seleccionados
                   </span>
                 ) : null}
@@ -894,7 +909,7 @@ export default function GastosOperativos() {
                         <div
                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
                             seleccionado
-                              ? 'border-[#102d92] bg-[#102d92]'
+                              ? 'border-[#1D4ED8] bg-[#1D4ED8]'
                               : 'border-slate-300 bg-white'
                           }`}
                         >
@@ -932,7 +947,7 @@ export default function GastosOperativos() {
             type="button"
             disabled={saving || botonGuardarPresionado}
             onClick={handleConfirmar}
-            className="flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2f67eb] px-4 text-[0.95rem] font-black text-white shadow-[0_10px_22px_rgba(47,103,235,0.25)] transition active:scale-[0.98] hover:bg-[#2557d6] disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {saving || botonGuardarPresionado ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -944,10 +959,10 @@ export default function GastosOperativos() {
           <button
             type="button"
             disabled={saving}
-            onClick={() => navigate(-1)}
-            className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.9rem] font-bold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={volverAlOrigen}
+            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Cancelar
+            Regresar
           </button>
         </div>
       </main>
@@ -969,7 +984,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white shadow-[0_8px_16px_rgba(32,81,229,0.24)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-full bg-[#1D4ED8] py-3 text-[0.85rem] font-semibold text-white shadow-[0_8px_16px_rgba(29,78,216,0.16)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving || botonGuardarPresionado
                   ? 'Guardando gasto...'
@@ -979,7 +994,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving}
                 onClick={cerrarModalConfirmar}
-                className="w-full rounded-[8px] border border-slate-200 bg-white py-2.5 text-[0.62rem] font-bold text-slate-600 transition"
+                className="w-full rounded-full border border-slate-200 bg-white py-3 text-[0.82rem] font-semibold text-slate-600 transition hover:bg-slate-50"
               >
                 Cancelar
               </button>
@@ -1008,7 +1023,7 @@ export default function GastosOperativos() {
                   setShowSuccessModal(false);
                   resetForm();
                 }}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
+                className="w-full rounded-full bg-[#1D4ED8] py-3 text-[0.85rem] font-semibold text-white transition active:scale-[0.98]"
               >
                 Registrar otro gasto
               </button>
@@ -1016,7 +1031,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving}
                 onClick={() => navigate('/inicio')}
-                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
+                className="w-full rounded-full border border-slate-200 bg-white py-3 text-[0.82rem] font-semibold text-slate-600 transition hover:bg-slate-50"
               >
                 Ir a inicio
               </button>
@@ -1044,14 +1059,14 @@ export default function GastosOperativos() {
                   setShowErrorModal(null);
                   void handleGuardar();
                 }}
-                className="w-full rounded-[8px] bg-[#2051e5] py-2.5 text-[0.68rem] font-black text-white transition active:scale-[0.98]"
+                className="w-full rounded-full bg-[#1D4ED8] py-3 text-[0.85rem] font-semibold text-white transition active:scale-[0.98]"
               >
                 Reintentar
               </button>
               <button
                 type="button"
                 onClick={() => setShowErrorModal(null)}
-                className="w-full rounded-[8px] bg-transparent py-2.5 text-[0.62rem] font-bold text-slate-500 transition hover:text-slate-800"
+                className="w-full rounded-full border border-slate-200 bg-white py-3 text-[0.82rem] font-semibold text-slate-600 transition hover:bg-slate-50"
               >
                 Cancelar
               </button>

@@ -30,7 +30,7 @@ import {
 } from '../services/bodegaApi';
 
 const sectionTitleClass =
-  'text-[0.82rem] font-black tracking-normal text-[#65758f]';
+  'text-[0.9rem] font-semibold text-slate-800';
 const cardClass =
   'rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)]';
 
@@ -185,16 +185,16 @@ function SummaryMetricCard({
   tone?: 'blue' | 'green' | 'amber' | 'slate';
 }) {
   const toneClass = {
-    blue: 'bg-[#eef3ff] text-[#2f4aa4]',
-    green: 'bg-[#e9fbf4] text-[#0d7b67]',
-    amber: 'bg-[#fff7df] text-[#b77900]',
-    slate: 'bg-[#f2f4f7] text-[#667085]',
+    blue: 'bg-[#eef3ff] text-[#1D4ED8]',
+    green: 'bg-[#f0fdf4] text-[#166534]',
+    amber: 'bg-[#fffbeb] text-[#b45309]',
+    slate: 'bg-[#f8fafc] text-[#334155]',
   }[tone];
 
   return (
     <div className="min-h-[76px] rounded-[16px] border border-[#e5ebf5] bg-[#fbfcff] px-3 py-3">
       <div className="flex items-start justify-between gap-2">
-        <span className="block text-[0.72rem] font-semibold leading-4 text-[#65758f]">
+        <span className="block text-[0.72rem] font-semibold leading-4 text-slate-700">
           {label}
         </span>
         <span
@@ -215,21 +215,21 @@ function qualityColorClasses(calidad: string) {
 
   if (key === 'BUENO') {
     return {
-      icon: 'bg-[#e9fbf4] text-[#0d7b67]',
-      chip: 'bg-[#dcfce7] text-[#16845a]',
+      icon: 'bg-[#f0fdf4] text-[#166534]',
+      chip: 'bg-[#dcfce7] text-[#166534]',
     };
   }
 
   if (key === 'REGULAR') {
     return {
-      icon: 'bg-[#fff7df] text-[#b77900]',
-      chip: 'bg-[#fff3c4] text-[#a15c00]',
+      icon: 'bg-[#fffbeb] text-[#b45309]',
+      chip: 'bg-[#fef3c7] text-[#b45309]',
     };
   }
 
   return {
-    icon: 'bg-[#ffe7e4] text-[#b42318]',
-    chip: 'bg-[#ffe7e4] text-[#b42318]',
+    icon: 'bg-[#fef2f2] text-[#b91c1c]',
+    chip: 'bg-[#fee2e2] text-[#b91c1c]',
   };
 }
 
@@ -507,7 +507,7 @@ export default function Inicio() {
               </div>
 
               <div className="mt-4 flex items-center gap-2 rounded-[16px] bg-[#f4f7fb] px-3 py-2.5">
-                <div className="inline-flex items-center gap-2 text-[0.76rem] font-semibold text-[#65758f]">
+                <div className="inline-flex items-center gap-2 text-[0.76rem] font-semibold text-slate-700">
                   <span
                     className={`h-2 w-2 rounded-full ${resolveCloudDotClass(tone)}`}
                     aria-hidden="true"
@@ -542,7 +542,7 @@ export default function Inicio() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className={sectionTitleClass}>Resumen del d&iacute;a</p>
-                  <p className="mt-1 text-[0.76rem] font-medium text-[#8a98ad]">
+                  <p className="mt-1 text-[0.76rem] font-medium text-slate-600">
                     Actividad principal de tu negocio.
                   </p>
                 </div>
@@ -609,7 +609,7 @@ export default function Inicio() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className={sectionTitleClass}>Capacidad en bodega</p>
-                  <p className="mt-1 text-[0.76rem] font-medium leading-5 text-[#8a98ad]">
+                  <p className="mt-1 text-[0.76rem] font-medium leading-5 text-slate-600">
                     Revisa cuánto espacio queda antes de registrar nuevas compras.
                   </p>
                 </div>
@@ -682,7 +682,7 @@ export default function Inicio() {
             <section className="px-5 py-3">
               <div>
                 <p className={sectionTitleClass}>Sublotes m&aacute;s antiguos</p>
-                <p className="mt-1 text-[0.76rem] font-medium text-[#8a98ad]">
+                <p className="mt-1 text-[0.76rem] font-medium text-slate-600">
                   Los 3 sublotes que llevan más tiempo en bodega.
                 </p>
               </div>
@@ -758,7 +758,7 @@ export default function Inicio() {
                     );
                     setErrorBodega(null);
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
                 />
               </div>
               <div>
@@ -776,7 +776,7 @@ export default function Inicio() {
                     );
                     setErrorBodega(null);
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#102d92]"
+                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.92rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
                   placeholder="600000"
                 />
                 <p className="mt-1 text-[0.66rem] font-semibold text-slate-400">

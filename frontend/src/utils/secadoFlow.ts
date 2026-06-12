@@ -21,6 +21,7 @@ export type SecadoSubloteSeleccionado = {
   humedad: number | null;
   fechaIngreso: string;
   diasEnBodega: number;
+  calidad?: string;
 };
 
 export type SecadoSession = {
@@ -45,6 +46,11 @@ export type SecadoSession = {
   outputMaloHumedad?: number | null;
   mermaKg: number;
   rendimientoPct: number;
+  draftStartDate?: string;
+  draftEndDate?: string;
+  draftBuenoKg?: number;
+  draftRegularKg?: number;
+  draftMaloKg?: number;
 };
 
 type ResultadoSecadoPayload = {
@@ -102,6 +108,14 @@ function readStorage() {
 
 function writeStorage(sessions: SecadoSession[]) {
   secadoSessionsMemory = sessions;
+}
+
+function updateSession(sessionId: string, updater: (session: SecadoSession) => SecadoSession) {
+  writeStorage(
+    readStorage().map((session) =>
+      session.id === sessionId ? updater(session) : session,
+    ),
+  );
 }
 
 function daysSince(value: string) {
@@ -449,6 +463,26 @@ export function getSecadoSession(sessionId: string) {
   return readStorage().find((session) => session.id === sessionId) ?? null;
 }
 
+export function saveSecadoDraft(
+  sessionId: string,
+  draft: {
+    startDate?: string;
+    endDate?: string;
+    buenoKg?: number;
+    regularKg?: number;
+    maloKg?: number;
+  },
+) {
+  updateSession(sessionId, (session) => ({
+    ...session,
+    draftStartDate: draft.startDate ?? session.draftStartDate,
+    draftEndDate: draft.endDate ?? session.draftEndDate,
+    draftBuenoKg: draft.buenoKg ?? session.draftBuenoKg,
+    draftRegularKg: draft.regularKg ?? session.draftRegularKg,
+    draftMaloKg: draft.maloKg ?? session.draftMaloKg,
+  }));
+}
+
 export function getActiveSecadoSession() {
   return readStorage().find((session) => isActiveSession(session)) ?? null;
 }
@@ -517,6 +551,7 @@ export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
       humedad: sublote.humedad,
       fechaIngreso: sublote.fechaIngreso,
       diasEnBodega: sublote.diasEnBodega,
+      calidad: sublote.calidad,
     })),
     startedAt: timestamp,
     updatedAt: timestamp,
@@ -529,6 +564,11 @@ export function startSecado(detalle: LoteDetalle, selectedIds: string[]) {
     outputMaloHumedad: null,
     mermaKg: 0,
     rendimientoPct: 0,
+    draftStartDate: undefined,
+    draftEndDate: undefined,
+    draftBuenoKg: undefined,
+    draftRegularKg: undefined,
+    draftMaloKg: undefined,
   };
 
   writeStorage([session, ...sessions]);
@@ -594,6 +634,7 @@ export function startSecadoWithWeights(
       humedad: sublote.humedad,
       fechaIngreso: sublote.fechaIngreso,
       diasEnBodega: sublote.diasEnBodega,
+      calidad: sublote.calidad,
     })),
     startedAt: timestamp,
     updatedAt: timestamp,
@@ -606,6 +647,11 @@ export function startSecadoWithWeights(
     outputMaloHumedad: null,
     mermaKg: 0,
     rendimientoPct: 0,
+    draftStartDate: undefined,
+    draftEndDate: undefined,
+    draftBuenoKg: undefined,
+    draftRegularKg: undefined,
+    draftMaloKg: undefined,
   };
 
   writeStorage([session, ...sessions]);
@@ -692,6 +738,11 @@ export function saveSecadoResults(
       outputMaloHumedad: payload.outputMaloHumedad ?? null,
       mermaKg: safeNumber(mermaKg),
       rendimientoPct,
+      draftStartDate: session.draftStartDate,
+      draftEndDate: session.draftEndDate,
+      draftBuenoKg: session.draftBuenoKg,
+      draftRegularKg: session.draftRegularKg,
+      draftMaloKg: session.draftMaloKg,
     };
   });
 
