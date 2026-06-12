@@ -63,6 +63,13 @@ import {
   formatCoffeeFullName,
   getCoffeeCodePrefix,
 } from '../utils/coffeeCodes';
+import {
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../styles/uiClasses';
 
 const TYPE_ORDER = [
   'VERDE',
@@ -1225,7 +1232,7 @@ export default function Inventario() {
                 <button
                   type="button"
                   onClick={() => navigate('/ventas')}
-                  className="inline-flex min-h-[34px] items-center rounded-full bg-blue-700 px-3 text-[0.72rem] font-black text-white shadow-sm hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
+                  className={`${primaryButtonClass} min-h-[34px] rounded-full px-3 py-1 text-[0.72rem]`}
                 >
                   {capacityAlert.primary}
                 </button>
@@ -1236,7 +1243,7 @@ export default function Inventario() {
                       ? openBodegaEditor()
                       : navigate(capacityAlert.secondaryPath)
                   }
-                  className="inline-flex min-h-[34px] items-center rounded-full border border-slate-300 bg-white px-3 text-[0.72rem] font-black text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/40 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                  className={`${secondaryButtonClass} min-h-[34px] rounded-full px-3 py-1 text-[0.72rem]`}
                 >
                   {capacityAlert.secondary}
                 </button>
@@ -1249,7 +1256,7 @@ export default function Inventario() {
           <section className="rounded-[18px] border border-[#e3e8f2] bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div className="grid grid-cols-2 gap-2">
               <label className="min-w-0">
-                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
+                <span className={`${fieldLabelClass} text-[0.64rem] uppercase tracking-[0.08em]`}>
                   Ordenar por
                 </span>
                 <SmartSelect
@@ -1264,7 +1271,7 @@ export default function Inventario() {
                 </SmartSelect>
               </label>
               <label className="min-w-0">
-                <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
+                <span className={`${fieldLabelClass} text-[0.64rem] uppercase tracking-[0.08em]`}>
                   Tipo de café
                 </span>
                 <SmartSelect
@@ -1289,7 +1296,7 @@ export default function Inventario() {
               </label>
               {typeKey ? (
                 <label className="min-w-0">
-                  <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-200">
+                  <span className={`${fieldLabelClass} text-[0.64rem] uppercase tracking-[0.08em]`}>
                     Calidad
                   </span>
                   <SmartSelect
@@ -1315,7 +1322,7 @@ export default function Inventario() {
               <button
                 type="button"
                 onClick={limpiarFiltros}
-                className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[13px] border border-[#c7d8ff] bg-[#f8fbff] px-3 text-xs font-black text-[#173ea6]"
+                className={`${secondaryButtonClass} mt-3 min-h-[38px] w-full rounded-[13px] text-xs`}
               >
                 Limpiar filtros
               </button>
@@ -1375,7 +1382,7 @@ export default function Inventario() {
               <button
                 type="button"
                 onClick={() => navigate('/compras')}
-                className="mt-7 inline-flex min-h-[56px] w-full max-w-[318px] items-center justify-center gap-2 rounded-[18px] bg-[#2f80ed] px-6 text-[1rem] font-black text-white shadow-[0_18px_34px_rgba(47,128,237,0.28),0_0_0_6px_rgba(47,128,237,0.08)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#1f6fe0] hover:shadow-[0_22px_42px_rgba(47,128,237,0.34),0_0_0_8px_rgba(47,128,237,0.1)] active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#93c5fd] animate-[inventoryEmptyFadeUp_340ms_ease-out_160ms_both]"
+                className={`${primaryButtonClass} mt-7 min-h-[56px] w-full max-w-[318px] rounded-[18px] text-[1rem] animate-[inventoryEmptyFadeUp_340ms_ease-out_160ms_both]`}
               >
                 <ShoppingCart size={19} strokeWidth={2.4} />
                 Registrar compra
@@ -1521,16 +1528,16 @@ export default function Inventario() {
             aria-modal="true"
             aria-labelledby="bodega-editor-title"
             aria-describedby="bodega-editor-description"
-            className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border dark:border-slate-700 dark:bg-slate-900"
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 id="bodega-editor-title" className="text-lg font-black text-slate-950">
+              <h2 id="bodega-editor-title" className="text-lg font-black text-slate-950 dark:text-slate-100">
                 Editar capacidad de bodega
               </h2>
               <button
                 type="button"
                 onClick={() => setShowBodegaEditor(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                 aria-label="Cerrar"
               >
                 ×
@@ -1547,7 +1554,7 @@ export default function Inventario() {
                 className="mt-3"
               />
             ) : null}
-            <label htmlFor="bodega-nombre" className="mt-4 block text-xs font-black text-slate-700">
+            <label htmlFor="bodega-nombre" className={`${fieldLabelClass} mt-4`}>
               Nombre de bodega
             </label>
             <input
@@ -1564,12 +1571,12 @@ export default function Inventario() {
                   sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
                 );
               }}
-              className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+              className={`${fieldInputClass} mt-2 h-11 rounded-[14px] px-4`}
             />
-            <p className="mt-1 text-right text-xs font-bold text-slate-500">
+            <p className={`${fieldHelpTextClass} text-right`}>
               {bodegaNameDraft.length}/{BODEGA_NAME_MAX_LENGTH}
             </p>
-            <label htmlFor="bodega-capacidad" className="mt-3 block text-xs font-black text-slate-700">
+            <label htmlFor="bodega-capacidad" className={`${fieldLabelClass} mt-3`}>
               Capacidad máxima kg
             </label>
             <input
@@ -1582,7 +1589,7 @@ export default function Inventario() {
                   sanitizePositiveIntegerInput(event.target.value, BODEGA_CAPACITY_MAX_KG),
                 )
               }
-              className="mt-2 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-bold outline-none"
+              className={`${fieldInputClass} mt-2 h-11 rounded-[14px] px-4`}
               placeholder="100000"
               aria-invalid={bodegaEditorError ? 'true' : 'false'}
               aria-describedby={bodegaEditorError ? 'bodega-editor-error' : undefined}
@@ -1599,14 +1606,14 @@ export default function Inventario() {
               <button
                 type="button"
                 onClick={() => void saveBodegaEditor()}
-                className="min-h-[42px] rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white"
+                className={`${primaryButtonClass} min-h-[42px] rounded-[14px] text-sm`}
               >
                 Guardar
               </button>
               <button
                 type="button"
                 onClick={() => setShowBodegaEditor(false)}
-                className="min-h-[42px] rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                className={`${secondaryButtonClass} min-h-[42px] rounded-[14px] text-sm`}
               >
                 Cancelar
               </button>

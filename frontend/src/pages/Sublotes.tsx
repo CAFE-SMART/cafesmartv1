@@ -48,6 +48,14 @@ import {
   getSubloteCodeMap,
   formatSubloteVisualCode,
 } from '../utils/coffeeCodes';
+import {
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  fieldTextareaClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../styles/uiClasses';
 
 type LoteDetalleVisual = LoteDetalle;
 type SubloteVisual = LoteDetalleVisual['sublotes'][number];
@@ -1240,7 +1248,7 @@ export default function Sublotes() {
                   state: { secadoView: 'pending', from: '/inventario' },
                 })
               }
-              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f4aa4] px-4 text-[0.72rem] font-black text-white shadow-[0_10px_22px_rgba(47,74,164,0.18)]"
+              className={`${primaryButtonClass} mt-4 min-h-[42px] w-full rounded-[10px] text-[0.72rem]`}
             >
               Ir a Secado
               <ChevronRight size={15} strokeWidth={2.4} />
@@ -1345,7 +1353,7 @@ export default function Sublotes() {
               <button
                 type="button"
                 onClick={() => setSubloteSelectorOpen(true)}
-                className="cs-chip mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] border border-[#e3e8f5] bg-[#f7f9ff] text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4] dark:border-slate-500 dark:bg-slate-700 dark:text-slate-100"
+                className={`${secondaryButtonClass} cs-chip mt-3 h-10 w-full rounded-[10px] text-[0.68rem] uppercase tracking-[0.04em]`}
               >
                 Ver más
               </button>
@@ -1427,7 +1435,7 @@ export default function Sublotes() {
                   <button
                     type="button"
                     onClick={() => setSubloteSelectorOpen(true)}
-                    className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#d5deee] bg-white px-3 text-[0.68rem] font-black uppercase tracking-[0.04em] text-[#2f4aa4] transition hover:bg-[#f7f9ff] focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:border-slate-600 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-slate-800"
+                    className={`${secondaryButtonClass} mt-3 min-h-[38px] w-full rounded-[10px] text-[0.68rem] uppercase tracking-[0.04em]`}
                   >
                     Ver más
                   </button>
@@ -1503,10 +1511,10 @@ export default function Sublotes() {
 
             <section className={`cs-card rounded-[16px] border bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.055)] dark:bg-slate-900 ${qualityStyles.accent} dark:border-slate-600`}>
               <div className="flex items-center gap-2 text-[#1c1c1c]">
-                <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a]">
+                <span className="inline-flex h-4 w-4 items-center justify-center text-[#9a9a9a] dark:text-slate-300">
                   <Info size={14} strokeWidth={2.4} />
                 </span>
-                <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a]">
+                <h2 className="text-[0.64rem] font-black uppercase tracking-[0.08em] text-[#3a3a3a] dark:text-slate-100">
                   Informacion basica
                 </h2>
               </div>
@@ -1606,7 +1614,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={() => navigate('/ventas')}
-              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#2f4aa4] px-1 text-[0.62rem] font-black text-white shadow-[0_8px_18px_rgba(47,74,164,0.20)]"
+              className={`${primaryButtonClass} h-[40px] min-h-0 w-full rounded-[10px] px-1 text-[0.62rem]`}
             >
               <Tag size={12} strokeWidth={2.25} />
               Vender sublote
@@ -1615,7 +1623,7 @@ export default function Sublotes() {
             <button
               type="button"
               onClick={handleOpenWeightModal}
-              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+              className={`${secondaryButtonClass} h-[40px] min-h-0 w-full rounded-[10px] px-1 text-[0.62rem]`}
             >
               <Scale size={12} strokeWidth={2.2} />
               Ajustar peso
@@ -1628,7 +1636,7 @@ export default function Sublotes() {
                   `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
                 )
               }
-              className="flex h-[40px] w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#e1e1e1] bg-white px-1 text-[0.62rem] font-black text-[#4f4f4f] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+              className={`${secondaryButtonClass} h-[40px] min-h-0 w-full rounded-[10px] px-1 text-[0.62rem]`}
             >
               <Tag size={12} strokeWidth={2.2} />
               Ver gastos
@@ -1739,8 +1747,8 @@ export default function Sublotes() {
 
       {editModal ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[430px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
-            <p className="text-center text-[16px] font-semibold text-[#1f1f1f]">
+          <div className="w-full max-w-[430px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)] dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-center text-[16px] font-semibold text-[#1f1f1f] dark:text-slate-100">
               {editModal.field === 'humedad'
                 ? 'Editar humedad'
                 : 'Editar factor'}
@@ -1772,7 +1780,7 @@ export default function Sublotes() {
                     : current,
                 )
               }
-              className="mt-3 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-2.5 text-[18px] font-semibold text-[#1f1f1f] outline-none focus:border-[#2f4aa4]"
+              className={`${fieldInputClass} mt-3 rounded-[12px] text-[18px]`}
               placeholder={
                 editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 94'
               }
@@ -1786,7 +1794,7 @@ export default function Sublotes() {
               <button
                 type="button"
                 onClick={() => setEditModal(null)}
-                className="rounded-[10px] border border-[#e2e2e2] bg-white py-2 text-sm font-semibold text-[#5a5a5a]"
+                className={`${secondaryButtonClass} min-h-[40px] rounded-[10px] text-sm`}
               >
                 Cancelar
               </button>
@@ -1794,7 +1802,7 @@ export default function Sublotes() {
                 type="button"
                 onClick={handleConfirmEdit}
                 disabled={editModalInvalid}
-                className="rounded-[10px] bg-[#2f4aa4] py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                className={`${primaryButtonClass} min-h-[40px] rounded-[10px] text-sm disabled:bg-slate-300`}
               >
                 Guardar
               </button>
@@ -1805,15 +1813,15 @@ export default function Sublotes() {
 
       {weightModal && subloteActivo ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/35 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[320px] rounded-[14px] border border-[#ececec] bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.24)]">
+          <div className="w-full max-w-[320px] rounded-[14px] border border-[#ececec] bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[0.9rem] font-black text-[#111827]">
+              <h2 className="text-[0.9rem] font-black text-[#111827] dark:text-slate-100">
                 Ajustar peso
               </h2>
               <button
                 type="button"
                 onClick={() => setWeightModal(null)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f4f4f4] text-[#9ca3af]"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f4f4f4] text-[#9ca3af] dark:bg-slate-800 dark:text-slate-200"
                 aria-label="Cerrar"
               >
                 ×
@@ -1832,10 +1840,10 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3">
-              <label className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#6b7280]">
+              <label className={`${fieldLabelClass} text-[0.62rem] uppercase tracking-[0.08em]`}>
                 Nuevo peso
               </label>
-              <div className="flex items-center rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
+              <div className={`${fieldInputClass} flex items-center rounded-[8px] px-3 py-2`}>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -1870,7 +1878,7 @@ export default function Sublotes() {
             </div>
 
             <div className="mt-3">
-              <label className="mb-1.5 block text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#6b7280]">
+              <label className={`${fieldLabelClass} text-[0.62rem] uppercase tracking-[0.08em]`}>
                 Motivo (opcional)
               </label>
               <textarea
@@ -1890,9 +1898,9 @@ export default function Sublotes() {
                 }
                 maxLength={PESO_MOTIVO_MAX}
                 placeholder="Ej: secado, evaporacion, ajuste manual"
-                className="min-h-[64px] w-full resize-none rounded-[8px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2 text-[0.72rem] font-semibold text-[#111827] outline-none placeholder:text-[#b8b8b8]"
+                className={`${fieldTextareaClass} min-h-[64px] resize-none rounded-[8px] text-[0.72rem]`}
               />
-              <p className="mt-1 text-right text-[0.58rem] font-bold text-slate-500">
+              <p className={`${fieldHelpTextClass} text-right text-[0.58rem]`}>
                 {weightModal.reason.length}/{PESO_MOTIVO_MAX}
               </p>
             </div>
@@ -1907,14 +1915,14 @@ export default function Sublotes() {
                 type="button"
                 onClick={handleConfirmWeight}
                 disabled={weightModalInvalid}
-                className="inline-flex min-h-[34px] items-center justify-center rounded-[8px] bg-[#1f3fa7] px-3 text-[0.66rem] font-black text-white shadow-[0_10px_20px_rgba(31,63,167,0.18)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                className={`${primaryButtonClass} min-h-[34px] rounded-[8px] text-[0.66rem] disabled:bg-slate-300 disabled:shadow-none`}
               >
                 Guardar ajuste
               </button>
               <button
                 type="button"
                 onClick={() => setWeightModal(null)}
-                className="inline-flex min-h-[34px] items-center justify-center rounded-[8px] border border-[#e2e2e2] bg-white px-3 text-[0.68rem] font-semibold text-[#777777]"
+                className={`${secondaryButtonClass} min-h-[34px] rounded-[8px] text-[0.68rem]`}
               >
                 Cancelar
               </button>
@@ -1925,17 +1933,17 @@ export default function Sublotes() {
 
       {factorNotice ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[430px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]">
+          <div className="w-full max-w-[430px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)] dark:border-amber-500/50 dark:bg-slate-900">
             <div className="mb-2 flex justify-center text-amber-500">
               <AlertTriangle size={22} strokeWidth={2.3} />
             </div>
-            <p className="text-center text-[13px] leading-5 text-[#4a4a4a]">
+            <p className="text-center text-[13px] leading-5 text-[#4a4a4a] dark:text-slate-100">
               {factorNotice}
             </p>
             <button
               type="button"
               onClick={() => setFactorNotice(null)}
-              className="mt-3 w-full rounded-[10px] bg-amber-500 py-2 text-sm font-semibold text-white"
+              className={`${primaryButtonClass} mt-3 w-full rounded-[10px] bg-amber-500 text-sm dark:bg-amber-500`}
             >
               OK
             </button>
@@ -2003,13 +2011,13 @@ function TechnicalField({
 }) {
   return (
     <div className="rounded-[12px] border border-[#ececec] bg-[#fafafa] p-2.5 dark:border-slate-600 dark:bg-slate-800">
-      <p className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-[#8f8f8f] dark:text-slate-300">
+      <p className={`${fieldLabelClass} text-[0.58rem] uppercase tracking-[0.1em]`}>
         {label}
       </p>
       <button
         type="button"
         onClick={onEdit}
-        className="mt-1 flex min-h-[38px] w-full items-center justify-between rounded-[10px] border border-[#e2e2e2] bg-white px-2.5 text-left transition hover:border-[#b9c5e8] focus:border-[#2f4aa4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:hover:border-slate-500 dark:focus:border-blue-400"
+        className={`${fieldInputClass} mt-1 flex min-h-[38px] items-center justify-between rounded-[10px] px-2.5 py-1 text-left`}
       >
         <p className="min-w-0 text-[0.82rem] font-black leading-none tracking-normal text-[#222222] dark:text-slate-100">
           <span>{value}</span>
