@@ -89,7 +89,7 @@ export function SystemSaveError({
           <button
             type="button"
             onClick={() => setSupportOpen(true)}
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black text-slate-600 transition hover:bg-white/70 hover:text-[#1e3a8a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black text-slate-600 transition hover:bg-white/70 hover:text-[#1e3a8a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
           >
             <LifeBuoy size={16} aria-hidden="true" />
             Contactar soporte
@@ -99,20 +99,20 @@ export function SystemSaveError({
 
       {supportOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+          <div className="w-full max-w-[420px] rounded-[24px] border border-slate-200 bg-white p-5 text-slate-900 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-black uppercase text-[#102d92]">
+                <p className="text-sm font-black uppercase text-[#102d92] dark:text-blue-200">
                   Soporte
                 </p>
-                <h3 className="mt-1 text-[1.25rem] font-black text-slate-900">
+                <h3 className="mt-1 text-[1.25rem] font-black text-slate-900 dark:text-slate-100">
                   Cuéntanos qué estabas haciendo
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSupportOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white"
                 aria-label="Cerrar soporte"
               >
                 <X size={16} />
@@ -127,7 +127,7 @@ export function SystemSaveError({
               />
             ) : (
               <>
-                <p className="mt-3 text-base leading-6 text-slate-600">
+                <p className="mt-3 text-base leading-6 text-slate-600 dark:text-slate-300">
                   Escribe una frase breve. Enviaremos lo necesario para poder
                   ayudarte sin interrumpir tu trabajo.
                 </p>
@@ -135,7 +135,7 @@ export function SystemSaveError({
                   value={supportText}
                   onChange={(event) => setSupportText(event.target.value)}
                   rows={4}
-                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none focus:border-[#102d92]"
+                  className="mt-4 w-full rounded-[16px] border border-[#dfe5f2] bg-[#f8faff] px-4 py-3 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-blue-400"
                   placeholder="Ej. Estaba registrando una compra y no pude guardarla."
                 />
                 <button

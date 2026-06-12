@@ -81,7 +81,7 @@ export function CafeSmartLogo({
         </p>
       ) : null}
       {showText && showSubtitle ? (
-        <p className={`${compact ? 'mt-1' : 'mt-3'} ${style.subtitle} font-semibold leading-5 text-slate-600`}>
+        <p className={`${compact ? 'mt-1' : 'mt-3'} ${style.subtitle} font-semibold leading-5 text-slate-600 dark:text-slate-300`}>
           Gestiona tu negocio cafetero
         </p>
       ) : null}

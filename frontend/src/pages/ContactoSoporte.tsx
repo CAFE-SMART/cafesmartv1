@@ -84,7 +84,7 @@ function isValidEmail(value: string) {
 }
 
 function getFieldClass(hasError: boolean) {
-  return `mt-2 block min-h-[48px] w-full rounded-[15px] border bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2448bd] focus:ring-4 focus:ring-[#2448bd]/12 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-blue-400/20 ${
+  return `mt-2 block min-h-[48px] w-full rounded-[15px] border bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2448bd] focus:ring-4 focus:ring-[#2448bd]/12 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:ring-blue-400/20 ${
     hasError
       ? 'border-red-300 bg-red-50/40 dark:border-red-400/60 dark:bg-red-500/15'
       : 'border-[#dce4f2] dark:border-slate-700'

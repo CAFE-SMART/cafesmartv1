@@ -94,12 +94,12 @@ function FieldMessage({
         ? ({ role: 'alert', 'aria-live': 'assertive' } as const)
         : ({ role: 'status', 'aria-live': 'polite' } as const))}
       className={`mt-2 flex items-start gap-1.5 rounded-lg px-1 text-sm font-semibold leading-5 ${
-        isError ? 'text-red-600' : 'text-slate-500'
+        isError ? 'text-red-600 dark:text-red-300' : 'text-slate-600 dark:text-slate-300'
       }`}
     >
       <AlertCircle
         size={14}
-        className={`mt-0.5 shrink-0 ${isError ? 'text-red-500' : 'text-slate-400'}`}
+        className={`mt-0.5 shrink-0 ${isError ? 'text-red-500 dark:text-red-300' : 'text-slate-400 dark:text-slate-400'}`}
         aria-hidden="true"
       />
       {message}
@@ -710,7 +710,7 @@ export default function Login() {
             <div
               role="status"
               aria-live="polite"
-              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-900"
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100"
             >
               <p className="font-bold">Sin conexión</p>
               <p className="font-medium">

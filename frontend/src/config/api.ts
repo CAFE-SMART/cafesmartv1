@@ -71,4 +71,8 @@ export function getApiBaseUrlCandidates() {
 
 export const API_URL = getApiBaseUrlCandidates()[0] ?? LOCAL_API_URL;
 
+if (import.meta.env.DEV) {
+  console.info('[CafeSmart] API URL usada:', API_URL);
+}
+
 export default API_URL;
