@@ -125,15 +125,11 @@ export class SecadoService {
           where: {
             id: sublote.id,
             deletedAt: null,
-            pesoActual: { gte: pesoEntrada },
-            compra: {
-              organizacionId,
-              deletedAt: null,
-            },
+            pesoActual: { gte: new Prisma.Decimal(pesoEntrada.toFixed(2)) },
           },
           data: {
             pesoActual: {
-              decrement: pesoEntrada,
+              decrement: new Prisma.Decimal(pesoEntrada.toFixed(2)),
             },
           },
         });
@@ -388,15 +384,11 @@ export class SecadoService {
             where: {
               id: fuente.id,
               deletedAt: null,
-              pesoActual: { gte: fuenteInput.pesoKg },
-              compra: {
-                organizacionId,
-                deletedAt: null,
-              },
+              pesoActual: { gte: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)) },
             },
             data: {
               pesoActual: {
-                decrement: fuenteInput.pesoKg,
+                decrement: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)),
               },
             },
           });
@@ -659,12 +651,12 @@ export class SecadoService {
           tipoCafeId,
           calidadId,
           pesoTotal: {
-            gte: Math.abs(cantidad),
+            gte: new Prisma.Decimal(Math.abs(cantidad).toFixed(2)),
           },
         },
         data: {
           pesoTotal: {
-            decrement: Math.abs(cantidad),
+            decrement: new Prisma.Decimal(Math.abs(cantidad).toFixed(2)),
           },
         },
       });

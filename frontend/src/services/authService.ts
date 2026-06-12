@@ -1,4 +1,4 @@
-﻿import {
+import {
   buildOfflineAuthError,
   mapFriendlyAuthMessage,
 } from '../utils/authMessages';
@@ -253,6 +253,38 @@ export const authService = {
         source: 'register-google',
         syncingMessage: 'Guardando Google...',
         successMessage: 'Cuenta guardada.',
+      },
+    );
+  },
+
+  forgotPassword(email: string): Promise<{ message: string }> {
+    return postAuth<{ message: string }>(
+      '/forgot-password',
+      { email },
+      'Error al solicitar recuperación',
+      {
+        enabled: true,
+        source: 'sync',
+        syncingMessage: 'Enviando código...',
+        successMessage: 'Código enviado.',
+      },
+    );
+  },
+
+  resetPassword(
+    email: string,
+    code: string,
+    passwordNew: string,
+  ): Promise<{ message: string }> {
+    return postAuth<{ message: string }>(
+      '/reset-password',
+      { email, code, password: passwordNew },
+      'Error al restablecer la contraseña',
+      {
+        enabled: true,
+        source: 'sync',
+        syncingMessage: 'Actualizando contraseña...',
+        successMessage: 'Contraseña restablecida.',
       },
     );
   },

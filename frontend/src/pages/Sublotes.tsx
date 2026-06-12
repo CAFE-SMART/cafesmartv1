@@ -854,7 +854,9 @@ export default function Sublotes() {
     }
 
     if (nextWeight > subloteActivo.pesoInicial) {
-      setWeightModalError('El peso no puede superar el peso inicial del sublote.');
+      setWeightModalError(
+        'El peso no puede superar el peso inicial del sublote.',
+      );
       return;
     }
 
@@ -940,7 +942,9 @@ export default function Sublotes() {
         parsed !== null &&
         (!Number.isFinite(parsed) || parsed < 8 || parsed > 14)
       ) {
-        setEditModalError('La humedad no es válida. Debe estar entre 8 % y 14 %.');
+        setEditModalError(
+          'La humedad no es válida. Debe estar entre 8 % y 14 %.',
+        );
         return;
       }
 
@@ -1085,9 +1089,7 @@ export default function Sublotes() {
   }, [detalle, subloteActivo]);
 
   const subloteActivoNombre =
-    subloteActivoIndex >= 0
-      ? `Sublote ${subloteActivoIndex + 1}`
-      : subloteActivo?.etiqueta ?? 'Sublote';
+    subloteActivo?.etiqueta ?? 'Sublote';
 
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);
@@ -1104,687 +1106,698 @@ export default function Sublotes() {
       <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#fbfbfb] shadow-sm flex flex-col relative">
         <header className="sticky top-0 z-20 border-b border-[#e9edf3] bg-white">
           <div className="grid h-[56px] w-full grid-cols-[44px_1fr_44px] items-center px-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (selectedSubloteId) {
-                setSelectedSubloteId(null);
-                return;
-              }
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedSubloteId) {
+                  setSelectedSubloteId(null);
+                  return;
+                }
 
-              navigate(
-                locationState?.from === 'inicio' ? '/inicio' : '/inventario',
-              );
-            }}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#2b2b2b] transition hover:bg-[#f3f4f6] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            aria-label="Volver"
-          >
-            <ArrowLeft size={21} strokeWidth={2.25} />
-          </button>
+                navigate(
+                  locationState?.from === 'inicio' ? '/inicio' : '/inventario',
+                );
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#2b2b2b] transition hover:bg-[#f3f4f6] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              aria-label="Volver"
+            >
+              <ArrowLeft size={21} strokeWidth={2.25} />
+            </button>
 
-          <h1 className="text-center text-[1.05rem] font-semibold leading-tight tracking-normal text-[#1c1c1c]">
-            {selectedSubloteId ? 'Detalles' : 'Sublotes'}
-          </h1>
+            <h1 className="text-center text-[1.05rem] font-semibold leading-tight tracking-normal text-[#1c1c1c]">
+              {selectedSubloteId ? 'Detalles' : 'Sublotes'}
+            </h1>
 
-          <button
-            type="button"
-            onClick={() => void handleReload()}
-            aria-label="Recargar"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#7f7f7f] transition hover:bg-[#f3f4f6] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-          >
-            <RefreshCcw
-              size={18}
-              className={refreshing ? 'animate-spin' : ''}
-              strokeWidth={2.2}
-            />
-          </button>
-        </div>
-      </header>
-
-      <main
-        className={`w-full px-3 pt-3 flex-1 ${
-          subloteActivo ? 'pb-40' : 'pb-4'
-        }`}
-      >
-        {error ? (
-          <InlineGuidedError
-            message={getSublotesGuidance(error)}
-            className="mb-4"
-          />
-        ) : null}
-
-        {deepLinkNotice ? (
-          <section className="mb-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-900">
-            {deepLinkNotice}
-          </section>
-        ) : null}
-
-        {loading && !detalle ? (
-          <div className="space-y-2">
-            <section className="rounded-[22px] border border-[#dcdcdc] bg-white p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
-              <div className="h-4 w-44 rounded-full bg-[#f1f1f1]" />
-              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="h-3 w-20 rounded-full bg-[#f1f1f1]" />
-                    <div className="h-4 w-24 rounded-full bg-[#ececec]" />
-                  </div>
-                ))}
-              </div>
-            </section>
+            <button
+              type="button"
+              onClick={() => void handleReload()}
+              aria-label="Recargar"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#7f7f7f] transition hover:bg-[#f3f4f6] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+            >
+              <RefreshCcw
+                size={18}
+                className={refreshing ? 'animate-spin' : ''}
+                strokeWidth={2.2}
+              />
+            </button>
           </div>
-        ) : null}
+        </header>
 
-        {detalle && !subloteActivo ? (
-          <section
-            className={`overflow-hidden rounded-[18px] border bg-white shadow-[0_10px_26px_rgba(15,23,42,0.055)] ${loteTone?.border ?? 'border-[#e1e6ef]'}`}
-            aria-labelledby="sublotes-heading"
-          >
-            <div className={`h-1.5 ${loteTone?.accent ?? 'bg-[#2f4aa4]'}`} />
-            <div className="px-4 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  <span
-                    className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${loteTone?.iconBox ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
-                  >
-                    {loteTone?.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p
-                      id="sublotes-heading"
-                      className="text-[0.98rem] font-semibold text-[#263247]"
-                    >
-                      {formatCoffeeLabel(detalle.lote.tipoCafe)}{' '}
-                      {titleCase(detalle.lote.calidad)}
-                    </p>
-                    <p className="mt-1 text-sm font-medium leading-5 text-[#667085]">
-                      Elige un sublote para revisar inventario, costos y acciones.
-                    </p>
-                  </div>
+        <main
+          className={`w-full px-3 pt-3 flex-1 ${
+            subloteActivo ? 'pb-40' : 'pb-4'
+          }`}
+        >
+          {error ? (
+            <InlineGuidedError
+              message={getSublotesGuidance(error)}
+              className="mb-4"
+            />
+          ) : null}
+
+          {deepLinkNotice ? (
+            <section className="mb-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-900">
+              {deepLinkNotice}
+            </section>
+          ) : null}
+
+          {loading && !detalle ? (
+            <div className="space-y-2">
+              <section className="rounded-[22px] border border-[#dcdcdc] bg-white p-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+                <div className="h-4 w-44 rounded-full bg-[#f1f1f1]" />
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="h-3 w-20 rounded-full bg-[#f1f1f1]" />
+                      <div className="h-4 w-24 rounded-full bg-[#ececec]" />
+                    </div>
+                  ))}
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-[0.78rem] font-semibold ${loteTone?.chip ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
-                >
-                  {pluralLabel(
-                    detalle.sublotes.length,
-                    'disponible',
-                    'disponibles',
-                  )}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2.5">
-                <div className="rounded-[12px] border border-[#edf1f7] bg-[#fbfcfe] px-3 py-2.5">
-                  <p className="text-[0.72rem] font-medium text-[#98a2b3]">
-                    Peso total
-                  </p>
-                  <p className="mt-0.5 text-[0.95rem] font-semibold text-[#263247]">
-                    {formatKg(detalle.lote.pesoActual)}
-                  </p>
-                </div>
-                <div className="rounded-[12px] border border-[#edf1f7] bg-[#fbfcfe] px-3 py-2.5">
-                  <p className="text-[0.72rem] font-medium text-[#98a2b3]">
-                    En inventario
-                  </p>
-                  <p className="mt-0.5 text-[0.95rem] font-semibold text-[#263247]">
-                    {pluralLabel(detalle.sublotes.length, 'sublote', 'sublotes')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2.5">
-                {sublotesPreview.map((sublote, index) => {
-                  const itemTone = getCoffeeTone(
-                    sublote.tipoCafe,
-                    sublote.calidad,
-                  );
-                  return (
-                    <button
-                      key={sublote.id}
-                      type="button"
-                      onClick={() => setSelectedSubloteId(sublote.id)}
-                      className="flex min-h-[76px] w-full items-center justify-between rounded-[14px] border border-[#e4e9f2] bg-white px-3.5 py-3 text-left transition hover:border-[#b9c5e8] hover:shadow-[0_8px_18px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-                      aria-label={`Abrir detalles del sublote ${index + 1}`}
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${itemTone.iconBox}`}
-                        >
-                          <Package2 size={17} strokeWidth={2.1} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-[0.95rem] font-semibold leading-tight text-[#202020]">
-                            Sublote {index + 1}
-                          </p>
-                          <p className="mt-1 text-[0.82rem] font-medium leading-5 text-[#667085]">
-                            {formatCoffeeLabel(sublote.tipoCafe)}{' '}
-                            {titleCase(sublote.calidad)} ·{' '}
-                            {formatKg(sublote.pesoActual)}
-                          </p>
-                          <p className="mt-0.5 text-[0.78rem] font-medium leading-5 text-[#98a2b3]">
-                            {formatDays(getDaysForSublote(sublote))} en bodega
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        className={`inline-flex shrink-0 items-center gap-1 pl-3 text-[0.78rem] font-semibold ${itemTone.text}`}
-                      >
-                        Ver
-                        <ChevronRight size={17} strokeWidth={2.4} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {hiddenSublotesCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAllSublotes(true)}
-                  className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#d9e2f5] bg-[#f7f9ff] px-4 text-sm font-semibold text-[#1D4ED8] transition hover:bg-[#eef3ff] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-                >
-                  Ver{' '}
-                  {pluralLabel(
-                    hiddenSublotesCount,
-                    'sublote más',
-                    'sublotes más',
-                  )}
-                </button>
-              ) : null}
+              </section>
             </div>
-          </section>
-        ) : null}
+          ) : null}
 
-        {subloteActivo ? (
-          <div className="space-y-3">
-            {detalle && detalle.sublotes.length > 1 ? (
-              <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[0.9rem] font-semibold text-[#283044]">
-                    Cambiar sublote
-                  </p>
-                  <span className="text-[0.78rem] font-medium text-[#667085]">
+          {detalle && !subloteActivo ? (
+            <section
+              className={`overflow-hidden rounded-[18px] border bg-white shadow-[0_10px_26px_rgba(15,23,42,0.055)] ${loteTone?.border ?? 'border-[#e1e6ef]'}`}
+              aria-labelledby="sublotes-heading"
+            >
+              <div className={`h-1.5 ${loteTone?.accent ?? 'bg-[#2f4aa4]'}`} />
+              <div className="px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${loteTone?.iconBox ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
+                    >
+                      {loteTone?.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p
+                        id="sublotes-heading"
+                        className="text-[0.98rem] font-semibold text-[#263247]"
+                      >
+                        {formatCoffeeLabel(detalle.lote.tipoCafe)}{' '}
+                        {titleCase(detalle.lote.calidad)}
+                      </p>
+                      <p className="mt-1 text-sm font-medium leading-5 text-[#667085]">
+                        Elige un sublote para revisar inventario, costos y
+                        acciones.
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-[0.78rem] font-semibold ${loteTone?.chip ?? 'bg-[#eef3ff] text-[#1D4ED8]'}`}
+                  >
                     {pluralLabel(
                       detalle.sublotes.length,
-                      'opción',
-                      'opciones',
+                      'disponible',
+                      'disponibles',
                     )}
                   </span>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {detalle.sublotes.map((sublote, index) => {
-                    const active = sublote.id === subloteActivo.id;
+
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <div className="rounded-[12px] border border-[#edf1f7] bg-[#fbfcfe] px-3 py-2.5">
+                    <p className="text-[0.72rem] font-medium text-[#98a2b3]">
+                      Peso total
+                    </p>
+                    <p className="mt-0.5 text-[0.95rem] font-semibold text-[#263247]">
+                      {formatKg(detalle.lote.pesoActual)}
+                    </p>
+                  </div>
+                  <div className="rounded-[12px] border border-[#edf1f7] bg-[#fbfcfe] px-3 py-2.5">
+                    <p className="text-[0.72rem] font-medium text-[#98a2b3]">
+                      En inventario
+                    </p>
+                    <p className="mt-0.5 text-[0.95rem] font-semibold text-[#263247]">
+                      {pluralLabel(
+                        detalle.sublotes.length,
+                        'sublote',
+                        'sublotes',
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2.5">
+                  {sublotesPreview.map((sublote, index) => {
+                    const itemTone = getCoffeeTone(
+                      sublote.tipoCafe,
+                      sublote.calidad,
+                    );
                     return (
                       <button
                         key={sublote.id}
                         type="button"
                         onClick={() => setSelectedSubloteId(sublote.id)}
-                        aria-current={active ? 'true' : undefined}
-                        className={`flex min-h-[58px] items-center justify-between rounded-[10px] border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-[#9fb0e6] ${
-                          active
-                            ? `${subloteTone?.border ?? 'border-[#6f84d8]'} ${subloteTone?.soft ?? 'bg-[#f4f6ff]'}`
-                            : 'border-[#e6eaf2] bg-[#fbfcfe]'
-                        }`}
+                        className="flex min-h-[76px] w-full items-center justify-between rounded-[14px] border border-[#e4e9f2] bg-white px-3.5 py-3 text-left transition hover:border-[#b9c5e8] hover:shadow-[0_8px_18px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                        aria-label={`Abrir detalles del sublote ${index + 1}`}
                       >
-                        <div className="min-w-0">
-                          <p className="truncate text-[0.86rem] font-semibold text-[#202020]">
-                            Sublote {index + 1}
-                          </p>
-                          <p className="mt-0.5 text-[0.76rem] font-medium text-[#667085]">
-                            {formatKg(sublote.pesoActual)} ·{' '}
-                            {formatDays(getDaysForSublote(sublote))}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${itemTone.iconBox}`}
+                          >
+                            <Package2 size={17} strokeWidth={2.1} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[0.95rem] font-semibold leading-tight text-[#202020]">
+                              {sublote.etiqueta}
+                            </p>
+                            <p className="mt-1 text-[0.82rem] font-medium leading-5 text-[#667085]">
+                              {formatCoffeeLabel(sublote.tipoCafe)}{' '}
+                              {titleCase(sublote.calidad)} ·{' '}
+                              {formatKg(sublote.pesoActual)}
+                            </p>
+                            <p className="mt-0.5 text-[0.78rem] font-medium leading-5 text-[#98a2b3]">
+                              {formatDays(getDaysForSublote(sublote))} en bodega
+                            </p>
+                          </div>
                         </div>
                         <span
-                          className={`ml-2 h-2 w-2 shrink-0 rounded-full ${active ? 'bg-[#2f4aa4]' : 'bg-[#d5d5d5]'}`}
-                        />
+                          className={`inline-flex shrink-0 items-center gap-1 pl-3 text-[0.78rem] font-semibold ${itemTone.text}`}
+                        >
+                          Ver
+                          <ChevronRight size={17} strokeWidth={2.4} />
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-              </section>
-            ) : null}
 
-            <section className="overflow-hidden rounded-[16px] border border-[#d9e2f5] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-              <button
-                type="button"
-                onClick={() => setShowAnalysis((current) => !current)}
-                className="flex min-h-[64px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-[#f8faff] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#9fb0e6]"
-                aria-expanded={showAnalysis}
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
-                    <BarChart3 size={18} strokeWidth={2.2} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[0.94rem] font-semibold text-[#283044]">
-                      Análisis financiero
-                    </span>
-                    <span className="mt-0.5 block text-[0.78rem] font-medium text-[#667085]">
-                      Utilidad, merma y valor del sublote
-                    </span>
-                  </span>
-                </span>
-                <span className="shrink-0 text-[0.82rem] font-semibold text-[#1D4ED8]">
-                  {showAnalysis ? 'Ocultar' : 'Ver'}
-                </span>
-              </button>
-
-              {showAnalysis && financieroActivo ? (
-                <div className="border-t border-[#eef2f6] px-3.5 py-3.5">
-                  <p className="text-sm font-medium leading-5 text-[#667085]">
-                    Una lectura rápida para decidir si conviene vender, ajustar gastos o esperar.
-                  </p>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2.5">
-                    <InfoField
-                      label="Utilidad neta"
-                      value={formatCurrency(financieroActivo.utilidadNeta)}
-                      accent="price"
-                      icon={<CircleDollarSign size={15} />}
-                      surface="green"
-                    />
-                    <InfoField
-                      label="Merma kg"
-                      value={formatKg(financieroActivo.mermaKg)}
-                      icon={<Package2 size={15} />}
-                    />
-                    <InfoField
-                      label="Merma %"
-                      value={formatPercent(financieroActivo.mermaPorcentaje)}
-                      icon={<BarChart3 size={15} />}
-                    />
-                    <InfoField
-                      label="Valor merma"
-                      value={formatCurrency(financieroActivo.mermaValor)}
-                      accent="price"
-                      icon={<CircleDollarSign size={15} />}
-                      surface="amber"
-                    />
-                  </div>
-
-                  <div className="mt-3 rounded-[12px] bg-[#f8fafc] px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[0.76rem] font-medium text-[#667085]">
-                        Proporción de merma
-                      </span>
-                      <span className="text-[0.78rem] font-semibold text-[#475467]">
-                        {formatPercent(financieroActivo.mermaPorcentaje)}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8edf5]">
-                      <div
-                        className="h-full rounded-full bg-[#2f4aa4]"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(0, financieroActivo.mermaPorcentaje),
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-
-            <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center gap-2 text-[#1c1c1c]">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#f2f4f7] text-[#667085]">
-                  <Info size={17} strokeWidth={2.4} />
-                </span>
-                <h2 className="text-[0.94rem] font-semibold text-[#283044]">
-                  Información básica
-                </h2>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2.5 border-t border-[#eef2f6] pt-3">
-                <InfoField
-                  label="Sublote"
-                  value={subloteActivoNombre}
-                  icon={<Package2 size={15} />}
-                  surface="blue"
-                />
-                <InfoField
-                  label="Tipo"
-                  value={formatCoffeeLabel(subloteActivo.tipoCafe)}
-                  icon={subloteTone?.icon}
-                  surface="green"
-                />
-                <InfoField
-                  label="Calidad"
-                  value={titleCase(subloteActivo.calidad)}
-                  icon={<Coffee size={15} />}
-                />
-                <InfoField
-                  label="Peso"
-                  value={formatKg(subloteActivo.pesoActual)}
-                  icon={<Scale size={15} />}
-                />
-                <InfoField
-                  label="Precio/kg"
-                  value={formatPricePerKg(subloteActivo.precioKg)}
-                  accent="price"
-                  icon={<CircleDollarSign size={15} />}
-                  surface="amber"
-                />
-                <InfoField
-                  label="Fecha de compra"
-                  value={formatDateShort(subloteActivo.fechaIngreso)}
-                  icon={<CalendarDays size={15} />}
-                />
-                <InfoField
-                  label="Tiempo en bodega"
-                  value={formatDays(diasSubloteActivo)}
-                  icon={<CalendarDays size={15} />}
-                  surface="blue"
-                />
-              </div>
-            </section>
-
-            <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center gap-2 text-[#1c1c1c]">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#fff7df] text-[#b77900]">
-                  <FlaskConical size={17} strokeWidth={2.3} />
-                </span>
-                <div>
-                  <h2 className="text-[0.94rem] font-semibold text-[#283044]">
-                    Datos técnicos
-                  </h2>
-                  <p className="mt-0.5 text-sm font-medium leading-5 text-[#667085]">
-                    Completa estos datos cuando tengas medición de calidad.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-3 border-t border-[#eef2f6] pt-3">
-                <TechnicalField
-                  label="Humedad"
-                  value={formatHumedad(subloteActivo.humedad)}
-                  toneClass={classifyHumidity(subloteActivo.humedad).toneClass}
-                  onEdit={handleEditHumedad}
-                />
-                {showFactor ? (
-                  <TechnicalField
-                    label="Factor"
-                    value={formatFactor(factorActivo)}
-                    onEdit={handleEditFactor}
-                  />
+                {hiddenSublotesCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSublotes(true)}
+                    className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center rounded-[12px] border border-[#d9e2f5] bg-[#f7f9ff] px-4 text-sm font-semibold text-[#1D4ED8] transition hover:bg-[#eef3ff] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                  >
+                    Ver{' '}
+                    {pluralLabel(
+                      hiddenSublotesCount,
+                      'sublote más',
+                      'sublotes más',
+                    )}
+                  </button>
                 ) : null}
               </div>
             </section>
-          </div>
-        ) : null}
-      </main>
+          ) : null}
 
-      {subloteActivo ? (
-        <footer className="sticky bottom-0 z-10 border-t border-[#e6eaf2] bg-[#f6f7f9]/95 pb-3 pt-2 backdrop-blur">
-          <div className="mx-auto grid w-full max-w-[430px] gap-2 px-3">
-            <button
-              type="button"
-              onClick={() => navigate('/ventas')}
-              className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            >
-              <Tag size={17} strokeWidth={2.25} />
-              Vender sublote
-            </button>
+          {subloteActivo ? (
+            <div className="space-y-3">
+              {detalle && detalle.sublotes.length > 1 ? (
+                <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[0.9rem] font-semibold text-[#283044]">
+                      Cambiar sublote
+                    </p>
+                    <span className="text-[0.78rem] font-medium text-[#667085]">
+                      {pluralLabel(
+                        detalle.sublotes.length,
+                        'opción',
+                        'opciones',
+                      )}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {detalle.sublotes.map((sublote, index) => {
+                      const active = sublote.id === subloteActivo.id;
+                      return (
+                        <button
+                          key={sublote.id}
+                          type="button"
+                          onClick={() => setSelectedSubloteId(sublote.id)}
+                          aria-current={active ? 'true' : undefined}
+                          className={`flex min-h-[58px] items-center justify-between rounded-[10px] border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-[#9fb0e6] ${
+                            active
+                              ? `${subloteTone?.border ?? 'border-[#6f84d8]'} ${subloteTone?.soft ?? 'bg-[#f4f6ff]'}`
+                              : 'border-[#e6eaf2] bg-[#fbfcfe]'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-[0.86rem] font-semibold text-[#202020]">
+                              Sublote {index + 1}
+                            </p>
+                            <p className="mt-0.5 text-[0.76rem] font-medium text-[#667085]">
+                              {formatKg(sublote.pesoActual)} ·{' '}
+                              {formatDays(getDaysForSublote(sublote))}
+                            </p>
+                          </div>
+                          <span
+                            className={`ml-2 h-2 w-2 shrink-0 rounded-full ${active ? 'bg-[#2f4aa4]' : 'bg-[#d5d5d5]'}`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
 
-            <button
-              type="button"
-              onClick={handleOpenWeightModal}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            >
-              <Scale size={17} strokeWidth={2.2} />
-              Ajustar peso
-            </button>
+              <section className="overflow-hidden rounded-[16px] border border-[#d9e2f5] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+                <button
+                  type="button"
+                  onClick={() => setShowAnalysis((current) => !current)}
+                  className="flex min-h-[64px] w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition hover:bg-[#f8faff] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#9fb0e6]"
+                  aria-expanded={showAnalysis}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
+                      <BarChart3 size={18} strokeWidth={2.2} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[0.94rem] font-semibold text-[#283044]">
+                        Análisis financiero
+                      </span>
+                      <span className="mt-0.5 block text-[0.78rem] font-medium text-[#667085]">
+                        Utilidad, merma y valor del sublote
+                      </span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[0.82rem] font-semibold text-[#1D4ED8]">
+                    {showAnalysis ? 'Ocultar' : 'Ver'}
+                  </span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
-                )
-              }
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            >
-              <Tag size={17} strokeWidth={2.2} />
-              Ver gastos
-            </button>
-          </div>
-        </footer>
-      ) : null}
+                {showAnalysis && financieroActivo ? (
+                  <div className="border-t border-[#eef2f6] px-3.5 py-3.5">
+                    <p className="text-sm font-medium leading-5 text-[#667085]">
+                      Una lectura rápida para decidir si conviene vender,
+                      ajustar gastos o esperar.
+                    </p>
 
-      {editModal ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/40 px-4 backdrop-blur-sm">
-          <div
-            className="w-full max-w-[430px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-sublote-title"
-          >
-            <p
-              id="edit-sublote-title"
-              className="text-center text-[1.05rem] font-semibold text-[#1f1f1f]"
-            >
-              {editModal.field === 'humedad'
-                ? 'Editar humedad'
-                : 'Editar factor'}
-            </p>
-            <p className="mx-auto mt-2 max-w-[320px] text-center text-sm font-medium leading-5 text-[#667085]">
-              {editModal.field === 'humedad'
-                ? 'Ingresa un valor entre 8 % y 14 %, o deja el campo vacío si aún no tienes medición.'
-                : 'Ingresa el factor de rendimiento. Puedes dejarlo vacío si falta confirmarlo.'}
-            </p>
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label={editModal.field === 'humedad' ? 'Humedad' : 'Factor'}
-              maxLength={editModal.field === 'humedad' ? 5 : 5}
-              value={editModal.value}
-              onChange={(event) =>
-                setEditModal((current) =>
-                  current
-                    ? {
-                        ...current,
-                        value:
-                          current.field === 'humedad'
-                            ? clampDecimalInput(event.target.value, 4, 100)
-                            : sanitizeDecimalInput(event.target.value, 4),
-                      }
-                    : current,
-                )
-              }
-              className="mt-4 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-3 text-[1.1rem] font-semibold text-[#1f1f1f] outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
-              placeholder={
-                editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 86'
-              }
-            />
-            {editModalError ? (
-              <InlineGuidedError
-                message={getSublotesGuidance(editModalError)}
-                className="mt-3"
-              />
-            ) : null}
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      <InfoField
+                        label="Utilidad neta"
+                        value={formatCurrency(financieroActivo.utilidadNeta)}
+                        accent="price"
+                        icon={<CircleDollarSign size={15} />}
+                        surface="green"
+                      />
+                      <InfoField
+                        label="Merma kg"
+                        value={formatKg(financieroActivo.mermaKg)}
+                        icon={<Package2 size={15} />}
+                      />
+                      <InfoField
+                        label="Merma %"
+                        value={formatPercent(financieroActivo.mermaPorcentaje)}
+                        icon={<BarChart3 size={15} />}
+                      />
+                      <InfoField
+                        label="Valor merma"
+                        value={formatCurrency(financieroActivo.mermaValor)}
+                        accent="price"
+                        icon={<CircleDollarSign size={15} />}
+                        surface="amber"
+                      />
+                    </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={closeEditModal}
-                className="min-h-[42px] rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmEdit}
-                className="min-h-[42px] rounded-full bg-[#1D4ED8] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-              >
-                Guardar
-              </button>
+                    <div className="mt-3 rounded-[12px] bg-[#f8fafc] px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[0.76rem] font-medium text-[#667085]">
+                          Proporción de merma
+                        </span>
+                        <span className="text-[0.78rem] font-semibold text-[#475467]">
+                          {formatPercent(financieroActivo.mermaPorcentaje)}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8edf5]">
+                        <div
+                          className="h-full rounded-full bg-[#2f4aa4]"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(0, financieroActivo.mermaPorcentaje),
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-2 text-[#1c1c1c]">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#f2f4f7] text-[#667085]">
+                    <Info size={17} strokeWidth={2.4} />
+                  </span>
+                  <h2 className="text-[0.94rem] font-semibold text-[#283044]">
+                    Información básica
+                  </h2>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2.5 border-t border-[#eef2f6] pt-3">
+                  <InfoField
+                    label="Sublote"
+                    value={subloteActivoNombre}
+                    icon={<Package2 size={15} />}
+                    surface="blue"
+                  />
+                  <InfoField
+                    label="Tipo"
+                    value={formatCoffeeLabel(subloteActivo.tipoCafe)}
+                    icon={subloteTone?.icon}
+                    surface="green"
+                  />
+                  <InfoField
+                    label="Calidad"
+                    value={titleCase(subloteActivo.calidad)}
+                    icon={<Coffee size={15} />}
+                  />
+                  <InfoField
+                    label="Peso"
+                    value={formatKg(subloteActivo.pesoActual)}
+                    icon={<Scale size={15} />}
+                  />
+                  <InfoField
+                    label="Precio/kg"
+                    value={formatPricePerKg(subloteActivo.precioKg)}
+                    accent="price"
+                    icon={<CircleDollarSign size={15} />}
+                    surface="amber"
+                  />
+                  <InfoField
+                    label="Fecha de compra"
+                    value={formatDateShort(subloteActivo.fechaIngreso)}
+                    icon={<CalendarDays size={15} />}
+                  />
+                  <InfoField
+                    label="Tiempo en bodega"
+                    value={formatDays(diasSubloteActivo)}
+                    icon={<CalendarDays size={15} />}
+                    surface="blue"
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-[16px] border border-[#e1e6ef] bg-white px-3.5 py-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-2 text-[#1c1c1c]">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#fff7df] text-[#b77900]">
+                    <FlaskConical size={17} strokeWidth={2.3} />
+                  </span>
+                  <div>
+                    <h2 className="text-[0.94rem] font-semibold text-[#283044]">
+                      Datos técnicos
+                    </h2>
+                    <p className="mt-0.5 text-sm font-medium leading-5 text-[#667085]">
+                      Completa estos datos cuando tengas medición de calidad.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-3 border-t border-[#eef2f6] pt-3">
+                  <TechnicalField
+                    label="Humedad"
+                    value={formatHumedad(subloteActivo.humedad)}
+                    toneClass={
+                      classifyHumidity(subloteActivo.humedad).toneClass
+                    }
+                    onEdit={handleEditHumedad}
+                  />
+                  {showFactor ? (
+                    <TechnicalField
+                      label="Factor"
+                      value={formatFactor(factorActivo)}
+                      onEdit={handleEditFactor}
+                    />
+                  ) : null}
+                </div>
+              </section>
             </div>
-          </div>
-        </div>
-      ) : null}
+          ) : null}
+        </main>
 
-      {weightModal && subloteActivo ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/35 px-4 backdrop-blur-sm">
-          <div
-            className="w-full max-w-[360px] rounded-[16px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.24)]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="weight-sublote-title"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2
-                id="weight-sublote-title"
-                className="text-[1rem] font-semibold text-[#111827]"
+        {subloteActivo ? (
+          <footer className="sticky bottom-0 z-10 border-t border-[#e6eaf2] bg-[#f6f7f9]/95 pb-3 pt-2 backdrop-blur">
+            <div className="mx-auto grid w-full max-w-[430px] gap-2 px-3">
+              <button
+                type="button"
+                onClick={() => navigate('/ventas')}
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
               >
+                <Tag size={17} strokeWidth={2.25} />
+                Vender sublote
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenWeightModal}
+                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              >
+                <Scale size={17} strokeWidth={2.2} />
                 Ajustar peso
-              </h2>
+              </button>
+
               <button
                 type="button"
-                onClick={closeWeightModal}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f4f4] text-[#667085] transition hover:bg-[#e7e9ee] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-                aria-label="Cerrar"
+                onClick={() =>
+                  navigate(
+                    `/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`,
+                  )
+                }
+                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#dfe3ec] bg-white px-4 text-sm font-semibold text-[#475467] transition hover:border-[#b9c5e8] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
               >
-                ×
+                <Tag size={17} strokeWidth={2.2} />
+                Ver gastos
               </button>
             </div>
+          </footer>
+        ) : null}
 
-            <p className="mb-3 text-sm font-medium leading-5 text-[#667085]">
-              Registra el peso real disponible. No puede superar el peso inicial del sublote.
-            </p>
+        {editModal ? (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/40 px-4 backdrop-blur-sm">
+            <div
+              className="w-full max-w-[430px] rounded-[18px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-sublote-title"
+            >
+              <p
+                id="edit-sublote-title"
+                className="text-center text-[1.05rem] font-semibold text-[#1f1f1f]"
+              >
+                {editModal.field === 'humedad'
+                  ? 'Editar humedad'
+                  : 'Editar factor'}
+              </p>
+              <p className="mx-auto mt-2 max-w-[320px] text-center text-sm font-medium leading-5 text-[#667085]">
+                {editModal.field === 'humedad'
+                  ? 'Ingresa un valor entre 8 % y 14 %, o deja el campo vacío si aún no tienes medición.'
+                  : 'Ingresa el factor de rendimiento. Puedes dejarlo vacío si falta confirmarlo.'}
+              </p>
+              <input
+                type="text"
+                inputMode="decimal"
+                aria-label={
+                  editModal.field === 'humedad' ? 'Humedad' : 'Factor'
+                }
+                maxLength={editModal.field === 'humedad' ? 5 : 5}
+                value={editModal.value}
+                onChange={(event) =>
+                  setEditModal((current) =>
+                    current
+                      ? {
+                          ...current,
+                          value:
+                            current.field === 'humedad'
+                              ? clampDecimalInput(event.target.value, 4, 100)
+                              : sanitizeDecimalInput(event.target.value, 4),
+                        }
+                      : current,
+                  )
+                }
+                className="mt-4 w-full rounded-[12px] border border-[#dcdcdc] bg-white px-3 py-3 text-[1.1rem] font-semibold text-[#1f1f1f] outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
+                placeholder={
+                  editModal.field === 'humedad' ? 'Ej: 12.0' : 'Ej: 86'
+                }
+              />
+              {editModalError ? (
+                <InlineGuidedError
+                  message={getSublotesGuidance(editModalError)}
+                  className="mt-3"
+                />
+              ) : null}
 
-            <div className="rounded-[10px] bg-[#fff4e8] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[0.82rem] font-medium text-[#8b6b4d]">
-                  Peso actual
-                </span>
-                <span className="text-[0.95rem] font-semibold text-[#b45309]">
-                  {formatKg(subloteActivo.pesoActual)}
-                </span>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="min-h-[42px] rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmEdit}
+                  className="min-h-[42px] rounded-full bg-[#1D4ED8] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                >
+                  Guardar
+                </button>
               </div>
             </div>
+          </div>
+        ) : null}
 
-            <div className="mt-3">
-              <label className="mb-1.5 block text-sm font-semibold text-slate-800">
-                Nuevo peso
-              </label>
-              <div className="flex items-center rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#d9e2f5]">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  maxLength={8}
-                  value={weightModal.value}
+        {weightModal && subloteActivo ? (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#0f172a]/35 px-4 backdrop-blur-sm">
+            <div
+              className="w-full max-w-[360px] rounded-[16px] border border-[#ececec] bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.24)]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="weight-sublote-title"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2
+                  id="weight-sublote-title"
+                  className="text-[1rem] font-semibold text-[#111827]"
+                >
+                  Ajustar peso
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeWeightModal}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f4f4] text-[#667085] transition hover:bg-[#e7e9ee] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p className="mb-3 text-sm font-medium leading-5 text-[#667085]">
+                Registra el peso real disponible. No puede superar el peso
+                inicial del sublote.
+              </p>
+
+              <div className="rounded-[10px] bg-[#fff4e8] px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[0.82rem] font-medium text-[#8b6b4d]">
+                    Peso actual
+                  </span>
+                  <span className="text-[0.95rem] font-semibold text-[#b45309]">
+                    {formatKg(subloteActivo.pesoActual)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-800">
+                  Nuevo peso
+                </label>
+                <div className="flex items-center rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#d9e2f5]">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    maxLength={8}
+                    value={weightModal.value}
+                    onChange={(event) =>
+                      setWeightModal((current) =>
+                        current
+                          ? {
+                              ...current,
+                              value: clampDecimalInput(
+                                event.target.value,
+                                7,
+                                Math.min(
+                                  MAX_AJUSTE_PESO_KG,
+                                  subloteActivo.pesoInicial,
+                                ),
+                              ),
+                            }
+                          : current,
+                      )
+                    }
+                    placeholder="Ej: 98.5"
+                    className="min-w-0 flex-1 bg-transparent text-[1rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3]"
+                  />
+                  <span className="text-[0.86rem] font-semibold text-[#6b7280]">
+                    kg
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-800">
+                  Motivo (opcional)
+                </label>
+                <textarea
+                  maxLength={MAX_MOTIVO_AJUSTE_LENGTH}
+                  value={weightModal.reason}
                   onChange={(event) =>
                     setWeightModal((current) =>
                       current
                         ? {
                             ...current,
-                            value: clampDecimalInput(
-                              event.target.value,
-                              7,
-                              Math.min(
-                                MAX_AJUSTE_PESO_KG,
-                                subloteActivo.pesoInicial,
-                              ),
+                            reason: event.target.value.slice(
+                              0,
+                              MAX_MOTIVO_AJUSTE_LENGTH,
                             ),
                           }
                         : current,
                     )
                   }
-                  placeholder="Ej: 98.5"
-                  className="min-w-0 flex-1 bg-transparent text-[1rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3]"
+                  placeholder="Ej: secado, evaporación, ajuste manual"
+                  className="min-h-[78px] w-full resize-none rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-[0.95rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
                 />
-                <span className="text-[0.86rem] font-semibold text-[#6b7280]">
-                  kg
-                </span>
+                <p className="mt-1 text-right text-[0.76rem] font-semibold text-slate-400">
+                  {weightModal.reason.length}/{MAX_MOTIVO_AJUSTE_LENGTH}
+                </p>
               </div>
-            </div>
 
-            <div className="mt-3">
-              <label className="mb-1.5 block text-sm font-semibold text-slate-800">
-                Motivo (opcional)
-              </label>
-              <textarea
-                maxLength={MAX_MOTIVO_AJUSTE_LENGTH}
-                value={weightModal.reason}
-                onChange={(event) =>
-                  setWeightModal((current) =>
-                    current
-                      ? {
-                          ...current,
-                          reason: event.target.value.slice(
-                            0,
-                            MAX_MOTIVO_AJUSTE_LENGTH,
-                          ),
-                        }
-                      : current,
-                  )
-                }
-                placeholder="Ej: secado, evaporación, ajuste manual"
-                className="min-h-[78px] w-full resize-none rounded-[10px] border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-[0.95rem] font-medium text-[#111827] outline-none placeholder:text-[#98a2b3] focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#d9e2f5]"
-              />
-              <p className="mt-1 text-right text-[0.76rem] font-semibold text-slate-400">
-                {weightModal.reason.length}/{MAX_MOTIVO_AJUSTE_LENGTH}
+              {weightModalError ? (
+                <InlineGuidedError
+                  message={getSublotesGuidance(weightModalError)}
+                  className="mt-3"
+                />
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleConfirmWeight}
+                className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              >
+                Guardar ajuste
+              </button>
+              <button
+                type="button"
+                onClick={closeWeightModal}
+                className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {factorNotice ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/45 px-4 backdrop-blur-sm">
+            <div
+              className="w-full max-w-[430px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="factor-notice-title"
+            >
+              <div className="mb-2 flex justify-center text-amber-500">
+                <AlertTriangle size={22} strokeWidth={2.3} />
+              </div>
+              <p
+                id="factor-notice-title"
+                className="text-center text-[1rem] font-semibold text-[#1f2937]"
+              >
+                Confirma el factor
               </p>
+              <p className="mt-2 text-center text-sm font-medium leading-5 text-[#4a4a4a]">
+                {factorNotice}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFactorNotice(null)}
+                className="mt-3 min-h-[42px] w-full rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+              >
+                Entendido
+              </button>
             </div>
-
-            {weightModalError ? (
-              <InlineGuidedError
-                message={getSublotesGuidance(weightModalError)}
-                className="mt-3"
-              />
-            ) : null}
-
-            <button
-              type="button"
-              onClick={handleConfirmWeight}
-              className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(29,78,216,0.16)] transition hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            >
-              Guardar ajuste
-            </button>
-            <button
-              type="button"
-              onClick={closeWeightModal}
-              className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center rounded-full border border-[#e2e2e2] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a] transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
-            >
-              Cancelar
-            </button>
           </div>
-        </div>
-      ) : null}
-
-      {factorNotice ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/45 px-4 backdrop-blur-sm">
-          <div
-            className="w-full max-w-[430px] rounded-[18px] border border-amber-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.25)]"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="factor-notice-title"
-          >
-            <div className="mb-2 flex justify-center text-amber-500">
-              <AlertTriangle size={22} strokeWidth={2.3} />
-            </div>
-            <p
-              id="factor-notice-title"
-              className="text-center text-[1rem] font-semibold text-[#1f2937]"
-            >
-              Confirma el factor
-            </p>
-            <p className="mt-2 text-center text-sm font-medium leading-5 text-[#4a4a4a]">
-              {factorNotice}
-            </p>
-            <button
-              type="button"
-              onClick={() => setFactorNotice(null)}
-              className="mt-3 min-h-[42px] w-full rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-amber-200"
-            >
-              Entendido
-            </button>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
       </div>
     </div>
   );
@@ -1811,7 +1824,9 @@ function InfoField({
   }[surface];
 
   return (
-    <div className={`min-w-0 rounded-[12px] border px-3 py-2.5 ${surfaceClass}`}>
+    <div
+      className={`min-w-0 rounded-[12px] border px-3 py-2.5 ${surfaceClass}`}
+    >
       <div className="flex items-center gap-1.5">
         {icon ? (
           <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center opacity-80">
@@ -1844,9 +1859,7 @@ function TechnicalField({
 }) {
   return (
     <div>
-      <p className="text-[0.8rem] font-semibold text-slate-700">
-        {label}
-      </p>
+      <p className="text-[0.8rem] font-semibold text-slate-700">{label}</p>
       <button
         type="button"
         onClick={onEdit}

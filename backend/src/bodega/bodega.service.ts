@@ -6,6 +6,7 @@ import {
   PESO_MAXIMO_ENTRADA_KG,
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
   PESO_MINIMO_KG,
+  PRECIO_MINIMO_KG,
 } from '../common/business-rules';
 
 const CAPACIDAD_BODEGA_MAX_KG = 999999;
@@ -18,8 +19,11 @@ const CAPACIDAD_BODEGA_MENOR_INVENTARIO =
 export type ConfiguracionBodega = {
   nombreBodega: string;
   capacidadKg: number | null;
+  minPesoKg: number;
   maxPesoKg: number;
+  minPrecioKg: number;
   maxPrecioKg: number;
+  minPrecioVentaKg: number;
   maxPrecioVentaKg: number;
   updatedAt: string;
 };
@@ -40,8 +44,11 @@ export class BodegaService {
     const [
       nombreBodega,
       capacidadKgStr,
+      minPesoKgStr,
       maxPesoKgStr,
+      minPrecioKgStr,
       maxPrecioKgStr,
+      minPrecioVentaKgStr,
       maxPrecioVentaKgStr,
     ] = await Promise.all([
       this.parametrosService.getParametroString(
@@ -53,20 +60,23 @@ export class BodegaService {
         'capacidad_bodega',
         organizacionId,
       ),
+      this.parametrosService.getParametroString('min_peso_kg', organizacionId),
       this.parametrosService.getParametroString('max_peso_kg', organizacionId),
-      this.parametrosService.getParametroString(
-        'max_precio_kg',
-        organizacionId,
-      ),
-      this.parametrosService.getParametroString(
-        'max_precio_venta_kg',
-        organizacionId,
-      ),
+      this.parametrosService.getParametroString('min_precio_kg', organizacionId),
+      this.parametrosService.getParametroString('max_precio_kg', organizacionId),
+      this.parametrosService.getParametroString('min_precio_venta_kg', organizacionId),
+      this.parametrosService.getParametroString('max_precio_venta_kg', organizacionId),
     ]);
 
     const parsed = Number(capacidadKgStr);
     const capacidadKg =
       capacidadKgStr && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+
+    const parsedMinPeso = Number(minPesoKgStr);
+    const minPesoKg =
+      minPesoKgStr && Number.isFinite(parsedMinPeso) && parsedMinPeso > 0
+        ? parsedMinPeso
+        : PESO_MINIMO_KG;
 
     const defaultMaxPeso = MAX_PESO_OPERATIVO_DEFAULT_KG;
     const parsedMaxPeso = Number(maxPesoKgStr);
@@ -78,11 +88,23 @@ export class BodegaService {
         ? parsedMaxPeso
         : defaultMaxPeso;
 
+    const parsedMinPrecio = Number(minPrecioKgStr);
+    const minPrecioKg =
+      minPrecioKgStr && Number.isFinite(parsedMinPrecio) && parsedMinPrecio > 0
+        ? parsedMinPrecio
+        : PRECIO_MINIMO_KG;
+
     const parsedMaxPrecio = Number(maxPrecioKgStr);
     const maxPrecioKg =
       maxPrecioKgStr && Number.isFinite(parsedMaxPrecio) && parsedMaxPrecio > 0
         ? parsedMaxPrecio
         : 100000;
+
+    const parsedMinPrecioVenta = Number(minPrecioVentaKgStr);
+    const minPrecioVentaKg =
+      minPrecioVentaKgStr && Number.isFinite(parsedMinPrecioVenta) && parsedMinPrecioVenta > 0
+        ? parsedMinPrecioVenta
+        : PRECIO_MINIMO_KG;
 
     const parsedMaxPrecioVenta = Number(maxPrecioVentaKgStr);
     const maxPrecioVentaKg =
@@ -95,8 +117,11 @@ export class BodegaService {
     return {
       nombreBodega: nombreBodega || 'Bodega principal',
       capacidadKg,
+      minPesoKg,
       maxPesoKg,
+      minPrecioKg,
       maxPrecioKg,
+      minPrecioVentaKg,
       maxPrecioVentaKg,
       updatedAt: new Date().toISOString(),
     };
@@ -143,14 +168,7 @@ export class BodegaService {
       ),
     ]);
 
-    return {
-      nombreBodega: dto.nombreBodega.trim(),
-      capacidadKg: dto.capacidadKg,
-      maxPesoKg: MAX_PESO_OPERATIVO_DEFAULT_KG,
-      maxPrecioKg: 100000,
-      maxPrecioVentaKg: 100000,
-      updatedAt: new Date().toISOString(),
-    };
+    return this.obtenerConfiguracion(organizacionId);
   }
 
   private async obtenerInventarioActualKg(
@@ -176,45 +194,82 @@ export class BodegaService {
    */
   async actualizarLimites(
     organizacionId: string,
+    minPesoKg: number,
     maxPesoKg: number,
+    minPrecioKg: number,
     maxPrecioKg: number,
+    minPrecioVentaKg: number,
     maxPrecioVentaKg: number,
   ): Promise<{
+    minPesoKg: number;
     maxPesoKg: number;
+    minPrecioKg: number;
     maxPrecioKg: number;
+    minPrecioVentaKg: number;
     maxPrecioVentaKg: number;
   }> {
+    if (!Number.isFinite(minPesoKg) || minPesoKg <= 0) {
+      throw new BadRequestException('El peso mínimo debe ser un número positivo');
+    }
+
     if (
       !Number.isFinite(maxPesoKg) ||
-      maxPesoKg < PESO_MINIMO_KG ||
+      maxPesoKg < minPesoKg ||
       maxPesoKg > MAX_PESO_ENTRADA_KG
     ) {
       throw new BadRequestException(
-        `El peso maximo debe estar entre ${PESO_MINIMO_KG} y 99.999 kg`,
+        `El peso máximo debe estar entre el peso mínimo (${minPesoKg} kg) y ${MAX_PESO_ENTRADA_KG} kg`,
       );
     }
 
-    if (!Number.isFinite(maxPrecioKg) || maxPrecioKg <= 0) {
+    if (!Number.isFinite(minPrecioKg) || minPrecioKg <= 0) {
       throw new BadRequestException(
-        'El precio máximo debe ser un número positivo',
+        'El precio mínimo de compra debe ser un número positivo',
       );
     }
 
-    if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg <= 0) {
+    if (!Number.isFinite(maxPrecioKg) || maxPrecioKg < minPrecioKg) {
       throw new BadRequestException(
-        'El precio máximo de venta debe ser un número positivo',
+        'El precio máximo de compra debe ser mayor o igual al precio mínimo',
+      );
+    }
+
+    if (!Number.isFinite(minPrecioVentaKg) || minPrecioVentaKg <= 0) {
+      throw new BadRequestException(
+        'El precio mínimo de venta debe ser un número positivo',
+      );
+    }
+
+    if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg < minPrecioVentaKg) {
+      throw new BadRequestException(
+        'El precio máximo de venta debe ser mayor o igual al precio mínimo',
       );
     }
 
     await Promise.all([
+      this.parametrosService.setParametro(
+        'min_peso_kg',
+        minPesoKg.toString(),
+        organizacionId,
+      ),
       this.parametrosService.setParametro(
         'max_peso_kg',
         maxPesoKg.toString(),
         organizacionId,
       ),
       this.parametrosService.setParametro(
+        'min_precio_kg',
+        minPrecioKg.toString(),
+        organizacionId,
+      ),
+      this.parametrosService.setParametro(
         'max_precio_kg',
         maxPrecioKg.toString(),
+        organizacionId,
+      ),
+      this.parametrosService.setParametro(
+        'min_precio_venta_kg',
+        minPrecioVentaKg.toString(),
         organizacionId,
       ),
       this.parametrosService.setParametro(
@@ -224,6 +279,6 @@ export class BodegaService {
       ),
     ]);
 
-    return { maxPesoKg, maxPrecioKg, maxPrecioVentaKg };
+    return { minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg, minPrecioVentaKg, maxPrecioVentaKg };
   }
 }

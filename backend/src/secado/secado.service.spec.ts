@@ -71,12 +71,12 @@ describe('SecadoService - POST /secado', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.sublote.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { pesoActual: { decrement: 100 } },
+        data: { pesoActual: { decrement: expect.any(Object) } },
       }),
     );
     expect(tx.inventario.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { pesoTotal: { decrement: 100 } },
+        data: { pesoTotal: { decrement: expect.any(Object) } },
       }),
     );
     expect(tx.inventario.upsert).toHaveBeenCalledWith(

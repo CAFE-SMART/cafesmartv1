@@ -35,6 +35,32 @@ describe('procesarVenta - inventario de bodega', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('bloquea una venta con cantidad total menor a 5 kg antes de tocar la base de datos', async () => {
+    const prisma = {
+      $transaction: jest.fn(),
+    };
+
+    await expect(
+      procesarVenta(
+        {
+          organizacionId: 'org-1',
+          userId: 'user-1',
+          deviceId: 'device-1',
+          localId: 'venta-local-1',
+          detalles: [
+            {
+              subloteId: 'sub-1',
+              pesoVendido: 4,
+              precioKg: 12000,
+            },
+          ],
+        },
+        prisma as never,
+      ),
+    ).rejects.toBeInstanceOf(VentaValidacionCriticaError);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('bloquea una venta con precio menor a 1000 antes de tocar la base de datos', async () => {
     const prisma = {
       $transaction: jest.fn(),
@@ -251,7 +277,7 @@ describe('procesarVenta - inventario de bodega', () => {
       expect.objectContaining({
         data: {
           pesoActual: {
-            decrement: 40,
+            decrement: new Prisma.Decimal('40.00'),
           },
         },
       }),
@@ -260,7 +286,7 @@ describe('procesarVenta - inventario de bodega', () => {
       expect.objectContaining({
         data: {
           pesoTotal: {
-            decrement: 40,
+            decrement: new Prisma.Decimal('40.00'),
           },
         },
       }),
@@ -340,7 +366,7 @@ describe('procesarVenta - inventario de bodega', () => {
         where: expect.objectContaining({
           id: 'sub-1',
           pesoActual: {
-            gte: 40,
+            gte: new Prisma.Decimal('40.00'),
           },
         }),
       }),
@@ -422,12 +448,12 @@ describe('procesarVenta - inventario de bodega', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           pesoTotal: {
-            gte: 40,
+            gte: new Prisma.Decimal('40.00'),
           },
         }),
         data: {
           pesoTotal: {
-            decrement: 40,
+            decrement: new Prisma.Decimal('40.00'),
           },
         },
       }),
@@ -519,12 +545,12 @@ describe('procesarVenta - inventario de bodega', () => {
           tipoCafeId: 'tipo-seco',
           calidadId: 'calidad-bueno',
           pesoTotal: {
-            gte: 398,
+            gte: new Prisma.Decimal('398.00'),
           },
         }),
         data: {
           pesoTotal: {
-            decrement: 398,
+            decrement: new Prisma.Decimal('398.00'),
           },
         },
       }),

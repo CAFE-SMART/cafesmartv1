@@ -106,12 +106,15 @@ export default function SecadosActivos() {
           <button
             type="button"
             onClick={() =>
-              navigate(locationState?.from === 'ajustes' ? '/ajustes' : '/inventario', {
-                state:
-                  locationState?.from === 'ajustes'
-                    ? undefined
-                    : { preferredTypeKey: 'VERDE' },
-              })
+              navigate(
+                locationState?.from === 'ajustes' ? '/ajustes' : '/inventario',
+                {
+                  state:
+                    locationState?.from === 'ajustes'
+                      ? undefined
+                      : { preferredTypeKey: 'VERDE' },
+                },
+              )
             }
             className="absolute left-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-[#1f4fd8] transition hover:bg-[#f3f6ff] focus:outline-none focus:ring-2 focus:ring-[#9fb0e6]"
             aria-label="Volver"
@@ -134,7 +137,9 @@ export default function SecadosActivos() {
                     Café que está en secado
                   </h2>
                   <p className="mt-1.5 text-sm leading-5 text-slate-500">
-                    Cuando tu café termine el proceso de secado físico, regresa a esta pantalla para registrar las cantidades finales obtenidas y dar salida al lote.
+                    Cuando tu café termine el proceso de secado físico, regresa
+                    a esta pantalla para registrar las cantidades finales
+                    obtenidas y dar salida al lote.
                   </p>
                 </div>
               </div>
@@ -203,15 +208,11 @@ export default function SecadosActivos() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <span
-                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#f2f4f7] text-[#475467]"
-                        >
+                        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#f2f4f7] text-[#475467]">
                           <Coffee size={20} />
                         </span>
                         <div className="min-w-0">
-                          <span
-                            className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[0.72rem] font-semibold text-slate-700"
-                          >
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[0.72rem] font-semibold text-slate-700">
                             En secado
                           </span>
                           <p className="mt-2 truncate text-[1.08rem] font-semibold leading-tight text-[#111827]">
@@ -219,14 +220,18 @@ export default function SecadosActivos() {
                             {formatDisplayLabel(session.calidad)}
                           </p>
                           <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-600">
-                            <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
+                            <span
+                              className={`h-2 w-2 rounded-full ${tone.dot}`}
+                            />
                             {session.sublotes.length} sublote
                             {session.sublotes.length === 1 ? '' : 's'} en este
                             proceso
                           </p>
                         </div>
                       </div>
-                      <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone.rightCircle}`}>
+                      <span
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone.rightCircle}`}
+                      >
                         <CircleDashed size={17} />
                       </span>
                     </div>
@@ -247,7 +252,10 @@ export default function SecadosActivos() {
                           Inicio
                         </p>
                         <p className="text-[0.82rem] font-semibold text-slate-900">
-                          {startedLabel(session.startedAt).replace('Iniciado ', '')}
+                          {startedLabel(session.startedAt).replace(
+                            'Iniciado ',
+                            '',
+                          )}
                         </p>
                       </div>
                       <div className="rounded-[13px] bg-slate-50 px-3 py-2">

@@ -165,7 +165,9 @@ export default function SecadoSeleccion() {
         const lotes = await obtenerLotes();
         const greenLots = lotes.filter((l) => {
           const key = l.tipoCafe.trim().toUpperCase();
-          return key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE');
+          return (
+            key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE')
+          );
         });
 
         if (greenLots.length === 0) {
@@ -173,11 +175,13 @@ export default function SecadoSeleccion() {
         }
 
         const details = await Promise.all(
-          greenLots.map((l) => obtenerDetalleLote(l.tipoCafeId, l.calidadId))
+          greenLots.map((l) => obtenerDetalleLote(l.tipoCafeId, l.calidadId)),
         );
 
         const visualDetails = details
-          .map((d) => applySecadoToDetalle(d, d.lote.tipoCafeId, d.lote.calidadId))
+          .map((d) =>
+            applySecadoToDetalle(d, d.lote.tipoCafeId, d.lote.calidadId),
+          )
           .filter(Boolean) as LoteDetalle[];
 
         if (visualDetails.length === 0) {

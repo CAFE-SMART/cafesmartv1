@@ -37,7 +37,10 @@ import {
   guardarConfiguracionBodega,
   guardarLimitesEntrada,
 } from '../services/bodegaApi';
-import { applySecadoToLots, getActiveSecadoSessions } from '../utils/secadoFlow';
+import {
+  applySecadoToLots,
+  getActiveSecadoSessions,
+} from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
   BUSINESS_NAME_ERROR,
@@ -50,6 +53,7 @@ import {
   PESO_MAXIMO_ENTRADA_KG,
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
   PESO_MINIMO_KG,
+  PRECIO_MINIMO_KG,
 } from '../utils/businessRules';
 
 type ProfileSettings = {
@@ -64,7 +68,7 @@ type CompanySettings = {
   descripcion: string;
 };
 
-type AjustesErrorSection = 'profile' | 'company' | 'bodega';
+type AjustesErrorSection = 'profile' | 'company' | 'bodega' | 'limites';
 
 const CAPACIDAD_BODEGA_MAX_KG = 999999;
 const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
@@ -122,6 +126,14 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
     message === CAPACIDAD_BODEGA_MENOR_INVENTARIO_ANTERIOR
   ) {
     return 'bodega';
+  }
+
+  if (
+    message.toLowerCase().includes('límite') ||
+    message.toLowerCase().includes('peso max') ||
+    message.toLowerCase().includes('precio máx')
+  ) {
+    return 'limites';
   }
 
   return null;
@@ -232,6 +244,18 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
     );
   }
 
+  if (
+    message.includes('Error al guardar los límites') ||
+    message.includes('guardar los l\u00edmites')
+  ) {
+    return createGuidedError(
+      message,
+      'Error al guardar.',
+      'No se pudieron actualizar los límites en el servidor.',
+      'Intenta de nuevo.',
+    );
+  }
+
   return createGuidedError(
     message,
     'Ups, no se pudo guardar.',
@@ -299,9 +323,20 @@ export default function Ajustes() {
   );
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [isEditingLimites, setIsEditingLimites] = useState(false);
+  const [limitMinPesoKg, setLimitMinPesoKg] = useState('');
   const [limitMaxPesoKg, setLimitMaxPesoKg] = useState('');
+  const [limitMinPrecioKg, setLimitMinPrecioKg] = useState('');
   const [limitMaxPrecioKg, setLimitMaxPrecioKg] = useState('');
+  const [limitMinPrecioVentaKg, setLimitMinPrecioVentaKg] = useState('');
   const [limitMaxPrecioVentaKg, setLimitMaxPrecioVentaKg] = useState('');
+  const [limitesErrors, setLimitesErrors] = useState<{
+    pesoMin?: string;
+    pesoMax?: string;
+    precioCompraMin?: string;
+    precioCompraMax?: string;
+    precioVentaMin?: string;
+    precioVentaMax?: string;
+  }>({});
   const [guardandoLimites, setGuardandoLimites] = useState(false);
   const [focusSettingApplied, setFocusSettingApplied] = useState(false);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
@@ -403,11 +438,14 @@ export default function Ajustes() {
       setNombreBodega(config.nombreBodega);
       setCapacidadKg(config.capacidadKg ? String(config.capacidadKg) : '');
       setUpdatedAt(config.updatedAt);
+      setLimitMinPesoKg(String(config.minPesoKg ?? PESO_MINIMO_KG));
       setLimitMaxPesoKg(
-        String(config.maxPesoKg || PESO_MAXIMO_OPERATIVO_DEFAULT_KG),
+        String(config.maxPesoKg ?? PESO_MAXIMO_OPERATIVO_DEFAULT_KG),
       );
-      setLimitMaxPrecioKg(String(config.maxPrecioKg || 100000));
-      setLimitMaxPrecioVentaKg(String(config.maxPrecioVentaKg || 100000));
+      setLimitMinPrecioKg(String(config.minPrecioKg ?? PRECIO_MINIMO_KG));
+      setLimitMaxPrecioKg(String(config.maxPrecioKg ?? 100000));
+      setLimitMinPrecioVentaKg(String(config.minPrecioVentaKg ?? PRECIO_MINIMO_KG));
+      setLimitMaxPrecioVentaKg(String(config.maxPrecioVentaKg ?? 100000));
     } catch {
       setNombreBodega(initialConfig.nombreBodega);
       setCapacidadKg('');
@@ -435,11 +473,13 @@ export default function Ajustes() {
   const cerrarEditorLimites = () => {
     setIsEditingLimites(false);
     clearFeedback();
+    setLimitesErrors({});
     void cargarConfiguracionBodega();
   };
 
   const abrirEditorLimites = () => {
     clearFeedback();
+    setLimitesErrors({});
     setIsEditingLimites(true);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
@@ -470,37 +510,66 @@ export default function Ajustes() {
   };
 
   const guardarLimites = async () => {
+    const pesoMin = Number(limitMinPesoKg);
     const pesoMax = Number(limitMaxPesoKg);
+    const precioMin = Number(limitMinPrecioKg);
     const precioMax = Number(limitMaxPrecioKg);
+    const precioVentaMin = Number(limitMinPrecioVentaKg);
     const precioVentaMax = Number(limitMaxPrecioVentaKg);
-    clearFeedback();
+
+    const errors: {
+      pesoMin?: string;
+      pesoMax?: string;
+      precioCompraMin?: string;
+      precioCompraMax?: string;
+      precioVentaMin?: string;
+      precioVentaMax?: string;
+    } = {};
+
+    if (!limitMinPesoKg.trim() || !Number.isFinite(pesoMin) || pesoMin <= 0) {
+      errors.pesoMin = 'El peso mínimo debe ser un número positivo.';
+    }
 
     if (
+      !limitMaxPesoKg.trim() ||
       !Number.isFinite(pesoMax) ||
-      pesoMax < PESO_MINIMO_KG ||
+      pesoMax < pesoMin ||
       pesoMax > PESO_MAXIMO_ENTRADA_KG
     ) {
-      setError(
-        `El peso maximo debe estar entre ${PESO_MINIMO_KG} y ${formatKg(PESO_MAXIMO_ENTRADA_KG)} kg.`,
-      );
+      errors.pesoMax = `El peso máximo debe estar entre el peso mínimo (${pesoMin} kg) y ${formatKg(PESO_MAXIMO_ENTRADA_KG)} kg.`;
+    }
+
+    if (!limitMinPrecioKg.trim() || !Number.isFinite(precioMin) || precioMin <= 0) {
+      errors.precioCompraMin = 'El precio mínimo de compra debe ser mayor que 0.';
+    }
+
+    if (!limitMaxPrecioKg.trim() || !Number.isFinite(precioMax) || precioMax < precioMin) {
+      errors.precioCompraMax = 'El precio máximo de compra debe ser mayor o igual al precio mínimo.';
+    }
+
+    if (!limitMinPrecioVentaKg.trim() || !Number.isFinite(precioVentaMin) || precioVentaMin <= 0) {
+      errors.precioVentaMin = 'El precio mínimo de venta debe ser mayor que 0.';
+    }
+
+    if (!limitMaxPrecioVentaKg.trim() || !Number.isFinite(precioVentaMax) || precioVentaMax < precioVentaMin) {
+      errors.precioVentaMax = 'El precio máximo de venta debe ser mayor o igual al precio mínimo.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setLimitesErrors(errors);
       return;
     }
 
-    if (!Number.isFinite(precioMax) || precioMax <= 0) {
-      setError('El precio máximo de compra debe ser mayor que 0.');
-      return;
-    }
-
-    if (!Number.isFinite(precioVentaMax) || precioVentaMax <= 0) {
-      setError('El precio máximo de venta debe ser mayor que 0.');
-      return;
-    }
-
+    setLimitesErrors({});
+    clearFeedback();
     setGuardandoLimites(true);
     try {
       await guardarLimitesEntrada({
+        minPesoKg: pesoMin,
         maxPesoKg: pesoMax,
+        minPrecioKg: precioMin,
         maxPrecioKg: precioMax,
+        minPrecioVentaKg: precioVentaMin,
         maxPrecioVentaKg: precioVentaMax,
       });
       setSuccess('Límites actualizados.');
@@ -513,7 +582,7 @@ export default function Ajustes() {
       const message =
         err instanceof Error
           ? err.message
-          : 'Error al guardar los l\u00edmites.';
+          : 'Error al guardar los límites.';
       setError(message);
       setToastNotification({
         message: 'Error al guardar los límites.',
@@ -667,16 +736,33 @@ export default function Ajustes() {
   const procesosOperativos = [
     {
       id: 'secado',
-      title: 'Proceso de secado',
-      description: 'Tiempo y humedad',
+      title: 'Iniciar secado',
+      description: 'Secado de café verde',
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
-      onClick: abrirProcesoSecado,
+      onClick: async () => {
+        try {
+          const lotes = await obtenerLotes();
+          const greenLot = lotes.find((l) => {
+            const key = l.tipoCafe.trim().toUpperCase();
+            return (
+              key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE')
+            );
+          });
+          if (greenLot) {
+            navigate(`/inventario/${greenLot.tipoCafeId}/${greenLot.calidadId}/secado`);
+          } else {
+            navigate('/inventario');
+          }
+        } catch {
+          navigate('/inventario');
+        }
+      },
     },
     {
       id: 'gastos',
-      title: 'Gastos operativos',
-      description: 'Listado y registro',
+      title: 'Registrar gasto',
+      description: 'Control de egresos',
       icon: Wallet,
       iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
       onClick: () => navigate('/gastos'),
@@ -686,8 +772,8 @@ export default function Ajustes() {
   const configuracionNegocio = [
     {
       id: 'info-empresa',
-      title: 'Información de la empresa',
-      description: company.nombreEmpresa || 'Datos principales del negocio',
+      title: 'Datos de empresa',
+      description: company.nombreEmpresa || 'Nombre y descripción',
       icon: Building2,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
@@ -695,8 +781,8 @@ export default function Ajustes() {
     },
     {
       id: 'tipos-cafe',
-      title: 'Tipos de café',
-      description: 'Variedades registradas',
+      title: 'Variedades de café',
+      description: 'Tipos de café registrados',
       icon: FlaskConical,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: true,
@@ -704,8 +790,8 @@ export default function Ajustes() {
     },
     {
       id: 'calidades-cafe',
-      title: 'Calidades de café',
-      description: 'Estándares de calidad',
+      title: 'Calidad del café',
+      description: 'Nivel de calidad del grano',
       icon: ScanSearch,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: true,
@@ -713,8 +799,8 @@ export default function Ajustes() {
     },
     {
       id: 'capacidad-bodega',
-      title: 'Capacidad de bodega',
-      description: 'L\u00edmites de almacenamiento',
+      title: 'Ajustar bodega',
+      description: 'Capacidad máxima en kg',
       icon: Warehouse,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
@@ -722,8 +808,8 @@ export default function Ajustes() {
     },
     {
       id: 'limites-entrada',
-      title: 'L\u00edmites de entrada',
-      description: 'Peso y precio m\u00e1ximo',
+      title: 'Límites de compra',
+      description: 'Precios y pesos permitidos',
       icon: Scale,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: false,
@@ -731,8 +817,8 @@ export default function Ajustes() {
     },
     {
       id: 'gestion-usuarios',
-      title: 'Gesti\u00f3n de usuarios',
-      description: 'Pr\u00f3ximamente',
+      title: 'Permisos y roles',
+      description: 'Acceso de trabajadores',
       icon: Users,
       iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
       staticOnly: true,
@@ -743,16 +829,16 @@ export default function Ajustes() {
   const gestionPersonas = [
     {
       id: 'clientes-registrados',
-      title: 'Clientes registrados',
-      description: 'Base de datos de compradores',
+      title: 'Compradores',
+      description: 'Directorio de compradores',
       icon: Users2,
       iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
       staticOnly: true,
     },
     {
       id: 'usuarios-sistema',
-      title: 'Usuarios del sistema',
-      description: 'Roles y permisos',
+      title: 'Personal',
+      description: 'Trabajadores del sistema',
       icon: Shield,
       iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
       staticOnly: true,
@@ -952,14 +1038,8 @@ export default function Ajustes() {
           </article>
         </section>
 
-        {error && !activeErrorSection && !isEditingBodega ? (
+        {error && !activeErrorSection && !isEditingBodega && !isEditingLimites ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
-        ) : null}
-
-        {success ? (
-          <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {success}
-          </div>
         ) : null}
 
         <button
@@ -1324,98 +1404,177 @@ export default function Ajustes() {
               </button>
             </div>
 
+            {error && Object.keys(limitesErrors).length === 0 ? (
+              <div className="mt-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                <InlineGuidedError message={getAjustesGuidance(error)} />
+              </div>
+            ) : null}
+
             <div className="mt-4 space-y-4">
-              <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
-                  Peso máximo en compra (kg)
-                </p>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={limitMaxPesoKg}
-                  onChange={(event) => {
-                    const raw = event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 5);
-                    setLimitMaxPesoKg(raw);
-                    clearFeedback();
-                  }}
-                  className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${error && error.includes('peso') ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-900'}`}
-                  placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
-                />
-                {error && error.includes('peso') ? (
-                  <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <InlineGuidedError message={getAjustesGuidance(error)} />
-                  </div>
-                ) : null}
-              </div>
-
-              <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
-                  Precio máx. x kg (Compra)
-                </p>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
-                    $
-                  </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Peso mín. compra (kg)
+                  </p>
                   <input
                     type="text"
                     inputMode="numeric"
-                    maxLength={6}
-                    value={limitMaxPrecioKg}
+                    maxLength={5}
+                    value={limitMinPesoKg}
                     onChange={(event) => {
-                      const raw = event.target.value
-                        .replace(/\D/g, '')
-                        .slice(0, 6);
-                      setLimitMaxPrecioKg(raw);
+                      const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                      setLimitMinPesoKg(raw);
+                      setLimitesErrors((prev) => ({ ...prev, pesoMin: undefined }));
                       clearFeedback();
                     }}
-                    className={`w-full rounded-[14px] border py-3 pl-8 pr-4 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${error && error.includes('precio') && error.includes('compra') ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-900'}`}
-                    placeholder="100000"
+                    className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.pesoMin ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                    placeholder="5"
                   />
                 </div>
-                {error &&
-                error.includes('precio') &&
-                error.includes('compra') ? (
-                  <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <InlineGuidedError message={getAjustesGuidance(error)} />
-                  </div>
-                ) : null}
-              </div>
-
-              <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700">
-                  Precio máx. x kg (Venta)
-                </p>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-400">
-                    $
-                  </span>
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Peso máx. compra (kg)
+                  </p>
                   <input
                     type="text"
                     inputMode="numeric"
-                    maxLength={6}
-                    value={limitMaxPrecioVentaKg}
+                    maxLength={5}
+                    value={limitMaxPesoKg}
                     onChange={(event) => {
-                      const raw = event.target.value
-                        .replace(/\D/g, '')
-                        .slice(0, 6);
-                      setLimitMaxPrecioVentaKg(raw);
+                      const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                      setLimitMaxPesoKg(raw);
+                      setLimitesErrors((prev) => ({ ...prev, pesoMax: undefined }));
                       clearFeedback();
                     }}
-                    className={`w-full rounded-[14px] border py-3 pl-8 pr-4 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${error && error.includes('precio') && error.includes('venta') ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-900'}`}
-                    placeholder="100000"
+                    className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.pesoMax ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                    placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
                   />
                 </div>
-                {error &&
-                error.includes('precio') &&
-                error.includes('venta') ? (
-                  <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <InlineGuidedError message={getAjustesGuidance(error)} />
-                  </div>
-                ) : null}
               </div>
+              {limitesErrors.pesoMin || limitesErrors.pesoMax ? (
+                <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1">
+                  {limitesErrors.pesoMin && (
+                    <InlineGuidedError message={createGuidedError('peso_min_err', 'Peso mínimo inválido', '', limitesErrors.pesoMin)} />
+                  )}
+                  {limitesErrors.pesoMax && (
+                    <InlineGuidedError message={createGuidedError('peso_max_err', 'Peso máximo inválido', '', limitesErrors.pesoMax)} />
+                  )}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Precio mín. (Compra)
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={limitMinPrecioKg}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                        setLimitMinPrecioKg(raw);
+                        setLimitesErrors((prev) => ({ ...prev, precioCompraMin: undefined }));
+                        clearFeedback();
+                      }}
+                      className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioCompraMin ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                      placeholder="1000"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Precio máx. (Compra)
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={limitMaxPrecioKg}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                        setLimitMaxPrecioKg(raw);
+                        setLimitesErrors((prev) => ({ ...prev, precioCompraMax: undefined }));
+                        clearFeedback();
+                      }}
+                      className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioCompraMax ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                      placeholder="100000"
+                    />
+                  </div>
+                </div>
+              </div>
+              {limitesErrors.precioCompraMin || limitesErrors.precioCompraMax ? (
+                <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1">
+                  {limitesErrors.precioCompraMin && (
+                    <InlineGuidedError message={createGuidedError('precio_comp_min_err', 'Precio mín. compra inválido', '', limitesErrors.precioCompraMin)} />
+                  )}
+                  {limitesErrors.precioCompraMax && (
+                    <InlineGuidedError message={createGuidedError('precio_comp_max_err', 'Precio máx. compra inválido', '', limitesErrors.precioCompraMax)} />
+                  )}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Precio mín. (Venta)
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={limitMinPrecioVentaKg}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                        setLimitMinPrecioVentaKg(raw);
+                        setLimitesErrors((prev) => ({ ...prev, precioVentaMin: undefined }));
+                        clearFeedback();
+                      }}
+                      className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioVentaMin ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                      placeholder="1000"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 block text-[0.8rem] font-semibold text-slate-700">
+                    Precio máx. (Venta)
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-slate-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={limitMaxPrecioVentaKg}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                        setLimitMaxPrecioVentaKg(raw);
+                        setLimitesErrors((prev) => ({ ...prev, precioVentaMax: undefined }));
+                        clearFeedback();
+                      }}
+                      className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioVentaMax ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
+                      placeholder="100000"
+                    />
+                  </div>
+                </div>
+              </div>
+              {limitesErrors.precioVentaMin || limitesErrors.precioVentaMax ? (
+                <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1">
+                  {limitesErrors.precioVentaMin && (
+                    <InlineGuidedError message={createGuidedError('precio_vent_min_err', 'Precio mín. venta inválido', '', limitesErrors.precioVentaMin)} />
+                  )}
+                  {limitesErrors.precioVentaMax && (
+                    <InlineGuidedError message={createGuidedError('precio_vent_max_err', 'Precio máx. venta inválido', '', limitesErrors.precioVentaMax)} />
+                  )}
+                </div>
+              ) : null}
 
               <div className="pt-2">
                 <button

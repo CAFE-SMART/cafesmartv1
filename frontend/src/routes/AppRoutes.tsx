@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import Landing from '../pages/Landing';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Inicio from '../pages/Inicio';
@@ -11,6 +12,7 @@ import SecadoSeleccion from '../pages/SecadoSeleccion';
 import SecadosActivos from '../pages/SecadosActivos';
 import SecadoProceso from '../pages/SecadoProceso';
 import SecadoResumen from '../pages/SecadoResumen';
+import SecadoInicio from '../pages/SecadoInicio';
 import Ajustes from '../pages/Ajustes';
 import SystemStatus from '../pages/SystemStatus';
 import GastosOperativos from '../pages/GastosOperativos';
@@ -22,7 +24,8 @@ import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Landing />} />
+      <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/crear-empresa" element={<Register />} />
@@ -36,6 +39,7 @@ export default function AppRoutes() {
         {ENABLE_SECADO_PROTOTYPE ? (
           <>
             <Route path="/inventario/secados" element={<SecadosActivos />} />
+            <Route path="/inventario/secado-inicio" element={<SecadoInicio />} />
             <Route
               path="/inventario/:tipoCafeId/:calidadId/secado"
               element={<SecadoSeleccion />}

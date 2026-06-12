@@ -128,6 +128,8 @@ export function validarVentaCritica(data: ProcesarVentaInput): void {
     );
   }
 
+  let totalPesoVendido = 0;
+
   for (const [index, detalle] of data.detalles.entries()) {
     if (!textoObligatorio(detalle.subloteId)) {
       throw new VentaValidacionCriticaError(
@@ -139,14 +141,16 @@ export function validarVentaCritica(data: ProcesarVentaInput): void {
 
     if (
       !Number.isFinite(detalle.pesoVendido) ||
-      detalle.pesoVendido < PESO_MINIMO_KG
+      detalle.pesoVendido < 0.01
     ) {
       throw new VentaValidacionCriticaError(
         'VENTA_CANTIDAD_INVALIDA',
-        `La cantidad a vender debe ser minimo ${PESO_MINIMO_KG} kg.`,
+        `La cantidad a vender en cada sublote debe ser minimo 0.01 kg.`,
         { index, subloteId: detalle.subloteId },
       );
     }
+
+    totalPesoVendido += detalle.pesoVendido;
 
     if (
       !Number.isFinite(detalle.precioKg) ||
@@ -159,6 +163,13 @@ export function validarVentaCritica(data: ProcesarVentaInput): void {
         { index, subloteId: detalle.subloteId },
       );
     }
+  }
+
+  if (totalPesoVendido < PESO_MINIMO_KG) {
+    throw new VentaValidacionCriticaError(
+      'VENTA_CANTIDAD_INVALIDA',
+      `La cantidad total a vender debe ser minimo ${PESO_MINIMO_KG} kg.`,
+    );
   }
 }
 
@@ -280,18 +291,12 @@ export async function procesarVenta(
             id: detalle.subloteId,
             deletedAt: null,
             pesoActual: {
-              gte: detalle.pesoVendido,
-            },
-            compra: {
-              is: {
-                organizacionId: data.organizacionId,
-                deletedAt: null,
-              },
+              gte: new Prisma.Decimal(detalle.pesoVendido.toFixed(2)),
             },
           },
           data: {
             pesoActual: {
-              decrement: detalle.pesoVendido,
+              decrement: new Prisma.Decimal(detalle.pesoVendido.toFixed(2)),
             },
           },
         });
@@ -379,12 +384,12 @@ export async function procesarVenta(
             tipoCafeId: movimiento.tipoCafeId,
             calidadId: movimiento.calidadId,
             pesoTotal: {
-              gte: movimiento.cantidad,
+              gte: new Prisma.Decimal(movimiento.cantidad.toFixed(2)),
             },
           },
           data: {
             pesoTotal: {
-              decrement: movimiento.cantidad,
+              decrement: new Prisma.Decimal(movimiento.cantidad.toFixed(2)),
             },
           },
         });

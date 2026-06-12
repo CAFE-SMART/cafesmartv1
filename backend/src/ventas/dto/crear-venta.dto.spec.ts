@@ -27,10 +27,10 @@ describe('CreateVentaDto', () => {
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
 
-  it('rechaza ventas menores a 5 kg', async () => {
+  it('rechaza detalles con peso menor a 0.01 kg', async () => {
     const dto = plainToInstance(CreateVentaDto, {
       ...base,
-      detalles: [{ ...base.detalles[0], pesoVendido: 4.99 }],
+      detalles: [{ ...base.detalles[0], pesoVendido: 0 }],
     });
 
     const errors = await validate(dto);

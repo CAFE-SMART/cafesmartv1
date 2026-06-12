@@ -35,10 +35,7 @@ class ConceptoGastoValidoConstraint implements ValidatorConstraintInterface {
 
     const lettersCount = (concepto.match(/\p{L}/gu) || []).length;
 
-    return (
-      CONCEPTO_GASTO_VALIDO_REGEX.test(concepto) &&
-      lettersCount >= 3
-    );
+    return CONCEPTO_GASTO_VALIDO_REGEX.test(concepto) && lettersCount >= 3;
   }
 
   defaultMessage(args: ValidationArguments): string {

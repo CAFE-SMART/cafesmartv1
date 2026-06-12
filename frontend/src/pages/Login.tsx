@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   Eye,
@@ -8,6 +8,7 @@ import {
   Lock,
   LogIn,
   Mail,
+  LogOut,
 } from 'lucide-react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
@@ -58,11 +59,29 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  
+  const location = useLocation();
+  const initialMode = (location.state as { mode?: 'login' | 'forgot' | 'reset' } | null)?.mode || 'login';
+  const [mode, setMode] = useState<'login' | 'forgot' | 'reset'>(initialMode);
+  const [code, setCode] = useState('');
+  const [codeFieldError, setCodeFieldError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   const navigate = useNavigate();
   const { setSession } = useUser();
+
+  const handleSwitchMode = (newMode: 'login' | 'forgot' | 'reset') => {
+    setMode(newMode);
+    setError(null);
+    setSuccessMessage(null);
+    setEmailFieldError(null);
+    setPasswordFieldError(null);
+    setCodeFieldError(null);
+    setCode('');
+    setPassword('');
+  };
 
   const resetForm = () => {
     setEmail('');
@@ -89,7 +108,7 @@ export default function Login() {
     window.close();
     if (!window.closed) {
       resetForm();
-      navigate('/login', { replace: true });
+      navigate('/landing', { replace: true });
     }
   };
 
@@ -196,6 +215,109 @@ export default function Login() {
     }
   };
 
+  const handleSendCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setEmailFieldError(null);
+    setSuccessMessage(null);
+
+    if (!email.trim()) {
+      setEmailFieldError('Escribe tu correo.');
+      return;
+    } else if (email.trim().length > EMAIL_MAX_LENGTH) {
+      setEmailFieldError(
+        `El correo no puede superar ${EMAIL_MAX_LENGTH} caracteres.`,
+      );
+      return;
+    } else if (!isValidEmail(email)) {
+      setEmailFieldError('Correo invalido.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await authService.forgotPassword(email);
+      setSuccessMessage(
+        'Código de verificación enviado. Revisa tu bandeja de entrada o la consola del backend.',
+      );
+      setMode('reset');
+      setCode('');
+      setPassword('');
+    } catch (err) {
+      const authError = err as AuthError;
+      const field = (authError.field || '').toLowerCase();
+      const message =
+        authError.message || 'Error al enviar el código de recuperación.';
+
+      if (field === 'email' || field === 'correo') {
+        setEmailFieldError(message);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setCodeFieldError(null);
+    setPasswordFieldError(null);
+    setSuccessMessage(null);
+
+    let hasError = false;
+
+    if (!code.trim()) {
+      setCodeFieldError('Escribe el código de verificación.');
+      hasError = true;
+    } else if (code.trim().length !== 6) {
+      setCodeFieldError('El código debe tener exactamente 6 dígitos.');
+      hasError = true;
+    }
+
+    if (!password.trim()) {
+      setPasswordFieldError('Escribe tu nueva contraseña.');
+      hasError = true;
+    } else if (password.length < 6 || password.length > PASSWORD_MAX_LENGTH) {
+      setPasswordFieldError(
+        `La contraseña debe tener entre 6 y ${PASSWORD_MAX_LENGTH} caracteres.`,
+      );
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      await authService.resetPassword(email, code, password);
+      setEmail('');
+      setPassword('');
+      setCode('');
+      setMode('login');
+      setSuccessMessage(
+        'Tu contraseña ha sido restablecida con éxito. Ya puedes iniciar sesión.',
+      );
+    } catch (err) {
+      const authError = err as AuthError;
+      const field = (authError.field || '').toLowerCase();
+      const message =
+        authError.message || 'Error al restablecer la contraseña.';
+
+      if (field === 'code' || field === 'codigo') {
+        setCodeFieldError(message);
+      } else if (field === 'password' || field === 'contrasena') {
+        setPasswordFieldError(message);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogleSuccess = async (
     credentialResponse: CredentialResponse,
   ) => {
@@ -270,9 +392,10 @@ export default function Login() {
           <button
             type="button"
             onClick={() => void handleExitApp()}
-            className="rounded-full px-2 py-1 text-sm font-semibold text-slate-500 transition-colors hover:text-[#274ab8]"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#274ab8]"
           >
             Salir
+            <LogOut size={14} />
           </button>
         </header>
 
@@ -286,174 +409,353 @@ export default function Login() {
               />
             </div>
             <h1 className="text-center text-[1.25rem] font-black leading-tight tracking-normal text-[#172033]">
-              Iniciar Sesi&oacute;n
+              {mode === 'login' && 'Iniciar Sesión'}
+              {mode === 'forgot' && 'Recuperar Contraseña'}
+              {mode === 'reset' && 'Restablecer Contraseña'}
             </h1>
-            <p className="mx-auto mt-2 max-w-[260px] text-center text-[0.72rem] leading-5 text-[#75859d]">
-              Bienvenido a Caf&eacute; Smart
+            <p className="mx-auto mt-2 max-w-[280px] text-center text-[0.72rem] leading-5 text-[#75859d]">
+              {mode === 'login' && 'Bienvenido a Café Smart'}
+              {mode === 'forgot' &&
+                'Ingresa tu correo electrónico para recibir un código de verificación de 6 dígitos.'}
+              {mode === 'reset' &&
+                `Ingresa el código enviado a ${email} y tu nueva contraseña.`}
             </p>
+
+            {successMessage ? (
+              <div className="mt-5 rounded-[8px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 flex gap-3">
+                <div className="mt-0.5 shrink-0 text-emerald-600 font-bold">
+                  ✓
+                </div>
+                <div>
+                  <p className="font-black">¡Completado!</p>
+                  <p className="mt-1 leading-5">{successMessage}</p>
+                </div>
+              </div>
+            ) : null}
 
             {error ? <AlertBanner message={error} /> : null}
 
-            <form onSubmit={handleLogin} className="mt-5 space-y-4">
-              <TextField
-                id="login-email"
-                ref={emailInputRef}
-                label="Correo electronico"
-                value={email}
-                onChange={(value) => {
-                  setEmail(value.slice(0, EMAIL_MAX_LENGTH));
-                  setEmailFieldError(null);
-                }}
-                placeholder="ejemplo@correo.com"
-                type="email"
-                autoComplete="email"
-                maxLength={EMAIL_MAX_LENGTH}
-                error={emailFieldError}
-                icon={<Mail size={17} />}
-              />
+            {mode === 'login' && (
+              <form onSubmit={handleLogin} className="mt-5 space-y-4">
+                <TextField
+                  id="login-email"
+                  ref={emailInputRef}
+                  label="Correo electronico"
+                  value={email}
+                  onChange={(value) => {
+                    setEmail(value.slice(0, EMAIL_MAX_LENGTH));
+                    setEmailFieldError(null);
+                  }}
+                  placeholder="ejemplo@correo.com"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={EMAIL_MAX_LENGTH}
+                  error={emailFieldError}
+                  icon={<Mail size={17} />}
+                />
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label
-                    htmlFor="login-password"
-                    className="text-sm font-black text-[#344054]"
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="login-password"
+                      className="text-sm font-black text-[#344054]"
+                    >
+                      Contraseña
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchMode('forgot')}
+                      className="text-[11px] font-black text-[#274ab8] hover:underline"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+
+                  <div
+                    className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+                      passwordFieldError
+                        ? 'border-rose-300 bg-rose-50/60'
+                        : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                    }`}
                   >
-                    Contrase&ntilde;a
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setError('Recuperacion no disponible todavia.')
-                    }
-                    className="text-[11px] font-black text-[#274ab8] hover:underline"
-                  >
-                    &iquest;Olvidaste tu contrase&ntilde;a?
-                  </button>
+                    <Lock size={17} className="shrink-0 text-[#9aa8bc]" />
+                    <input
+                      id="login-password"
+                      ref={passwordInputRef}
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(
+                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                        );
+                        setPasswordFieldError(null);
+                      }}
+                      placeholder="********"
+                      autoComplete="current-password"
+                      maxLength={PASSWORD_MAX_LENGTH}
+                      className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                      aria-label={
+                        showPassword
+                          ? 'Ocultar contrasena'
+                          : 'Mostrar contrasena'
+                      }
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+
+                  {passwordFieldError ? (
+                    <FieldError message={passwordFieldError} />
+                  ) : null}
                 </div>
 
-                <div
-                  className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
-                    passwordFieldError
-                      ? 'border-rose-300 bg-rose-50/60'
-                      : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                <label className="flex items-center gap-3 text-sm text-[#5d6b82]">
+                  <input
+                    id="remember_me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(event) => setRememberMe(event.target.checked)}
+                    className="h-4 w-4 rounded border-[#c8d2e2] text-[#274ab8] focus:ring-[#274ab8]"
+                  />
+                  <span>Recordar mi cuenta en este dispositivo</span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full text-[0.72rem] font-black text-white transition ${
+                    loading
+                      ? 'cursor-wait bg-blue-300'
+                      : 'bg-[#1D4ED8] shadow-[0_16px_30px_rgba(29,78,216,0.20)] hover:bg-[#1e40af]'
                   }`}
                 >
-                  <Lock size={17} className="shrink-0 text-[#9aa8bc]" />
-                  <input
-                    id="login-password"
-                    ref={passwordInputRef}
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(event) => {
-                      setPassword(
-                        event.target.value.slice(0, PASSWORD_MAX_LENGTH),
-                      );
-                      setPasswordFieldError(null);
-                    }}
-                    placeholder="********"
-                    autoComplete="current-password"
-                    maxLength={PASSWORD_MAX_LENGTH}
-                    className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                    aria-label={
-                      showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'
-                    }
-                  >
-                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
-
-                {passwordFieldError ? (
-                  <FieldError message={passwordFieldError} />
-                ) : null}
-              </div>
-
-              <label className="flex items-center gap-3 text-sm text-[#5d6b82]">
-                <input
-                  id="remember_me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(event) => setRememberMe(event.target.checked)}
-                  className="h-4 w-4 rounded border-[#c8d2e2] text-[#274ab8] focus:ring-[#274ab8]"
-                />
-                <span>Recordar mi cuenta en este dispositivo</span>
-              </label>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full text-[0.72rem] font-black text-white transition ${
-                  loading
-                    ? 'cursor-wait bg-blue-300'
-                    : 'bg-[#1D4ED8] shadow-[0_16px_30px_rgba(29,78,216,0.20)] hover:bg-[#1e40af]'
-                }`}
-              >
-                {loading ? (
-                  <>
-                    <Loader size={17} className="animate-spin" />
-                    Entrando...
-                  </>
-                ) : (
-                  <>
-                    Entrar
-                    <LogIn size={17} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {isGoogleAuthEnabled ? (
-              <div className="mt-7">
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-[#e3e8f0]" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#93a1b6]">
-                    O CONTIN&Uacute;A CON
-                  </span>
-                  <div className="h-px flex-1 bg-[#e3e8f0]" />
-                </div>
-
-                {googleLoading ? (
-                  <div className="mt-5 rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-5 text-center">
-                    <Loader
-                      size={18}
-                      className="mx-auto animate-spin text-[#274ab8]"
-                    />
-                    <p className="mt-2 text-sm font-semibold text-slate-700">
-                      Validando Google...
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-5 flex justify-center">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                      text="signin_with"
-                      theme="outline"
-                      size="large"
-                      width="100%"
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold text-amber-800">
-                Google no esta configurado.
-              </p>
+                  {loading ? (
+                    <>
+                      <Loader size={17} className="animate-spin" />
+                      Entrando...
+                    </>
+                  ) : (
+                    <>
+                      Entrar
+                      <LogIn size={17} />
+                    </>
+                  )}
+                </button>
+              </form>
             )}
 
-            <p className="mt-7 text-center text-sm text-[#5d6b82]">
-              &iquest;No tienes una cuenta?{' '}
-              <Link
-                to="/register"
-                className="font-black text-[#274ab8] hover:underline"
-              >
-                Reg&iacute;strate gratis
-              </Link>
-            </p>
+            {mode === 'forgot' && (
+              <form onSubmit={handleSendCode} className="mt-5 space-y-4">
+                <TextField
+                  id="forgot-email"
+                  label="Correo electrónico"
+                  value={email}
+                  onChange={(value) => {
+                    setEmail(value.slice(0, EMAIL_MAX_LENGTH));
+                    setEmailFieldError(null);
+                  }}
+                  placeholder="ejemplo@correo.com"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={EMAIL_MAX_LENGTH}
+                  error={emailFieldError}
+                  icon={<Mail size={17} />}
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full text-[0.72rem] font-black text-white transition ${
+                    loading
+                      ? 'cursor-wait bg-blue-300'
+                      : 'bg-[#1D4ED8] shadow-[0_16px_30px_rgba(29,78,216,0.20)] hover:bg-[#1e40af]'
+                  }`}
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={17} className="animate-spin" />
+                      Enviando código...
+                    </>
+                  ) : (
+                    <>Enviar código</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('login')}
+                  className="w-full text-center text-sm font-black text-[#274ab8] hover:underline pt-2 block"
+                >
+                  Regresar al inicio de sesión
+                </button>
+              </form>
+            )}
+
+            {mode === 'reset' && (
+              <form onSubmit={handleResetPassword} className="mt-5 space-y-4">
+                <TextField
+                  id="reset-code"
+                  label="Código de verificación (6 dígitos)"
+                  value={code}
+                  onChange={(value) => {
+                    const clean = value.replace(/\D/g, '').slice(0, 6);
+                    setCode(clean);
+                    setCodeFieldError(null);
+                  }}
+                  placeholder="123456"
+                  type="text"
+                  maxLength={6}
+                  error={codeFieldError}
+                  icon={<Lock size={17} />}
+                />
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="reset-new-password"
+                      className="text-sm font-black text-[#344054]"
+                    >
+                      Nueva contraseña
+                    </label>
+                  </div>
+
+                  <div
+                    className={`flex min-h-[42px] items-center gap-2 rounded-[8px] border bg-[#f8faff] px-3 transition ${
+                      passwordFieldError
+                        ? 'border-rose-300 bg-rose-50/60'
+                        : 'border-[#dfe5f1] focus-within:border-[#274ab8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                    }`}
+                  >
+                    <Lock size={17} className="shrink-0 text-[#9aa8bc]" />
+                    <input
+                      id="reset-new-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(
+                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                        );
+                        setPasswordFieldError(null);
+                      }}
+                      placeholder="Escribe tu nueva contraseña"
+                      maxLength={PASSWORD_MAX_LENGTH}
+                      className="min-w-0 flex-1 bg-transparent py-2 text-[0.72rem] font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                      aria-label={
+                        showPassword
+                          ? 'Ocultar contraseña'
+                          : 'Mostrar contraseña'
+                      }
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+
+                  {passwordFieldError ? (
+                    <FieldError message={passwordFieldError} />
+                  ) : null}
+                </div>
+
+                {import.meta.env.DEV ? (
+                  <div className="rounded-[8px] border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800 leading-relaxed">
+                    <strong>Nota (Desarrollo):</strong> El código se imprimió en la terminal del backend para facilitar tus pruebas locales.
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#75859d] leading-relaxed">
+                    Si no recibes el correo en unos minutos, por favor revisa tu carpeta de correo no deseado (spam).
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full text-[0.72rem] font-black text-white transition ${
+                    loading
+                      ? 'cursor-wait bg-blue-300'
+                      : 'bg-[#1D4ED8] shadow-[0_16px_30px_rgba(29,78,216,0.20)] hover:bg-[#1e40af]'
+                  }`}
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={17} className="animate-spin" />
+                      Restableciendo...
+                    </>
+                  ) : (
+                    <>Restablecer contraseña</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('forgot')}
+                  className="w-full text-center text-sm font-black text-[#274ab8] hover:underline pt-2 block"
+                >
+                  Volver a solicitar código
+                </button>
+              </form>
+            )}
+
+            {mode === 'login' && (
+              <>
+                {isGoogleAuthEnabled ? (
+                  <div className="mt-7">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-[#e3e8f0]" />
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#93a1b6]">
+                        O CONTINÚA CON
+                      </span>
+                      <div className="h-px flex-1 bg-[#e3e8f0]" />
+                    </div>
+
+                    {googleLoading ? (
+                      <div className="mt-5 rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] px-4 py-5 text-center">
+                        <Loader
+                          size={18}
+                          className="mx-auto animate-spin text-[#274ab8]"
+                        />
+                        <p className="mt-2 text-sm font-semibold text-slate-700">
+                          Validando Google...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-5 flex justify-center">
+                        <GoogleLogin
+                          onSuccess={handleGoogleSuccess}
+                          onError={handleGoogleError}
+                          text="signin_with"
+                          theme="outline"
+                          size="large"
+                          width="100%"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold text-amber-800">
+                    Google no está configurado.
+                  </p>
+                )}
+
+                <p className="mt-7 text-center text-sm text-[#5d6b82]">
+                  ¿No tienes una cuenta?{' '}
+                  <Link
+                    to="/register"
+                    className="font-black text-[#274ab8] hover:underline"
+                  >
+                    Regístrate gratis
+                  </Link>
+                </p>
+              </>
+            )}
           </section>
         </main>
       </div>
