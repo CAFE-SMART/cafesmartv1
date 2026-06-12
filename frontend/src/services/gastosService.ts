@@ -1,4 +1,5 @@
 import { apiFetch, invalidateApiCache } from './apiService';
+import { toIsoDateAtUtcNoon } from '../utils/date';
 
 export type SubloteResumen = {
   id: string;
@@ -127,7 +128,7 @@ export async function registrarGastoLocal(payload: RegistrarGastoLocalPayload) {
     conceptoGasto: payload.concepto,
     descripcion: payload.descripcion,
     montoGasto: payload.monto,
-    fechaGasto: new Date(payload.fecha).toISOString(),
+    fechaGasto: toIsoDateAtUtcNoon(payload.fecha) ?? new Date().toISOString(),
     tipoGasto: payload.tipo,
     estadoPago: payload.estadoPago,
     localId: payload.id,

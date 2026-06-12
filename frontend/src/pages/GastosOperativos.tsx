@@ -322,17 +322,20 @@ function GastoDatePicker({
   const min = BUSINESS_MIN_DATE_VALUE;
   const max = getTodayLocalDateValue();
   const selectedDate = parseLocalDateValue(value);
+  const todayValue = getTodayLocalDateValue();
+  const todaySelectable = todayValue >= min && todayValue <= max ? todayValue : max;
   const maxDate = parseLocalDateValue(max) ?? new Date();
   const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
+  const fallbackDate = parseLocalDateValue(todaySelectable) ?? maxDate;
   const [visibleMonth, setVisibleMonth] = useState(
-    () => new Date((selectedDate ?? maxDate).getFullYear(), (selectedDate ?? maxDate).getMonth(), 1),
+    () => new Date((selectedDate ?? fallbackDate).getFullYear(), (selectedDate ?? fallbackDate).getMonth(), 1),
   );
 
   useEffect(() => {
     if (!open) return;
-    const next = parseLocalDateValue(value) ?? maxDate;
+    const next = parseLocalDateValue(value) ?? fallbackDate;
     setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
-  }, [max, open, value]);
+  }, [max, open, todaySelectable, value]);
 
   const days = useMemo(() => {
     const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
@@ -413,7 +416,7 @@ function GastoDatePicker({
                   className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 ${
                     day.value === value
                       ? 'bg-[#102d92] text-white'
-                      : day.value === max
+                      : day.value === todaySelectable
                         ? 'bg-[#eef4ff] text-[#102d92]'
                         : 'text-slate-800 hover:bg-[#f4f7ff]'
                   }`}
@@ -439,7 +442,7 @@ function GastoDatePicker({
             <button
               type="button"
               onClick={() => {
-                onChange(max);
+                onChange(todaySelectable);
                 onClose();
               }}
               className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92]"

@@ -163,19 +163,21 @@ function GastosDatePicker({
   const min = BUSINESS_MIN_DATE_VALUE;
   const max = getTodayLocalDateValue();
   const selectedDate = parseLocalDateValue(value);
+  const todayValue = getTodayLocalDateValue();
+  const todaySelectable = todayValue >= min && todayValue <= max ? todayValue : max;
   const maxDate = parseLocalDateValue(max) ?? new Date();
   const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate = selectedDate ?? maxDate;
+  const visibleDate = selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
   );
 
   useEffect(() => {
     if (open) {
-      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      const nextDate = parseLocalDateValue(value) ?? parseLocalDateValue(todaySelectable) ?? maxDate;
       setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
     }
-  }, [max, open, value]);
+  }, [max, open, todaySelectable, value]);
 
   const days = useMemo(() => {
     const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
@@ -211,34 +213,34 @@ function GastosDatePicker({
         {...(open
           ? ({ 'aria-expanded': 'true' } as const)
           : ({ 'aria-expanded': 'false' } as const))}
-        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] ${
-          open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
+        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] dark:bg-slate-900 dark:text-slate-100 ${
+          open ? 'border-[#102d92] dark:border-blue-400' : 'border-[#dbe2f0] dark:border-slate-600'
         }`}
       >
         <span>{value ? formatLongDateLabel(value) : 'Fechas'}</span>
-        <CalendarDays size={15} className="text-[#102d92]" />
+        <CalendarDays size={15} className="text-[#102d92] dark:text-blue-200" />
       </button>
 
       {open ? (
-        <div className="absolute left-1/2 z-40 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)]">
+        <div className="absolute left-1/2 z-40 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] dark:border-slate-600 dark:bg-slate-900">
           <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes anterior"
             >
               <ArrowLeft size={17} />
             </button>
-            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900">
+            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900 dark:bg-slate-800 dark:text-slate-100">
               {MONTHS_ES[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
             </p>
             <button
               type="button"
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes siguiente"
             >
               <ArrowRight size={17} />
@@ -246,7 +248,7 @@ function GastosDatePicker({
           </div>
           <div className="grid grid-cols-7 gap-1 px-1">
             {WEEKDAYS_ES.map((day) => (
-              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500">
+              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500 dark:text-slate-300">
                 {day}
               </span>
             ))}
@@ -263,9 +265,9 @@ function GastosDatePicker({
                   className={`h-8 rounded-full text-xs font-black disabled:text-slate-300 ${
                     day.value === value
                       ? 'bg-[#102d92] text-white'
-                      : day.value === max
-                        ? 'bg-[#eef4ff] text-[#102d92]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                      : day.value === todaySelectable
+                        ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
+                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {day.day}
@@ -275,24 +277,24 @@ function GastosDatePicker({
               ),
             )}
           </div>
-          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2 dark:border-slate-700">
             <button
               type="button"
               onClick={() => {
                 onChange('');
                 onClose();
               }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100"
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Limpiar
             </button>
             <button
               type="button"
               onClick={() => {
-                onChange(max);
+                onChange(todaySelectable);
                 onClose();
               }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92]"
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100"
             >
               Hoy
             </button>

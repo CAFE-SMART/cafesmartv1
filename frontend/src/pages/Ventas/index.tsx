@@ -517,9 +517,11 @@ function SalesDatePicker({
   onChange: (value: string) => void;
 }) {
   const selectedDate = parseLocalDateValue(value);
+  const todayValue = getTodayLocalDateValue();
+  const todaySelectable = isDateValueInRange(todayValue, min, max) ? todayValue : max;
   const maxDate = parseLocalDateValue(max) ?? new Date();
   const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate = selectedDate ?? maxDate;
+  const visibleDate = selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
   const [calendarView, setCalendarView] = React.useState<'days' | 'months' | 'years'>('days');
   const [visibleMonth, setVisibleMonth] = React.useState(
     () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
@@ -527,11 +529,11 @@ function SalesDatePicker({
 
   React.useEffect(() => {
     if (open) {
-      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      const nextDate = parseLocalDateValue(value) ?? parseLocalDateValue(todaySelectable) ?? maxDate;
       setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
       setCalendarView('days');
     }
-  }, [max, open, value]);
+  }, [max, open, todaySelectable, value]);
 
   const calendarDays = React.useMemo(() => {
     const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
@@ -700,7 +702,7 @@ function SalesDatePicker({
                     className={`h-8 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
                       day.value === value
                         ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
-                        : day.value === max
+                        : day.value === todaySelectable
                           ? 'bg-[#eef4ff] text-[#102d92]'
                           : 'text-slate-800 hover:bg-[#f4f7ff]'
                     }`}
@@ -728,7 +730,7 @@ function SalesDatePicker({
             <button
               type="button"
               onClick={() => {
-                onChange(max);
+                onChange(todaySelectable);
                 onClose();
               }}
               className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"

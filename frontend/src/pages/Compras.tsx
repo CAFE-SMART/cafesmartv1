@@ -574,7 +574,7 @@ function SelectionCheck({ active }: { active: boolean }) {
       className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
         active
           ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white dark:border-blue-300 dark:bg-blue-600 dark:text-white'
-          : 'border-[#cad2e2] bg-white text-transparent dark:border-blue-300 dark:bg-slate-900 dark:text-transparent'
+          : 'border-[#cad2e2] bg-white text-transparent dark:border-slate-500 dark:bg-slate-800 dark:text-transparent'
       }`}
       aria-hidden="true"
     >
@@ -619,7 +619,7 @@ function SelectableOptionCard({
         <span
           className={`inline-flex shrink-0 items-center justify-center rounded-full transition ${
             compact ? 'h-10 w-10' : 'h-12 w-12'
-          } ${active ? 'bg-[#1f3fa7] text-white dark:bg-blue-600 dark:text-white' : 'bg-[#eef2f7] text-slate-500 dark:border dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200'}`}
+          } ${active ? 'bg-[#1f3fa7] text-white dark:bg-blue-600 dark:text-white' : 'bg-[#eef2f7] text-slate-500 dark:border dark:border-slate-500 dark:bg-slate-800 dark:text-slate-200'}`}
         >
           {icon}
         </span>
@@ -839,7 +839,7 @@ function CoffeeTypeDropdown({
               >
                 <span
                   className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    active ? 'bg-white text-[#1f3fa7] dark:bg-blue-900 dark:text-blue-100' : visual.fondo
+                    active ? `${visual.fondo} ring-2 ring-[#1f3fa7]/30 dark:ring-blue-300/40` : visual.fondo
                   }`}
                 >
                   {visual.icono}
@@ -854,7 +854,7 @@ function CoffeeTypeDropdown({
                 <span
                   className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
                     active
-                      ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white'
+                      ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white dark:border-blue-300 dark:bg-blue-600'
                       : 'border-transparent text-transparent'
                   }`}
                   aria-hidden="true"
@@ -980,9 +980,11 @@ function PurchaseDatePicker({
   onChange: (value: string) => void;
 }) {
   const selectedDate = parseLocalDateValue(value);
+  const todayValue = getTodayLocalDateValue();
+  const todaySelectable = isDateValueInRange(todayValue, min, max) ? todayValue : max;
   const maxDate = parseLocalDateValue(max) ?? new Date();
   const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate = selectedDate ?? maxDate;
+  const visibleDate = selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
   const [calendarView, setCalendarView] = useState<'days' | 'months' | 'years'>(
     'days',
   );
@@ -992,11 +994,11 @@ function PurchaseDatePicker({
 
   useEffect(() => {
     if (open) {
-      const nextDate = parseLocalDateValue(value) ?? maxDate;
+      const nextDate = parseLocalDateValue(value) ?? parseLocalDateValue(todaySelectable) ?? maxDate;
       setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
       setCalendarView('days');
     }
-  }, [max, open, value]);
+  }, [max, open, todaySelectable, value]);
 
   const calendarDays = useMemo(() => {
     const firstDay = new Date(
@@ -1068,16 +1070,16 @@ function PurchaseDatePicker({
         aria-haspopup="dialog"
         {...ariaExpanded(open)}
         onClick={onToggle}
-        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
-          open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
+        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 dark:bg-slate-950 dark:hover:bg-slate-900 ${
+          open ? 'border-[#102d92] bg-white dark:border-blue-400 dark:bg-slate-900' : 'border-[#d8e0ee] dark:border-slate-600'
         }`}
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d]">
+        <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d] dark:text-slate-100">
           {value ? formatLongDateLabel(value) : 'Selecciona una fecha'}
         </span>
         <CalendarDays
           size={20}
-          className={`shrink-0 transition ${open ? 'text-[#102d92]' : 'text-slate-500'}`}
+          className={`shrink-0 transition ${open ? 'text-[#102d92] dark:text-blue-200' : 'text-slate-500 dark:text-slate-300'}`}
           aria-hidden="true"
         />
       </button>
@@ -1086,19 +1088,19 @@ function PurchaseDatePicker({
         <div
           role="dialog"
           aria-label="Calendario de fecha de compra"
-          className="absolute left-1/2 right-auto z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)]"
+          className="absolute left-1/2 right-auto z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] dark:border-slate-600 dark:bg-slate-900"
         >
           <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes anterior"
             >
               <ArrowLeft size={17} />
             </button>
-            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
+            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1 dark:bg-slate-800">
               <button
                 type="button"
                 {...ariaPressed(calendarView === 'months')}
@@ -1110,7 +1112,7 @@ function PurchaseDatePicker({
                 className={`rounded-full px-2.5 py-1 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
                   calendarView === 'months'
                     ? 'bg-[#102d92] text-white'
-                    : 'text-slate-900 hover:bg-[#eef4ff]'
+                    : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 {MONTHS_ES[visibleMonth.getMonth()]}
@@ -1126,7 +1128,7 @@ function PurchaseDatePicker({
                 className={`rounded-full px-2.5 py-1 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
                   calendarView === 'years'
                     ? 'bg-[#102d92] text-white'
-                    : 'text-slate-900 hover:bg-[#eef4ff]'
+                    : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 {visibleYear}
@@ -1136,7 +1138,7 @@ function PurchaseDatePicker({
               type="button"
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes siguiente"
             >
               <ArrowRight size={17} />
@@ -1168,7 +1170,7 @@ function PurchaseDatePicker({
                     className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
                       active
                         ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     {month}
@@ -1198,7 +1200,7 @@ function PurchaseDatePicker({
                     className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
                       active
                         ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     {year}
@@ -1211,7 +1213,7 @@ function PurchaseDatePicker({
               {WEEKDAYS_ES.map((day) => (
                 <span
                   key={day}
-                  className="py-1 text-center text-[0.72rem] font-black text-slate-500"
+                  className="py-1 text-center text-[0.72rem] font-black text-slate-500 dark:text-slate-300"
                 >
                   {day}
                 </span>
@@ -1230,9 +1232,9 @@ function PurchaseDatePicker({
                   className={`h-8 rounded-full text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
                     day.value === value
                       ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
-                      : day.value === max
-                        ? 'bg-[#eef4ff] text-[#102d92]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                      : day.value === todaySelectable
+                        ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
+                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {day.day}
@@ -1244,24 +1246,24 @@ function PurchaseDatePicker({
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2 dark:border-slate-700">
             <button
               type="button"
               onClick={() => {
                 onChange('');
                 onClose();
               }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100"
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Limpiar
             </button>
             <button
               type="button"
               onClick={() => {
-                onChange(max);
+                onChange(todaySelectable);
                 onClose();
               }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff] dark:bg-blue-500/20 dark:text-blue-100 dark:hover:bg-blue-500/30"
             >
               Hoy
             </button>
@@ -1910,32 +1912,32 @@ function iconoTipoCafe(nombre: string) {
   if (tipo === 'VERDE') {
     return {
       icono: <Leaf size={18} />,
-      fondo: 'bg-[#eff9f1] text-[#185d31]',
-      borde: 'border-[#d4efde]',
-      texto: 'text-[#1f7f46]',
+      fondo: 'bg-[#eff9f1] text-[#185d31] dark:border dark:border-emerald-400/40 dark:bg-emerald-500/18 dark:text-emerald-200',
+      borde: 'border-[#d4efde] dark:border-emerald-400/50',
+      texto: 'text-[#1f7f46] dark:text-emerald-200',
     };
   }
   if (tipo === 'SECO') {
     return {
       icono: <SunMedium size={18} />,
-      fondo: 'bg-[#fff4e9] text-[#9d4a12]',
-      borde: 'border-[#f8dfc7]',
-      texto: 'text-[#9d4a12]',
+      fondo: 'bg-[#fff4e9] text-[#9d4a12] dark:border dark:border-amber-400/40 dark:bg-amber-500/18 dark:text-amber-200',
+      borde: 'border-[#f8dfc7] dark:border-amber-400/50',
+      texto: 'text-[#9d4a12] dark:text-amber-200',
     };
   }
   if (tipo === 'PASILLA') {
     return {
       icono: <BadgeAlert size={18} />,
-      fondo: 'bg-[#fff0f4] text-[#a31d3e]',
-      borde: 'border-[#ffd4e1]',
-      texto: 'text-[#a31d3e]',
+      fondo: 'bg-[#fff0f4] text-[#a31d3e] dark:border dark:border-rose-400/40 dark:bg-rose-500/18 dark:text-rose-200',
+      borde: 'border-[#ffd4e1] dark:border-rose-400/50',
+      texto: 'text-[#a31d3e] dark:text-rose-200',
     };
   }
   return {
     icono: <Coffee size={18} />,
-    fondo: 'bg-[#eef2ff] text-[#102d92]',
-    borde: 'border-[#d9e4ff]',
-    texto: 'text-[#102d92]',
+    fondo: 'bg-[#eef2ff] text-[#102d92] dark:border dark:border-slate-400/40 dark:bg-slate-700 dark:text-slate-100',
+    borde: 'border-[#d9e4ff] dark:border-slate-500',
+    texto: 'text-[#102d92] dark:text-slate-100',
   };
 }
 
@@ -1944,24 +1946,24 @@ function visualCalidad(nombre: string) {
   if (calidad === 'BUENO') {
     return {
       icono: <Smile size={16} />,
-      fondo: 'bg-[#ecf4ff] text-[#173ea6]',
-      borde: 'border-[#d5e1ff]',
-      texto: 'text-[#173ea6]',
+      fondo: 'bg-[#ecf4ff] text-[#173ea6] dark:border dark:border-emerald-400/40 dark:bg-emerald-500/18 dark:text-emerald-200',
+      borde: 'border-[#d5e1ff] dark:border-emerald-400/50',
+      texto: 'text-[#173ea6] dark:text-emerald-200',
     };
   }
   if (calidad === 'REGULAR') {
     return {
       icono: <Meh size={16} />,
-      fondo: 'bg-[#fff6e7] text-[#8f5f08]',
-      borde: 'border-[#f3ddb3]',
-      texto: 'text-[#8f5f08]',
+      fondo: 'bg-[#fff6e7] text-[#8f5f08] dark:border dark:border-amber-400/40 dark:bg-amber-500/18 dark:text-amber-200',
+      borde: 'border-[#f3ddb3] dark:border-amber-400/50',
+      texto: 'text-[#8f5f08] dark:text-amber-200',
     };
   }
   return {
     icono: <Frown size={16} />,
-    fondo: 'bg-[#fff0f4] text-[#a31d3e]',
-    borde: 'border-[#ffd5e1]',
-    texto: 'text-[#a31d3e]',
+    fondo: 'bg-[#fff0f4] text-[#a31d3e] dark:border dark:border-rose-400/40 dark:bg-rose-500/18 dark:text-rose-200',
+    borde: 'border-[#ffd5e1] dark:border-rose-400/50',
+    texto: 'text-[#a31d3e] dark:text-rose-200',
   };
 }
 
@@ -4245,22 +4247,22 @@ export default function Compras() {
                             }
                             className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
                               activo
-                                ? 'border-[#1f3fa7] bg-[#1f3fa7] text-white shadow-[0_8px_20px_rgba(16,45,146,0.18)]'
-                                : `${visual.borde} bg-white/95 text-slate-800 hover:bg-white hover:shadow-sm`
+                                ? `border-[#1f3fa7] bg-[#eef4ff] text-[#102d92] shadow-[0_8px_20px_rgba(16,45,146,0.18)] dark:border-blue-300 dark:bg-blue-500/20 dark:text-blue-100`
+                                : `${visual.borde} bg-white/95 text-slate-800 hover:bg-white hover:shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800`
                             }`}
                           >
                             <span className="flex flex-col items-center gap-1.5">
                               <span
                                 className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
                                   activo
-                                    ? 'bg-white/20 text-white'
+                                    ? `${visual.fondo} ring-2 ring-[#1f3fa7]/25 dark:ring-blue-300/40`
                                     : visual.fondo
                                 }`}
                               >
                                 {visual.icono}
                               </span>
                               <span
-                                className={`text-[11px] font-black ${activo ? 'text-white' : 'text-slate-800'}`}
+                                className={`text-[11px] font-black ${activo ? 'text-[#102d92] dark:text-blue-100' : 'text-slate-800 dark:text-slate-100'}`}
                               >
                                 {calidad.nombre}
                               </span>
