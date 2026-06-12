@@ -12,9 +12,9 @@
  *
  * ¿Debo editarlo?: ⛔ NO. Solo se editaría si cambia el nombre o ID de la app.
  *
- * ⚠️ Flujo para ver la app en el emulador:
- *   1. pnpm build       → genera la carpeta dist/
- *   2. npx cap sync     → copia dist/ al proyecto Android
+ * Flujo para ver la app en Android:
+ *   1. pnpm build:android     -> genera dist/ usando .env.android
+ *   2. npx cap sync android   -> copia dist/ al proyecto Android
  *   3. npx cap open android → abre Android Studio para correr la app
  */
 import type { CapacitorConfig } from '@capacitor/cli';

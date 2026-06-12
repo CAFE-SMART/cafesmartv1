@@ -11,7 +11,7 @@ import {
   CLOUD_STATUS_EVENT,
   type CloudStatusEventDetail,
 } from '../services/cloudStatusEvents';
-import API_BASE_URL from '../config/api';
+import { getApiBaseUrlCandidates } from '../config/api';
 
 type CloudTone =
   | 'offline'
@@ -37,13 +37,88 @@ type CloudStatusValue = {
 
 const CloudStatusContext = createContext<CloudStatusValue | null>(null);
 
-async function pingBackend(signal?: AbortSignal) {
-  const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/`, {
-    method: 'GET',
-    signal,
-  });
+type HealthCheckResult = {
+  ok: boolean;
+  url: string;
+  status: number;
+  browserOnline: boolean;
+  error?: string;
+};
 
-  return response.ok;
+function describeHealthError(error: unknown) {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
+}
+
+async function pingBackend(
+  signal: AbortSignal,
+  browserOnline: boolean,
+): Promise<HealthCheckResult> {
+  const candidates = getApiBaseUrlCandidates();
+  let lastResult: HealthCheckResult | null = null;
+
+  for (const baseUrl of candidates) {
+    const url = `${baseUrl.replace(/\/$/, '')}/`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        signal,
+        cache: 'no-store',
+      });
+      const text = await response.text().catch(() => '');
+      const ok =
+        response.ok &&
+        (!text.trim() || text.trim().includes('Cafe Smart API running'));
+      const result = {
+        ok,
+        url,
+        status: response.status,
+        browserOnline,
+      };
+
+      if (import.meta.env.DEV) {
+        console.info('[CafeSmart][health-check]', {
+          ...result,
+          responsePreview: text.trim().slice(0, 80),
+        });
+      }
+
+      if (ok) {
+        return result;
+      }
+
+      lastResult = {
+        ...result,
+        error: text.trim().slice(0, 120) || response.statusText,
+      };
+    } catch (error) {
+      lastResult = {
+        ok: false,
+        url,
+        status: 0,
+        browserOnline,
+        error: describeHealthError(error),
+      };
+
+      if (import.meta.env.DEV) {
+        console.info('[CafeSmart][health-check]', lastResult);
+      }
+    }
+  }
+
+  return (
+    lastResult ?? {
+      ok: false,
+      url: '',
+      status: 0,
+      browserOnline,
+      error: 'No API base URL candidates configured.',
+    }
+  );
 }
 
 export function CloudStatusProvider({
@@ -69,18 +144,30 @@ export function CloudStatusProvider({
     const browserOnline =
       typeof navigator === 'undefined' ? isOnline : navigator.onLine;
 
-    if (!browserOnline) {
-      setBackendReachable(false);
-      return;
-    }
-
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 6000);
 
     try {
-      const ok = await pingBackend(controller.signal);
-      setBackendReachable(ok);
-      if (ok && wasOffline) {
+      const result = await pingBackend(controller.signal, browserOnline);
+
+      if (result.ok && !browserOnline) {
+        setIsOnline(true);
+      } else {
+        setIsOnline(browserOnline);
+      }
+
+      setBackendReachable(result.ok);
+
+      if (import.meta.env.DEV && !result.ok) {
+        console.info('[CafeSmart][health-check] offline reason', {
+          browserOnline,
+          apiUrl: result.url,
+          status: result.status,
+          error: result.error,
+        });
+      }
+
+      if (result.ok && wasOffline) {
         setReconnectedAt(Date.now());
       }
     } catch {

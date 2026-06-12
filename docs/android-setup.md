@@ -28,7 +28,21 @@ Copy-Item backend/.env.example backend/.env
 Copy-Item frontend/.env.example frontend/.env
 ```
 
-Para Android real, no uses `localhost` para el backend local. En un celular, `localhost` apunta al celular, no a tu PC.
+Para web local, conserva `frontend/.env` apuntando al backend local:
+
+```env
+VITE_API_URL=http://localhost:3000
+```
+
+Para Android, usa `frontend/.env.android`. El flujo `pnpm build:android` carga ese archivo porque ejecuta Vite con `--mode android`.
+
+Para usar el backend propio desplegado en Render:
+
+```env
+VITE_API_URL=https://cafesmart-v1.onrender.com
+```
+
+Para Android real con backend local, no uses `localhost`. En un celular, `localhost` apunta al celular, no a tu PC.
 
 Usa la IP de tu equipo en la red:
 
@@ -48,7 +62,7 @@ Desde la raiz del repositorio:
 
 ```powershell
 pnpm install
-pnpm --filter cafe-smart-frontend build
+pnpm --filter cafe-smart-frontend build:android
 ```
 
 Luego:
@@ -75,7 +89,7 @@ pnpm android:launch
 pnpm android:full
 ```
 
-El script verifica `node`, `pnpm`, `adb` y el emulador, compila la web, sincroniza Capacitor y abre CafeSmart en Android.
+El script verifica `node`, `pnpm`, `adb` y el emulador, compila la web con `build:android`, sincroniza Capacitor y abre CafeSmart en Android.
 
 ## Configuracion esperada
 

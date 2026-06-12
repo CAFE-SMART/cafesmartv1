@@ -106,7 +106,8 @@ Notas importantes:
 
 - El frontend no se conecta directamente a PostgreSQL ni a Supabase.
 - El frontend siempre consume el backend.
-- Si cambias `VITE_API_URL`, debes volver a ejecutar `pnpm build` antes de sincronizar con Android.
+- Para web local, conserva `frontend/.env` con `VITE_API_URL="http://localhost:3000"`.
+- Para Android, usa `frontend/.env.android` y compila con `pnpm build:android` para cargar ese modo de Vite.
 
 ## Ejecución local del proyecto
 
@@ -357,28 +358,28 @@ Esta es la forma recomendada para probar la app móvil Android usando Capacitor.
 
 ### 2. Configura el frontend
 
-Antes de compilar la app móvil, revisa `frontend/.env`.
+Antes de compilar la app móvil, revisa `frontend/.env.android`. El archivo `frontend/.env` queda reservado para web local.
 
 Ejemplos de `VITE_API_URL` según el entorno:
 
 - Web local:
   `VITE_API_URL="http://localhost:3000"`
-- Emulador Android:
+- Android con backend propio Render:
+  `VITE_API_URL="https://cafesmart-v1.onrender.com"`
+- Emulador Android con backend local:
   `VITE_API_URL="http://10.0.2.2:3000"`
-- Dispositivo físico en la misma red:
-  `VITE_API_URL="http://TU_IP_LOCAL:3000"`
-- Backend desplegado:
-  `VITE_API_URL="https://tu-backend.com"`
+- Dispositivo físico con backend local en la misma red:
+  `VITE_API_URL="http://IP_DEL_PC:3000"`
 
 ### 3. Construye la app web que usará Capacitor
 
 Desde `frontend/`:
 
 ```bash
-pnpm build
+pnpm build:android
 ```
 
-Este paso genera la carpeta `dist/`, que es la versión web que luego se copia al proyecto Android.
+Este paso genera la carpeta `dist/` usando `frontend/.env.android`, que es la versión web que luego se copia al proyecto Android.
 
 ### 4. Sincroniza el proyecto Android
 
@@ -392,7 +393,7 @@ Este comando:
 - actualiza la integración de Capacitor
 - refleja en Android los cambios recientes del frontend
 
-Debes repetir `pnpm build` y luego `npx cap sync android` cada vez que cambies el frontend y quieras ver esos cambios en la app Android.
+Debes repetir `pnpm build:android` y luego `npx cap sync android` cada vez que cambies el frontend o `frontend/.env.android` y quieras ver esos cambios en la app Android.
 
 ### 5. Abre Android Studio
 
