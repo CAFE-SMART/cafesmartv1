@@ -467,30 +467,10 @@ export default function Register() {
                 ) : null}
               </div>
 
-              {tipoOrganizacion === 'PERSONALIZADO' ? (
-                <div className="mt-4">
-                  <TextInput
-                    id="register-business-custom"
-                    label="Descripción"
-                    value={otroTipoDetalle}
-                    onChange={(value) => {
-                      setOtroTipoDetalle(value);
-                      setStepOneErrors((prev) => ({
-                        ...prev,
-                        otroTipoDetalle: undefined,
-                      }));
-                    }}
-                    placeholder="Ej: Trilla, laboratorio o finca"
-                    error={stepOneErrors.otroTipoDetalle}
-                  />
-                </div>
-              ) : null}
-
               <div className="mt-4">
                 <TextareaInput
                   id="register-business-description"
-                  label="Descripción del negocio (opcional)"
-                  helpText="Opcional. Describe brevemente cómo opera tu negocio."
+                  label="Describe cómo opera tu negocio. (Opcional)"
                   value={descripcionOrganizacion}
                   onChange={(value) => {
                     setDescripcionOrganizacion(
@@ -501,7 +481,7 @@ export default function Register() {
                       descripcionOrganizacion: undefined,
                     }));
                   }}
-                  placeholder="Ej: Compra, inventario y venta de café en bodega local."
+                  placeholder="Ej: Laboratorio de finca que evalúa muestras de café y registra calidad."
                   error={stepOneErrors.descripcionOrganizacion}
                   maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
                   showCounter

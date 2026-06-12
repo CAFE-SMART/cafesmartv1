@@ -23,7 +23,6 @@ import {
   Matches,
   MaxLength,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
@@ -44,12 +43,8 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'El tipo de organizacion es obligatorio.' })
   tipoOrganizacion: TipoOrganizacion;
 
-  @ValidateIf((o) => o.tipoOrganizacion === TipoOrganizacion.OTRO)
+  @IsOptional()
   @IsString({ message: 'Debes especificar el tipo de negocio.' })
-  @IsNotEmpty({
-    message:
-      'El detalle del tipo de negocio es obligatorio cuando seleccionas "Otro".',
-  })
   otroTipoDetalle?: string;
 
   @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))

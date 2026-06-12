@@ -7,7 +7,6 @@ import {
   Matches,
   MaxLength,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
@@ -43,9 +42,8 @@ export class RegisterGoogleDto {
   @IsNotEmpty()
   tipoOrganizacion: TipoOrganizacion;
 
-  @ValidateIf((o) => o.tipoOrganizacion === TipoOrganizacion.OTRO)
+  @IsOptional()
   @IsString({ message: 'Debes especificar el tipo de negocio.' })
-  @IsNotEmpty()
   otroTipoDetalle?: string;
 
   @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))

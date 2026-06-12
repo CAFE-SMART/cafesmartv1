@@ -86,6 +86,11 @@ import {
   actualizarPerfilUsuario,
 } from '../services/userSettingsService';
 import {
+  fieldInputClass,
+  fieldLabelClass,
+  fieldTextareaClass,
+} from '../styles/uiClasses';
+import {
   applySecadoToDetalle,
   applySecadoToLots,
   getActiveSecadoSessions,
@@ -169,6 +174,15 @@ type CompanySettings = {
   tipoEmpresa: string;
   descripcion: string;
 };
+
+function isCustomBusinessType(value: string) {
+  const normalized = value.trim().toUpperCase();
+  return normalized === 'OTRO' || normalized === 'PERSONALIZADO';
+}
+
+function getBusinessTypeLabel(value: string) {
+  return isCustomBusinessType(value) ? 'Personalizado' : value;
+}
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
 type ProfileErrors = Partial<Record<keyof ProfileSettings, string>>;
@@ -1190,11 +1204,13 @@ export default function Ajustes() {
       setCompany((prev) => ({
         ...prev,
         nombreEmpresa,
+        tipoEmpresa: organizacionActualizada.tipo,
         descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
       }));
       companyBaselineRef.current = {
         ...company,
         nombreEmpresa,
+        tipoEmpresa: organizacionActualizada.tipo,
         descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
       };
       if (user && token) {
@@ -2301,7 +2317,7 @@ export default function Ajustes() {
                 {profile.nombre || 'Administrador'}
               </h2>
               <p className="text-xs font-medium text-slate-500">
-                {company.tipoEmpresa || 'Administrador'}
+                {getBusinessTypeLabel(company.tipoEmpresa) || 'Administrador'}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -2431,7 +2447,7 @@ export default function Ajustes() {
                     {company.nombreEmpresa || profile.nombre || 'CaféSmart'}
                   </p>
                   <p className="text-xs font-semibold text-slate-500">
-                    {company.tipoEmpresa || 'Compraventa'}
+                    {getBusinessTypeLabel(company.tipoEmpresa) || 'Compraventa'}
                   </p>
                 </div>
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700">
@@ -2469,11 +2485,11 @@ export default function Ajustes() {
                   <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
                     Tipo de negocio
                   </span>
-                  {company.tipoEmpresa || 'Compraventa'}
+                  {getBusinessTypeLabel(company.tipoEmpresa) || 'Compraventa'}
                 </p>
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
                   <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Descripción
+                    Descripción del negocio
                   </span>
                   {company.descripcion.trim() || 'Sin descripción registrada.'}
                 </p>
@@ -3504,7 +3520,7 @@ export default function Ajustes() {
                 <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
               <label htmlFor="settings-business-name" className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                <span className={fieldLabelClass}>
                   Nombre del negocio
                 </span>
                 <input
@@ -3532,7 +3548,7 @@ export default function Ajustes() {
                     }
                   }}
                   maxLength={BUSINESS_NAME_MAX_LENGTH}
-                  className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={fieldInputClass}
                   placeholder="Nombre del negocio"
                 />
               </label>
@@ -3548,7 +3564,7 @@ export default function Ajustes() {
                 </span>
               </div>
               <label htmlFor="settings-business-type" className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                <span className={fieldLabelClass}>
                   Tipo de negocio
                 </span>
                 <SmartSelect
@@ -3570,11 +3586,8 @@ export default function Ajustes() {
                 </SmartSelect>
               </label>
               <label htmlFor="settings-business-description" className="block">
-                <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
-                  Descripción del negocio (opcional)
-                </span>
-                <span className="mb-2 block text-xs font-medium text-slate-500 dark:text-slate-400">
-                  Opcional. Describe brevemente cómo opera tu negocio.
+                <span className={fieldLabelClass}>
+                  Describe cómo opera tu negocio. (Opcional)
                 </span>
                 <textarea
                   id="settings-business-description"
@@ -3593,9 +3606,9 @@ export default function Ajustes() {
                     clearFeedback();
                   }}
                   maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
-                  className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  className={fieldTextareaClass}
                   rows={3}
-                  placeholder="Ej: Compra, inventario y venta de café en bodega local."
+                  placeholder="Ej: Laboratorio de finca que evalúa muestras de café y registra calidad."
                 />
               </label>
               <div className="-mt-1 flex justify-end">
@@ -3668,7 +3681,7 @@ export default function Ajustes() {
                 <AppFeedbackMessage variant="warning" description={limitNotice} />
               ) : null}
               <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-300">
+                <p className={fieldLabelClass}>
                   Nombre
                 </p>
                 <input
@@ -3682,7 +3695,7 @@ export default function Ajustes() {
                     setNombreBodega(sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH));
                     clearFeedback();
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#173ea6] focus:ring-4 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/25"
+                  className={fieldInputClass}
                   placeholder="Bodega principal"
                 />
                 <p className="mt-1 text-right text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
@@ -3691,7 +3704,7 @@ export default function Ajustes() {
               </div>
 
               <div>
-                <p className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-300">
+                <p className={fieldLabelClass}>
                   Capacidad max. (kg)
                 </p>
                 <input
@@ -3712,7 +3725,7 @@ export default function Ajustes() {
                     );
                     clearFeedback();
                   }}
-                  className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#173ea6] focus:ring-4 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/25"
+                  className={fieldInputClass}
                   placeholder="6000"
                 />
                 <p className="mt-1 text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
@@ -3846,7 +3859,7 @@ export default function Ajustes() {
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Peso mínimo en compra (kg)
                       </span>
                       <input
@@ -3859,13 +3872,13 @@ export default function Ajustes() {
                           setLimitMinPesoCompraKg(raw);
                           clearFeedback();
                         }}
-                        className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className={fieldInputClass}
                         placeholder="5"
                       />
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Peso máximo en compra (kg)
                       </span>
                       <input
@@ -3878,13 +3891,13 @@ export default function Ajustes() {
                           setLimitMaxPesoKg(raw);
                           clearFeedback();
                         }}
-                        className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className={fieldInputClass}
                         placeholder={PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL}
                       />
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Precio mínimo x kg (Compra)
                       </span>
                       <div className="relative">
@@ -3901,14 +3914,14 @@ export default function Ajustes() {
                             setLimitMinPrecioCompraKg(raw);
                             clearFeedback();
                           }}
-                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          className={`${fieldInputClass} pl-8 pr-4`}
                           placeholder="1000"
                         />
                       </div>
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Precio máximo x kg (Compra)
                       </span>
                       <div className="relative">
@@ -3925,7 +3938,7 @@ export default function Ajustes() {
                             setLimitMaxPrecioKg(raw);
                             clearFeedback();
                           }}
-                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          className={`${fieldInputClass} pl-8 pr-4`}
                           placeholder="100000"
                         />
                       </div>
@@ -3941,7 +3954,7 @@ export default function Ajustes() {
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Precio mínimo x kg (Venta)
                       </span>
                       <div className="relative">
@@ -3958,14 +3971,14 @@ export default function Ajustes() {
                             setLimitMinPrecioVentaKg(raw);
                             clearFeedback();
                           }}
-                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          className={`${fieldInputClass} pl-8 pr-4`}
                           placeholder="1000"
                         />
                       </div>
                     </label>
 
                     <label className="block">
-                      <span className="mb-2 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={fieldLabelClass}>
                         Precio máximo x kg (Venta)
                       </span>
                       <div className="relative">
@@ -3982,7 +3995,7 @@ export default function Ajustes() {
                             setLimitMaxPrecioVentaKg(raw);
                             clearFeedback();
                           }}
-                          className="w-full rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] py-3 pl-8 pr-4 text-[0.95rem] font-semibold text-slate-900 outline-none focus:border-[#173ea6] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                          className={`${fieldInputClass} pl-8 pr-4`}
                           placeholder="100000"
                         />
                       </div>

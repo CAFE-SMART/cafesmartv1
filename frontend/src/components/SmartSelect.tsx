@@ -1,5 +1,6 @@
 import React, { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { selectTriggerClass } from '../styles/uiClasses';
 
 type SmartSelectProps = SelectHTMLAttributes<HTMLSelectElement>;
 
@@ -107,7 +108,7 @@ export function SmartSelect({
             setOpen(true);
           }
         }}
-        className={`relative h-11 w-full overflow-hidden rounded-[18px] border border-[#9bbcff]/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(239,246,255,0.86))] px-3 pr-10 text-left text-xs font-black text-[#102d92] shadow-[0_10px_24px_rgba(47,99,216,0.10),inset_0_1px_0_rgba(255,255,255,0.85)] outline-none backdrop-blur transition duration-200 hover:border-[#6f9dff] hover:shadow-[0_12px_26px_rgba(47,99,216,0.16),0_0_0_3px_rgba(47,99,216,0.08)] focus-visible:border-[#2f63d8] focus-visible:ring-4 focus-visible:ring-[#2f63d8]/18 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-none dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_12px_28px_rgba(15,23,42,0.30),inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-slate-400 dark:hover:bg-slate-800 dark:focus-visible:border-blue-300 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${className}`.trim()}
+        className={`${selectTriggerClass} ${className}`.trim()}
         {...props}
       >
         <span className="block truncate">
