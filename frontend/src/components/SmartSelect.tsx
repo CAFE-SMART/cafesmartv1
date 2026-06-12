@@ -1,6 +1,11 @@
 import React, { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { selectTriggerClass } from '../styles/uiClasses';
+import {
+  selectMenuClass,
+  selectOptionActiveClass,
+  selectOptionClass,
+  selectTriggerClass,
+} from '../styles/uiClasses';
 
 type SmartSelectProps = SelectHTMLAttributes<HTMLSelectElement>;
 
@@ -125,7 +130,7 @@ export function SmartSelect({
         id={listboxId}
         role="listbox"
         aria-label={ariaLabel}
-        className={`absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 origin-top overflow-hidden rounded-[18px] border border-[#b8ccff] bg-white/95 p-1.5 shadow-[0_22px_50px_rgba(16,45,146,0.22)] backdrop-blur-xl transition duration-200 dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_24px_54px_rgba(0,0,0,0.46)] ${
+        className={`${selectMenuClass} ${
           open
             ? 'scale-100 opacity-100'
             : 'pointer-events-none scale-95 opacity-0'
@@ -141,11 +146,9 @@ export function SmartSelect({
               aria-selected={selected ? 'true' : 'false'}
               disabled={option.disabled}
               onClick={() => selectOption(option)}
-              className={`min-h-[40px] w-full rounded-[13px] px-3 text-left text-xs font-black transition ${
-                selected
-                  ? 'bg-[#102d92] text-white shadow-[0_10px_22px_rgba(16,45,146,0.24)] dark:border dark:border-blue-400 dark:bg-blue-700/40 dark:text-blue-100'
-                  : 'text-slate-700 hover:bg-[#eef4ff] hover:text-[#102d92] dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-blue-100'
-              } disabled:cursor-not-allowed disabled:opacity-50 dark:disabled:text-slate-500`}
+              className={`${selectOptionClass} ${
+                selected ? selectOptionActiveClass : ''
+              }`}
             >
               {option.label}
             </button>

@@ -57,6 +57,9 @@ import {
   fieldLabelClass,
   primaryButtonClass,
   secondaryButtonClass,
+  selectMenuClass,
+  selectOptionActiveClass,
+  selectOptionClass,
   selectTriggerClass,
 } from '../../styles/uiClasses';
 
@@ -465,7 +468,7 @@ function CompactSelect<T extends string>({
           id={listId}
           role="listbox"
           aria-labelledby={buttonId}
-          className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 overflow-hidden rounded-[16px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)]"
+          className={selectMenuClass}
         >
           {options.map((option) => {
             const active = option.value === value;
@@ -482,10 +485,8 @@ function CompactSelect<T extends string>({
                   onChange(option.value);
                   onClose();
                 }}
-                className={`flex min-h-[40px] w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm font-black transition ${
-                  active
-                    ? 'bg-[#eef4ff] text-[#1f3fa7]'
-                    : 'text-slate-700 hover:bg-slate-50'
+                className={`${selectOptionClass} flex items-center justify-between ${
+                  active ? selectOptionActiveClass : ''
                 }`}
               >
                 {option.label}
@@ -2695,13 +2696,10 @@ export default function Ventas() {
                 ) : submitError && paso === 2 && !modoInvalido ? (
                   <AppFeedbackMessage
                     variant="error"
-                    title="No pudimos continuar con la venta"
-                    description="Revisa la información o vuelve a intentarlo."
+                    title={getVentasGuidance(submitError).why}
+                    description={getVentasGuidance(submitError).action}
                     className="mt-4"
                   >
-                    <InlineGuidedError
-                      message={getVentasGuidance(submitError)}
-                    />
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -2929,12 +2927,9 @@ export default function Ventas() {
                 {submitError && paso === 1 ? (
                   <AppFeedbackMessage
                     variant="error"
-                    title="No pudimos continuar con la venta"
-                    description="Revisa la información o vuelve a intentarlo."
+                    title={getVentasGuidance(submitError).why}
+                    description={getVentasGuidance(submitError).action}
                   >
-                    <InlineGuidedError
-                      message={getVentasGuidance(submitError)}
-                    />
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"

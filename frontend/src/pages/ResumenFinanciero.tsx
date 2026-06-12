@@ -58,8 +58,12 @@ import {
 } from '../utils/date';
 import { sanitizeSearchInput } from '../utils/inputLimits';
 import {
+  dangerButtonClass,
   fieldInputClass,
   fieldLabelClass,
+  fieldTextareaClass,
+  primaryButtonClass,
+  secondaryButtonClass,
 } from '../styles/uiClasses';
 
 function formatCurrency(value: number) {
@@ -363,8 +367,8 @@ function HistoryDatePicker({
           ? ({ 'aria-expanded': 'true' } as const)
           : ({ 'aria-expanded': 'false' } as const))}
         onClick={onToggle}
-        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] transition hover:border-[#9fb0d4] ${
-          open ? 'border-[#102d92]' : 'border-[#dbe2f0]'
+        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] transition hover:border-[#9fb0d4] dark:bg-slate-900 dark:text-slate-100 ${
+          open ? 'border-[#102d92] dark:border-blue-400' : 'border-[#dbe2f0] dark:border-slate-600'
         }`}
       >
         <span className="min-w-0 flex-1 truncate">
@@ -377,7 +381,7 @@ function HistoryDatePicker({
         <div
           role="dialog"
           aria-label="Calendario de historial financiero"
-          className="absolute left-1/2 z-[120] mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] sm:left-auto sm:right-0 sm:translate-x-0"
+          className="fixed left-1/2 top-1/2 z-[120] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_24px_54px_rgba(15,23,42,0.24)] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_24px_54px_rgba(0,0,0,0.46)] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:translate-x-0 sm:translate-y-0"
         >
           <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
@@ -385,16 +389,16 @@ function HistoryDatePicker({
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
               aria-label="Mes anterior"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
             >
               <ArrowLeft size={17} />
             </button>
-            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
+            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1 dark:bg-slate-800">
               <button
                 type="button"
                 {...ariaPressed(calendarView === 'months')}
                 onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white dark:bg-blue-700/40 dark:text-blue-100' : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'}`}
               >
                 {MONTHS_ES[visibleMonth.getMonth()]}
               </button>
@@ -402,7 +406,7 @@ function HistoryDatePicker({
                 type="button"
                 {...ariaPressed(calendarView === 'years')}
                 onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white dark:bg-blue-700/40 dark:text-blue-100' : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'}`}
               >
                 {visibleYear}
               </button>
@@ -412,7 +416,7 @@ function HistoryDatePicker({
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
               aria-label="Mes siguiente"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
             >
               <ArrowRight size={17} />
             </button>
@@ -438,7 +442,7 @@ function HistoryDatePicker({
                         setCalendarView('days');
                       }
                     }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:text-slate-300 dark:disabled:text-slate-600 ${active ? 'bg-[#102d92] text-white dark:bg-blue-700/40 dark:text-blue-100' : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'}`}
                   >
                     {month}
                   </button>
@@ -458,7 +462,7 @@ function HistoryDatePicker({
                       setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
                       setCalendarView('months');
                     }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition ${active ? 'bg-[#102d92] text-white' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
+                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition ${active ? 'bg-[#102d92] text-white dark:bg-blue-700/40 dark:text-blue-100' : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'}`}
                   >
                     {year}
                   </button>
@@ -468,7 +472,7 @@ function HistoryDatePicker({
           ) : (
             <div className="grid grid-cols-7 gap-1 px-1">
               {WEEKDAYS_ES.map((day) => (
-                <span key={day} className="py-1.5 text-center text-[0.72rem] font-black text-slate-500">
+                <span key={day} className="py-1.5 text-center text-[0.72rem] font-black text-slate-500 dark:text-slate-300">
                   {day}
                 </span>
               ))}
@@ -483,12 +487,12 @@ function HistoryDatePicker({
                       onChange(day.value);
                       onClose();
                     }}
-                    className={`h-8 min-w-0 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                    className={`h-8 min-w-0 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 dark:disabled:text-slate-600 ${
                       day.value === value
-                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
+                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)] dark:bg-blue-700/40 dark:text-blue-100'
                         : day.value === todaySelectable
-                          ? 'bg-[#eef4ff] text-[#102d92]'
-                          : 'text-slate-800 hover:bg-[#f4f7ff]'
+                          ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
+                          : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     {day.day}
@@ -500,14 +504,14 @@ function HistoryDatePicker({
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2 dark:border-slate-700">
             <button
               type="button"
               onClick={() => {
                 onChange('');
                 onClose();
               }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100"
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Limpiar
             </button>
@@ -517,7 +521,7 @@ function HistoryDatePicker({
                 onChange(todaySelectable);
                 onClose();
               }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff] dark:bg-blue-500/20 dark:text-blue-100"
             >
               Hoy
             </button>
@@ -1031,6 +1035,7 @@ export default function ResumenFinanciero() {
   const [gastoEditando, setGastoEditando] = useState<GastoItem | null>(null);
   const [gastoEditForm, setGastoEditForm] = useState<GastoEditForm | null>(null);
   const [gastoEditError, setGastoEditError] = useState<string | null>(null);
+  const [gastoEditFechaOpen, setGastoEditFechaOpen] = useState(false);
   const [guardandoGasto, setGuardandoGasto] = useState(false);
   const [gastoAEliminar, setGastoAEliminar] = useState<GastoItem | null>(null);
   const [eliminandoGastoId, setEliminandoGastoId] = useState<string | null>(null);
@@ -1298,6 +1303,7 @@ export default function ResumenFinanciero() {
     setGastoEditando(gasto);
     setGastoEditForm(toGastoEditForm(gasto));
     setGastoEditError(null);
+    setGastoEditFechaOpen(false);
   };
   const validarGastoEditado = () => {
     if (!gastoEditForm) return 'Corrige los campos marcados para guardar.';
@@ -1346,6 +1352,7 @@ export default function ResumenFinanciero() {
       );
       setGastoEditando(null);
       setGastoEditForm(null);
+      setGastoEditFechaOpen(false);
       setHistorialActionMessage('Gasto actualizado correctamente.');
     } catch {
       setGastoEditError('No pudimos actualizar el gasto. Intenta nuevamente.');
@@ -2427,11 +2434,11 @@ export default function ResumenFinanciero() {
 
             {gastoEditando && gastoEditForm ? (
               <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/55 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
-                <section className="max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] overflow-y-auto rounded-[18px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+                <section className="max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] overflow-y-auto rounded-[18px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-lg font-black text-slate-950">Editar gasto</h2>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                      <h2 className="text-lg font-black text-slate-950 dark:text-slate-100">Editar gasto</h2>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
                         Guarda cambios sin duplicar el registro.
                       </p>
                     </div>
@@ -2440,8 +2447,9 @@ export default function ResumenFinanciero() {
                       onClick={() => {
                         setGastoEditando(null);
                         setGastoEditForm(null);
+                        setGastoEditFechaOpen(false);
                       }}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                       aria-label="Cerrar edición"
                     >
                       <X size={17} />
@@ -2449,7 +2457,7 @@ export default function ResumenFinanciero() {
                   </div>
                   <div className="mt-4 space-y-3">
                     <label className="block">
-                      <span className="mb-1 block text-xs font-black text-slate-700">
+                      <span className={fieldLabelClass}>
                         Concepto del gasto
                       </span>
                       <input
@@ -2460,11 +2468,11 @@ export default function ResumenFinanciero() {
                             current ? { ...current, conceptoGasto: event.target.value } : current,
                           )
                         }
-                        className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        className={fieldInputClass}
                       />
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-xs font-black text-slate-700">
+                      <span className={fieldLabelClass}>
                         Observación
                       </span>
                       <textarea
@@ -2476,12 +2484,12 @@ export default function ResumenFinanciero() {
                             current ? { ...current, descripcion: event.target.value } : current,
                           )
                         }
-                        className="w-full resize-none rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                        className={`${fieldTextareaClass} max-h-36 min-h-[96px] resize-y overflow-y-auto`}
                       />
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <label className="block">
-                        <span className="mb-1 block text-xs font-black text-slate-700">
+                        <span className={fieldLabelClass}>
                           Monto
                         </span>
                         <input
@@ -2494,32 +2502,32 @@ export default function ResumenFinanciero() {
                                 : current,
                             )
                           }
-                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                          className={fieldInputClass}
                         />
                       </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-black text-slate-700">
+                      <div className="block">
+                        <span className={fieldLabelClass}>
                           Fecha
                         </span>
-                        <input
-                          type="date"
+                        <HistoryDatePicker
                           value={gastoEditForm.fechaGasto}
-                          max={getTodayLocalDateValue()}
-                          onChange={(event) =>
+                          open={gastoEditFechaOpen}
+                          onToggle={() => setGastoEditFechaOpen((open) => !open)}
+                          onClose={() => setGastoEditFechaOpen(false)}
+                          onChange={(value) =>
                             setGastoEditForm((current) =>
-                              current ? { ...current, fechaGasto: event.target.value } : current,
+                              current ? { ...current, fechaGasto: value } : current,
                             )
                           }
-                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
                         />
-                      </label>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <label className="block">
-                        <span className="mb-1 block text-xs font-black text-slate-700">
+                        <span className={fieldLabelClass}>
                           Tipo
                         </span>
-                        <select
+                        <SmartSelect
                           value={gastoEditForm.tipoGasto}
                           onChange={(event) =>
                             setGastoEditForm((current) =>
@@ -2528,20 +2536,21 @@ export default function ResumenFinanciero() {
                                 : current,
                             )
                           }
-                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                          className="min-h-[44px] rounded-[12px] text-[0.72rem]"
+                          aria-label="Tipo de gasto"
                         >
                           {TIPOS_GASTO.map((tipo) => (
                             <option key={tipo} value={tipo}>
-                              {tipo}
+                              {titleCase(tipo)}
                             </option>
                           ))}
-                        </select>
+                        </SmartSelect>
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-xs font-black text-slate-700">
+                        <span className={fieldLabelClass}>
                           Estado
                         </span>
-                        <select
+                        <SmartSelect
                           value={gastoEditForm.estadoPago}
                           onChange={(event) =>
                             setGastoEditForm((current) =>
@@ -2550,11 +2559,12 @@ export default function ResumenFinanciero() {
                                 : current,
                             )
                           }
-                          className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                          className="min-h-[44px] rounded-[12px] text-[0.72rem]"
+                          aria-label="Estado del gasto"
                         >
                           <option value="PENDIENTE">Pendiente</option>
                           <option value="PAGADO">Pagado</option>
-                        </select>
+                        </SmartSelect>
                       </label>
                     </div>
                     {gastoEditError ? (
@@ -2568,7 +2578,7 @@ export default function ResumenFinanciero() {
                       type="button"
                       onClick={() => void guardarGastoEditado()}
                       disabled={guardandoGasto}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-[#2051e5] px-3 text-sm font-black text-white disabled:opacity-70"
+                      className={`${primaryButtonClass} rounded-[12px]`}
                     >
                       {guardandoGasto ? 'Guardando...' : 'Guardar cambios'}
                     </button>
@@ -2577,9 +2587,10 @@ export default function ResumenFinanciero() {
                       onClick={() => {
                         setGastoEditando(null);
                         setGastoEditForm(null);
+                        setGastoEditFechaOpen(false);
                       }}
                       disabled={guardandoGasto}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                      className={`${secondaryButtonClass} rounded-[12px]`}
                     >
                       Cancelar
                     </button>
@@ -2590,14 +2601,14 @@ export default function ResumenFinanciero() {
 
             {gastoAEliminar ? (
               <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 px-4 backdrop-blur-sm">
-                <section className="w-full max-w-[360px] rounded-[18px] bg-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+                <section className="w-full max-w-[360px] rounded-[18px] bg-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border dark:border-slate-700 dark:bg-slate-900">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-700">
                     <Trash2 size={20} />
                   </div>
-                  <h2 className="mt-4 text-lg font-black text-slate-950">
+                  <h2 className="mt-4 text-lg font-black text-slate-950 dark:text-slate-100">
                     ¿Eliminar este gasto?
                   </h2>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300">
                     Esta acción quitará el gasto del registro. No podrás recuperarlo después.
                   </p>
                   <div className="mt-5 grid grid-cols-2 gap-2">
@@ -2605,7 +2616,7 @@ export default function ResumenFinanciero() {
                       type="button"
                       onClick={() => setGastoAEliminar(null)}
                       disabled={Boolean(eliminandoGastoId)}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85]"
+                      className={`${secondaryButtonClass} rounded-[12px]`}
                     >
                       Cancelar
                     </button>
@@ -2613,7 +2624,7 @@ export default function ResumenFinanciero() {
                       type="button"
                       onClick={() => void confirmarEliminarGastoHistorial()}
                       disabled={Boolean(eliminandoGastoId)}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-rose-600 px-3 text-sm font-black text-white disabled:opacity-70"
+                      className={`${dangerButtonClass} rounded-[12px]`}
                     >
                       {eliminandoGastoId ? 'Eliminando...' : 'Eliminar gasto'}
                     </button>

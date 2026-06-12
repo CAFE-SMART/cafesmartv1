@@ -364,34 +364,35 @@ function GastoDatePicker({
       <button
         type="button"
         onClick={onToggle}
-        className={getInputClassName(
-          hasError,
-          'flex min-h-[38px] items-center justify-between gap-2 px-3 py-2 text-left text-[0.66rem] font-semibold',
-        )}
+        className={`${selectTriggerClass} min-h-[44px] rounded-[12px] text-[0.72rem] ${
+          hasError
+            ? 'border-rose-300 bg-rose-50/60 hover:border-rose-400 dark:border-rose-500 dark:bg-rose-500/15'
+            : ''
+        }`}
       >
         <span className="min-w-0 truncate">{formatLongDate(value)}</span>
-        <Calendar size={13} className="shrink-0 text-slate-400" />
+        <Calendar size={15} className="shrink-0 text-[#102d92] dark:text-blue-200" />
       </button>
       {open ? (
-        <div className="absolute right-0 z-50 mt-2 w-[min(21.5rem,calc(100vw-2rem))] min-w-[20rem] rounded-[20px] border border-[#d5deee] bg-white p-4 shadow-[0_22px_48px_rgba(15,23,42,0.18)]">
+        <div className="fixed left-1/2 top-1/2 z-[120] w-[min(21.5rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-[20px] border border-[#d5deee] bg-white p-4 shadow-[0_24px_54px_rgba(15,23,42,0.24)] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_24px_54px_rgba(0,0,0,0.46)] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:translate-x-0 sm:translate-y-0">
           <div className="flex items-center justify-between gap-3 pb-3">
             <button
               type="button"
               disabled={!canGoPrevious}
               onClick={() => setVisibleMonth(previousMonth)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes anterior"
             >
               <ArrowLeft size={17} />
             </button>
-            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900">
+            <p className="rounded-full bg-[#f8faff] px-4 py-2 text-sm font-black text-slate-900 dark:bg-slate-800 dark:text-slate-100">
               {MONTHS_ES[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
             </p>
             <button
               type="button"
               disabled={!canGoNext}
               onClick={() => setVisibleMonth(nextMonth)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#102d92] hover:bg-[#eef4ff] disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
               aria-label="Mes siguiente"
             >
               <ArrowRight size={17} />
@@ -399,7 +400,7 @@ function GastoDatePicker({
           </div>
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAYS_ES.map((day) => (
-              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500">
+              <span key={day} className="py-1.5 text-center text-[0.7rem] font-black text-slate-500 dark:text-slate-300">
                 {day}
               </span>
             ))}
@@ -413,12 +414,12 @@ function GastoDatePicker({
                     onChange(day.value);
                     onClose();
                   }}
-                  className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 ${
+                  className={`h-11 rounded-full text-sm font-black disabled:text-slate-300 dark:disabled:text-slate-600 ${
                     day.value === value
-                      ? 'bg-[#102d92] text-white'
+                      ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)] dark:bg-blue-700/40 dark:text-blue-100'
                       : day.value === todaySelectable
-                        ? 'bg-[#eef4ff] text-[#102d92]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff]'
+                        ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
+                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {day.day}
@@ -428,14 +429,14 @@ function GastoDatePicker({
               ),
             )}
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] pt-3">
+          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] pt-3 dark:border-slate-700">
             <button
               type="button"
               onClick={() => {
                 onChange('');
                 onClose();
               }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100"
+              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Limpiar
             </button>
@@ -445,7 +446,7 @@ function GastoDatePicker({
                 onChange(todaySelectable);
                 onClose();
               }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92]"
+              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100"
             >
               Hoy
             </button>
@@ -1086,7 +1087,7 @@ export default function GastosOperativos() {
               id="gasto-descripcion"
               placeholder="Ej: Pago transporte lote octubre"
               rows={2}
-              className={`${fieldTextareaClass} max-h-24 resize-none overflow-y-auto text-[0.66rem]`}
+              className={`${fieldTextareaClass} max-h-36 min-h-[96px] resize-y overflow-y-auto text-[0.72rem]`}
               value={descripcion}
               maxLength={GASTO_DESCRIPCION_MAX}
               onChange={(event) =>

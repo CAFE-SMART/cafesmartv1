@@ -23,6 +23,7 @@ import {
   fieldTextareaClass,
   primaryButtonClass,
   secondaryButtonClass,
+  selectTriggerClass,
 } from '../styles/uiClasses';
 
 function formatCurrency(value: number) {
@@ -213,8 +214,8 @@ function GastosDatePicker({
         {...(open
           ? ({ 'aria-expanded': 'true' } as const)
           : ({ 'aria-expanded': 'false' } as const))}
-        className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-[12px] border bg-white px-3 text-left text-[0.72rem] font-black text-[#08256d] dark:bg-slate-900 dark:text-slate-100 ${
-          open ? 'border-[#102d92] dark:border-blue-400' : 'border-[#dbe2f0] dark:border-slate-600'
+        className={`${selectTriggerClass} min-h-[44px] rounded-[12px] text-[0.72rem] ${
+          open ? 'border-[#102d92] dark:border-blue-400' : ''
         }`}
       >
         <span>{value ? formatLongDateLabel(value) : 'Fechas'}</span>
@@ -222,7 +223,7 @@ function GastosDatePicker({
       </button>
 
       {open ? (
-        <div className="absolute left-1/2 z-40 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] dark:border-slate-600 dark:bg-slate-900">
+        <div className="fixed left-1/2 top-1/2 z-[120] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_24px_54px_rgba(15,23,42,0.24)] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_24px_54px_rgba(0,0,0,0.46)] sm:absolute sm:left-1/2 sm:top-auto sm:mt-2 sm:translate-y-0">
           <div className="flex items-center justify-between gap-2 px-1 pb-2">
             <button
               type="button"
@@ -318,6 +319,7 @@ export default function GastosListado() {
   const [success, setSuccess] = useState<string | null>(null);
   const [editandoGasto, setEditandoGasto] = useState<GastoItem | null>(null);
   const [editForm, setEditForm] = useState<GastoEditForm | null>(null);
+  const [editFechaPickerOpen, setEditFechaPickerOpen] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [gastoAEliminar, setGastoAEliminar] = useState<GastoItem | null>(null);
@@ -421,6 +423,7 @@ export default function GastosListado() {
     setEditandoGasto(gasto);
     setEditForm(toEditForm(gasto));
     setEditError(null);
+    setEditFechaPickerOpen(false);
   };
 
   const validarEdicion = () => {
@@ -699,6 +702,7 @@ export default function GastosListado() {
                 onClick={() => {
                   setEditandoGasto(null);
                   setEditForm(null);
+                  setEditFechaPickerOpen(false);
                 }}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                 aria-label="Cerrar edición"
@@ -736,7 +740,7 @@ export default function GastosListado() {
                       current ? { ...current, descripcion: event.target.value } : current,
                     )
                   }
-                  className={`${fieldTextareaClass} resize-none`}
+                  className={`${fieldTextareaClass} max-h-36 min-h-[96px] resize-y overflow-y-auto`}
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -757,29 +761,29 @@ export default function GastosListado() {
                     className={fieldInputClass}
                   />
                 </label>
-                <label className="block">
+                <div className="block">
                   <span className={fieldLabelClass}>
                     Fecha
                   </span>
-                  <input
-                    type="date"
+                  <GastosDatePicker
                     value={editForm.fechaGasto}
-                    max={getTodayLocalDateValue()}
-                    onChange={(event) =>
+                    open={editFechaPickerOpen}
+                    onToggle={() => setEditFechaPickerOpen((open) => !open)}
+                    onClose={() => setEditFechaPickerOpen(false)}
+                    onChange={(value) =>
                       setEditForm((current) =>
-                        current ? { ...current, fechaGasto: event.target.value } : current,
+                        current ? { ...current, fechaGasto: value } : current,
                       )
                     }
-                    className={fieldInputClass}
                   />
-                </label>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={fieldLabelClass}>
                     Tipo
                   </span>
-                  <select
+                  <SmartSelect
                     value={editForm.tipoGasto}
                     onChange={(event) =>
                       setEditForm((current) =>
@@ -788,20 +792,21 @@ export default function GastosListado() {
                           : current,
                       )
                     }
-                    className={fieldInputClass}
+                    className="min-h-[44px] rounded-[12px] text-[0.72rem]"
+                    aria-label="Tipo de gasto"
                   >
                     {TIPOS_GASTO.map((tipo) => (
                       <option key={tipo} value={tipo}>
                         {titleCase(tipo)}
                       </option>
                     ))}
-                  </select>
+                  </SmartSelect>
                 </label>
                 <label className="block">
                   <span className={fieldLabelClass}>
                     Estado
                   </span>
-                  <select
+                  <SmartSelect
                     value={editForm.estadoPago}
                     onChange={(event) =>
                       setEditForm((current) =>
@@ -810,11 +815,12 @@ export default function GastosListado() {
                           : current,
                       )
                     }
-                    className={fieldInputClass}
+                    className="min-h-[44px] rounded-[12px] text-[0.72rem]"
+                    aria-label="Estado del gasto"
                   >
                     <option value="PENDIENTE">Pendiente</option>
                     <option value="PAGADO">Pagado</option>
-                  </select>
+                  </SmartSelect>
                 </label>
               </div>
               {editError ? (
@@ -838,6 +844,7 @@ export default function GastosListado() {
                 onClick={() => {
                   setEditandoGasto(null);
                   setEditForm(null);
+                  setEditFechaPickerOpen(false);
                 }}
                 disabled={guardandoEdicion}
                 className={`${secondaryButtonClass} rounded-[12px]`}
