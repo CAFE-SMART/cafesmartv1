@@ -1,5 +1,9 @@
 import React from 'react';
 import { ReceiptText } from 'lucide-react';
+import {
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../../../styles/uiClasses';
 
 interface ModalConfirmacionVentaProps {
   mostrar: boolean;
@@ -48,7 +52,7 @@ export function ModalConfirmacionVenta({
             type="button"
             onClick={onCancel}
             disabled={guardando || presionado}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 text-base font-black text-[#334b85] transition hover:bg-[#f4f7ff] disabled:cursor-not-allowed disabled:opacity-70"
+            className={`${secondaryButtonClass} min-h-[54px] rounded-[14px] text-base`}
           >
             Cancelar
           </button>
@@ -56,7 +60,7 @@ export function ModalConfirmacionVenta({
             type="button"
             onClick={onConfirm}
             disabled={guardando || presionado}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
+            className={`${primaryButtonClass} min-h-[54px] rounded-[14px] text-base`}
           >
             {guardando || presionado
               ? 'Guardando venta...'

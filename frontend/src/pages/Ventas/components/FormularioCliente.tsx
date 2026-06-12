@@ -1,6 +1,13 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { InlineGuidedError } from '../../../components/forms/GuidedError';
+import {
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../../../styles/uiClasses';
 
 export interface ClienteFormData {
   nombre: string;
@@ -82,7 +89,7 @@ export function FormularioCliente({
 
             {/* Tipo de Documento */}
             <div className="order-1">
-              <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+              <label className={fieldLabelClass}>
                 Tipo de documento
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -108,7 +115,7 @@ export function FormularioCliente({
 
             {/* Nombre */}
             <div className="order-2">
-              <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+              <label className={fieldLabelClass}>
                 {form.tipoDocumento === 'NIT' ? 'Nombre de la empresa' : 'Nombre completo'}
                 <span
                   className={`ml-2 inline-flex text-[0.72rem] font-black ${
@@ -126,8 +133,8 @@ export function FormularioCliente({
                 onChange={(e) => onFormChange('nombre', e.target.value)}
                 placeholder="Ej. Juan Pérez"
                 maxLength={MAX_NOMBRE_CARACTERES}
-                className={`w-full rounded-[12px] border px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:ring-4 focus:ring-[#1f3fa7]/10 ${
-                  errors.nombre ? 'border-red-500' : 'border-[#dbe2f0] bg-[#f8faff]'
+                className={`${fieldInputClass} rounded-[12px] px-4 py-3 ${
+                  errors.nombre ? 'border-red-500' : ''
                 }`}
               />
               {errors.nombre && (
@@ -137,7 +144,7 @@ export function FormularioCliente({
 
             {/* Documento */}
             <div className="order-3">
-              <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+              <label className={fieldLabelClass}>
                 Número de documento
               </label>
               <input
@@ -145,8 +152,8 @@ export function FormularioCliente({
                 value={form.documento}
                 onChange={(e) => onFormChange('documento', e.target.value)}
                 placeholder="Ej. 1234567890"
-                className={`w-full rounded-[12px] border px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:ring-4 focus:ring-[#1f3fa7]/10 ${
-                  errors.documento ? 'border-red-500' : 'border-[#dbe2f0] bg-[#f8faff]'
+                className={`${fieldInputClass} rounded-[12px] px-4 py-3 ${
+                  errors.documento ? 'border-red-500' : ''
                 }`}
               />
               {errors.documento && (
@@ -156,16 +163,16 @@ export function FormularioCliente({
 
             {/* Teléfono */}
             <div className="order-4">
-              <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
-                Teléfono <span className="text-slate-500">(opcional)</span>
+              <label className={fieldLabelClass}>
+                Teléfono <span className={fieldHelpTextClass}>(opcional)</span>
               </label>
               <input
                 type="tel"
                 value={form.telefono}
                 onChange={(e) => onFormChange('telefono', e.target.value)}
                 placeholder="Ej. 3001234567"
-                className={`w-full rounded-[12px] border px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:ring-4 focus:ring-[#1f3fa7]/10 ${
-                  errors.telefono ? 'border-red-500' : 'border-[#dbe2f0] bg-[#f8faff]'
+                className={`${fieldInputClass} rounded-[12px] px-4 py-3 ${
+                  errors.telefono ? 'border-red-500' : ''
                 }`}
               />
               {errors.telefono && (
@@ -180,14 +187,14 @@ export function FormularioCliente({
             <button
               type="button"
               onClick={onCerrar}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#1f3fa7] transition hover:bg-[#f4f7ff]"
+              className={`${secondaryButtonClass} min-h-[48px] rounded-[14px] text-sm`}
             >
               Cancelar
             </button>
             <button
               type="button"
               onClick={onGuardar}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-4 text-sm font-black text-white transition hover:bg-[#172d7a]"
+              className={`${primaryButtonClass} min-h-[48px] rounded-[14px] text-sm`}
             >
               {editando ? 'Guardar cambios' : 'Registrar cliente'}
             </button>

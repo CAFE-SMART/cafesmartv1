@@ -50,6 +50,15 @@ import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingS
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { formatCoffeeFullName, getCoffeeCodePrefix, getSubloteCodeMap } from '../../utils/coffeeCodes';
+import {
+  dangerButtonClass,
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectTriggerClass,
+} from '../../styles/uiClasses';
 
 type ModoVenta = 'PARCIAL' | 'TOTAL';
 type Step = 1 | 2 | 3;
@@ -435,7 +444,7 @@ function CompactSelect<T extends string>({
             onClose();
           }
         }}
-        className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe2f0] bg-white px-4 py-2.5 text-left text-sm font-black text-slate-900 shadow-sm transition focus:border-[#1f3fa7] focus:outline-none focus:ring-4 focus:ring-[#1f3fa7]/10"
+        className={`${selectTriggerClass} min-h-[48px] rounded-[16px] text-sm`}
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="text-[#1f3fa7]" aria-hidden="true">
@@ -2110,7 +2119,7 @@ export default function Ventas() {
 
                 <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3 dark:border-slate-700 dark:bg-slate-950">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs font-medium text-slate-500">
+                    <span className={`${fieldLabelClass} mb-0`}>
                       Fecha de venta
                     </span>
                     <div className="min-w-0 flex-1 sm:max-w-[55%]">
@@ -2276,18 +2285,18 @@ export default function Ventas() {
                           return (
                             <div key={item.tipoCafeId}>
                               <div className="mb-1 flex items-center justify-between gap-3">
-                                <span className="text-sm font-black text-slate-800">
+                                <span className={fieldLabelClass}>
                                   Café {item.tipoCafe.toLowerCase()}
                                 </span>
-                                <span className="text-xs font-semibold text-slate-500">
+                                <span className={fieldHelpTextClass}>
                                   {kg(item.pesoKg)}
                                 </span>
                               </div>
                               <label
-                                className={`flex min-h-[56px] items-center rounded-[14px] border bg-[#f8faff] px-4 ${
+                                className={`${fieldInputClass} flex min-h-[56px] items-center rounded-[14px] px-4 ${
                                   precioTipoInvalido
                                     ? 'border-[#ef4444]'
-                                    : 'border-[#d7dcec]'
+                                    : ''
                                 }`}
                               >
                                 <span className="mr-3 text-xl font-black text-[#1f3fa7]">
@@ -2306,7 +2315,7 @@ export default function Ventas() {
                                     )
                                   }
                                   placeholder="Ej. 14500"
-                                  className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
+                                  className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                                 />
                               </label>
                               {precioTipoInvalido ? (
@@ -2339,7 +2348,7 @@ export default function Ventas() {
                   <div className="mt-5 space-y-3">
                     <div className="space-y-2 rounded-[18px] border border-[#dfe6f4] bg-[#f8faff] p-3">
                       <div className="flex items-center gap-2 rounded-[12px] bg-white px-3 py-2">
-                        <p className="min-w-0 flex-1 text-xs font-bold leading-5 text-slate-600">
+                        <p className={`${fieldHelpTextClass} min-w-0 flex-1 leading-5`}>
                           Completa cantidad y precio, luego confirma el ajuste para agregarlo a la venta.
                         </p>
                         {bodegaConfig?.capacidadKg ? (
@@ -2367,7 +2376,7 @@ export default function Ventas() {
                             setMostrarTodosCafeVenta(false);
                           }}
                           placeholder="Buscar café"
-                          className="h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7] focus:ring-4 focus:ring-[#1f3fa7]/10"
+                          className={`${fieldInputClass} h-11 rounded-[14px] pl-9 pr-3`}
                         />
                       </label>
                       <div className="grid grid-cols-2 gap-2">
@@ -2516,10 +2525,10 @@ export default function Ventas() {
                             <>
                               <div className="mt-2 grid grid-cols-2 gap-2 rounded-[12px] border border-white/80 bg-white/70 p-2 dark:border-slate-700 dark:bg-slate-900/70">
                                 <label className="min-w-0">
-                                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                                  <span className={`${fieldLabelClass} text-[0.58rem] uppercase tracking-[0.08em]`}>
                                     Cantidad
                                   </span>
-                                  <div className="mt-1 flex h-9 items-center rounded-[9px] border border-[#d7dcec] bg-white px-2 focus-within:border-[#102d92] dark:border-slate-600 dark:bg-slate-950">
+                                  <div className={`${fieldInputClass} mt-1 flex h-9 min-h-0 items-center rounded-[9px] px-2 py-0`}>
                                     <input
                                       type="text"
                                       inputMode="decimal"
@@ -2542,24 +2551,24 @@ export default function Ventas() {
                                     </span>
                                   </div>
                                   {cantidadFormatoInvalido ? (
-                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                    <p className={`${fieldHelpTextClass} text-[0.58rem] text-rose-700 dark:text-rose-300`}>
                                       Ingresa una cantidad mayor a 0.
                                     </p>
                                   ) : cantidadExcedeDisponible ? (
-                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                    <p className={`${fieldHelpTextClass} text-[0.58rem] text-rose-700 dark:text-rose-300`}>
                                       No puedes superar {kg(disponibleVenta)}.
                                     </p>
                                   ) : cantidadEntradaInvalida ? (
-                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                    <p className={`${fieldHelpTextClass} text-[0.58rem] text-rose-700 dark:text-rose-300`}>
                                       Número válido hasta {kg(disponibleVenta)}.
                                     </p>
                                   ) : null}
                                 </label>
                                 <label className="min-w-0">
-                                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300">
+                                  <span className={`${fieldLabelClass} text-[0.58rem] uppercase tracking-[0.08em]`}>
                                     Precio/kg
                                   </span>
-                                  <div className="mt-1 flex h-9 items-center rounded-[9px] border border-[#d7dcec] bg-white px-2 focus-within:border-[#102d92] dark:border-slate-600 dark:bg-slate-950">
+                                  <div className={`${fieldInputClass} mt-1 flex h-9 min-h-0 items-center rounded-[9px] px-2 py-0`}>
                                     <span className="mr-1 shrink-0 text-[0.62rem] font-black text-slate-500 dark:text-slate-300">
                                       $
                                     </span>
@@ -2582,7 +2591,7 @@ export default function Ventas() {
                                     />
                                   </div>
                                   {precioFormatoInvalido ? (
-                                    <p className="mt-1 text-[0.58rem] font-semibold text-rose-700">
+                                    <p className={`${fieldHelpTextClass} text-[0.58rem] text-rose-700 dark:text-rose-300`}>
                                       Ingresa un precio válido.
                                     </p>
                                   ) : null}
@@ -2597,10 +2606,10 @@ export default function Ventas() {
                                   type="button"
                                   onClick={() => confirmarAjusteParcial(lote)}
                                   disabled={cantidadInvalida || precioInvalido}
-                                  className={`inline-flex min-h-[36px] items-center justify-center rounded-[10px] text-[0.68rem] font-black text-white ${
+                                  className={`${primaryButtonClass} min-h-[36px] rounded-[10px] text-[0.68rem] ${
                                     cantidadInvalida || precioInvalido
                                       ? 'cursor-not-allowed bg-slate-400 dark:bg-slate-600'
-                                      : 'bg-[#102d92] dark:bg-blue-600'
+                                      : ''
                                   }`}
                                 >
                                   Confirmar
@@ -2608,7 +2617,7 @@ export default function Ventas() {
                                 <button
                                   type="button"
                                   onClick={() => cancelarAjusteParcial(lote.id)}
-                                  className="inline-flex min-h-[36px] items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[0.68rem] font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                                  className={`${secondaryButtonClass} min-h-[36px] rounded-[10px] text-[0.68rem]`}
                                 >
                                   Cancelar
                                 </button>
@@ -2637,7 +2646,7 @@ export default function Ventas() {
                       <button
                         type="button"
                         onClick={() => setMostrarTodosCafeVenta(true)}
-                        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#173ea6] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100"
+                        className={`${secondaryButtonClass} min-h-[42px] w-full rounded-[14px] text-sm`}
                       >
                         Ver más cafés
                       </button>
@@ -2695,7 +2704,7 @@ export default function Ventas() {
                       <button
                         type="button"
                         onClick={siguiente}
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-3 text-xs font-black text-white"
+                        className={`${primaryButtonClass} min-h-[40px] rounded-[12px] text-xs`}
                       >
                         Reintentar
                       </button>
@@ -2706,7 +2715,7 @@ export default function Ventas() {
                           setIntentoPaso2(false);
                           setPaso(1);
                         }}
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-rose-200 bg-white px-3 text-xs font-black text-rose-800"
+                        className={`${dangerButtonClass} min-h-[40px] rounded-[12px] bg-white text-xs text-rose-800 ring-1 ring-rose-200 dark:bg-slate-900 dark:text-rose-200`}
                       >
                         Volver a ventas
                       </button>
@@ -2718,7 +2727,7 @@ export default function Ventas() {
                   <button
                     type="button"
                     onClick={volverPasoAnterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#edf1fa] px-3 py-3 text-sm font-black text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                    className={`${secondaryButtonClass} min-h-[52px] rounded-[14px] text-sm`}
                   >
                     <ArrowLeft size={16} />
                     Regresar
@@ -2727,10 +2736,10 @@ export default function Ventas() {
                     type="button"
                     onClick={siguiente}
                     disabled={sinInventario || validandoPasoVenta}
-                    className={`inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] px-3 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] ${
+                    className={`${primaryButtonClass} min-h-[52px] w-full rounded-[16px] text-sm ${
                       sinInventario || validandoPasoVenta
                         ? 'cursor-not-allowed bg-[#7f93cf] dark:bg-slate-600'
-                        : 'bg-[#1f3fa7] dark:bg-blue-600'
+                        : ''
                     }`}
                   >
                     {validandoPasoVenta ? (
@@ -2802,7 +2811,7 @@ export default function Ventas() {
                             setClienteFormError(null);
                             setMostrarModal(true);
                           }}
-                          className="mt-3 inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
+                          className={`${primaryButtonClass} mt-3 min-h-[40px] rounded-[12px] text-sm`}
                         >
                           Registrar cliente
                         </button>
@@ -2836,7 +2845,7 @@ export default function Ventas() {
                                 clientesSearchRef.current?.focus();
                               }, 80);
                             }}
-                            className="group flex min-h-[52px] w-full items-center justify-between rounded-[16px] border border-[#dbe2f0] bg-white px-4 py-3 text-left text-sm font-black text-[#1f3fa7] shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition duration-200 hover:border-[#1f3fa7]/40 hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                            className={`${secondaryButtonClass} group min-h-[52px] w-full justify-between rounded-[16px] text-left text-sm`}
                           >
                             <span className="inline-flex items-center gap-2">
                               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] transition group-hover:bg-white">
@@ -3076,7 +3085,7 @@ export default function Ventas() {
                     <button
                       type="button"
                       onClick={() => setMostrarHistorialLotesVenta(true)}
-                      className="mt-3 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+                      className={`${secondaryButtonClass} mt-3 min-h-[42px] w-full rounded-[14px] text-sm`}
                     >
                       Ver historial completo
                       <ArrowRight size={15} />
@@ -3112,7 +3121,7 @@ export default function Ventas() {
                   <button
                     type="button"
                     onClick={volverPasoAnterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
+                    className={`${secondaryButtonClass} min-h-[52px] rounded-[14px] text-sm`}
                   >
                     <ArrowLeft size={16} />
                     Regresar
@@ -3133,10 +3142,10 @@ export default function Ventas() {
                       setMostrarModalConfirmar(true);
                     }}
                     disabled={guardandoVenta || botonConfirmarPresionado}
-                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
+                    className={`${primaryButtonClass} min-h-[52px] rounded-[14px] text-sm ${
                       guardandoVenta || botonConfirmarPresionado
                         ? 'bg-[#7f93cf] cursor-wait'
-                        : 'bg-[#102d92]'
+                        : ''
                     }`}
                   >
                     {guardandoVenta || botonConfirmarPresionado ? (
@@ -3156,7 +3165,7 @@ export default function Ventas() {
                   type="button"
                   onClick={() => setMostrarModalCancelar(true)}
                   disabled={guardandoVenta || botonConfirmarPresionado}
-                  className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-[14px] px-4 py-3 text-sm font-black text-slate-500 disabled:opacity-60"
+                  className={`${secondaryButtonClass} mt-3 min-h-[48px] w-full rounded-[14px] text-sm text-slate-500`}
                 >
                   Cancelar
                 </button>
@@ -3224,14 +3233,14 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={continuarBorradorVenta}
-                className="inline-flex min-h-[54px] min-w-[150px] flex-1 items-center justify-center rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)]"
+                className={`${primaryButtonClass} min-h-[54px] min-w-[150px] flex-1 rounded-[16px] text-[0.98rem]`}
               >
                 Continuar registro
               </button>
               <button
                 type="button"
                 onClick={empezarVentaNuevaDesdeBorrador}
-                className="inline-flex min-h-[52px] min-w-[150px] flex-1 items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.96rem] font-black text-[#334b85]"
+                className={`${secondaryButtonClass} min-h-[52px] min-w-[150px] flex-1 rounded-[16px] text-[0.96rem]`}
               >
                 Empezar de nuevo
               </button>
@@ -3480,12 +3489,12 @@ export default function Ventas() {
                       setBusquedaClientesModal(sanitizeSearchInput(event.target.value));
                     }}
                     placeholder="Buscar por nombre, documento o teléfono"
-                    className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-10 py-3 text-[0.95rem] font-medium text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:bg-white focus:ring-4 focus:ring-[#1f3fa7]/10"
+                    className={`${fieldInputClass} rounded-[16px] px-10 py-3 text-[0.95rem]`}
                   />
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <label className="shrink-0 text-[0.82rem] font-black uppercase tracking-[0.11em] text-slate-500">
+                  <label className={`${fieldLabelClass} mb-0 shrink-0 text-[0.82rem] uppercase tracking-[0.11em]`}>
                     Ordenar por
                   </label>
                   <div className="w-full max-w-[220px]">
@@ -3533,7 +3542,7 @@ export default function Ventas() {
                       setClienteFormError(null);
                       setMostrarModal(true);
                     }}
-                    className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
+                    className={`${primaryButtonClass} mt-4 min-h-[42px] rounded-[12px] text-sm`}
                   >
                     {clienteEditando ? 'Editar cliente' : 'Registrar cliente'}
                   </button>
@@ -3715,14 +3724,14 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(false)}
-                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#1f3fa7]"
+                className={`${secondaryButtonClass} min-h-[48px] rounded-[14px] text-sm`}
               >
                 Continuar editando
               </button>
               <button
                 type="button"
                 onClick={confirmarCancelarVenta}
-                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] bg-rose-50 px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"
+                className={`${dangerButtonClass} min-h-[48px] rounded-[14px] bg-rose-50 text-sm text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-100`}
               >
                 Cancelar venta
               </button>
@@ -3772,7 +3781,7 @@ export default function Ventas() {
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
                 <div className="order-2">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label className={fieldLabelClass}>
                     {clienteForm.tipoDocumento === 'NIT'
                       ? 'Nombre de la empresa'
                       : 'Nombre completo'}
@@ -3786,7 +3795,7 @@ export default function Ventas() {
                       {clienteForm.nombre.trim().length}/{MAX_NOMBRE_CARACTERES}
                     </span>
                   </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
+                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
                     <User size={17} className="text-slate-400" />
                     <input
                       type="text"
@@ -3847,10 +3856,10 @@ export default function Ventas() {
                 </div>
 
                 <div className="order-1">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label className={fieldLabelClass}>
                     Tipo de documento
                   </label>
-                  <p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">
+                  <p className={fieldHelpTextClass}>
                     Selecciona si el cliente usa cédula o NIT.
                   </p>
                   <div className="mt-2">
@@ -3889,10 +3898,10 @@ export default function Ventas() {
                 </div>
 
                 <div className="order-3">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label className={fieldLabelClass}>
                     Número de documento
                   </label>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
+                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
                     <IdCard size={17} className="text-slate-400" />
                     <input
                       type="text"
@@ -3940,13 +3949,13 @@ export default function Ventas() {
                 </div>
 
                 <div className="order-4">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label className={fieldLabelClass}>
                     Teléfono (opcional)
                   </label>
-                  <p className="mb-2 text-xs font-medium leading-5 text-slate-500">
+                  <p className={fieldHelpTextClass}>
                     Número celular colombiano.
                   </p>
-                  <label className="flex items-center gap-3 rounded-[14px] border border-[#dde4f1] bg-[#f7f9fd] px-4 py-3">
+                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
                     <Phone size={17} className="text-slate-400" />
                     <input
                       type="text"
@@ -4000,14 +4009,14 @@ export default function Ventas() {
                     setClienteFormErrors({});
                     setClienteFormError(null);
                   }}
-                  className="inline-flex min-h-[54px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 py-3.5 text-[0.98rem] font-semibold text-[#334b85] transition hover:bg-[#f4f7ff] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                  className={`${secondaryButtonClass} min-h-[54px] w-full rounded-[14px] text-[0.98rem]`}
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={guardarCliente}
-                  className="inline-flex min-h-[54px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 py-3.5 text-[0.98rem] font-semibold text-white shadow-[0_14px_30px_rgba(16,45,146,0.20)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`${primaryButtonClass} min-h-[54px] w-full rounded-[14px] text-[0.98rem]`}
                 >
                   {clienteEditando ? 'Guardar cambios' : 'Guardar cliente'}
                 </button>
