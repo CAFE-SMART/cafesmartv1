@@ -20,6 +20,12 @@ import {
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { authSessionService } from '../services/authSessionService';
+import {
+  fieldInputClass,
+  fieldLabelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../styles/uiClasses';
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -741,7 +747,7 @@ export default function Login() {
             <div>
               <label
                 htmlFor="login-email"
-                className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200"
+                className={fieldLabelClass}
               >
                 Correo electrónico
               </label>
@@ -757,10 +763,10 @@ export default function Login() {
                   aria-describedby={emailFieldError ? 'login-email-error' : undefined}
 
 
-                  className={`login-credential-input block w-full rounded-xl border px-3 py-3 pl-10 pr-9 text-slate-900 caret-[#1e3a8a] transition-all placeholder:text-slate-500 selection:bg-blue-200 selection:text-slate-950 focus:border-[#1e3a8a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/25 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+                  className={`${fieldInputClass} login-credential-input py-3 pl-10 pr-9 caret-[#1e3a8a] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
                     emailFieldError && emailFieldTone === 'error'
                       ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
-                      : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950'
+                      : ''
                   }`}
 
                   placeholder="ejemplo@correo.com"
@@ -799,14 +805,14 @@ export default function Login() {
               <div className="flex justify-between items-center mb-2">
                 <label
                   htmlFor="login-password"
-                  className="block text-sm font-bold text-slate-700 dark:text-slate-200"
+                  className={`${fieldLabelClass} mb-0`}
                 >
                   Contraseña
                 </label>
                 <button
                   type="button"
                   onClick={() => navigate('/recuperar')}
-                  className="text-sm font-semibold text-[#1e3a8a] hover:underline dark:text-blue-300"
+                  className="text-sm font-bold text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:text-blue-300"
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
@@ -824,10 +830,10 @@ export default function Login() {
 
                   aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
 
-                  className={`login-credential-input block w-full rounded-xl border px-3 py-3 pl-10 pr-11 text-slate-900 caret-[#1e3a8a] transition-all placeholder:text-slate-500 selection:bg-blue-200 selection:text-slate-950 focus:border-[#1e3a8a] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/25 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+                  className={`${fieldInputClass} login-credential-input py-3 pl-10 pr-11 caret-[#1e3a8a] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
                     passwordFieldError
                       ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
-                      : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950'
+                      : ''
                   }`}
                   placeholder="********"
                   value={password}
@@ -838,7 +844,7 @@ export default function Login() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-300 dark:hover:text-white"
+                  className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -911,10 +917,10 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3.5 px-4 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 ${
+              className={`${primaryButtonClass} w-full rounded-xl py-3.5 ${
                 loading
-                  ? 'bg-[#1e3a8a]/70 cursor-wait'
-                  : 'bg-[#1e3a8a] hover:bg-[#1e3a8a]/90 shadow-md hover:shadow-lg'
+                  ? 'cursor-wait bg-[#1e3a8a]/70'
+                  : 'bg-[#1e3a8a] shadow-md hover:bg-[#1e3a8a]/90 hover:shadow-lg'
               }`}
             >
               {loading ? 'Entrando...' : 'Entrar'} <LogIn size={18} />
@@ -951,7 +957,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={openGoogleRedirect}
-                  className="flex h-11 w-full max-w-[360px] items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:hover:border-blue-400/70 dark:hover:bg-blue-950/35 dark:focus:ring-blue-400/25"
+                  className={`${secondaryButtonClass} h-11 w-full max-w-[360px] rounded-lg text-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-blue-400/70 dark:hover:bg-blue-950/35`}
                   aria-label="Continuar con Google"
                 >
                   <span

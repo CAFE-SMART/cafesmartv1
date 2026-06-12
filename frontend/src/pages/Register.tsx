@@ -41,6 +41,14 @@ import {
 } from '../utils/registerValidators';
 import { getGooglePrefillFromIdToken } from '../utils/googleProfile';
 import { formatNationalPhone, getPhoneDigits } from '../utils/formatPhone';
+import {
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  fieldTextareaClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../styles/uiClasses';
 
 type BusinessType = {
   value: TipoOrg;
@@ -439,7 +447,7 @@ export default function Register() {
               </div>
 
               <div className="mt-6">
-                <p className="mb-3 text-sm font-semibold text-[#344054] dark:text-slate-200">
+                <p className={`${fieldLabelClass} mb-3 text-sm`}>
                   Tipo de negocio
                 </p>
                 <div
@@ -638,9 +646,9 @@ export default function Register() {
                         compactLabel
                       />
                       {isCheckingEmail && !stepTwoErrors.correo ? (
-                        <p className="mt-2 text-xs font-semibold text-[#64748b]">
-                          Validando correo...
-                        </p>
+                      <p className={fieldHelpTextClass}>
+                        Validando correo...
+                      </p>
                       ) : null}
                     </div>
                   </section>
@@ -650,7 +658,7 @@ export default function Register() {
                     <div>
                       <label
                         htmlFor="register-admin-password"
-                        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
+                        className={`${fieldLabelClass} text-xs font-black`}
                       >
                         Contraseña
                       </label>
@@ -691,15 +699,15 @@ export default function Register() {
                               showPasswordLimitWarning();
                             }
                           }}
-                          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pr-11 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+                          className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 pr-11 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
                             stepTwoErrors.password
                               ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
-                              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+                              : ''
                           }`}
                         />
                         <button
                           type="button"
-                          className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:text-slate-100"
+                          className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                           onClick={() => setShowPassword(!showPassword)}
                           aria-label={
                             showPassword
@@ -779,7 +787,7 @@ export default function Register() {
 
                   <button
                     type="submit"
-                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/20 active:scale-[0.985] dark:bg-blue-600 dark:hover:bg-blue-500 dark:focus:ring-blue-400/25"
+                    className={`${primaryButtonClass} min-h-[52px] w-full rounded-full shadow-[0_16px_30px_rgba(40,75,193,0.22)] hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985] dark:hover:bg-blue-500`}
                   >
                     Crear cuenta
                   </button>
@@ -803,7 +811,7 @@ export default function Register() {
                             type="button"
                             tabIndex={-1}
                             aria-hidden="true"
-                            className="pointer-events-none absolute inset-0 z-0 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition group-hover:border-slate-400 group-hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:group-hover:border-blue-400/70 dark:group-hover:bg-blue-950/35"
+                            className={`${secondaryButtonClass} pointer-events-none absolute inset-0 z-0 h-11 w-full rounded-lg text-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:group-hover:border-blue-400/70 dark:group-hover:bg-blue-950/35`}
                           >
                             <span
                               className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-base font-black leading-none text-[#4285f4]"
@@ -1009,7 +1017,7 @@ function TextInput({
       <div className="mb-2 flex items-center justify-between gap-3">
         <label
           htmlFor={id}
-          className={`block text-[#344054] dark:text-slate-200 ${
+          className={`${fieldLabelClass} ${
             compactLabel ? 'text-xs font-black' : 'text-sm font-semibold'
           }`}
         >
@@ -1059,10 +1067,10 @@ function TextInput({
         autoComplete={autoComplete}
         maxLength={maxLength}
         aria-describedby={describedBy || undefined}
-        className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+        className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
           error
             ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
-            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+            : ''
         }`}
       />
       {limitWarningVisible && maxLength ? (
@@ -1142,12 +1150,12 @@ function TextareaInput({
         <div>
           <label
             htmlFor={id}
-            className="block text-sm font-semibold text-[#344054] dark:text-slate-200"
+            className={`${fieldLabelClass} text-sm font-semibold`}
           >
             {label}
           </label>
           {helpText ? (
-            <p id={helpId} className="mt-1 text-xs font-medium text-[#667085] dark:text-slate-300">
+            <p id={helpId} className={fieldHelpTextClass}>
               {helpText}
             </p>
           ) : null}
@@ -1196,10 +1204,10 @@ function TextareaInput({
         maxLength={maxLength}
         rows={3}
         aria-describedby={describedBy || undefined}
-        className={`register-credential-input block min-h-[92px] w-full resize-none rounded-[14px] border px-4 py-3 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+        className={`${fieldTextareaClass} register-credential-input min-h-[92px] resize-none rounded-[14px] px-4 py-3 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
           error
             ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
-            : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+            : ''
         }`}
       />
       {limitWarningVisible && maxLength ? (
@@ -1243,7 +1251,7 @@ function PasswordInput({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
+        className={`${fieldLabelClass} text-xs font-black`}
       >
         {label}
       </label>
@@ -1264,15 +1272,15 @@ function PasswordInput({
           autoComplete={autoComplete}
           maxLength={maxLength}
           aria-describedby={error ? errorId : undefined}
-          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pr-11 text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+          className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 pr-11 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
             error
               ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
-              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+              : ''
           }`}
         />
         <button
           type="button"
-          className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:text-slate-100"
+          className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           onClick={onTogglePassword}
           aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
         >
@@ -1341,12 +1349,12 @@ function PhoneInput({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-xs font-black text-[#344054] dark:text-slate-200"
+        className={`${fieldLabelClass} text-xs font-black`}
       >
         {label}
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 bg-transparent text-sm font-black text-[#274ab8] dark:text-blue-100">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 bg-transparent text-sm font-black text-[#102d92] dark:text-blue-200">
           +57
         </span>
         <input
@@ -1368,10 +1376,10 @@ function PhoneInput({
           autoComplete="tel-national"
           maxLength={12}
           aria-describedby={error ? errorId : undefined}
-          className={`register-credential-input block min-h-[54px] w-full rounded-[14px] border px-4 pl-[4.15rem] text-sm font-semibold text-slate-900 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] outline-none transition placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 dark:text-slate-100 dark:caret-blue-200 dark:placeholder:text-slate-400 dark:selection:bg-blue-500 dark:selection:text-white dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 ${
+          className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 pl-[4.15rem] caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
             error
               ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
-              : 'border-[#dfe5f1] bg-white focus:border-[#274ab8] focus:ring-2 focus:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-950 dark:focus:border-blue-400 dark:focus:ring-blue-400/25'
+              : ''
           }`}
         />
       </div>
@@ -1524,7 +1532,7 @@ function RegisterFooter({
       <button
         type="button"
         onClick={onPrimary}
-        className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#284bc1] px-4 text-sm font-black text-white shadow-[0_16px_30px_rgba(40,75,193,0.22)] transition-all duration-200 hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/20 active:scale-[0.985] active:shadow-[0_10px_20px_rgba(40,75,193,0.18)] dark:bg-blue-600 dark:hover:bg-blue-500 dark:focus:ring-blue-400/25"
+        className={`${primaryButtonClass} min-h-[52px] w-full rounded-full shadow-[0_16px_30px_rgba(40,75,193,0.22)] hover:bg-[#203fa8] hover:shadow-[0_18px_34px_rgba(40,75,193,0.26)] active:scale-[0.985] active:shadow-[0_10px_20px_rgba(40,75,193,0.18)] dark:hover:bg-blue-500`}
       >
         {primaryLabel}
         {icon}
@@ -1548,7 +1556,7 @@ function RegisterLinks({
         <button
           type="button"
           onClick={onHelp}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-[#d9e5fb] bg-white px-4 text-xs font-black text-[#274ab8] shadow-sm transition-all hover:bg-[#f3f7ff] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 active:scale-[0.97] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800 dark:focus:ring-blue-400/25"
+          className={`${secondaryButtonClass} min-h-9 rounded-full px-4 text-xs shadow-sm active:scale-[0.97]`}
         >
           <CircleHelp size={14} aria-hidden="true" />
           Obtener ayuda
@@ -1556,7 +1564,7 @@ function RegisterLinks({
         <button
           type="button"
           onClick={onContact}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 text-xs font-bold text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#274ab8] focus:outline-none focus:ring-4 focus:ring-[#274ab8]/15 active:scale-[0.97] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:focus:ring-blue-400/25"
+          className={`${secondaryButtonClass} min-h-9 rounded-full border-transparent px-3 text-xs active:scale-[0.97]`}
         >
           <Headset size={14} aria-hidden="true" />
           Contacto
