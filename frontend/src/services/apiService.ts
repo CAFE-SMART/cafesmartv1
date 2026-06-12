@@ -1,5 +1,5 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
-import { getApiBaseUrlCandidates } from '../config/api';
+import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 import { getOfflineCache, saveOfflineCache } from './offlineCacheService';
 
 type ApiErrorDetails = Record<string, string[]>;
@@ -209,6 +209,18 @@ function traducirErrorConexion(error: unknown) {
   return 'Revisa la conexión a internet y vuelve a intentarlo.';
 }
 
+function describeFetchError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+    };
+  }
+
+  return { message: String(error) };
+}
+
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
   const basesApi = construirBasesApi();
@@ -242,8 +254,16 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
   const requestPromise = (async () => {
     for (const apiBaseUrl of basesApi) {
+      const url = `${apiBaseUrl}${endpoint}`;
       try {
-        const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][api-fetch]', {
+            method,
+            url,
+          });
+        }
+
+        const response = await fetch(url, {
           ...options,
           headers,
         });
@@ -251,6 +271,17 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         const data = await response.json().catch(() => null);
 
         if (!response.ok) {
+          if (SHOULD_LOG_API_DEBUG) {
+            console.info('[CafeSmart][api-fetch] HTTP error', {
+              method,
+              url,
+              status: response.status,
+              code: data?.code,
+              field: data?.field,
+              message: data?.message,
+            });
+          }
+
           const mensaje = getUserFriendlyErrorMessage({
             code: typeof data?.code === 'string' ? data.code : null,
             field: typeof data?.field === 'string' ? data.field : null,
@@ -289,6 +320,14 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
         if (!(error instanceof TypeError)) {
           throw error;
+        }
+
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][api-fetch] network error', {
+            method,
+            url,
+            error: describeFetchError(error),
+          });
         }
       }
     }

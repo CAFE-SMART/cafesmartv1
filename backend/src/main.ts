@@ -43,9 +43,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = Number(configService.get('PORT') ?? 3000);
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
-  const localDevOrigins = [
+  const appCorsOrigins = [
+    'capacitor://localhost',
+    'http://localhost',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+  ];
+  const localDevOrigins = [
     'http://localhost:4173',
     'http://127.0.0.1:4173',
     'http://192.168.100.7:5173',
@@ -57,8 +61,8 @@ async function bootstrap() {
     .filter(Boolean);
   const allowedCorsOrigins =
     nodeEnv === 'production'
-      ? corsOrigins
-      : Array.from(new Set([...corsOrigins, ...localDevOrigins]));
+      ? Array.from(new Set([...corsOrigins, ...appCorsOrigins]))
+      : Array.from(new Set([...corsOrigins, ...appCorsOrigins, ...localDevOrigins]));
 
   app.enableCors({
     origin:

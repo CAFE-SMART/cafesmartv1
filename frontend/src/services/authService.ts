@@ -2,7 +2,7 @@
   buildOfflineAuthError,
   mapFriendlyAuthMessage,
 } from '../utils/authMessages';
-import { getApiBaseUrlCandidates } from '../config/api';
+import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
 
 export type AuthError = {
@@ -67,6 +67,18 @@ function buildApiBaseCandidates() {
   return getApiBaseUrlCandidates();
 }
 
+function describeAuthFetchError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+    };
+  }
+
+  return { message: String(error) };
+}
+
 async function postAuth<TResponse>(
   endpoint: string,
   body: Record<string, unknown>,
@@ -85,8 +97,16 @@ async function postAuth<TResponse>(
     }
 
     for (const apiBaseUrl of buildApiBaseCandidates()) {
+      const url = `${apiBaseUrl}/auth${endpoint}`;
       try {
-        const response = await fetch(`${apiBaseUrl}/auth${endpoint}`, {
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][auth-fetch]', {
+            method: 'POST',
+            url,
+          });
+        }
+
+        const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -96,6 +116,17 @@ async function postAuth<TResponse>(
           RawApiError;
 
         if (!response.ok) {
+          if (SHOULD_LOG_API_DEBUG) {
+            console.info('[CafeSmart][auth-fetch] HTTP error', {
+              method: 'POST',
+              url,
+              status: response.status,
+              apiCode: data.code,
+              field: data.field,
+              message: data.message,
+            });
+          }
+
           const authError: AuthError = {
             message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
             field: data.field ?? null,
@@ -120,6 +151,14 @@ async function postAuth<TResponse>(
       } catch (error) {
         if (!isNetworkFetchError(error)) {
           throw error;
+        }
+
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][auth-fetch] network error', {
+            method: 'POST',
+            url,
+            error: describeAuthFetchError(error),
+          });
         }
 
         lastNetworkError = error;
@@ -166,8 +205,16 @@ async function getAuth<TResponse>(
 
   try {
     for (const apiBaseUrl of buildApiBaseCandidates()) {
+      const url = `${apiBaseUrl}/auth${endpoint}`;
       try {
-        const response = await fetch(`${apiBaseUrl}/auth${endpoint}`, {
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][auth-fetch]', {
+            method: 'GET',
+            url,
+          });
+        }
+
+        const response = await fetch(url, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -175,6 +222,17 @@ async function getAuth<TResponse>(
           RawApiError;
 
         if (!response.ok) {
+          if (SHOULD_LOG_API_DEBUG) {
+            console.info('[CafeSmart][auth-fetch] HTTP error', {
+              method: 'GET',
+              url,
+              status: response.status,
+              apiCode: data.code,
+              field: data.field,
+              message: data.message,
+            });
+          }
+
           throw {
             message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
             field: data.field ?? null,
@@ -190,6 +248,14 @@ async function getAuth<TResponse>(
       } catch (error) {
         if (!isNetworkFetchError(error)) {
           throw error;
+        }
+
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info('[CafeSmart][auth-fetch] network error', {
+            method: 'GET',
+            url,
+            error: describeAuthFetchError(error),
+          });
         }
 
         lastNetworkError = error;

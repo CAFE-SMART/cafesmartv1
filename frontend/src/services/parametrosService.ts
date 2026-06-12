@@ -1,2 +1,5 @@
-export interface ParametrosPenalizacion { PENALIDAD_KG_MAXIMO: number; PRECIO_KG_MAXIMO: number; }
-export async function obtenerParametro(nombre: string): Promise<number> { const res = await fetch(`/api/parametros/${nombre}`); return res.json(); }
+import { apiFetch } from './apiService';
+
+export async function obtenerParametro(nombre: string): Promise<number> {
+  return apiFetch(`/api/parametros/${encodeURIComponent(nombre)}`) as Promise<number>;
+}

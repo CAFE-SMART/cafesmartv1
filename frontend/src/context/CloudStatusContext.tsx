@@ -11,7 +11,7 @@ import {
   CLOUD_STATUS_EVENT,
   type CloudStatusEventDetail,
 } from '../services/cloudStatusEvents';
-import { getApiBaseUrlCandidates } from '../config/api';
+import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 
 type CloudTone =
   | 'offline'
@@ -80,7 +80,7 @@ async function pingBackend(
         browserOnline,
       };
 
-      if (import.meta.env.DEV) {
+      if (SHOULD_LOG_API_DEBUG) {
         console.info('[CafeSmart][health-check]', {
           ...result,
           responsePreview: text.trim().slice(0, 80),
@@ -104,7 +104,7 @@ async function pingBackend(
         error: describeHealthError(error),
       };
 
-      if (import.meta.env.DEV) {
+      if (SHOULD_LOG_API_DEBUG) {
         console.info('[CafeSmart][health-check]', lastResult);
       }
     }
@@ -158,7 +158,7 @@ export function CloudStatusProvider({
 
       setBackendReachable(result.ok);
 
-      if (import.meta.env.DEV && !result.ok) {
+      if (SHOULD_LOG_API_DEBUG && !result.ok) {
         console.info('[CafeSmart][health-check] offline reason', {
           browserOnline,
           apiUrl: result.url,
@@ -170,9 +170,15 @@ export function CloudStatusProvider({
       if (result.ok && wasOffline) {
         setReconnectedAt(Date.now());
       }
-    } catch {
+    } catch (error) {
       setBackendReachable(false);
       setWasOffline(true);
+      if (SHOULD_LOG_API_DEBUG) {
+        console.info('[CafeSmart][health-check] unexpected failure', {
+          browserOnline,
+          error: describeHealthError(error),
+        });
+      }
     } finally {
       window.clearTimeout(timeoutId);
     }

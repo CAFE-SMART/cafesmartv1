@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
 const isAndroid = Capacitor.getPlatform() === 'android';
+export const SHOULD_LOG_API_DEBUG = import.meta.env.DEV || isAndroid;
 const ANDROID_EMULATOR_API_URL = 'http://10.0.2.2:3000';
 const LOCAL_API_URL = 'http://localhost:3000';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
@@ -71,8 +72,14 @@ export function getApiBaseUrlCandidates() {
 
 export const API_URL = getApiBaseUrlCandidates()[0] ?? LOCAL_API_URL;
 
-if (import.meta.env.DEV) {
-  console.info('[CafeSmart] API URL usada:', API_URL);
+if (SHOULD_LOG_API_DEBUG) {
+  console.info('[CafeSmart][api-config]', {
+    platform: Capacitor.getPlatform(),
+    configuredApiUrl: configuredApiUrl || '(empty)',
+    keepAndroidLocalhost,
+    candidates: getApiBaseUrlCandidates(),
+    selectedApiUrl: API_URL,
+  });
 }
 
 export default API_URL;
