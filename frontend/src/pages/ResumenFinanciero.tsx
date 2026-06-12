@@ -1632,7 +1632,7 @@ export default function ResumenFinanciero() {
                     void handleUnlock();
                   }
                 }}
-                className="w-full rounded-[8px] border border-slate-300 bg-white px-3 py-2.5 pr-11 text-[0.78rem] font-semibold text-slate-900 outline-none placeholder:text-slate-400 caret-blue-700 selection:bg-blue-200 selection:text-slate-950 focus:border-blue-700 focus:ring-4 focus:ring-blue-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400 dark:caret-blue-300 dark:selection:bg-blue-600 dark:selection:text-white"
+                className={`${fieldInputClass} pr-11`}
                 placeholder="Contraseña"
               />
               <button
@@ -1648,7 +1648,7 @@ export default function ResumenFinanciero() {
               type="button"
               onClick={() => void handleUnlock()}
               disabled={loading}
-              className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] bg-[#102d92] px-4 text-[0.7rem] font-black text-white disabled:opacity-70"
+              className={`${primaryButtonClass} mt-3 text-[0.7rem]`}
             >
               {loading ? 'Validando...' : 'Ver resumen financiero'}
             </button>

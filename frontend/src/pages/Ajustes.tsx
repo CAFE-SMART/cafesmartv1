@@ -2556,7 +2556,7 @@ export default function Ajustes() {
                 />
               ) : null}
               <div>
-              <label className="mb-2 block text-sm font-black text-slate-900">
+              <label className={fieldLabelClass}>
                 Nombre completo
               </label>
               <input
@@ -2585,7 +2585,7 @@ export default function Ajustes() {
                     nombre: nombreError ?? undefined,
                   }));
                 }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                className={`${fieldInputClass}`}
                 placeholder="Nombre completo"
               />
               <div className="mt-1 flex items-center justify-between text-[11px] font-bold">
@@ -2597,13 +2597,13 @@ export default function Ajustes() {
                 </span>
               </div>
               {profileErrors.nombre ? (
-                <p className="mt-1 text-xs font-bold text-rose-600">
+                <p className={fieldErrorClass}>
                   {profileErrors.nombre}
                 </p>
               ) : null}
               </div>
               <div>
-              <label className="mb-2 block text-sm font-black text-slate-900">
+              <label className={fieldLabelClass}>
                 Correo electrónico
               </label>
               <input
@@ -2625,20 +2625,20 @@ export default function Ajustes() {
                   }));
                   clearFeedback();
                 }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                className={`${fieldInputClass}`}
                 placeholder="Correo electrónico"
               />
               {profileErrors.correo ? (
-                <p className="mt-1 text-xs font-bold text-rose-600">
+                <p className={fieldErrorClass}>
                   {profileErrors.correo}
                 </p>
               ) : null}
               </div>
               <div className="mt-5">
-              <label className="mb-2 block text-sm font-black text-slate-900">
+              <label className={fieldLabelClass}>
                 Número de teléfono
               </label>
-              <p className="mb-2 text-xs font-semibold leading-5 text-slate-500">
+              <p className={fieldHelpTextClass}>
                 Número celular colombiano.
               </p>
               <input
@@ -2662,11 +2662,11 @@ export default function Ajustes() {
                   }));
                   clearFeedback();
                 }}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#102d92]"
+                className={`${fieldInputClass}`}
                 placeholder="Ej. 300 123 4567"
               />
               {profileErrors.telefono ? (
-                <p className="mt-1 text-xs font-bold text-rose-600">
+                <p className={fieldErrorClass}>
                   {profileErrors.telefono}
                 </p>
               ) : null}
@@ -4071,8 +4071,9 @@ export default function Ajustes() {
                   setPeopleSearch(sanitizeSearchInput(event.target.value));
                 }}
                 placeholder="Buscar por nombre, documento o teléfono"
-                className="mt-3 h-11 w-full rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#1f3fa7] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400"
+                className={`${fieldInputClass} mt-3 h-11`}
               />
+
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {[
                   { value: 'todos', label: 'Todos' },
@@ -4350,7 +4351,7 @@ export default function Ajustes() {
                 </div>
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-black text-slate-700">
+                <span className={fieldLabelClass}>
                   Tipo de documento
                 </span>
               <SmartSelect
@@ -4373,9 +4374,9 @@ export default function Ajustes() {
                 <option value="OTRO">Otro</option>
               </SmartSelect>
               </label>
-              {peopleFormErrors.tipoDocumento ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.tipoDocumento}</p> : null}
+              {peopleFormErrors.tipoDocumento ? <p className={fieldErrorClass}>{peopleFormErrors.tipoDocumento}</p> : null}
               <label className="block">
-                <span className="mb-1.5 block text-xs font-black text-slate-700">
+                <span className={fieldLabelClass}>
                   {peopleForm.tipoDocumento === 'NIT'
                     ? 'Nombre del negocio'
                     : 'Nombre completo'}
@@ -4390,7 +4391,7 @@ export default function Ajustes() {
                   }))
                 }
                 disabled={!peopleForm.tipoDocumento}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
                 placeholder={
                   peopleForm.tipoDocumento
                     ? peopleForm.tipoDocumento === 'NIT'
@@ -4400,9 +4401,9 @@ export default function Ajustes() {
                 }
               />
               </label>
-              {peopleFormErrors.nombre ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.nombre}</p> : null}
+              {peopleFormErrors.nombre ? <p className={fieldErrorClass}>{peopleFormErrors.nombre}</p> : null}
               <label className="block">
-                <span className="mb-1.5 block text-xs font-black text-slate-700">
+                <span className={fieldLabelClass}>
                   Número de documento
                 </span>
               <input
@@ -4421,7 +4422,7 @@ export default function Ajustes() {
                   });
                 }}
                 disabled={!peopleForm.tipoDocumento}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
                 placeholder={
                   peopleForm.tipoDocumento
                     ? peopleForm.tipoDocumento === 'NIT'
@@ -4431,9 +4432,9 @@ export default function Ajustes() {
                 }
               />
               </label>
-              {peopleFormErrors.documento ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.documento}</p> : null}
+              {peopleFormErrors.documento ? <p className={fieldErrorClass}>{peopleFormErrors.documento}</p> : null}
               <label className="block">
-                <span className="mb-1.5 block text-xs font-black text-slate-700">
+                <span className={fieldLabelClass}>
                   Número celular colombiano
                 </span>
               <input
@@ -4450,11 +4451,11 @@ export default function Ajustes() {
                   });
                 }}
                 disabled={!peopleForm.tipoDocumento}
-                className="w-full rounded-[14px] border border-[#dfe5f2] bg-white px-4 py-3 text-sm font-semibold outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
                 placeholder={peopleForm.tipoDocumento ? '300 123 4567' : 'Opcional después del documento'}
               />
               </label>
-              {peopleFormErrors.telefono ? <p className="text-xs font-bold text-rose-700">{peopleFormErrors.telefono}</p> : null}
+              {peopleFormErrors.telefono ? <p className={fieldErrorClass}>{peopleFormErrors.telefono}</p> : null}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"

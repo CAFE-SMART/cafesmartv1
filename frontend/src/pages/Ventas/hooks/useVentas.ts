@@ -552,6 +552,11 @@ export function useVentas() {
 
     if (paso === 1) {
       setIntentoPaso1(true);
+      if (clienteMetodo === 'REGISTRAR' && !clienteSeleccionado) {
+        setSubmitError('Guarda el cliente para continuar.');
+        setClienteFormError(null);
+        return;
+      }
       if (!clienteSeleccionado) {
         setSubmitError('Selecciona un cliente para continuar.');
         setClienteFormError(null);
@@ -591,7 +596,7 @@ export function useVentas() {
       setSubmitError(null);
       return setPaso(3);
     }
-  }, [ajustesParcialesPendientes, clienteSeleccionado, paso, puedeAvanzarPaso2, validarPasoVenta, validandoPasoVenta]);
+  }, [ajustesParcialesPendientes, clienteMetodo, clienteSeleccionado, paso, puedeAvanzarPaso2, validarPasoVenta, validandoPasoVenta]);
 
   const anterior = React.useCallback(() => {
     setSubmitError(null);
@@ -1187,6 +1192,7 @@ export function useVentas() {
       } else {
         setClienteSeleccionado({ id: uid(), nombre, documento, detalle: 'Cliente registrado', telefono, tipoDocumento: tipoDocumento as any });
       }
+      setClienteMetodo('REGISTRAR');
       setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
       setClienteFormErrors({});
       setClienteFormError(null);
@@ -1240,7 +1246,7 @@ export function useVentas() {
     return pasos[paso];
   }, [paso]);
 
-  const clienteInvalido = paso === 1 && intentoPaso1 && !clienteSeleccionado;
+  const clienteInvalido = paso === 1 && intentoPaso1 && !clienteSeleccionado && !submitError;
   const modoInvalido = paso === 2 && intentoPaso2 && !modoVenta;
   const fechaVentaInvalida = paso === 2 && intentoPaso2 && !fechaVentaValidacion.isValid;
   const precioTotalInvalido = paso === 2 && modoVenta === 'TOTAL' && intentoPaso2 && preciosVentaTotalInvalidos.size > 0;

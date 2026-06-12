@@ -351,7 +351,7 @@ const CLIENTE_SORT_OPTIONS: Array<{ value: ClienteSortMode; label: string }> = [
   { value: 'doc-desc', label: 'Número mayor a menor' },
 ];
 const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
-  { value: 'CEDULA', label: 'Cédula' },
+  { value: 'CEDULA', label: 'Cédula de ciudadanía' },
   { value: 'NIT', label: 'NIT' },
 ];
 const VENTA_FILTRO_TODOS = 'TODOS';
@@ -432,6 +432,7 @@ function CompactSelect<T extends string>({
   const selected = options.find((option) => option.value === value);
   const buttonId = `${id}-button`;
   const listId = `${id}-list`;
+  const resolvedIcon = icon === undefined ? <IdCard size={16} /> : icon;
 
   return (
     <div className="relative">
@@ -450,16 +451,20 @@ function CompactSelect<T extends string>({
         className={`${selectTriggerClass} min-h-[48px] rounded-[16px] text-sm`}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-[#1f3fa7]" aria-hidden="true">
-            {icon ?? <IdCard size={16} />}
-          </span>
-          <span className={selected ? 'truncate' : 'truncate text-slate-400'}>
+          {resolvedIcon ? (
+            <span className="text-[#1f3fa7]" aria-hidden="true">
+              {resolvedIcon}
+            </span>
+          ) : null}
+          <span className={selected ? 'block truncate' : 'block truncate text-slate-400'}>
             {selected?.label ?? placeholder}
           </span>
         </span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
         />
       </button>
 
@@ -497,6 +502,30 @@ function CompactSelect<T extends string>({
         </div>
       ) : null}
     </div>
+  );
+}
+
+const clienteModalLabelClass =
+  'mb-2 block text-[0.9rem] font-semibold text-slate-900 dark:text-slate-100';
+
+const clienteModalHintClass =
+  'mt-1.5 text-xs font-medium leading-5 text-slate-500 dark:text-slate-300';
+
+function getClienteModalInputClass(hasError = false) {
+  return `w-full rounded-[14px] border px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition-all placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400 focus:border-[#173ea6] focus:bg-white focus:ring-4 focus:ring-[#173ea6]/10 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-blue-300 dark:focus:bg-slate-900 dark:focus:ring-blue-300/15 ${
+    hasError
+      ? 'border-rose-200 bg-rose-50/40 dark:border-red-400 dark:bg-red-950/30'
+      : 'border-[#dde4f1] bg-[#f7f9fd] dark:border-slate-700 dark:bg-slate-900'
+  }`;
+}
+
+function ClienteModalFieldError({ message }: { message: string }) {
+  return (
+    <AppFeedbackMessage
+      variant="error"
+      description={message}
+      className="mt-2"
+    />
   );
 }
 
@@ -1373,6 +1402,15 @@ if (
       'Selecciona un cliente',
       'No elegiste a quien registrar la venta.',
       'Usa Cliente General o busca uno.',
+    );
+  }
+
+  if (message.includes('Guarda el cliente')) {
+    return createGuidedError(
+      message,
+      'Guarda el cliente para continuar.',
+      'Completa los datos del cliente y presiona "Guardar cliente".',
+      'Guarda el cliente para poder avanzar.',
     );
   }
 
@@ -2794,17 +2832,20 @@ export default function Ventas() {
                     </div>
 
                     {sinClientesRegistrados ? (
-                      <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-sm text-slate-500">
-                        <p className="font-bold text-slate-800">
+                      <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <p className="font-bold text-slate-800 dark:text-slate-100">
                           Aún no tienes clientes registrados.
                         </p>
-                        <p className="mt-1 leading-5">
+                        <p className="mt-1 leading-5 text-slate-600 dark:text-slate-300">
                           Registra un cliente para asociarlo a esta venta.
                         </p>
                         <button
                           type="button"
                           onClick={() => {
                             setClienteMetodo('REGISTRAR');
+                            setClienteSeleccionado(null);
+                            setSubmitError(null);
+                            setIntentoPaso1(false);
                             setClienteEditando(null);
                             setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
                             setClienteFormErrors({});
@@ -2877,6 +2918,9 @@ export default function Ventas() {
                   subtitle="Crear un nuevo cliente"
                   onClick={() => {
                     setClienteMetodo('REGISTRAR');
+                    setClienteSeleccionado(null);
+                    setSubmitError(null);
+                    setIntentoPaso1(false);
                     setClienteEditando(null);
                     setClienteForm({ nombre: '', telefono: '', documento: '', tipoDocumento: '' });
                     setClienteFormErrors({});
@@ -2901,7 +2945,9 @@ export default function Ventas() {
                               {clienteSeleccionado.nombre}
                             </p>
                             <p className="truncate text-[0.86rem] font-medium text-slate-500">
-                              {clienteSeleccionado.rapido ? 'Venta rápida' : clienteSeleccionado.documento}
+                              {clienteSeleccionado.rapido
+                                ? 'Venta rápida'
+                                : clienteSeleccionado.detalle || clienteSeleccionado.documento}
                             </p>
                           </div>
                         </div>
@@ -2930,26 +2976,28 @@ export default function Ventas() {
                     title={getVentasGuidance(submitError).why}
                     description={getVentasGuidance(submitError).action}
                   >
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={siguiente}
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-3 text-xs font-black text-white"
-                      >
-                        Reintentar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSubmitError(null);
-                          setIntentoPaso1(false);
-                          setPaso(1);
-                        }}
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-rose-200 bg-white px-3 text-xs font-black text-rose-800"
-                      >
-                        Volver a ventas
-                      </button>
-                    </div>
+                    {submitError.includes('Guarda el cliente') ? null : (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={siguiente}
+                          className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-3 text-xs font-black text-white"
+                        >
+                          Reintentar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubmitError(null);
+                            setIntentoPaso1(false);
+                            setPaso(1);
+                          }}
+                          className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] border border-rose-200 bg-white px-3 text-xs font-black text-rose-800"
+                        >
+                          Volver a ventas
+                        </button>
+                      </div>
+                    )}
                   </AppFeedbackMessage>
                 ) : null}
 
@@ -3517,11 +3565,11 @@ export default function Ventas() {
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
               {sinClientesRegistrados ? (
-                <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
-                  <p className="font-bold text-slate-800">
+                <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  <p className="font-bold text-slate-800 dark:text-slate-100">
                     Aún no tienes clientes registrados.
                   </p>
-                  <p className="mt-1 leading-5">
+                  <p className="mt-1 leading-5 text-slate-600 dark:text-slate-300">
                     Registra un cliente para poder asociarlo a esta venta.
                   </p>
                   <button
@@ -3529,6 +3577,9 @@ export default function Ventas() {
                     onClick={() => {
                       setMostrarModalClientes(false);
                       setClienteMetodo('REGISTRAR');
+                      setClienteSeleccionado(null);
+                      setSubmitError(null);
+                      setIntentoPaso1(false);
                       setClienteForm({
                         nombre: '',
                         telefono: '',
@@ -3584,11 +3635,11 @@ export default function Ventas() {
 
                   if (ordenados.length === 0) {
                     return (
-                      <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500">
-                        <p className="font-bold text-slate-800">
+                      <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <p className="font-bold text-slate-800 dark:text-slate-100">
                           No encontramos clientes con ese dato.
                         </p>
-                        <p className="mt-1 leading-5">
+                        <p className="mt-1 leading-5 text-slate-600 dark:text-slate-300">
                           Prueba buscando por nombre o documento.
                         </p>
                       </div>
@@ -3745,18 +3796,18 @@ export default function Ventas() {
             }
           }}
         >
-          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] sm:max-h-[min(88dvh,720px)]">
-            <header className="shrink-0 border-b border-slate-100 px-5 pb-4 pt-3">
-              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[24px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)] dark:border dark:border-slate-700 dark:bg-slate-950 sm:max-h-[min(88dvh,720px)]">
+            <header className="shrink-0 border-b border-slate-100 px-5 pb-4 pt-3 dark:border-slate-800">
+              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
               <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
-                    Registrar cliente
+                  <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
+                    {clienteEditando ? 'Editar cliente' : 'Registrar cliente'}
                   </h2>
-                  <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                  <p className="mt-1 text-sm font-medium leading-5 text-slate-500 dark:text-slate-300">
                     {clienteEditando
                       ? 'Actualiza los datos del cliente.'
-                      : 'Completa los datos básicos para usarlo en esta venta.'}
+                      : 'Completa los datos básicos del cliente.'}
                   </p>
                 </div>
                 <button
@@ -3768,7 +3819,7 @@ export default function Ventas() {
                     setClienteFormError(null);
                   }}
                   aria-label="Cerrar registro de cliente"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                 >
                   <X size={20} />
                 </button>
@@ -3778,7 +3829,7 @@ export default function Ventas() {
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
                 <div className="order-2">
-                  <label className={fieldLabelClass}>
+                  <label className={clienteModalLabelClass}>
                     {clienteForm.tipoDocumento === 'NIT'
                       ? 'Nombre de la empresa'
                       : 'Nombre completo'}
@@ -3792,49 +3843,51 @@ export default function Ventas() {
                       {clienteForm.nombre.trim().length}/{MAX_NOMBRE_CARACTERES}
                     </span>
                   </label>
-                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
-                    <User size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={clienteForm.nombre}
-                      disabled={!clienteForm.tipoDocumento}
-                      placeholder={
-                        !clienteForm.tipoDocumento
-                          ? 'Primero selecciona el tipo de documento'
-                          : clienteForm.tipoDocumento === 'NIT'
-                          ? 'Ej. Café Los Alpes'
-                          : 'Ej. Juan Pérez Rodríguez'
-                      }
-                      onChange={(event) => {
-                        const raw =
-                          clienteForm.tipoDocumento === 'NIT'
-                            ? event.target.value
-                            : sanitizeNameInput(event.target.value);
-                        const next = raw.slice(0, MAX_NOMBRE_CARACTERES);
+                  <input
+                    type="text"
+                    value={clienteForm.nombre}
+                    disabled={!clienteForm.tipoDocumento}
+                    placeholder={
+                      !clienteForm.tipoDocumento
+                        ? 'Primero selecciona el tipo de documento'
+                        : clienteForm.tipoDocumento === 'NIT'
+                        ? 'Ej. Café Los Alpes'
+                        : 'Ej. Juan Pérez Rodríguez'
+                    }
+                    onChange={(event) => {
+                      const raw =
+                        clienteForm.tipoDocumento === 'NIT'
+                          ? event.target.value
+                          : sanitizeNameInput(event.target.value);
+                      const next = raw.slice(0, MAX_NOMBRE_CARACTERES);
 
-                        if (raw.length > MAX_NOMBRE_CARACTERES) {
-                          setNombreMaxToast(true);
-                          if (nombreMaxToastTimerRef.current) {
-                            window.clearTimeout(nombreMaxToastTimerRef.current);
-                          }
-                          nombreMaxToastTimerRef.current = window.setTimeout(() => {
-                            setNombreMaxToast(false);
-                          }, 3000);
+                      if (raw.length > MAX_NOMBRE_CARACTERES) {
+                        setNombreMaxToast(true);
+                        if (nombreMaxToastTimerRef.current) {
+                          window.clearTimeout(nombreMaxToastTimerRef.current);
                         }
+                        nombreMaxToastTimerRef.current = window.setTimeout(() => {
+                          setNombreMaxToast(false);
+                        }, 3000);
+                      }
 
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          nombre: next,
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          nombre: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400"
-                    />
-                  </label>
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        nombre: next,
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        nombre: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    className={getClienteModalInputClass(Boolean(clienteFormErrors.nombre))}
+                  />
+                  <p className={clienteModalHintClass}>
+                    {clienteForm.tipoDocumento === 'NIT'
+                      ? 'Coloca el nombre legal o comercial de la empresa.'
+                      : 'Coloca su nombre y apellidos.'}
+                  </p>
 
                   {nombreMaxToast ? (
                     <AppFeedbackMessage
@@ -3845,18 +3898,15 @@ export default function Ventas() {
                   ) : null}
 
                   {clienteFormErrors.nombre ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.nombre)}
-                      className="mt-2"
-                    />
+                    <ClienteModalFieldError message={clienteFormErrors.nombre} />
                   ) : null}
                 </div>
 
                 <div className="order-1">
-                  <label className={fieldLabelClass}>
+                  <label className={clienteModalLabelClass}>
                     Tipo de documento
                   </label>
-                  <p className={fieldHelpTextClass}>
+                  <p className={clienteModalHintClass}>
                     Selecciona si el cliente usa cédula o NIT.
                   </p>
                   <div className="mt-2">
@@ -3866,7 +3916,7 @@ export default function Ventas() {
                       options={DOCUMENT_TYPE_OPTIONS}
                       placeholder="Selecciona el tipo de documento"
                       open={clienteDocumentoDropdownOpen}
-                      icon={<IdCard size={16} />}
+                      icon={null}
                       onToggle={() =>
                         setClienteDocumentoDropdownOpen((open) => !open)
                       }
@@ -3887,116 +3937,107 @@ export default function Ventas() {
                     />
                   </div>
                   {clienteFormErrors.tipoDocumento ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.tipoDocumento)}
-                      className="mt-2"
-                    />
+                    <ClienteModalFieldError message={clienteFormErrors.tipoDocumento} />
                   ) : null}
                 </div>
 
                 <div className="order-3">
-                  <label className={fieldLabelClass}>
+                  <label className={clienteModalLabelClass}>
                     Número de documento
                   </label>
-                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
-                    <IdCard size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      inputMode={
-                        clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
+                  <input
+                    type="text"
+                    inputMode={
+                      clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
+                    }
+                    disabled={!clienteForm.tipoDocumento}
+                    onPaste={(event) => {
+                      if (!clienteForm.tipoDocumento) {
+                        event.preventDefault();
                       }
-                      disabled={!clienteForm.tipoDocumento}
-                      onPaste={(event) => {
-                        if (!clienteForm.tipoDocumento) {
-                          event.preventDefault();
-                        }
-                      }}
-                      maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
-                      value={clienteForm.documento}
-                      onChange={(event) => {
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          documento: sanitizeDocumentInput(
-                            event.target.value,
-                            actual.tipoDocumento || 'CEDULA',
-                          ),
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          documento: undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder={
-                        !clienteForm.tipoDocumento
-                          ? 'Primero selecciona el tipo de documento'
-                          : clienteForm.tipoDocumento === 'NIT'
-                          ? '900123456-7'
-                          : '1234567890'
-                      }
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400"
-                    />
-                  </label>
+                    }}
+                    maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
+                    value={clienteForm.documento}
+                    onChange={(event) => {
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        documento: sanitizeDocumentInput(
+                          event.target.value,
+                          actual.tipoDocumento || 'CEDULA',
+                        ),
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        documento: undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    placeholder={
+                      !clienteForm.tipoDocumento
+                        ? 'Primero selecciona el tipo de documento'
+                        : clienteForm.tipoDocumento === 'NIT'
+                        ? '900123456-7'
+                        : '1234567890'
+                    }
+                    className={getClienteModalInputClass(Boolean(clienteFormErrors.documento))}
+                  />
+                  <p className={clienteModalHintClass}>
+                    {clienteForm.tipoDocumento === 'NIT'
+                      ? 'Escribe el NIT con dígito de verificación si lo tienes.'
+                      : 'Escribe solo números, sin puntos ni espacios.'}
+                  </p>
                   {clienteFormErrors.documento ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.documento)}
-                      className="mt-2"
-                    />
+                    <ClienteModalFieldError message={clienteFormErrors.documento} />
                   ) : null}
                 </div>
 
                 <div className="order-4">
-                  <label className={fieldLabelClass}>
+                  <label className={clienteModalLabelClass}>
                     Teléfono (opcional)
                   </label>
-                  <p className={fieldHelpTextClass}>
-                    Número celular colombiano.
-                  </p>
-                  <label className={`${fieldInputClass} flex items-center gap-3 rounded-[14px] px-4 py-3`}>
-                    <Phone size={17} className="text-slate-400" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={12}
-                      value={clienteForm.telefono}
-                      onChange={(event) => {
-                        const raw = event.target.value;
-                        const hasInvalid = /[^\d\s]/.test(raw);
-                        const next = formatPhoneNumber(raw);
-                        setClienteForm((actual) => ({
-                          ...actual,
-                          telefono: next,
-                        }));
-                        setClienteFormErrors((actual) => ({
-                          ...actual,
-                          telefono: hasInvalid
-                            ? 'No uses letras ni símbolos.'
-                            : undefined,
-                        }));
-                        setClienteFormError(null);
-                      }}
-                      placeholder="300 123 4567"
-                      className="w-full bg-transparent text-[0.95rem] text-slate-900 outline-none"
-                    />
-                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={clienteForm.telefono}
+                    onChange={(event) => {
+                      const raw = event.target.value;
+                      const hasInvalid = /[^\d\s]/.test(raw);
+                      const next = formatPhoneNumber(raw);
+                      setClienteForm((actual) => ({
+                        ...actual,
+                        telefono: next,
+                      }));
+                      setClienteFormErrors((actual) => ({
+                        ...actual,
+                        telefono: hasInvalid
+                          ? 'No uses letras ni símbolos.'
+                          : undefined,
+                      }));
+                      setClienteFormError(null);
+                    }}
+                    placeholder="Ej. 300 123 4567"
+                    className={getClienteModalInputClass(Boolean(clienteFormErrors.telefono))}
+                  />
+                  <p className={clienteModalHintClass}>Número celular colombiano.</p>
                   {clienteFormErrors.telefono ? (
-                    <InlineGuidedError
-                      message={getVentasGuidance(clienteFormErrors.telefono)}
-                      className="mt-2"
-                    />
+                    <ClienteModalFieldError message={clienteFormErrors.telefono} />
                   ) : null}
                 </div>
 
                 {clienteFormError ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(clienteFormError)}
-                    className="order-5"
-                  />
+                  <div className="order-5">
+                    <AppFeedbackMessage
+                      variant="error"
+                      title={getVentasGuidance(clienteFormError).why}
+                      description={getVentasGuidance(clienteFormError).action}
+                    />
+                  </div>
                 ) : null}
               </div>
             </div>
 
-            <footer className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+            <footer className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 dark:border-slate-800 dark:bg-slate-900">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -4006,14 +4047,14 @@ export default function Ventas() {
                     setClienteFormErrors({});
                     setClienteFormError(null);
                   }}
-                  className={`${secondaryButtonClass} min-h-[54px] w-full rounded-[14px] text-[0.98rem]`}
+                  className={`${secondaryButtonClass} min-h-[50px] w-full rounded-[14px] px-5 py-3 text-[0.95rem] font-semibold`}
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={guardarCliente}
-                  className={`${primaryButtonClass} min-h-[54px] w-full rounded-[14px] text-[0.98rem]`}
+                  className={`${primaryButtonClass} min-h-[50px] w-full rounded-[14px] px-5 py-3 text-[0.95rem] font-semibold`}
                 >
                   {clienteEditando ? 'Guardar cambios' : 'Guardar cliente'}
                 </button>
