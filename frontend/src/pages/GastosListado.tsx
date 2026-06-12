@@ -16,6 +16,14 @@ import {
   BUSINESS_MIN_DATE_VALUE,
   getTodayLocalDateValue,
 } from '../utils/date';
+import {
+  dangerButtonClass,
+  fieldInputClass,
+  fieldLabelClass,
+  fieldTextareaClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '../styles/uiClasses';
 
 function formatCurrency(value: number) {
   return `$ ${new Intl.NumberFormat('es-CO', {
@@ -525,7 +533,7 @@ export default function GastosListado() {
         <button
           type="button"
           onClick={() => navigate('/gastos/registro')}
-          className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#2051e5] px-4 text-[0.72rem] font-black text-white shadow-[0_8px_18px_rgba(32,81,229,0.2)]"
+          className={`${primaryButtonClass} mt-3 min-h-[40px] w-full rounded-[10px] text-[0.72rem]`}
         >
           <Plus size={14} />
           Registrar gasto
@@ -699,7 +707,7 @@ export default function GastosListado() {
 
             <div className="mt-4 space-y-3">
               <label className="block">
-                <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                <span className={fieldLabelClass}>
                   Concepto del gasto
                 </span>
                 <input
@@ -710,11 +718,11 @@ export default function GastosListado() {
                       current ? { ...current, conceptoGasto: event.target.value } : current,
                     )
                   }
-                  className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  className={fieldInputClass}
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                <span className={fieldLabelClass}>
                   Observación
                 </span>
                 <textarea
@@ -726,12 +734,12 @@ export default function GastosListado() {
                       current ? { ...current, descripcion: event.target.value } : current,
                     )
                   }
-                  className="w-full resize-none rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  className={`${fieldTextareaClass} resize-none`}
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                  <span className={fieldLabelClass}>
                     Monto
                   </span>
                   <input
@@ -744,11 +752,11 @@ export default function GastosListado() {
                           : current,
                       )
                     }
-                    className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                    className={fieldInputClass}
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                  <span className={fieldLabelClass}>
                     Fecha
                   </span>
                   <input
@@ -760,13 +768,13 @@ export default function GastosListado() {
                         current ? { ...current, fechaGasto: event.target.value } : current,
                       )
                     }
-                    className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                    className={fieldInputClass}
                   />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                  <span className={fieldLabelClass}>
                     Tipo
                   </span>
                   <select
@@ -778,7 +786,7 @@ export default function GastosListado() {
                           : current,
                       )
                     }
-                    className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                    className={fieldInputClass}
                   >
                     {TIPOS_GASTO.map((tipo) => (
                       <option key={tipo} value={tipo}>
@@ -788,7 +796,7 @@ export default function GastosListado() {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-black text-slate-700 dark:text-slate-200">
+                  <span className={fieldLabelClass}>
                     Estado
                   </span>
                   <select
@@ -800,7 +808,7 @@ export default function GastosListado() {
                           : current,
                       )
                     }
-                    className="w-full rounded-[12px] border border-[#dbe2ee] bg-[#f8fafc] px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                    className={fieldInputClass}
                   >
                     <option value="PENDIENTE">Pendiente</option>
                     <option value="PAGADO">Pagado</option>
@@ -819,7 +827,7 @@ export default function GastosListado() {
                 type="button"
                 onClick={() => void guardarEdicion()}
                 disabled={guardandoEdicion}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-[#2051e5] px-3 text-sm font-black text-white disabled:opacity-70"
+                className={`${primaryButtonClass} rounded-[12px]`}
               >
                 {guardandoEdicion ? 'Guardando...' : 'Guardar cambios'}
               </button>
@@ -830,7 +838,7 @@ export default function GastosListado() {
                   setEditForm(null);
                 }}
                 disabled={guardandoEdicion}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                className={`${secondaryButtonClass} rounded-[12px]`}
               >
                 Cancelar
               </button>
@@ -856,7 +864,7 @@ export default function GastosListado() {
                 type="button"
                 onClick={() => setGastoAEliminar(null)}
                 disabled={Boolean(eliminandoId)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                className={`${secondaryButtonClass} rounded-[12px]`}
               >
                 Cancelar
               </button>
@@ -864,7 +872,7 @@ export default function GastosListado() {
                 type="button"
                 onClick={() => void confirmarEliminar()}
                 disabled={Boolean(eliminandoId)}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-rose-600 px-3 text-sm font-black text-white disabled:opacity-70"
+                className={`${dangerButtonClass} rounded-[12px]`}
               >
                 {eliminandoId ? 'Eliminando...' : 'Eliminar gasto'}
               </button>

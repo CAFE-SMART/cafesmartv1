@@ -38,6 +38,15 @@ import {
   toIsoDateAtUtcNoon,
   validateBusinessDateRange,
 } from '../utils/date';
+import {
+  fieldHelpTextClass,
+  fieldInputClass,
+  fieldLabelClass,
+  fieldTextareaClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectTriggerClass,
+} from '../styles/uiClasses';
 import { obtenerDeviceId } from '../utils/deviceId';
 
 type TipoGastoValue =
@@ -162,10 +171,10 @@ function formatLongDate(value: string) {
 }
 
 function getInputClassName(hasError: boolean, extraClasses = '') {
-  return `w-full rounded-[8px] border bg-white text-slate-900 outline-none transition shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 ${extraClasses} ${
+  return `${fieldInputClass} ${extraClasses} ${
     hasError
       ? 'border-rose-300 bg-rose-50/60 text-rose-950 placeholder:text-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-500 dark:bg-rose-500/15 dark:text-rose-100 dark:placeholder:text-rose-300'
-      : 'border-slate-200 focus:border-[#102d92] focus:ring-1 focus:ring-[#102d92]/20 dark:focus:border-blue-400'
+      : ''
   }`;
 }
 
@@ -1037,7 +1046,7 @@ export default function GastosOperativos() {
             </div>
           ) : null}
           <div ref={conceptoSectionRef} className="space-y-1.5">
-            <label htmlFor="gasto-concepto" className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+            <label htmlFor="gasto-concepto" className={fieldLabelClass}>
               Concepto del gasto
             </label>
             <input
@@ -1061,23 +1070,20 @@ export default function GastosOperativos() {
                 limpiarErrorCampo('concepto');
               }}
             />
-            <div className="flex justify-end text-[0.58rem] font-bold text-slate-500 dark:text-slate-300">
+            <div className={`${fieldHelpTextClass} flex justify-end text-[0.58rem] font-bold`}>
               {concepto.length}/{GASTO_CONCEPTO_MAX}
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="gasto-descripcion" className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+            <label htmlFor="gasto-descripcion" className={fieldLabelClass}>
               Descripción breve
             </label>
             <textarea
               id="gasto-descripcion"
               placeholder="Ej: Pago transporte lote octubre"
               rows={2}
-              className={getInputClassName(
-                false,
-                'max-h-24 resize-none overflow-y-auto px-3 py-2 text-[0.66rem] font-semibold',
-              )}
+              className={`${fieldTextareaClass} max-h-24 resize-none overflow-y-auto text-[0.66rem]`}
               value={descripcion}
               maxLength={GASTO_DESCRIPCION_MAX}
               onChange={(event) =>
@@ -1089,14 +1095,14 @@ export default function GastosOperativos() {
                 }
               }
             />
-            <div className="flex justify-end text-[0.58rem] font-bold text-slate-500 dark:text-slate-300">
+            <div className={`${fieldHelpTextClass} flex justify-end text-[0.58rem] font-bold`}>
               {descripcion.length}/{GASTO_DESCRIPCION_MAX}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div ref={montoSectionRef} className="space-y-1.5">
-              <label htmlFor="gasto-monto" className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+              <label htmlFor="gasto-monto" className={fieldLabelClass}>
                 Monto ($)
               </label>
               <div className="relative">
@@ -1118,13 +1124,13 @@ export default function GastosOperativos() {
                   onChange={handleMontoChange}
                 />
               </div>
-              <p className="text-[0.56rem] font-semibold text-slate-500 dark:text-slate-300">
+              <p className={`${fieldHelpTextClass} text-[0.56rem]`}>
                 Máx. ${new Intl.NumberFormat('es-CO').format(GASTO_MONTO_MAX)}
               </p>
             </div>
 
             <div ref={fechaSectionRef} className="space-y-1.5">
-              <label htmlFor="gasto-fecha" className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+              <label htmlFor="gasto-fecha" className={fieldLabelClass}>
                 Fecha
               </label>
               <div ref={fechaInputRef} tabIndex={-1}>
@@ -1144,7 +1150,7 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+            <label className={fieldLabelClass}>
               Tipo de gasto
             </label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -1177,7 +1183,7 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+            <label className={fieldLabelClass}>
               Estado de pago
             </label>
             <div className="flex rounded-full border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
@@ -1207,7 +1213,7 @@ export default function GastosOperativos() {
           </div>
 
           <div className="space-y-2">
-            <label className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+            <label className={fieldLabelClass}>
               A qué aplica este gasto?
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -1262,7 +1268,7 @@ export default function GastosOperativos() {
               className="mt-2 animate-in space-y-2 fade-in slide-in-from-top-2"
             >
               <div className="flex items-center justify-between">
-                <label className="ml-1 text-[0.62rem] font-black text-slate-700 dark:text-slate-200">
+                <label className={fieldLabelClass}>
                   Seleccionar sublotes
                 </label>
                 {sublotesSeleccionados.length > 0 ? (
@@ -1281,10 +1287,10 @@ export default function GastosOperativos() {
                 }}
                 {...ariaInvalid(Boolean(fieldErrors.sublotes))}
                 aria-describedby={undefined}
-                className={`w-full rounded-[8px] px-3 py-2.5 text-left shadow-sm transition ${
+                className={`${selectTriggerClass} ${
                   fieldErrors.sublotes
-                    ? 'border border-rose-300 bg-rose-50/60 hover:border-rose-400 dark:border-rose-500 dark:bg-rose-500/15'
-                    : 'border border-slate-200 bg-white hover:border-slate-300 dark:border-slate-600 dark:bg-slate-950 dark:hover:border-slate-500'
+                    ? 'border-rose-300 bg-rose-50/60 hover:border-rose-400 dark:border-rose-500 dark:bg-rose-500/15'
+                    : ''
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -1307,7 +1313,7 @@ export default function GastosOperativos() {
                 </div>
               </button>
 
-              <p className="ml-1 text-[0.55rem] text-slate-500 dark:text-slate-300">
+              <p className={`${fieldHelpTextClass} text-[0.55rem]`}>
                 Selecciona los sublotes a los que aplica este gasto.
               </p>
 
@@ -1369,7 +1375,7 @@ export default function GastosOperativos() {
             type="button"
             disabled={saving || botonGuardarPresionado}
             onClick={handleConfirmar}
-            className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#2051e5] px-4 text-[0.68rem] font-black text-white shadow-[0_8px_18px_rgba(32,81,229,0.26)] transition active:scale-[0.98] hover:bg-[#102d92] disabled:cursor-not-allowed disabled:opacity-70"
+            className={`${primaryButtonClass} min-h-[42px] w-full rounded-[8px] text-[0.68rem]`}
           >
             {saving || botonGuardarPresionado ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -1382,7 +1388,7 @@ export default function GastosOperativos() {
             type="button"
             disabled={saving}
             onClick={() => navigate(-1)}
-            className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-white px-4 text-[0.68rem] font-black text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-500"
+            className={`${secondaryButtonClass} min-h-[42px] w-full rounded-[8px] text-[0.68rem]`}
           >
             Cancelar
           </button>
@@ -1412,7 +1418,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] bg-[#2051e5] px-3 text-[0.68rem] font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className={`${primaryButtonClass} min-h-[42px] w-full rounded-[8px] text-[0.68rem]`}
               >
                 {saving || botonGuardarPresionado
                   ? 'Guardando gasto...'
@@ -1422,7 +1428,7 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving}
                 onClick={cerrarModalConfirmar}
-                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-white px-3 text-[0.68rem] font-black text-slate-600 transition dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                className={`${secondaryButtonClass} min-h-[42px] w-full rounded-[8px] text-[0.68rem]`}
               >
                 Cancelar
               </button>
@@ -1470,14 +1476,14 @@ export default function GastosOperativos() {
                   setShowErrorModal(null);
                   void handleGuardar();
                 }}
-                className="min-h-[42px] rounded-[12px] bg-[#2051e5] px-3 py-2.5 text-[0.68rem] font-black text-white shadow-[0_10px_22px_rgba(32,81,229,0.18)] transition hover:bg-[#1d45c5] active:scale-[0.98]"
+                className={`${primaryButtonClass} min-h-[42px] rounded-[12px] text-[0.68rem]`}
               >
                 Reintentar
               </button>
               <button
                 type="button"
                 onClick={() => setShowErrorModal(null)}
-                className="min-h-[42px] rounded-[12px] border border-[#d5deee] bg-white px-3 py-2.5 text-[0.62rem] font-bold text-slate-600 transition hover:border-[#93c5fd] hover:bg-[#f8fbff] hover:text-[#1e3a8a] active:scale-[0.98] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-400 dark:hover:bg-slate-800"
+                className={`${secondaryButtonClass} min-h-[42px] rounded-[12px] text-[0.62rem]`}
               >
                 Cancelar
               </button>

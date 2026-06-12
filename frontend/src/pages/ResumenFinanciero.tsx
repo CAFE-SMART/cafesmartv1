@@ -57,6 +57,10 @@ import {
   getTodayLocalDateValue,
 } from '../utils/date';
 import { sanitizeSearchInput } from '../utils/inputLimits';
+import {
+  fieldInputClass,
+  fieldLabelClass,
+} from '../styles/uiClasses';
 
 function formatCurrency(value: number) {
   return `$ ${new Intl.NumberFormat('es-CO', {
@@ -2169,15 +2173,19 @@ export default function ResumenFinanciero() {
                         iconOnly
                       />
                     </div>
-                    <label className="mt-3 flex h-11 items-center gap-2 rounded-[14px] border border-[#dbe2f0] bg-[#f8faff] px-3 dark:border-slate-700 dark:bg-slate-950">
-                      <Search size={15} className="text-slate-400 dark:text-slate-300" />
+                    <label className="relative mt-3 block">
+                      <Search
+                        size={15}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-300"
+                        aria-hidden="true"
+                      />
                       <input
                         value={historialSearch}
                         maxLength={60}
                         onChange={(event) =>
                           setHistorialSearch(sanitizeSearchInput(event.target.value))
                         }
-                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                        className={`${fieldInputClass} pl-10`}
                         placeholder={historialActivo === 'GASTO' ? 'Buscar gasto' : 'Buscar registro'}
                       />
                     </label>
@@ -2194,7 +2202,7 @@ export default function ResumenFinanciero() {
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {historialActivo === 'GASTO' ? (
                         <div className="min-w-0">
-                          <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                          <label className={fieldLabelClass}>
                             Estado
                           </label>
                           <SmartSelect
@@ -2212,7 +2220,7 @@ export default function ResumenFinanciero() {
                         </div>
                       ) : null}
                       <div className="min-w-0">
-                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                        <label className={fieldLabelClass}>
                           {historialActivo === 'VENTA'
                             ? 'Tipo de cliente'
                             : historialActivo === 'COMPRA'
@@ -2233,7 +2241,7 @@ export default function ResumenFinanciero() {
                       </SmartSelect>
                       </div>
                       <div className="min-w-0">
-                        <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                        <label className={fieldLabelClass}>
                           Ordenar por
                         </label>
                       <SmartSelect
