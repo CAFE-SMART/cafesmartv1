@@ -13,6 +13,7 @@ import {
   Trash2,
   User,
   X,
+  Check,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -74,6 +75,7 @@ type ClienteOption = {
   nombre: string;
   documento: string;
   detalle: string;
+  createdAt: string;
   telefono?: string;
   rapido?: boolean;
 };
@@ -85,6 +87,7 @@ type ClienteForm = {
   documento: string;
 };
 type ClienteFormErrors = Partial<Record<keyof ClienteForm, string>>;
+type ClienteOrden = 'recientes' | 'antiguos' | 'az';
 type LoteVenta = {
   id: string;
   codigo: string;
@@ -113,7 +116,8 @@ type VentaGuardadaResumen = {
   }>;
 };
 
-const LIMITE = 6;
+const LIMITE_CLIENTES_RECIENTES = 2;
+const LIMITE_CLIENTES_MODAL = 100;
 
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
@@ -121,15 +125,16 @@ const CLIENTE_GENERAL: ClienteOption = {
   documento: 'Venta rapida',
   detalle:
     'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
+  createdAt: '',
   rapido: true,
 };
 const TIPOS_DOCUMENTO_CLIENTE: Array<{
   value: DocumentType;
   label: string;
 }> = [
-  { value: 'CC', label: 'Cédula de ciudadanía' },
-  { value: 'NIT', label: 'NIT' },
-];
+    { value: 'CC', label: 'Cédula de ciudadanía' },
+    { value: 'NIT', label: 'NIT' },
+  ];
 const CLIENTE_FORM_INICIAL: ClienteForm = {
   nombre: '',
   tipoDocumento: 'CC',
@@ -154,11 +159,10 @@ const norm = (v: string) =>
 const keyOf = (v: string) => v.trim().toUpperCase();
 
 function personFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${
-    hasError
-      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
-      : 'border-[#dde4f1] focus:border-[#173ea6]'
-  }`;
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${hasError
+    ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+    : 'border-[#dde4f1] focus:border-[#173ea6]'
+    }`;
 }
 
 function PersonFieldError({ message }: { message: string }) {
@@ -220,6 +224,7 @@ function mapClienteToOption(cliente: ClienteItem): ClienteOption {
     nombre: cliente.nombre,
     documento: cliente.documento?.trim() || 'Documento pendiente',
     detalle: cliente.telefono?.trim() || 'Cliente registrado en sistema',
+    createdAt: cliente.createdAt,
     telefono: cliente.telefono ?? undefined,
   };
 }
@@ -255,6 +260,40 @@ function findClienteExistente(
   return clientes.find(
     (cliente) => clavePersona(cliente.nombre, cliente.documento) === key,
   );
+}
+
+function filtrarClientesPorBusqueda(
+  clientes: ClienteOption[],
+  busqueda: string,
+) {
+  const termino = norm(busqueda.trim());
+
+  if (!termino) {
+    return clientes;
+  }
+
+  return clientes.filter((cliente) =>
+    [cliente.nombre, cliente.documento, cliente.detalle].some((valor) =>
+      norm(valor).includes(termino),
+    ),
+  );
+}
+
+function ordenarClientes(clientes: ClienteOption[], orden: ClienteOrden) {
+  const items = [...clientes];
+
+  if (orden === 'az') {
+    return items.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  return items.sort((a, b) => {
+    const fechaA = Date.parse(a.createdAt || '');
+    const fechaB = Date.parse(b.createdAt || '');
+    const safeA = Number.isFinite(fechaA) ? fechaA : 0;
+    const safeB = Number.isFinite(fechaB) ? fechaB : 0;
+
+    return orden === 'antiguos' ? safeA - safeB : safeB - safeA;
+  });
 }
 
 function crearResumenVentaGuardada(
@@ -363,18 +402,18 @@ function distribuirPesoVerificado(
 function datosPasoVenta(step: Step) {
   if (step === 1) {
     return {
-      titulo: 'Cliente',
+      titulo: 'Elige un cliente',
       progreso: 33,
     };
   }
   if (step === 2) {
     return {
-      titulo: 'Seleccionar café',
+      titulo: 'Selecciona el café',
       progreso: 66,
     };
   }
   return {
-    titulo: 'Confirmar venta',
+    titulo: 'Revisa y confirma',
     progreso: 100,
   };
 }
@@ -561,23 +600,99 @@ function esErrorGeneralGuardadoVenta(error: unknown) {
 function getCantidadLoteGuidance(
   lote: LoteVenta,
   cantidad: number,
+  cantidadIngresada: boolean,
 ): GuidedErrorMessage {
   const disponible = getDisponibleVenta(lote);
 
-  if (cantidad > disponible) {
+  if (!cantidadIngresada) {
     return createGuidedError(
-      `La cantidad supera el disponible en ${lote.codigo}.`,
-      'Cantidad excedida',
-      'Solo puedes vender hasta lo disponible.',
-      `Disponible: ${kg(disponible)}.`,
+      `Falta ingresar la cantidad a vender en ${lote.codigo}.`,
+      'Falta ingresar la cantidad a vender.',
+      'Escribe una cantidad antes de continuar.',
+      `Ingresa al menos ${PESO_MINIMO_KG} kg.`,
+    );
+  }
+
+  if (cantidad < PESO_MINIMO_KG) {
+    return createGuidedError(
+      `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${lote.codigo}.`,
+      'Cantidad muy baja.',
+      `La cantidad mínima es ${PESO_MINIMO_KG} kg.`,
+      `Ingresa al menos ${PESO_MINIMO_KG} kg.`,
     );
   }
 
   return createGuidedError(
-    `La cantidad debe ser mínimo ${PESO_MINIMO_KG} kg en ${lote.codigo}.`,
-    'Cantidad inválida',
-    `Ingresa mínimo ${PESO_MINIMO_KG} kg.`,
-    `Ingresa mínimo ${PESO_MINIMO_KG} kg.`,
+    `La cantidad supera el disponible en ${lote.codigo}.`,
+    'Cantidad excedida',
+    `Solo puedes vender ${kg(disponible)} en este lote.`,
+    'Ajusta la cantidad para continuar.',
+  );
+}
+
+function getPrecioLoteGuidance(
+  lote: LoteVenta,
+  precio: number,
+  precioIngresado: boolean,
+  precioMaximo: number,
+): GuidedErrorMessage {
+  if (!precioIngresado) {
+    return createGuidedError(
+      `Falta elegir el precio por kg en ${lote.codigo}.`,
+      'Falta elegir el precio por kg.',
+      'Escribe el valor por kilo antes de continuar.',
+      `Ingresa un valor entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+    );
+  }
+
+  if (precio < PRECIO_MINIMO_KG) {
+    return createGuidedError(
+      `El precio por kg es muy bajo en ${lote.codigo}.`,
+      'Precio por kg muy bajo.',
+      `El mínimo es $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+      `Ingresa al menos $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+    );
+  }
+
+  return createGuidedError(
+    `El precio por kg supera el máximo en ${lote.codigo}.`,
+    'Precio por kg demasiado alto.',
+    `El máximo es $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+    'Ajusta el valor para continuar.',
+  );
+}
+
+function getPrecioTipoGuidance(
+  tipoCafe: string,
+  precio: number,
+  precioIngresado: boolean,
+  precioMaximo: number,
+): GuidedErrorMessage {
+  const cafe = formatCoffeeLabel(tipoCafe);
+
+  if (!precioIngresado) {
+    return createGuidedError(
+      `Falta elegir el precio por kg para café ${cafe}.`,
+      'Falta elegir el precio por kg.',
+      `Define el precio para café ${cafe} antes de continuar.`,
+      `Ingresa un valor entre $${PRECIO_MINIMO_KG.toLocaleString('es-CO')} y $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+    );
+  }
+
+  if (precio < PRECIO_MINIMO_KG) {
+    return createGuidedError(
+      `El precio por kg es muy bajo para café ${cafe}.`,
+      'Precio por kg muy bajo.',
+      `El mínimo es $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+      `Ingresa al menos $${PRECIO_MINIMO_KG.toLocaleString('es-CO')}/kg.`,
+    );
+  }
+
+  return createGuidedError(
+    `El precio por kg supera el máximo para café ${cafe}.`,
+    'Precio por kg demasiado alto.',
+    `El máximo es $${precioMaximo.toLocaleString('es-CO')}/kg.`,
+    'Ajusta el valor para continuar.',
   );
 }
 
@@ -617,7 +732,22 @@ export default function Ventas() {
   const [clienteSeleccionado, setClienteSeleccionado] =
     React.useState<ClienteOption | null>(null);
   const [busquedaCliente, setBusquedaCliente] = React.useState('');
-  const [busquedaAplicada, setBusquedaAplicada] = React.useState('');
+  const [mostrarModalSelectorCliente, setMostrarModalSelectorCliente] =
+    React.useState(false);
+  const [busquedaSelectorCliente, setBusquedaSelectorCliente] =
+    React.useState('');
+  const [ordenSelectorCliente, setOrdenSelectorCliente] =
+    React.useState<ClienteOrden>('recientes');
+  const [limiteSelectorCliente, setLimiteSelectorCliente] = React.useState(
+    LIMITE_CLIENTES_MODAL,
+  );
+  const [clientesSelector, setClientesSelector] = React.useState<
+    ClienteOption[]
+  >([]);
+  const [cargandoClientesSelector, setCargandoClientesSelector] =
+    React.useState(false);
+  const [hayMasClientesSelector, setHayMasClientesSelector] =
+    React.useState(false);
   const [mostrarModal, setMostrarModal] = React.useState(false);
   const [mostrarModalConfirmar, setMostrarModalConfirmar] =
     React.useState(false);
@@ -643,7 +773,10 @@ export default function Ventas() {
       setLoadError(null);
       const [lotes, clientesData, bodegaConfig] = await Promise.all([
         obtenerLotes(),
-        listarClientes(),
+        listarClientes({
+          limit: LIMITE_CLIENTES_RECIENTES,
+          orden: 'recientes',
+        }),
         obtenerConfiguracionBodega().catch(() => null),
       ]);
       if (bodegaConfig) {
@@ -693,19 +826,29 @@ export default function Ventas() {
   }, [cargarLotes]);
 
   const clientesRecientes = React.useMemo(() => {
-    const base = dedupeClientesOptions([...clientes]);
-    const term = norm(busquedaAplicada.trim());
-    if (!term) return base.slice(0, LIMITE);
-    return base.filter((c) =>
-      [c.nombre, c.documento, c.detalle].some((v) => norm(v).includes(term)),
+    const base = ordenarClientes(
+      dedupeClientesOptions([...clientes]),
+      'recientes',
     );
-  }, [busquedaAplicada, clientes]);
+
+    return filtrarClientesPorBusqueda(base, busquedaCliente).slice(
+      0,
+      LIMITE_CLIENTES_RECIENTES,
+    );
+  }, [busquedaCliente, clientes]);
+  const clientesSelectorFiltrados = React.useMemo(() => {
+    return clientesSelector;
+  }, [clientesSelector]);
+  const clientesSelectorVisibles = clientesSelectorFiltrados.slice(
+    0,
+    limiteSelectorCliente,
+  );
+  const quedanClientesPorCargar =
+    hayMasClientesSelector ||
+    clientesSelectorFiltrados.length > limiteSelectorCliente;
+  const busquedaSelectorActiva = busquedaSelectorCliente.trim().length > 0;
   const sinClientesRegistrados = clientes.length === 0;
-  const busquedaClienteActiva =
-    busquedaCliente.trim().length > 0 || busquedaAplicada.trim().length > 0;
-  const mostrarResultadosClientes =
-    clienteMetodo === 'BUSCAR' &&
-    (!clienteSeleccionado || busquedaClienteActiva);
+  const mostrarResultadosClientes = clienteMetodo === 'BUSCAR';
 
   const lotesConCantidad = React.useMemo(() => {
     if (modoVenta === 'TOTAL') {
@@ -774,6 +917,13 @@ export default function Ventas() {
 
     return invalidos;
   }, [precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
+  const preciosVentaTotalFaltantes = React.useMemo(
+    () =>
+      resumenDisponiblePorTipo.some(
+        (item) => (preciosVentaTotal[item.tipoCafeId] ?? '').trim() === '',
+      ),
+    [preciosVentaTotal, resumenDisponiblePorTipo],
+  );
   const fechaVentaValidacion = React.useMemo(
     () => validateBusinessDateRange(fechaVenta),
     [fechaVenta],
@@ -844,8 +994,8 @@ export default function Ventas() {
       ? false
       : modoVenta === 'TOTAL'
         ? resumenDisponiblePorTipo.length > 0 &&
-          preciosVentaTotalInvalidos.size === 0 &&
-          !lotesVenta.some(pesoVerificadoInvalido)
+        preciosVentaTotalInvalidos.size === 0 &&
+        !lotesVenta.some(pesoVerificadoInvalido)
         : hayCantidadParcial && !parcialConErrores;
 
   const siguiente = React.useCallback(() => {
@@ -952,13 +1102,13 @@ export default function Ventas() {
           );
           const detalle = ENABLE_SECADO_PROTOTYPE
             ? applySecadoToDetalle(
-                detalleBase,
-                lote.tipoCafeId,
-                lote.calidadId,
-                {
-                  includeGeneratedOutputs: false,
-                },
-              )
+              detalleBase,
+              lote.tipoCafeId,
+              lote.calidadId,
+              {
+                includeGeneratedOutputs: false,
+              },
+            )
             : detalleBase;
           let pool = (detalle?.sublotes ?? [])
             .filter((sublote) => sublote.pesoActual > 0)
@@ -1077,7 +1227,6 @@ export default function Ventas() {
     setClienteSeleccionado(null);
     setClienteMetodo(null);
     setBusquedaCliente('');
-    setBusquedaAplicada('');
     setModoVenta(null);
     setMostrarModalConfirmar(false);
     setMostrarModalCancelar(false);
@@ -1103,16 +1252,16 @@ export default function Ventas() {
         const normalizado =
           campo === 'precioKg'
             ? sanitizeIntegerVentaInput(
-                valor,
-                precioMaximoVentaPermitido,
-                l.precioKg,
-              )
+              valor,
+              precioMaximoVentaPermitido,
+              l.precioKg,
+            )
             : sanitizeDecimalVentaInput(
-                valor,
-                campo === 'pesoVerificadoKg'
-                  ? l.disponibleKg
-                  : getDisponibleVenta(l),
-              );
+              valor,
+              campo === 'pesoVerificadoKg'
+                ? l.disponibleKg
+                : getDisponibleVenta(l),
+            );
 
         return { ...l, [campo]: normalizado };
       }),
@@ -1124,13 +1273,13 @@ export default function Ventas() {
       prev.map((item) =>
         item.id === lote.id
           ? {
-              ...item,
-              pesoVerificadoKg: '',
-              cantidadKg:
-                modoVenta === 'PARCIAL'
-                  ? String(round2(lote.disponibleKg))
-                  : item.cantidadKg,
-            }
+            ...item,
+            pesoVerificadoKg: '',
+            cantidadKg:
+              modoVenta === 'PARCIAL'
+                ? String(round2(lote.disponibleKg))
+                : item.cantidadKg,
+          }
           : item,
       ),
     );
@@ -1140,12 +1289,116 @@ export default function Ventas() {
     setClienteSeleccionado(cliente);
     setClienteMetodo(cliente.rapido ? 'GENERAL' : 'BUSCAR');
     setBusquedaCliente('');
-    setBusquedaAplicada('');
+    setMostrarModalSelectorCliente(false);
     setIntentoPaso1(false);
     setSubmitError(null);
   }, []);
 
-  const buscarCliente = () => setBusquedaAplicada(busquedaCliente.trim());
+  const abrirSelectorCliente = () => {
+    setClienteMetodo('BUSCAR');
+    setClienteSeleccionado(null);
+    setBusquedaSelectorCliente(busquedaCliente);
+    setOrdenSelectorCliente('recientes');
+    setLimiteSelectorCliente(LIMITE_CLIENTES_MODAL);
+    setClientesSelector([]);
+    setHayMasClientesSelector(false);
+    setMostrarModalSelectorCliente(true);
+    setSubmitError(null);
+  };
+
+  const cerrarSelectorCliente = () => {
+    setMostrarModalSelectorCliente(false);
+    setBusquedaSelectorCliente('');
+    setLimiteSelectorCliente(LIMITE_CLIENTES_MODAL);
+    setClientesSelector([]);
+    setHayMasClientesSelector(false);
+  };
+
+  const refrescarClientes = async () => {
+    try {
+      const clientesData = await listarClientes({
+        limit: LIMITE_CLIENTES_RECIENTES,
+        orden: 'recientes',
+      });
+      setClientes(
+        dedupeClientesOptions(clientesData.map(mapClienteToOption)),
+      );
+    } catch {
+      // La recarga de clientes no debe bloquear la venta.
+    }
+  };
+
+  const cargarClientesSelector = async (reset = false) => {
+    const offset = reset ? 0 : clientesSelector.length;
+    setCargandoClientesSelector(true);
+
+    try {
+      const clientesData = await listarClientes({
+        q: busquedaSelectorCliente,
+        limit: LIMITE_CLIENTES_MODAL + 1,
+        offset,
+        orden: ordenSelectorCliente,
+      });
+      const mapped = clientesData.map(mapClienteToOption);
+      const nextItems = mapped.slice(0, LIMITE_CLIENTES_MODAL);
+
+      setClientesSelector((actual) =>
+        dedupeClientesOptions(reset ? nextItems : [...actual, ...nextItems]),
+      );
+      setLimiteSelectorCliente((actual) =>
+        reset
+          ? LIMITE_CLIENTES_MODAL
+          : Math.max(actual, offset + nextItems.length),
+      );
+      setHayMasClientesSelector(mapped.length > LIMITE_CLIENTES_MODAL);
+      setClientes((actual) =>
+        dedupeClientesOptions([...nextItems, ...actual]).slice(
+          0,
+          LIMITE_CLIENTES_RECIENTES,
+        ),
+      );
+    } catch {
+      setHayMasClientesSelector(false);
+    } finally {
+      setCargandoClientesSelector(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!mostrarModalSelectorCliente) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void cargarClientesSelector(true);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    busquedaSelectorCliente,
+    mostrarModalSelectorCliente,
+    ordenSelectorCliente,
+  ]);
+
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const clientesData = await listarClientes({
+          q: busquedaCliente,
+          limit: LIMITE_CLIENTES_RECIENTES,
+          orden: 'recientes',
+        });
+        setClientes(
+          dedupeClientesOptions(clientesData.map(mapClienteToOption)),
+        );
+      } catch {
+        // La busqueda rapida no debe bloquear la venta.
+      }
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [busquedaCliente]);
+
   const pasoActual = React.useMemo(() => datosPasoVenta(paso), [paso]);
   const clienteSeleccionadoId = clienteSeleccionado?.id ?? null;
   const clienteInvalido = paso === 1 && intentoPaso1 && !clienteSeleccionado;
@@ -1228,7 +1481,6 @@ export default function Ventas() {
       setClienteSeleccionado(clienteExistente);
       setClienteMetodo('BUSCAR');
       setBusquedaCliente('');
-      setBusquedaAplicada('');
       setMostrarModal(false);
       setClienteForm(CLIENTE_FORM_INICIAL);
       setClienteFormErrors({});
@@ -1251,10 +1503,15 @@ export default function Ventas() {
           ...actual.filter((cliente) => cliente.id !== nuevo.id),
         ]),
       );
+      setClientesSelector((actual) =>
+        dedupeClientesOptions([
+          nuevo,
+          ...actual.filter((cliente) => cliente.id !== nuevo.id),
+        ]),
+      );
       setClienteSeleccionado(nuevo);
       setIntentoPaso1(false);
       setBusquedaCliente('');
-      setBusquedaAplicada('');
       setMostrarModal(false);
       setClienteMetodo('BUSCAR');
       setClienteForm(CLIENTE_FORM_INICIAL);
@@ -1293,7 +1550,7 @@ export default function Ventas() {
                 type="button"
                 onClick={() => void confirmar()}
                 disabled={guardandoVenta}
-                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[54px] items-center justify-center gap-3 rounded-full bg-[#1D4ED8] px-5 py-3 text-[1.05rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {guardandoVenta ? (
                   <>
@@ -1339,7 +1596,7 @@ export default function Ventas() {
             </p>
 
             <article className="mt-6 rounded-[18px] border border-[#e1e7f3] bg-[#fbfcff] p-4 text-left">
-              <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-slate-500">
+              <p className="text-[0.85rem] font-semibold text-slate-800">
                 Resumen de venta
               </p>
               <div className="mt-4 space-y-3">
@@ -1363,7 +1620,7 @@ export default function Ventas() {
                 </div>
                 <div className="rounded-[14px] bg-[#f0f4ff] px-4 py-3">
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-[0.78rem] font-black uppercase text-slate-700">
+                    <span className="text-sm font-semibold text-slate-800">
                       Total recibido
                     </span>
                     <span className="text-[1.35rem] font-black text-[#173ea6]">
@@ -1378,7 +1635,7 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={reiniciar}
-                className="inline-flex min-h-[56px] items-center justify-center rounded-[16px] bg-[#1f3fa7] px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(31,63,167,0.22)]"
+                className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(31,63,167,0.22)]"
               >
                 Registrar nueva venta
               </button>
@@ -1417,15 +1674,13 @@ export default function Ventas() {
           </div>
 
           <div className="mt-8">
-            <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900">
-              <span>
-                Paso {paso}: {pasoActual.titulo}
-              </span>
-              <span className="text-[1.05rem] text-[#002f6c]">{paso} de 3</span>
+            <div className="flex items-center justify-between text-[0.95rem] font-medium text-slate-600">
+              <span>Paso {paso}: {pasoActual.titulo}</span>
+              <span className="text-slate-400">{paso} de 3</span>
             </div>
             <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb]">
               <div
-                className="h-full rounded-full bg-[#04337b] transition-all duration-300"
+                className="h-full rounded-full bg-[#1D4ED8] transition-all duration-300"
                 style={{ width: `${pasoActual.progreso}%` }}
               />
             </div>
@@ -1451,7 +1706,7 @@ export default function Ventas() {
             <button
               type="button"
               onClick={() => void cargarLotes()}
-              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#1f3fa7] px-4 text-[0.9rem] font-semibold text-white"
+              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 text-[0.9rem] font-semibold text-white"
             >
               <RefreshCw size={14} />
               Reintentar
@@ -1460,11 +1715,8 @@ export default function Ventas() {
         ) : (
           <>
             {paso === 2 ? (
-              <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                <h2 className="text-[1.3rem] font-semibold text-[#102d92]">
-                  ¿Cómo deseas realizar la venta?
-                </h2>
-
+              <div className="flex flex-col gap-4">
+                <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
                 <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
                   <p className="text-xs font-medium text-slate-500">
                     Cliente seleccionado
@@ -1472,23 +1724,21 @@ export default function Ventas() {
                   <p className="mt-1 text-sm font-semibold text-slate-900">
                     {clienteSeleccionado?.nombre ?? 'Sin cliente'}
                   </p>
-                  <p className="text-xs text-slate-600">
-                    {clienteSeleccionado?.documento ?? 'Selección pendiente'}
-                  </p>
+                  {clienteSeleccionado?.id !== 'general' && (
+                    <p className="text-xs text-slate-600">
+                      {clienteSeleccionado?.documento ?? 'Selección pendiente'}
+                    </p>
+                  )}
                 </div>
 
-                <div className="mt-4 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                  <p className="text-xs font-medium text-slate-500">
-                    Fecha de venta
-                  </p>
-                  <div
-                    className={`mt-2 flex items-center gap-3 rounded-[12px] border bg-white px-3 py-3 ${
-                      fechaVentaInvalida
-                        ? 'border-[#ef4444]'
-                        : 'border-[#d7dcec]'
-                    }`}
-                  >
-                    <CalendarDays size={16} className="text-[#102d92]" />
+                <div className="mt-4 rounded-[18px] border border-[#dbe1f1] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(20,35,85,0.02)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays size={15} className="shrink-0 text-slate-400" />
+                      <span className="text-[0.85rem] font-semibold text-slate-800">
+                        Fecha de venta
+                      </span>
+                    </div>
                     <input
                       type="date"
                       value={fechaVenta}
@@ -1498,21 +1748,25 @@ export default function Ventas() {
                         setFechaVenta(event.target.value);
                         setSubmitError(null);
                       }}
-                      className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
+                      className="bg-transparent text-[0.95rem] font-semibold text-slate-900 outline-none"
                     />
                   </div>
                   {fechaVentaInvalida ? (
                     <InlineGuidedError
                       message={getVentasGuidance(
                         fechaVentaValidacion.message ??
-                          'Selecciona la fecha de venta.',
+                        'Selecciona la fecha de venta.',
                       )}
                       className="mt-2"
                     />
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                <h2 className="mt-5 text-[1.12rem] font-semibold text-slate-900">
+                  ¿Cómo deseas realizar la venta?
+                </h2>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -1520,15 +1774,14 @@ export default function Ventas() {
                       setIntentoPaso2(false);
                     }}
                     disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
-                      modoVenta === 'PARCIAL'
-                        ? 'border-[#102d92] bg-[#eef2ff]'
-                        : sinInventario
-                          ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
-                          : modoInvalido
-                            ? 'border-[#f2c17b] bg-[#fff9ef]'
-                            : 'border-[#e3e7f3] bg-white'
-                    }`}
+                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${modoVenta === 'PARCIAL'
+                      ? 'border-[#1D4ED8] bg-[#eef2ff]'
+                      : sinInventario
+                        ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
+                        : modoInvalido
+                          ? 'border-[#f2c17b] bg-[#fff9ef]'
+                          : 'border-[#e3e7f3] bg-white'
+                      }`}
                   >
                     <p className="text-base font-black text-slate-900">
                       Venta parcial
@@ -1545,15 +1798,14 @@ export default function Ventas() {
                       setIntentoPaso2(false);
                     }}
                     disabled={sinInventario}
-                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${
-                      modoVenta === 'TOTAL'
-                        ? 'border-[#102d92] bg-[#eef2ff]'
-                        : sinInventario
-                          ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
-                          : modoInvalido
-                            ? 'border-[#f2c17b] bg-[#fff9ef]'
-                            : 'border-[#e3e7f3] bg-white'
-                    }`}
+                    className={`min-h-[92px] rounded-[16px] border p-4 text-left ${modoVenta === 'TOTAL'
+                      ? 'border-[#1D4ED8] bg-[#eef2ff]'
+                      : sinInventario
+                        ? 'cursor-not-allowed border-[#e3e7f3] bg-slate-50 opacity-60'
+                        : modoInvalido
+                          ? 'border-[#f2c17b] bg-[#fff9ef]'
+                          : 'border-[#e3e7f3] bg-white'
+                      }`}
                   >
                     <p className="text-base font-black text-slate-900">
                       Venta total
@@ -1583,7 +1835,7 @@ export default function Ventas() {
                 {modoVenta === 'TOTAL' ? (
                   <div className="mt-6 space-y-4">
                     <div className="text-center">
-                      <h2 className="text-[1.5rem] font-black leading-tight text-slate-950">
+                      <h2 className="text-[1.2rem] font-black leading-tight text-slate-950">
                         Se venderá todo el café disponible en inventario
                       </h2>
                       <p className="mt-2 text-sm font-semibold text-slate-500">
@@ -1604,7 +1856,7 @@ export default function Ventas() {
                     </div>
 
                     <article className="rounded-[18px] bg-white p-4 shadow-sm">
-                      <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-500">
+                      <p className="text-[0.85rem] font-semibold text-slate-800">
                         Resumen por tipo
                       </p>
                       <div className="mt-4 max-h-[180px] divide-y divide-slate-100 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
@@ -1636,18 +1888,22 @@ export default function Ventas() {
                     </article>
 
                     <div className="rounded-[18px] bg-white p-4 shadow-sm">
-                      <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-500">
+                      <p className="text-[0.85rem] font-semibold text-slate-800">
                         Precio por kg por tipo
                       </p>
                       <div className="mt-3 max-h-[260px] space-y-3 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
                         {resumenDisponiblePorTipo.map((item) => {
                           const precioTipo =
                             preciosVentaTotal[item.tipoCafeId] ?? '';
+                          const precioTipoVacio = precioTipo.trim() === '';
+                          const precioTipoFueraRango =
+                            !precioTipoVacio &&
+                            (toNum(precioTipo) < PRECIO_MINIMO_KG ||
+                              toNum(precioTipo) > precioMaximoVentaPermitido);
                           const precioTipoInvalido =
                             modoVenta === 'TOTAL' &&
                             (intentoPaso2 || precioTipo.trim() !== '') &&
-                            (toNum(precioTipo) < PRECIO_MINIMO_KG ||
-                              toNum(precioTipo) > precioMaximoVentaPermitido);
+                            (precioTipoVacio || precioTipoFueraRango);
 
                           return (
                             <div key={item.tipoCafeId}>
@@ -1660,13 +1916,12 @@ export default function Ventas() {
                                 </span>
                               </div>
                               <label
-                                className={`flex min-h-[56px] items-center rounded-[14px] border bg-[#f8faff] px-4 ${
-                                  precioTipoInvalido
-                                    ? 'border-[#ef4444]'
-                                    : 'border-[#d7dcec]'
-                                }`}
+                                className={`flex min-h-[56px] items-center rounded-[14px] border bg-[#f8faff] px-4 ${precioTipoInvalido
+                                  ? 'border-[#ef4444]'
+                                  : 'border-[#d7dcec]'
+                                  }`}
                               >
-                                <span className="mr-3 text-xl font-black text-[#1f3fa7]">
+                                <span className="mr-3 text-xl font-black text-[#1D4ED8]">
                                   $
                                 </span>
                                 <input
@@ -1695,10 +1950,11 @@ export default function Ventas() {
                               </p>
                               {precioTipoInvalido ? (
                                 <InlineGuidedError
-                                  message={getVentasGuidance(
-                                    toNum(precioTipo) < PRECIO_MINIMO_KG
-                                      ? 'El precio mínimo es $1.000/kg.'
-                                      : 'El precio no puede superar $100.000/kg.',
+                                  message={getPrecioTipoGuidance(
+                                    item.tipoCafe,
+                                    toNum(precioTipo),
+                                    !precioTipoVacio,
+                                    precioMaximoVentaPermitido,
                                   )}
                                   className="mt-2"
                                 />
@@ -1709,8 +1965,9 @@ export default function Ventas() {
                       </div>
                       {precioTotalInvalido ? (
                         <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                          Completa el precio de cada tipo de café para
-                          continuar.
+                          {preciosVentaTotalFaltantes
+                            ? 'Falta definir el precio por kg de uno o más tipos de café.'
+                            : 'Revisa el precio por kg de los tipos marcados.'}
                         </p>
                       ) : null}
                     </div>
@@ -1729,36 +1986,28 @@ export default function Ventas() {
                       );
                       const pesoVerificadoError = pesoVerificadoInvalido(lote);
                       const estaAjustandoPeso = loteAjustandoId === lote.id;
-                      const cantidadInvalida =
-                        modoVenta === 'PARCIAL' &&
+                      const cantidadFalta = intentoPaso2 && !cantidadIngresada;
+                      const cantidadFueraRango =
                         cantidadIngresada &&
                         (cantidad < PESO_MINIMO_KG ||
                           cantidad > disponibleVenta);
-                      const precioInvalido =
+                      const cantidadInvalida =
                         modoVenta === 'PARCIAL' &&
-                        (cantidadIngresada || precioIngresado) &&
+                        (cantidadFalta || cantidadFueraRango);
+                      const precioFalta = intentoPaso2 && !precioIngresado;
+                      const precioFueraRango =
+                        precioIngresado &&
                         (toNum(lote.precioKg) < PRECIO_MINIMO_KG ||
                           toNum(lote.precioKg) > precioMaximoVentaPermitido);
-                      const cantidadErrorTexto =
-                        cantidadInvalida && cantidad < PESO_MINIMO_KG
-                          ? `Mínimo ${PESO_MINIMO_KG} kg.`
-                          : cantidadInvalida
-                            ? `Disponible: ${kg(disponibleVenta)}.`
-                            : '';
-                      const precioErrorTexto =
-                        precioInvalido &&
-                        toNum(lote.precioKg) < PRECIO_MINIMO_KG
-                          ? 'Mínimo $1.000/kg.'
-                          : precioInvalido
-                            ? 'Máximo $100.000/kg.'
-                            : '';
-
+                      const precioInvalido =
+                        modoVenta === 'PARCIAL' &&
+                        (precioFalta || precioFueraRango);
                       return (
                         <article
                           key={lote.id}
                           className="rounded-[16px] border border-[#e5e8f3] bg-[#fcfcff] p-4"
                         >
-                          <p className="text-lg font-semibold text-[#102d92]">
+                          <p className="text-lg font-semibold text-[#1D4ED8]">
                             {lote.codigo}
                           </p>
                           <p className="text-sm text-slate-600">
@@ -1767,7 +2016,7 @@ export default function Ventas() {
                           <div className="mt-3 rounded-[14px] border border-[#e4e9f4] bg-white p-3">
                             <div className="flex items-center justify-between gap-3">
                               <div>
-                                <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                                <p className="text-[0.85rem] font-semibold text-slate-800">
                                   Peso para vender
                                 </p>
                                 <p className="mt-1 text-base font-black text-slate-900">
@@ -1784,7 +2033,7 @@ export default function Ventas() {
                                     actual === lote.id ? null : lote.id,
                                   )
                                 }
-                                className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#102d92]"
+                                className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-[#eef3ff] px-3 text-[0.72rem] font-black text-[#1D4ED8]"
                                 aria-expanded={estaAjustandoPeso}
                               >
                                 <Scale size={14} />
@@ -1803,7 +2052,7 @@ export default function Ventas() {
                                   <button
                                     type="button"
                                     onClick={() => usarPesoRegistrado(lote)}
-                                    className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#102d92] shadow-sm"
+                                    className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#1D4ED8] shadow-sm"
                                   >
                                     Usar registrado
                                   </button>
@@ -1827,7 +2076,7 @@ export default function Ventas() {
                                 <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
                                   <Scale
                                     size={16}
-                                    className="shrink-0 text-[#102d92]"
+                                    className="shrink-0 text-[#1D4ED8]"
                                   />
                                   <input
                                     type="text"
@@ -1842,11 +2091,10 @@ export default function Ventas() {
                                       )
                                     }
                                     placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                                    className={`w-full bg-transparent text-sm font-semibold outline-none ${
-                                      pesoVerificadoError
-                                        ? 'text-[#b42318]'
-                                        : 'text-slate-900'
-                                    }`}
+                                    className={`w-full bg-transparent text-sm font-semibold outline-none ${pesoVerificadoError
+                                      ? 'text-[#b42318]'
+                                      : 'text-slate-900'
+                                      }`}
                                   />
                                   <span className="text-xs font-black text-slate-400">
                                     kg
@@ -1883,11 +2131,10 @@ export default function Ventas() {
                                     )
                                   }
                                   placeholder="Cantidad kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
-                                    cantidadInvalida
-                                      ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                      : 'border-[#d7dcec] bg-white text-slate-900'
-                                  }`}
+                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${cantidadInvalida
+                                    ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
+                                    : 'border-[#d7dcec] bg-white text-slate-900'
+                                    }`}
                                 />
                                 <input
                                   type="text"
@@ -1903,38 +2150,29 @@ export default function Ventas() {
                                     )
                                   }
                                   placeholder="Precio por kg"
-                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#102d92] ${
-                                    precioInvalido
-                                      ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
-                                      : 'border-[#d7dcec] bg-white text-slate-900'
-                                  }`}
+                                  className={`w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:border-[#1D4ED8] ${precioInvalido
+                                    ? 'border-[#ef4444] bg-[#fff7f7] text-[#b42318]'
+                                    : 'border-[#d7dcec] bg-white text-slate-900'
+                                    }`}
                                 />
                               </div>
-                              {cantidadInvalida || precioInvalido ? (
-                                <div className="mt-1 grid grid-cols-2 gap-2 text-[0.62rem] font-semibold text-[#b42318]">
-                                  <p className="min-h-[16px] pl-1">
-                                    {cantidadErrorTexto}
-                                  </p>
-                                  <p className="min-h-[16px] pr-1 text-right">
-                                    {precioErrorTexto}
-                                  </p>
-                                </div>
-                              ) : null}
                               {cantidadInvalida ? (
                                 <InlineGuidedError
                                   message={getCantidadLoteGuidance(
                                     lote,
                                     cantidad,
+                                    cantidadIngresada,
                                   )}
                                   className="mt-2"
                                 />
                               ) : null}
                               {precioInvalido ? (
                                 <InlineGuidedError
-                                  message={getVentasGuidance(
-                                    toNum(lote.precioKg) < PRECIO_MINIMO_KG
-                                      ? 'El precio mínimo es $1.000/kg.'
-                                      : 'El precio no puede superar $100.000/kg.',
+                                  message={getPrecioLoteGuidance(
+                                    lote,
+                                    toNum(lote.precioKg),
+                                    precioIngresado,
+                                    precioMaximoVentaPermitido,
                                   )}
                                   className="mt-2"
                                 />
@@ -1965,15 +2203,31 @@ export default function Ventas() {
                     className="mt-2"
                   />
                 ) : null}
+              </section>
 
-                <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
-                  <div className="flex items-center justify-between text-sm font-black">
-                    <span>Total seleccionado</span>
-                    <span>{kg(totalKg)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-lg font-black">
-                    <span>Total estimado</span>
-                    <span>{money(totalEstimado)}</span>
+              {/* Resumen de venta y botones en un card aparte */}
+              <div className="rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
+                <article className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] p-4 text-[#1D4ED8] shadow-sm">
+                  <p className="text-[0.95rem] font-bold text-[#4c5c80]">
+                    Resumen de venta
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#d6e2ff] pt-3">
+                    <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5">
+                      <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
+                        Total kg
+                      </p>
+                      <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
+                        {kg(totalKg)}
+                      </p>
+                    </div>
+                    <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5 text-right">
+                      <p className="text-[0.82rem] font-semibold text-[#5b6f9d]">
+                        Total estimado
+                      </p>
+                      <p className="mt-1 max-w-full overflow-hidden whitespace-nowrap text-[1.35rem] font-bold leading-[1.1] text-[#1D4ED8]">
+                        {money(totalEstimado)}
+                      </p>
+                    </div>
                   </div>
                 </article>
 
@@ -1982,24 +2236,24 @@ export default function Ventas() {
                     type="button"
                     onClick={siguiente}
                     disabled={sinInventario}
-                    className={`inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[16px] px-5 py-4 text-[1.35rem] font-semibold text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] ${
-                      sinInventario
-                        ? 'cursor-not-allowed bg-[#7f93cf]'
-                        : 'bg-[#1f3fa7]'
-                    }`}
+                    className={`inline-flex min-h-[56px] w-full items-center justify-center rounded-full px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition ${sinInventario
+                      ? 'cursor-not-allowed bg-blue-300'
+                      : 'bg-[#1D4ED8] hover:bg-[#1e40af] active:scale-[0.99]'
+                      }`}
                   >
                     Siguiente paso
                   </button>
                   <button
                     type="button"
                     onClick={anterior}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#edf1fa] px-4 py-3 text-sm font-semibold text-slate-600"
+                    className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Regresar
                   </button>
                 </div>
-              </section>
-            ) : null}
+              </div>
+            </div>
+          ) : null}
 
             {paso === 1 ? (
               <section className="space-y-4">
@@ -2011,22 +2265,21 @@ export default function Ventas() {
                   type="button"
                   onClick={() => {
                     setClienteMetodo('BUSCAR');
-                    if (clienteSeleccionado?.id === CLIENTE_GENERAL.id) {
-                      setClienteSeleccionado(null);
-                    }
+                    setClienteSeleccionado(null);
+                    void refrescarClientes();
+                    setSubmitError(null);
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'BUSCAR'
-                      ? 'border-[#1f3fa7] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'BUSCAR'
+                    ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
+                    : 'border-[#e3e7f3]'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
                       <Search size={19} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
+                      <p className="text-[0.95rem] font-bold text-slate-900">
                         Buscar cliente
                       </p>
                       <p className="mt-1 text-[0.78rem] text-slate-500">
@@ -2034,120 +2287,96 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'BUSCAR'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
+                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'BUSCAR'
+                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                        : 'border-slate-300'
+                        }`}
                     />
                   </div>
                 </button>
 
-                {clienteMetodo === 'BUSCAR' ? (
-                  <div className="space-y-3">
-                    <label className="flex min-h-[52px] items-center gap-3 rounded-[14px] bg-[#eef2f7] px-3">
-                      <Search size={17} className="text-slate-400" />
-                      <input
-                        type="text"
-                        value={busquedaCliente}
-                        maxLength={60}
-                        onChange={(event) => {
-                          const busqueda = event.target.value.slice(0, 60);
-                          setBusquedaCliente(busqueda);
-                          setBusquedaAplicada(busqueda.trim());
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            buscarCliente();
-                          }
-                        }}
-                        placeholder="Nombre o identificación..."
-                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={buscarCliente}
-                        aria-label="Buscar cliente"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#1f3fa7]"
-                      >
-                        <Search size={16} />
-                      </button>
-                    </label>
+                {/* Panel de búsqueda — animación suave de expansión */}
+                <div
+                  className="overflow-hidden transition-all duration-300 ease-in-out"
+                  style={{
+                    maxHeight: clienteMetodo === 'BUSCAR' ? '420px' : '0px',
+                    opacity: clienteMetodo === 'BUSCAR' ? 1 : 0,
+                    marginTop: clienteMetodo === 'BUSCAR' ? '12px' : '0px',
+                  }}
+                >
+                  <div className="space-y-2.5 px-1 pt-1">
+                    <p className="text-[0.85rem] font-semibold text-slate-800">
+                      Recientes
+                    </p>
 
-                    {mostrarResultadosClientes ? (
-                      clientesRecientes.length === 0 ? (
-                        <div className="rounded-[14px] border border-dashed border-[#d5dced] bg-white px-4 py-5 text-center text-sm text-slate-500">
-                          <p className="font-semibold text-slate-700">
-                            {sinClientesRegistrados
-                              ? 'Aún no hay clientes registrados'
-                              : 'No se encontraron resultados'}
-                          </p>
-                          <p className="mt-1">
-                            {sinClientesRegistrados
-                              ? 'Registra uno para comenzar.'
-                              : 'Intenta con otro nombre o documento.'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {clientesRecientes.map((cliente) => {
-                            const selected =
-                              clienteSeleccionadoId === cliente.id;
-                            return (
-                              <button
-                                key={cliente.id}
-                                type="button"
-                                onClick={() => seleccionarCliente(cliente)}
-                                className={`w-full rounded-[14px] border px-3 py-3 text-left ${
-                                  selected
-                                    ? 'border-[#102d92] bg-[#eef2ff]'
-                                    : 'border-[#e3e7f3] bg-white'
+                    {mostrarResultadosClientes && clientesRecientes.length === 0 ? (
+                      <div className="rounded-[14px] border border-dashed border-[#d5dced] bg-white px-4 py-5 text-center text-sm text-slate-500">
+                        <p className="font-semibold text-slate-700">
+                          {sinClientesRegistrados
+                            ? 'Aún no tienes clientes registrados.'
+                            : 'No se encontraron resultados'}
+                        </p>
+                        <p className="mt-1">
+                          {sinClientesRegistrados
+                            ? 'Registra uno para iniciar la venta.'
+                            : 'Intenta con otro nombre o documento.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {clientesRecientes.map((cliente) => {
+                          const selected = clienteSeleccionadoId === cliente.id;
+                          return (
+                            <button
+                              key={cliente.id}
+                              type="button"
+                              onClick={() => seleccionarCliente(cliente)}
+                              className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${selected
+                                  ? 'border-[#1D4ED8] bg-[#f4f7ff]'
+                                  : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
                                 }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <span className="rounded-xl bg-[#e8eefc] p-2 text-[#102d92]">
-                                    <User size={15} />
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-black text-slate-900">
-                                      {cliente.nombre}
-                                    </p>
-                                    <p className="mt-0.5 truncate text-xs text-slate-500">
-                                      {cliente.documento}
-                                    </p>
-                                  </div>
-                                  {selected ? (
-                                    <CheckCircle2
-                                      size={20}
-                                      className="text-[#1f3fa7]"
-                                    />
-                                  ) : null}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )
-                    ) : null}
+                            >
+                              <p className="truncate text-[0.88rem] font-medium text-slate-900">
+                                {cliente.nombre}
+                              </p>
+                              <p className="mt-0.5 truncate text-[0.75rem] text-slate-400">
+                                {cliente.documento}
+                              </p>
+                              {selected ? (
+                                <span className="mt-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
+                                  <Check size={10} />
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={abrirSelectorCliente}
+                      className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] border border-[#dbe2f0] bg-white px-4 text-[0.82rem] font-medium text-[#1D4ED8]"
+                    >
+                      Ver más clientes
+                    </button>
                   </div>
-                ) : null}
+                </div>
 
                 <button
                   type="button"
                   onClick={() => seleccionarCliente(CLIENTE_GENERAL)}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'GENERAL'
-                      ? 'border-[#1f3fa7] bg-[#eef4ff] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'GENERAL'
+                    ? 'border-[#1D4ED8] bg-[#eef4ff] ring-1 ring-[#1f3fa7]'
+                    : 'border-[#e3e7f3]'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
                       <User size={18} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
+                      <p className="text-[0.95rem] font-bold text-slate-900">
                         Cliente genérico
                       </p>
                       <p className="mt-1 text-[0.78rem] text-slate-500">
@@ -2155,11 +2384,10 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'GENERAL'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
+                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'GENERAL'
+                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                        : 'border-slate-300'
+                        }`}
                     />
                   </div>
                 </button>
@@ -2173,18 +2401,17 @@ export default function Ventas() {
                     setClienteFormError(null);
                     setMostrarModal(true);
                   }}
-                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${
-                    clienteMetodo === 'REGISTRAR'
-                      ? 'border-[#1f3fa7] ring-1 ring-[#1f3fa7]'
-                      : 'border-[#e3e7f3]'
-                  }`}
+                  className={`w-full rounded-[16px] border bg-white p-4 text-left shadow-sm transition ${clienteMetodo === 'REGISTRAR'
+                    ? 'border-[#1D4ED8] ring-1 ring-[#1f3fa7]'
+                    : 'border-[#e3e7f3]'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1D4ED8]">
                       <Plus size={18} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[0.95rem] font-black text-slate-900">
+                      <p className="text-[0.95rem] font-bold text-slate-900">
                         Registrar cliente
                       </p>
                       <p className="mt-1 text-[0.78rem] text-slate-500">
@@ -2192,59 +2419,64 @@ export default function Ventas() {
                       </p>
                     </div>
                     <span
-                      className={`h-6 w-6 rounded-full border-2 ${
-                        clienteMetodo === 'REGISTRAR'
-                          ? 'border-[#1f3fa7] bg-[#1f3fa7] shadow-[inset_0_0_0_4px_white]'
-                          : 'border-slate-300'
-                      }`}
+                      className={`h-6 w-6 rounded-full border-2 ${clienteMetodo === 'REGISTRAR'
+                        ? 'border-[#1D4ED8] bg-[#1D4ED8] shadow-[inset_0_0_0_4px_white]'
+                        : 'border-slate-300'
+                        }`}
                     />
                   </div>
                 </button>
 
-                <section>
-                  <p className="text-[0.72rem] font-black uppercase tracking-[0.12em] text-slate-400">
-                    Cliente seleccionado
-                  </p>
-                  <div className="mt-3 rounded-[16px] bg-white p-4 shadow-sm">
-                    {clienteSeleccionado ? (
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef3ff] text-[#1f3fa7]">
-                          <User size={18} />
-                        </span>
-                        <div>
-                          <p className="font-black text-slate-950">
-                            {clienteSeleccionado.nombre}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {clienteSeleccionado.rapido
-                              ? 'Venta rápida'
-                              : clienteSeleccionado.documento}
-                          </p>
-                        </div>
+                {/* ── Zona de acción: separada visualmente de las opciones ── */}
+                <div className="mt-6 rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
+                  {clienteSeleccionado ? (
+                    <div className="mb-4 flex items-center gap-3">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
+                        <User size={17} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[0.85rem] font-semibold text-slate-800">
+                          Cliente seleccionado
+                        </p>
+                        <p className="truncate text-[0.98rem] font-semibold text-slate-900">
+                          {clienteSeleccionado.nombre}
+                        </p>
+                        <p className="text-[0.82rem] text-slate-500">
+                          {clienteSeleccionado.rapido
+                            ? 'Venta rápida'
+                            : clienteSeleccionado.documento}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="py-6 text-center text-sm font-semibold text-slate-400">
-                        Selecciona a quién le harás la venta
-                      </div>
-                    )}
+                    </div>
+                  ) : (
+                    <div className="mb-4 rounded-[12px] border border-dashed border-[#d8dfee] px-4 py-3 text-center text-[0.88rem] text-slate-400">
+                      Ningún cliente seleccionado
+                    </div>
+                  )}
+
+                  {clienteInvalido ? (
+                    <p className="mb-3 rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.82rem] font-semibold leading-5 text-rose-600">
+                      Selecciona un cliente para continuar.
+                    </p>
+                  ) : null}
+
+                  <div className="grid gap-2.5">
+                    <button
+                      type="button"
+                      onClick={siguiente}
+                      className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99]"
+                    >
+                      Siguiente paso
+                    </button>
+                    <button
+                      type="button"
+                      onClick={volverPasoAnterior}
+                      className="inline-flex min-h-[46px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[0.95rem] font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Regresar
+                    </button>
                   </div>
-                </section>
-
-                {clienteInvalido ? (
-                  <InlineGuidedError
-                    message={getVentasGuidance(
-                      'Selecciona un cliente para continuar.',
-                    )}
-                  />
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={siguiente}
-                  className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[14px] bg-[#1f3fa7] px-5 py-4 text-base font-black text-white shadow-[0_14px_30px_rgba(31,63,167,0.22)]"
-                >
-                  Siguiente paso
-                </button>
+                </div>
               </section>
             ) : null}
 
@@ -2253,7 +2485,7 @@ export default function Ventas() {
                 <p className="text-[11px] font-medium text-slate-500">
                   Revisión final
                 </p>
-                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#102d92]">
+                <h2 className="mt-2 text-[1.3rem] font-semibold text-[#1D4ED8]">
                   Confirma los datos de la venta
                 </h2>
 
@@ -2293,7 +2525,7 @@ export default function Ventas() {
                           <p className="text-xs text-slate-600">
                             {coffeeWithQuality(lote.tipoCafe, lote.calidad)}
                           </p>
-                          <p className="mt-1 text-sm font-semibold text-[#102d92]">
+                          <p className="mt-1 text-sm font-semibold text-[#1D4ED8]">
                             {kg(lote.cantidad)} -{' '}
                             {money(lote.cantidad * lote.precio)}
                           </p>
@@ -2302,7 +2534,7 @@ export default function Ventas() {
                           <button
                             type="button"
                             onClick={editarLoteDesdeRevision}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#102d92]"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2ff] text-[#1D4ED8]"
                             title="Editar producto"
                             aria-label={`Editar ${lote.codigo}`}
                           >
@@ -2323,7 +2555,7 @@ export default function Ventas() {
                   ))}
                 </div>
 
-                <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#102d92]">
+                <article className="mt-4 rounded-[16px] border border-[#d6e2ff] bg-[#eef3ff] p-3 text-[#1D4ED8]">
                   <div className="flex items-center justify-between text-sm font-black">
                     <span>Total kg</span>
                     <span>{kg(totalKg)}</span>
@@ -2334,16 +2566,15 @@ export default function Ventas() {
                   </div>
                 </article>
 
-                <div className="mt-4 grid gap-2">
+                <div className="mt-4 grid gap-3">
                   <button
                     type="button"
                     onClick={() => setMostrarModalConfirmar(true)}
                     disabled={guardandoVenta || botonConfirmarPresionado}
-                    className={`inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-sm font-semibold text-white ${
-                      guardandoVenta || botonConfirmarPresionado
-                        ? 'bg-[#7f93cf] cursor-wait'
-                        : 'bg-[#102d92]'
-                    }`}
+                    className={`inline-flex min-h-[56px] items-center justify-center gap-2 rounded-full px-5 py-4 text-[1rem] font-medium text-white transition ${guardandoVenta || botonConfirmarPresionado
+                      ? 'bg-blue-300 cursor-wait'
+                      : 'bg-[#1D4ED8] hover:bg-[#1e40af] shadow-[0_8px_20px_rgba(29,78,216,0.22)] active:scale-[0.99]'
+                      }`}
                   >
                     {guardandoVenta || botonConfirmarPresionado ? (
                       <>
@@ -2351,7 +2582,7 @@ export default function Ventas() {
                         Guardando venta...
                       </>
                     ) : (
-                      'Confirmar venta'
+                      'Registrar venta'
                     )}
                   </button>
                 </div>
@@ -2369,11 +2600,205 @@ export default function Ventas() {
         )}
       </div>
 
+      {mostrarModalSelectorCliente ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 px-4 pb-4 pt-8 backdrop-blur-sm sm:items-center">
+          <div className="flex h-[75vh] max-h-[75vh] w-full max-w-[430px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="shrink-0 border-b border-[#eef2f7] px-5 pb-4 pt-3">
+              <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
+                  Seleccionar cliente
+                </h2>
+                <button
+                  type="button"
+                  onClick={cerrarSelectorCliente}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                  aria-label="Cerrar selector de clientes"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="relative mt-4">
+                <Search
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={busquedaSelectorCliente}
+                  maxLength={60}
+                  onChange={(event) => {
+                    const busqueda = event.target.value.slice(0, 60);
+                    setBusquedaSelectorCliente(busqueda);
+                    setLimiteSelectorCliente(LIMITE_CLIENTES_MODAL);
+                    setClientesSelector([]);
+                  }}
+                  placeholder="Buscar por nombre o documento..."
+                  className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-11 py-3 text-[0.98rem] text-slate-900 outline-none transition focus:border-[#1D4ED8]"
+                />
+              </div>
+
+              <div className="mt-3 rounded-[14px] bg-[#f4f7fb] p-1">
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { value: 'recientes', label: 'Recientes' },
+                    { value: 'antiguos', label: 'Antiguos' },
+                    { value: 'az', label: 'A-Z' },
+                  ].map((orden) => {
+                    const activo = ordenSelectorCliente === orden.value;
+
+                    return (
+                      <button
+                        key={orden.value}
+                        type="button"
+                        onClick={() => {
+                          setOrdenSelectorCliente(orden.value as ClienteOrden);
+                          setLimiteSelectorCliente(LIMITE_CLIENTES_MODAL);
+                          setClientesSelector([]);
+                        }}
+                        className={`min-h-[38px] rounded-[11px] px-2 text-sm font-black transition ${activo
+                          ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
+                          : 'text-slate-500'
+                          }`}
+                      >
+                        {orden.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="min-h-0 flex-1 overflow-y-scroll px-5 py-4 pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]"
+              onScroll={(event) => {
+                const target = event.currentTarget;
+                const cercaDelFinal =
+                  target.scrollTop + target.clientHeight >=
+                  target.scrollHeight - 80;
+
+                if (
+                  cercaDelFinal &&
+                  quedanClientesPorCargar &&
+                  !cargandoClientesSelector
+                ) {
+                  if (clientesSelectorFiltrados.length > limiteSelectorCliente) {
+                    setLimiteSelectorCliente(
+                      (actual) => actual + LIMITE_CLIENTES_MODAL,
+                    );
+                    return;
+                  }
+
+                  void cargarClientesSelector(false);
+                }
+              }}
+            >
+              {cargandoClientesSelector && clientesSelectorVisibles.length === 0 ? (
+                <div className="rounded-[16px] border border-[#e6ebf5] bg-[#fafbff] px-4 py-8 text-center">
+                  <RefreshCw
+                    size={24}
+                    className="mx-auto animate-spin text-[#1D4ED8]"
+                  />
+                  <p className="mt-3 text-sm font-black text-slate-700">
+                    Cargando clientes...
+                  </p>
+                </div>
+              ) : clientesSelectorFiltrados.length === 0 &&
+                !busquedaSelectorActiva ? (
+                <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center">
+                  <p className="text-[1rem] font-black text-slate-800">
+                    Aún no tienes clientes registrados.
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                    Registra uno para iniciar la venta.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarModalSelectorCliente(false);
+                      setClienteMetodo('REGISTRAR');
+                      setClienteForm(CLIENTE_FORM_INICIAL);
+                      setClienteFormErrors({});
+                      setClienteFormError(null);
+                      setMostrarModal(true);
+                    }}
+                    className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white"
+                  >
+                    Registrar cliente
+                  </button>
+                </div>
+              ) : clientesSelectorFiltrados.length === 0 &&
+                busquedaSelectorActiva ? (
+                <div className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center">
+                  <p className="text-[1rem] font-black text-slate-800">
+                    No se encontraron resultados
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                    Intenta con otro nombre o documento.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                    <p className="text-[0.85rem] font-semibold text-slate-800">
+                      {busquedaSelectorActiva
+                        ? 'Resultados encontrados'
+                        : 'Recientes'}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-400">
+                      {clientesSelectorVisibles.length} resultados
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {clientesSelectorVisibles.map((cliente) => {
+                      const activo = clienteSeleccionado?.id === cliente.id;
+
+                      return (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() => seleccionarCliente(cliente)}
+                          className={`flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-3 text-left transition ${activo
+                            ? 'border-[#1D4ED8] bg-[#f4f7ff]'
+                            : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
+                            }`}
+                        >
+                          <span
+                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${activo
+                              ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
+                              : 'border-[#aebbd1] bg-white text-transparent'
+                              }`}
+                            aria-hidden="true"
+                          >
+                            {activo ? (
+                              <CheckCircle2 size={12} strokeWidth={3} />
+                            ) : null}
+                          </span>
+                          <div className="min-w-0 flex-1 text-left">
+                            <p className="truncate text-[0.98rem] font-black text-slate-900">
+                              {cliente.nombre}
+                            </p>
+                            <p className="mt-0.5 truncate text-[0.84rem] font-semibold text-slate-500">
+                              {cliente.documento}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {mostrarModalConfirmar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
           <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
             <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
-            <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1f3fa7]">
+            <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f1ff] text-[#1D4ED8]">
               <ReceiptText size={24} />
             </div>
             <h2 className="mt-5 text-[1.8rem] font-black leading-tight text-slate-950">
@@ -2391,7 +2816,7 @@ export default function Ventas() {
                   void confirmar();
                 }}
                 disabled={guardandoVenta || botonConfirmarPresionado}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {guardandoVenta || botonConfirmarPresionado
                   ? 'Guardando venta...'
@@ -2428,14 +2853,14 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={confirmarCancelarVenta}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 text-base font-black text-white"
+                className="inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white"
               >
                 Cancelar venta
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(false)}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-[14px] px-5 text-base font-black text-[#1f3fa7]"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-[14px] px-5 text-base font-black text-[#1D4ED8]"
               >
                 Continuar editando
               </button>
@@ -2621,7 +3046,7 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={guardarCliente}
-                className="inline-flex w-full items-center justify-center rounded-[12px] bg-[#102d92] px-4 py-3 text-[0.82rem] font-semibold text-white"
+                className="inline-flex w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.82rem] font-semibold text-white"
               >
                 Guardar cliente
               </button>
@@ -2642,7 +3067,7 @@ export default function Ventas() {
           <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
             <RefreshCw
               size={28}
-              className="mx-auto animate-spin text-[#1f3fa7]"
+              className="mx-auto animate-spin text-[#1D4ED8]"
             />
             <p className="mt-2 text-sm font-black text-slate-900">
               Guardando venta
@@ -2651,13 +3076,15 @@ export default function Ventas() {
               Actualizando inventario...
             </p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#102d92]" />
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1D4ED8]" />
             </div>
           </div>
         </div>
       ) : null}
 
-      <AppBottomNav hidden={mostrarModal || paso >= 1} />
+      <AppBottomNav
+        hidden={mostrarModal || mostrarModalSelectorCliente || paso >= 1}
+      />
     </div>
   );
 }
@@ -2666,11 +3093,11 @@ function LoadingCard({ text }: { text: string }) {
   return (
     <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-5 shadow-sm">
       <div className="flex items-center gap-3">
-        <RefreshCw size={18} className="animate-spin text-[#102d92]" />
-        <p className="text-sm font-semibold text-[#102d92]">{text}</p>
+        <RefreshCw size={18} className="animate-spin text-[#1D4ED8]" />
+        <p className="text-sm font-semibold text-[#1D4ED8]">{text}</p>
       </div>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#d0dbeb]">
-        <div className="h-full w-2/3 animate-pulse rounded-full bg-[#04337b]" />
+        <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1D4ED8]" />
       </div>
     </section>
   );

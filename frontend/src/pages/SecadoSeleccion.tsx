@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import {
   obtenerDetalleLote,
+  obtenerLotes,
   type LoteDetalle,
   type SubloteDetalle,
 } from '../services/lotesService';
@@ -114,6 +115,15 @@ function getSecadoSeleccionGuidance(message: string): GuidedErrorMessage {
     );
   }
 
+  if (message.includes('diferentes calidades')) {
+    return createGuidedError(
+      message,
+      'No se pueden mezclar calidades.',
+      'El secado de café exige procesar cada calidad (buena, regular, mala) por separado.',
+      'Selecciona sublotes de una sola calidad para continuar.',
+    );
+  }
+
   return createGuidedError(
     message,
     'No se pudo continuar con el secado.',
@@ -129,6 +139,7 @@ export default function SecadoSeleccion() {
     calidadId: string;
   }>();
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
+  const [allDetails, setAllDetails] = useState<LoteDetalle[]>([]);
   const [selectedWeights, setSelectedWeights] = useState<
     Record<string, number>
   >({});
@@ -151,15 +162,40 @@ export default function SecadoSeleccion() {
       setError(null);
 
       try {
-        const base = await obtenerDetalleLote(tipoCafeId, calidadId);
-        const visual = applySecadoToDetalle(base, tipoCafeId, calidadId);
+        const lotes = await obtenerLotes();
+        const greenLots = lotes.filter((l) => {
+          const key = l.tipoCafe.trim().toUpperCase();
+          return key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE');
+        });
 
-        if (!visual)
-          throw new Error(
-            'No se encontraron sublotes disponibles para este lote.',
-          );
+        if (greenLots.length === 0) {
+          throw new Error('No hay lotes de café verde disponibles.');
+        }
 
-        setDetalle(visual);
+        const details = await Promise.all(
+          greenLots.map((l) => obtenerDetalleLote(l.tipoCafeId, l.calidadId))
+        );
+
+        const visualDetails = details
+          .map((d) => applySecadoToDetalle(d, d.lote.tipoCafeId, d.lote.calidadId))
+          .filter(Boolean) as LoteDetalle[];
+
+        if (visualDetails.length === 0) {
+          throw new Error('No se encontraron sublotes disponibles para secar.');
+        }
+
+        setAllDetails(visualDetails);
+
+        const mainDetail =
+          visualDetails.find((d) => d.lote.calidadId === calidadId) ||
+          visualDetails[0];
+
+        const mergedSublotes = visualDetails.flatMap((d) => d.sublotes);
+
+        setDetalle({
+          lote: mainDetail.lote,
+          sublotes: mergedSublotes,
+        });
         setSelectedWeights({});
         setActiveSessions(getActiveSecadoSessions());
       } catch (err) {
@@ -253,6 +289,7 @@ export default function SecadoSeleccion() {
   }, [availableSublotes]);
 
   const toggleSublote = (sublote: SubloteDetalle) => {
+    setError(null);
     setSelectedWeights((current) => {
       if ((current[sublote.id] ?? 0) > 0) {
         const next = { ...current };
@@ -292,7 +329,7 @@ export default function SecadoSeleccion() {
 
   const confirmAdjust = () => {
     if (!editing) return;
-    const value = Number(draftWeight);
+    const value = Number(draftWeight.replace(',', '.'));
     if (!Number.isFinite(value) || value <= 0) {
       setAdjustError('La cantidad de entrada del secado debe ser mayor a 0.');
       return;
@@ -313,9 +350,29 @@ export default function SecadoSeleccion() {
 
   const iniciarSecado = () => {
     if (!detalle || selectedIds.length === 0) return;
+
+    const selectedSublotes = availableSublotes.filter((s) =>
+      selectedIds.includes(s.id),
+    );
+
+    const selectedQualities = new Set(selectedSublotes.map((s) => s.calidadId));
+
+    if (selectedQualities.size > 1) {
+      setError(
+        'Para secar café de diferentes calidades, debes iniciar procesos de secado separados.',
+      );
+      return;
+    }
+
+    const targetCalidadId = selectedSublotes[0].calidadId;
+    const targetDetail =
+      allDetails.find((d) => d.lote.calidadId === targetCalidadId) || detalle;
+
     const availableDetail = {
-      ...detalle,
-      sublotes: availableSublotes,
+      lote: targetDetail.lote,
+      sublotes: availableSublotes.filter(
+        (s) => s.calidadId === targetCalidadId,
+      ),
     };
 
     navigate('/inventario/secado/nuevo/configurar', {
@@ -493,7 +550,7 @@ export default function SecadoSeleccion() {
         </main>
 
         <footer className="sticky bottom-0 z-20 mx-auto w-full max-w-[430px] bg-[#fbfbfb] px-4 pb-4 pt-2 shadow-[0_-10px_24px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center justify-between rounded-t-[2px] bg-[#0647d6] px-4 py-2 text-white">
+          <div className="flex items-center justify-between rounded-t-[2px] bg-[#1D4ED8] px-4 py-2 text-white">
             <span className="text-[0.62rem] font-black uppercase tracking-[0.12em]">
               Total seleccionado
             </span>
@@ -506,7 +563,7 @@ export default function SecadoSeleccion() {
             type="button"
             onClick={iniciarSecado}
             disabled={selectedIds.length === 0}
-            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0647d6] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)] disabled:bg-slate-300"
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] text-xs font-black uppercase tracking-[0.05em] text-white shadow-[0_12px_22px_rgba(6,71,214,0.2)] disabled:bg-slate-300"
           >
             Continuar <ChevronRight size={16} />
           </button>
@@ -540,7 +597,7 @@ export default function SecadoSeleccion() {
                 <p className="text-[0.58rem] font-black uppercase text-slate-400">
                   Disponible
                 </p>
-                <p className="mt-1 text-sm font-black text-[#0647d6]">
+                <p className="mt-1 text-sm font-black text-[#1D4ED8]">
                   {kg(editing.pesoActual)}
                 </p>
               </div>
@@ -563,7 +620,7 @@ export default function SecadoSeleccion() {
                 );
                 setAdjustError(null);
               }}
-              className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 px-4 text-sm font-bold outline-none focus:border-[#0647d6]"
+              className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 px-4 text-sm font-bold outline-none focus:border-[#1D4ED8]"
               placeholder="Ej: 50"
             />
             <p className="mt-2 text-[0.68rem] text-slate-400">
@@ -589,7 +646,7 @@ export default function SecadoSeleccion() {
               <button
                 type="button"
                 onClick={confirmAdjust}
-                className="h-11 rounded-full bg-[#0647d6] text-xs font-black text-white"
+                className="h-11 rounded-full bg-[#1D4ED8] text-xs font-black text-white"
               >
                 Confirmar
               </button>

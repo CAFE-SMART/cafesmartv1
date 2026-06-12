@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
+import { WifiOff } from 'lucide-react';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -66,22 +67,47 @@ class AppErrorBoundary extends React.Component<
 
 function GlobalOfflineNotice() {
   const { isOnline } = useCloudStatus();
-  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasShownForOffline, setHasShownForOffline] = useState(false);
 
-  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(
-    location.pathname,
-  );
+  useEffect(() => {
+    if (!isOnline) {
+      if (!hasShownForOffline) {
+        setIsOpen(true);
+        setHasShownForOffline(true);
+      }
+    } else {
+      setHasShownForOffline(false);
+      setIsOpen(false);
+    }
+  }, [isOnline, hasShownForOffline]);
 
-  if (isOnline || isSubloteDetail) {
+  if (!isOpen) {
     return null;
   }
 
   return (
-    <div className="border-b border-[#ececec] bg-white px-4 py-3">
-      <div className="mx-auto max-w-[340px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
-        Para refrescar los datos necesitas conexión a internet.
-        {'\n'}
-        Tus cambios están guardados y se sincronizarán automáticamente.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[4px]">
+      <div className="w-full max-w-[340px] scale-100 rounded-[24px] border border-[#dbe5f2] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] transition-all duration-300">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0f4ff] text-[#2b4cbd]">
+          <WifiOff size={28} strokeWidth={2} />
+        </div>
+        
+        <h2 className="text-center text-[1.12rem] font-bold text-slate-900">
+          Modo sin conexión
+        </h2>
+        
+        <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+          Guardamos tus cambios en este dispositivo. Se sincronizarán automáticamente cuando vuelva el internet.
+        </p>
+        
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="mt-6 flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] text-xs font-bold text-white transition hover:bg-[#1e40af] active:scale-[0.98] shadow-[0_8px_20px_rgba(29,78,216,0.16)]"
+        >
+          Entendido
+        </button>
       </div>
     </div>
   );

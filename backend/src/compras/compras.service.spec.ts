@@ -1,8 +1,12 @@
 import { ComprasService } from './compras.service';
 
-describe('ComprasService - validacion de capacidad fail-safe', () => {
+describe('ComprasService', () => {
   function crearServiceConPrisma(prisma: unknown) {
     return new ComprasService(prisma as never) as unknown as {
+      obtenerCatalogos: (userId: string) => Promise<{
+        tiposCafe: { id: string; nombre: string }[];
+        calidades: { id: string; nombre: string }[];
+      }>;
       obtenerContextoCapacidad: (
         tx: unknown,
         organizacionId: string,
@@ -12,6 +16,47 @@ describe('ComprasService - validacion de capacidad fail-safe', () => {
       } | null>;
     };
   }
+
+  it('incluye cafe trillado en los catalogos de compras para cuentas nuevas', async () => {
+    const prisma = {
+      tipoCafe: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'tipo-pasilla', nombre: 'PASILLA' },
+          { id: 'tipo-trillado', nombre: 'TRILLADO' },
+          { id: 'tipo-verde', nombre: 'VERDE' },
+          { id: 'tipo-seco', nombre: 'SECO' },
+        ]),
+      },
+      calidad: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'calidad-bueno', nombre: 'BUENO' },
+          { id: 'calidad-regular', nombre: 'REGULAR' },
+          { id: 'calidad-malo', nombre: 'MALO' },
+        ]),
+      },
+    };
+    const service = crearServiceConPrisma(prisma);
+
+    const catalogos = await service.obtenerCatalogos('user-1');
+
+    expect(catalogos.tiposCafe.map((tipoCafe) => tipoCafe.nombre)).toEqual([
+      'VERDE',
+      'SECO',
+      'TRILLADO',
+      'PASILLA',
+    ]);
+    expect(prisma.tipoCafe.createMany).toHaveBeenCalledWith({
+      data: [
+        { nombre: 'VERDE' },
+        { nombre: 'SECO' },
+        { nombre: 'TRILLADO' },
+        { nombre: 'PASILLA' },
+      ],
+      skipDuplicates: true,
+    });
+  });
 
   it('calcula ocupacion desde sublotes activos para evitar snapshots viejos', async () => {
     const prisma = {

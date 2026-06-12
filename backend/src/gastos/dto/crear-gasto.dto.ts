@@ -19,9 +19,7 @@ import {
 } from 'class-validator';
 import { TipoGasto, EstadoPago } from '@prisma/client';
 
-const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}0-9\s/.,#-]+$/u;
-const CONCEPTO_GASTO_TIENE_LETRA_REGEX = /\p{L}/u;
-const CONCEPTO_GASTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
+const CONCEPTO_GASTO_VALIDO_REGEX = /^[\p{L}\s]+$/u;
 
 @ValidatorConstraint({ name: 'ConceptoGastoValido', async: false })
 class ConceptoGastoValidoConstraint implements ValidatorConstraintInterface {
@@ -35,25 +33,31 @@ class ConceptoGastoValidoConstraint implements ValidatorConstraintInterface {
       return false;
     }
 
+    const lettersCount = (concepto.match(/\p{L}/gu) || []).length;
+
     return (
       CONCEPTO_GASTO_VALIDO_REGEX.test(concepto) &&
-      CONCEPTO_GASTO_TIENE_LETRA_REGEX.test(concepto) &&
-      !CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(concepto)
+      lettersCount >= 3
     );
   }
 
   defaultMessage(args: ValidationArguments): string {
     const concepto = String(args.value ?? '').trim();
+    const lettersCount = (concepto.match(/\p{L}/gu) || []).length;
 
     if (!concepto) {
       return 'Escribe el concepto del gasto.';
     }
 
-    if (CONCEPTO_GASTO_SOLO_NUMEROS_REGEX.test(concepto)) {
-      return 'Describe el gasto con al menos una palabra.';
+    if (!CONCEPTO_GASTO_VALIDO_REGEX.test(concepto)) {
+      return 'Solo se permiten letras y espacios en el concepto del gasto.';
     }
 
-    return 'El concepto contiene caracteres no válidos.';
+    if (lettersCount < 3) {
+      return 'El concepto debe ser descriptivo (mínimo 3 letras).';
+    }
+
+    return 'Solo se permiten letras y espacios en el concepto del gasto.';
   }
 }
 

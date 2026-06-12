@@ -20,18 +20,52 @@ type ClienteListadoItem = {
   createdAt: string;
 };
 
+type ListarClientesOptions = {
+  q?: string;
+  limit?: number;
+  offset?: number;
+  orden?: 'recientes' | 'antiguos' | 'az';
+};
+
 @Injectable()
 export class ClientesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listar(userId: string): Promise<ClienteListadoItem[]> {
+  async listar(
+    userId: string,
+    options: ListarClientesOptions = {},
+  ): Promise<ClienteListadoItem[]> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+    const q = options.q?.trim();
+    const limit = Number.isFinite(options.limit)
+      ? Math.min(Math.max(Number(options.limit), 1), 50)
+      : undefined;
+    const offset = Number.isFinite(options.offset)
+      ? Math.max(Number(options.offset), 0)
+      : undefined;
+    const orderBy =
+      options.orden === 'az'
+        ? [{ nombre: 'asc' as const }, { createdAt: 'desc' as const }]
+        : options.orden === 'antiguos'
+          ? [{ createdAt: 'asc' as const }, { nombre: 'asc' as const }]
+          : [{ createdAt: 'desc' as const }, { nombre: 'asc' as const }];
     const clientes = await this.prisma.cliente.findMany({
       where: {
         organizacionId,
         deletedAt: null,
+        ...(q
+          ? {
+              OR: [
+                { nombre: { contains: q, mode: 'insensitive' as const } },
+                { documento: { contains: q, mode: 'insensitive' as const } },
+                { telefono: { contains: q, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
       },
-      orderBy: [{ createdAt: 'desc' }, { nombre: 'asc' }],
+      orderBy,
+      ...(typeof limit === 'number' ? { take: limit } : {}),
+      ...(typeof offset === 'number' ? { skip: offset } : {}),
       select: {
         id: true,
         nombre: true,

@@ -181,7 +181,7 @@ type SubloteFinancieroInput = {
 
 @Injectable()
 export class LotesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private calcularFinancieroSublote(
     sublote: SubloteFinancieroInput,
@@ -424,71 +424,6 @@ export class LotesService {
       return [];
     }
 
-    const subloteIds = sublotes.map((sublote) => sublote.id);
-    const [detallesVenta, gastosSublote, gastosGenerales] =
-      await this.prisma.$transaction([
-        this.prisma.ventaDetalle.findMany({
-          where: {
-            deletedAt: null,
-            subloteId: { in: subloteIds },
-          },
-          select: {
-            subloteId: true,
-            pesoVendido: true,
-            subtotal: true,
-          },
-        }),
-        this.prisma.gastoSublote.findMany({
-          where: {
-            subloteId: { in: subloteIds },
-            gastoOperativo: {
-              deletedAt: null,
-              organizacionId,
-            },
-          },
-          select: {
-            gastoOperativoId: true,
-            subloteId: true,
-            gastoOperativo: {
-              select: {
-                montoGasto: true,
-              },
-            },
-          },
-        }),
-        this.prisma.gastoOperativo.findMany({
-          where: {
-            organizacionId,
-            deletedAt: null,
-            sublotes: { none: {} },
-          },
-          select: {
-            montoGasto: true,
-          },
-        }),
-      ]);
-
-    const ventasPorSublote = new Map<string, VentaResumen>();
-
-    for (const detalle of detallesVenta) {
-      const actual = ventasPorSublote.get(detalle.subloteId) ?? {
-        pesoVendido: 0,
-        totalVentas: 0,
-      };
-      actual.pesoVendido += Number(detalle.pesoVendido);
-      actual.totalVentas += Number(detalle.subtotal);
-      ventasPorSublote.set(detalle.subloteId, actual);
-    }
-
-    const gastosPorSublote = this.combinarGastosPorSublote(
-      this.calcularGastosPorSublote(gastosSublote, sublotes, ventasPorSublote),
-      this.calcularGastosGeneralesPorSublote(
-        gastosGenerales,
-        sublotes,
-        ventasPorSublote,
-      ),
-    );
-
     const lotesAgrupados = new Map<string, LoteAcumulado>();
 
     for (const sublote of sublotes) {
@@ -501,11 +436,6 @@ export class LotesService {
       const fechaIngreso = sublote.compra.fecha;
 
       const actual = lotesAgrupados.get(clave);
-      const financiero = this.calcularFinancieroSubloteResumen(
-        sublote,
-        ventasPorSublote.get(sublote.id),
-        gastosPorSublote.get(sublote.id) ?? 0,
-      );
 
       if (!actual) {
         lotesAgrupados.set(clave, {
@@ -529,11 +459,11 @@ export class LotesService {
           fechaPrimerIngreso: fechaIngreso,
           fechaUltimoIngreso: fechaIngreso,
           creadoEn: sublote.creadoEn,
-          totalVentas: financiero.totalVentas,
-          totalGastos: financiero.totalGastos,
-          utilidadNeta: financiero.utilidadNeta,
-          mermaValor: financiero.mermaValor,
-          mermaKg: financiero.mermaKg,
+          totalVentas: 0,
+          totalGastos: 0,
+          utilidadNeta: 0,
+          mermaValor: 0,
+          mermaKg: 0,
         });
         continue;
       }
@@ -542,11 +472,6 @@ export class LotesService {
       actual.pesoInicial += pesoInicial;
       actual.pesoActual += pesoActual;
       actual.precioPonderado += precioKg * pesoInicial;
-      actual.totalVentas += financiero.totalVentas;
-      actual.totalGastos += financiero.totalGastos;
-      actual.utilidadNeta += financiero.utilidadNeta;
-      actual.mermaValor += financiero.mermaValor;
-      actual.mermaKg += financiero.mermaKg;
 
       if (humedad !== null && pesoActual > 0) {
         actual.sublotesConHumedad += 1;
@@ -589,8 +514,8 @@ export class LotesService {
         humedadPromedio:
           lote.pesoConHumedad > 0
             ? this.redondearUnDecimal(
-                lote.humedadPonderada / lote.pesoConHumedad,
-              )
+              lote.humedadPonderada / lote.pesoConHumedad,
+            )
             : null,
         fecha: lote.fecha.toISOString(),
         fechaPrimerIngreso: lote.fechaPrimerIngreso.toISOString(),
@@ -598,11 +523,11 @@ export class LotesService {
         diasEnBodegaMin: this.calcularDiasEnBodega(lote.fechaUltimoIngreso),
         diasEnBodegaMax: this.calcularDiasEnBodega(lote.fechaPrimerIngreso),
         creadoEn: lote.creadoEn.toISOString(),
-        totalVentas: lote.totalVentas,
-        totalGastos: lote.totalGastos,
-        utilidadNeta: lote.utilidadNeta,
-        mermaValor: lote.mermaValor,
-        mermaKg: lote.mermaKg,
+        totalVentas: 0,
+        totalGastos: 0,
+        utilidadNeta: 0,
+        mermaValor: 0,
+        mermaKg: 0,
       }));
   }
 
