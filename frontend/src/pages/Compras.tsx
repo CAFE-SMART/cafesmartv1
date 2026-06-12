@@ -1912,32 +1912,32 @@ function iconoTipoCafe(nombre: string) {
   if (tipo === 'VERDE') {
     return {
       icono: <Leaf size={18} />,
-      fondo: 'bg-[#eff9f1] text-[#185d31] dark:border dark:border-emerald-400/40 dark:bg-emerald-500/18 dark:text-emerald-200',
-      borde: 'border-[#d4efde] dark:border-emerald-400/50',
-      texto: 'text-[#1f7f46] dark:text-emerald-200',
+      fondo: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
+      borde: 'border-emerald-200 dark:border-emerald-400/50',
+      texto: 'text-emerald-700 dark:text-emerald-200',
     };
   }
   if (tipo === 'SECO') {
     return {
       icono: <SunMedium size={18} />,
-      fondo: 'bg-[#fff4e9] text-[#9d4a12] dark:border dark:border-amber-400/40 dark:bg-amber-500/18 dark:text-amber-200',
-      borde: 'border-[#f8dfc7] dark:border-amber-400/50',
-      texto: 'text-[#9d4a12] dark:text-amber-200',
+      fondo: 'bg-orange-50 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200',
+      borde: 'border-orange-200 dark:border-orange-400/50',
+      texto: 'text-orange-700 dark:text-orange-200',
     };
   }
   if (tipo === 'PASILLA') {
     return {
       icono: <BadgeAlert size={18} />,
-      fondo: 'bg-[#fff0f4] text-[#a31d3e] dark:border dark:border-rose-400/40 dark:bg-rose-500/18 dark:text-rose-200',
-      borde: 'border-[#ffd4e1] dark:border-rose-400/50',
-      texto: 'text-[#a31d3e] dark:text-rose-200',
+      fondo: 'bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-200',
+      borde: 'border-red-200 dark:border-red-400/50',
+      texto: 'text-red-700 dark:text-red-200',
     };
   }
   return {
     icono: <Coffee size={18} />,
-    fondo: 'bg-[#eef2ff] text-[#102d92] dark:border dark:border-slate-400/40 dark:bg-slate-700 dark:text-slate-100',
-    borde: 'border-[#d9e4ff] dark:border-slate-500',
-    texto: 'text-[#102d92] dark:text-slate-100',
+    fondo: 'bg-slate-100 text-slate-700 dark:bg-slate-600/40 dark:text-slate-100',
+    borde: 'border-slate-200 dark:border-slate-500',
+    texto: 'text-slate-700 dark:text-slate-100',
   };
 }
 
@@ -1946,24 +1946,24 @@ function visualCalidad(nombre: string) {
   if (calidad === 'BUENO') {
     return {
       icono: <Smile size={16} />,
-      fondo: 'bg-[#ecf4ff] text-[#173ea6] dark:border dark:border-emerald-400/40 dark:bg-emerald-500/18 dark:text-emerald-200',
-      borde: 'border-[#d5e1ff] dark:border-emerald-400/50',
-      texto: 'text-[#173ea6] dark:text-emerald-200',
+      fondo: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      borde: 'border-emerald-200 dark:border-emerald-400/50',
+      texto: 'text-emerald-700 dark:text-emerald-100',
     };
   }
   if (calidad === 'REGULAR') {
     return {
       icono: <Meh size={16} />,
-      fondo: 'bg-[#fff6e7] text-[#8f5f08] dark:border dark:border-amber-400/40 dark:bg-amber-500/18 dark:text-amber-200',
-      borde: 'border-[#f3ddb3] dark:border-amber-400/50',
-      texto: 'text-[#8f5f08] dark:text-amber-200',
+      fondo: 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      borde: 'border-amber-200 dark:border-amber-400/50',
+      texto: 'text-amber-700 dark:text-amber-100',
     };
   }
   return {
     icono: <Frown size={16} />,
-    fondo: 'bg-[#fff0f4] text-[#a31d3e] dark:border dark:border-rose-400/40 dark:bg-rose-500/18 dark:text-rose-200',
-    borde: 'border-[#ffd5e1] dark:border-rose-400/50',
-    texto: 'text-[#a31d3e] dark:text-rose-200',
+    fondo: 'bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100',
+    borde: 'border-rose-200 dark:border-rose-400/50',
+    texto: 'text-rose-700 dark:text-rose-100',
   };
 }
 
