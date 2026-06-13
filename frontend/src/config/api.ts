@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { logDebugLine } from '../utils/debugLog';
 
 const isAndroid = Capacitor.getPlatform() === 'android';
 export const SHOULD_LOG_API_DEBUG = import.meta.env.DEV || isAndroid;
@@ -74,9 +75,11 @@ export const API_URL = getApiBaseUrlCandidates()[0] ?? LOCAL_API_URL;
 
 if (SHOULD_LOG_API_DEBUG) {
   console.info(
-    `[CafeSmart][api-config] VITE_API_URL=${configuredApiUrl || '(empty)'}`,
+    `[CafeSmart][api-config] MODE=${import.meta.env.MODE} VITE_API_URL=${
+      configuredApiUrl || '(empty)'
+    } selectedApiUrl=${API_URL}`,
   );
-  console.info('[CafeSmart][api-config]', {
+  logDebugLine('[CafeSmart][api-config]', {
     mode: import.meta.env.MODE,
     platform: Capacitor.getPlatform(),
     configuredApiUrl: configuredApiUrl || '(empty)',

@@ -1,6 +1,7 @@
 import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
 import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 import { getOfflineCache, saveOfflineCache } from './offlineCacheService';
+import { logDebugLine } from '../utils/debugLog';
 
 type ApiErrorDetails = Record<string, string[]>;
 
@@ -257,7 +258,8 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
       const url = `${apiBaseUrl}${endpoint}`;
       try {
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][api-fetch]', {
+          console.info(`[CafeSmart][api-fetch] request method=${method} url=${url}`);
+          logDebugLine('[CafeSmart][api-fetch] request', {
             method,
             url,
           });
@@ -272,7 +274,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
         if (!response.ok) {
           if (SHOULD_LOG_API_DEBUG) {
-            console.info('[CafeSmart][api-fetch] HTTP error', {
+            console.info(
+              `[CafeSmart][api-fetch] HTTP error method=${method} url=${url} status=${response.status} code=${data?.code ?? ''} field=${data?.field ?? ''} message=${data?.message ?? ''}`,
+            );
+            logDebugLine('[CafeSmart][api-fetch] HTTP error', {
               method,
               url,
               status: response.status,
@@ -323,7 +328,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         }
 
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][api-fetch] network error', {
+          console.info(
+            `[CafeSmart][api-fetch] network error method=${method} url=${url} error=${JSON.stringify(describeFetchError(error))}`,
+          );
+          logDebugLine('[CafeSmart][api-fetch] network error', {
             method,
             url,
             error: describeFetchError(error),

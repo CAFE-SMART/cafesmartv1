@@ -8,6 +8,7 @@ import { ThemeProvider } from './theme/themeProvider';
 import { AccessibilityProvider } from './theme/accessibilityProvider';
 import { UserProvider } from './context/UserContext';
 import { registerServiceWorker } from './services/pwaService';
+import { logDebugLine } from './utils/debugLog';
 import './index.css';
 
 const googleClientId =
@@ -16,7 +17,12 @@ const shouldLoadGoogleIdentityScript =
   Boolean(googleClientId) && Capacitor.getPlatform() !== 'android';
 
 if (import.meta.env.DEV || Capacitor.isNativePlatform()) {
-  console.log('[CafeSmart][startup-env]', {
+  console.log(
+    `[CafeSmart][startup-env] MODE=${import.meta.env.MODE} VITE_API_URL=${
+      (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '(empty)'
+    } platform=${Capacitor.getPlatform()} isNative=${Capacitor.isNativePlatform()}`,
+  );
+  logDebugLine('[CafeSmart][startup-env]', {
     MODE: import.meta.env.MODE,
     VITE_API_URL:
       (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||

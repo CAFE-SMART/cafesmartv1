@@ -12,6 +12,7 @@ import {
   type CloudStatusEventDetail,
 } from '../services/cloudStatusEvents';
 import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
+import { logDebugLine } from '../utils/debugLog';
 
 type CloudTone =
   | 'offline'
@@ -61,7 +62,14 @@ async function pingBackend(
   let lastResult: HealthCheckResult | null = null;
 
   if (SHOULD_LOG_API_DEBUG) {
-    console.info('[CafeSmart][health-check] starting', {
+    console.info(
+      `[CafeSmart][health-check] starting MODE=${import.meta.env.MODE} VITE_API_URL=${
+        (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+        '(empty)'
+      } browserOnline=${browserOnline} candidates=${candidates.join(',')}`,
+    );
+    logDebugLine('[CafeSmart][health-check] starting', {
+      mode: import.meta.env.MODE,
       VITE_API_URL:
         (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
         '(empty)',
@@ -75,7 +83,8 @@ async function pingBackend(
 
     try {
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check] request', {
+        console.info(`[CafeSmart][health-check] request method=GET url=${url}`);
+        logDebugLine('[CafeSmart][health-check] request', {
           url,
           method: 'GET',
         });
@@ -98,7 +107,12 @@ async function pingBackend(
       };
 
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check] response', {
+        console.info(
+          `[CafeSmart][health-check] response ok=${result.ok} status=${response.status} statusText=${response.statusText} url=${url} responsePreview=${text
+            .trim()
+            .slice(0, 80)}`,
+        );
+        logDebugLine('[CafeSmart][health-check] response', {
           ...result,
           statusText: response.statusText,
           responsePreview: text.trim().slice(0, 80),
@@ -123,7 +137,10 @@ async function pingBackend(
       };
 
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check] error', lastResult);
+        console.info(
+          `[CafeSmart][health-check] error url=${lastResult.url} status=${lastResult.status} browserOnline=${lastResult.browserOnline} error=${lastResult.error}`,
+        );
+        logDebugLine('[CafeSmart][health-check] error', lastResult);
       }
     }
   }
@@ -178,7 +195,10 @@ export function CloudStatusProvider({
       setBackendReachable(result.ok);
 
       if (SHOULD_LOG_API_DEBUG && !result.ok) {
-        console.info('[CafeSmart][health-check] offline reason', {
+        console.info(
+          `[CafeSmart][health-check] offline reason browserOnline=${browserOnline} apiUrl=${result.url} status=${result.status} error=${result.error}`,
+        );
+        logDebugLine('[CafeSmart][health-check] offline reason', {
           browserOnline,
           apiUrl: result.url,
           status: result.status,
@@ -193,7 +213,10 @@ export function CloudStatusProvider({
       setBackendReachable(false);
       setWasOffline(true);
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check] unexpected failure', {
+        console.info(
+          `[CafeSmart][health-check] unexpected failure browserOnline=${browserOnline} error=${describeHealthError(error)}`,
+        );
+        logDebugLine('[CafeSmart][health-check] unexpected failure', {
           browserOnline,
           error: describeHealthError(error),
         });
@@ -427,7 +450,13 @@ export function CloudStatusProvider({
 
     lastLoggedStatusRef.current = nextLoggedStatus;
 
-    console.info('[CafeSmart][cloud-status] final', {
+    console.info(
+      `[CafeSmart][cloud-status] final VITE_API_URL=${
+        (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+        '(empty)'
+      } tone=${value.tone} isOnline=${value.isOnline} isOffline=${isOffline} backendReachable=${value.backendReachable} title=${value.title}`,
+    );
+    logDebugLine('[CafeSmart][cloud-status] final', {
       VITE_API_URL:
         (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
         '(empty)',

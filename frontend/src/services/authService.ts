@@ -4,6 +4,7 @@
 } from '../utils/authMessages';
 import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 import { emitCloudStatusEvent } from './cloudStatusEvents';
+import { logDebugLine } from '../utils/debugLog';
 
 export type AuthError = {
   message: string;
@@ -100,7 +101,8 @@ async function postAuth<TResponse>(
       const url = `${apiBaseUrl}/auth${endpoint}`;
       try {
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][auth-fetch]', {
+          console.info(`[CafeSmart][auth-fetch] request method=POST url=${url}`);
+          logDebugLine('[CafeSmart][auth-fetch] request', {
             method: 'POST',
             url,
           });
@@ -117,7 +119,10 @@ async function postAuth<TResponse>(
 
         if (!response.ok) {
           if (SHOULD_LOG_API_DEBUG) {
-            console.info('[CafeSmart][auth-fetch] HTTP error', {
+            console.info(
+              `[CafeSmart][auth-fetch] HTTP error method=POST url=${url} status=${response.status} apiCode=${data.code ?? ''} field=${data.field ?? ''} message=${data.message ?? ''}`,
+            );
+            logDebugLine('[CafeSmart][auth-fetch] HTTP error', {
               method: 'POST',
               url,
               status: response.status,
@@ -154,7 +159,10 @@ async function postAuth<TResponse>(
         }
 
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][auth-fetch] network error', {
+          console.info(
+            `[CafeSmart][auth-fetch] network error method=POST url=${url} error=${JSON.stringify(describeAuthFetchError(error))}`,
+          );
+          logDebugLine('[CafeSmart][auth-fetch] network error', {
             method: 'POST',
             url,
             error: describeAuthFetchError(error),
@@ -208,7 +216,8 @@ async function getAuth<TResponse>(
       const url = `${apiBaseUrl}/auth${endpoint}`;
       try {
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][auth-fetch]', {
+          console.info(`[CafeSmart][auth-fetch] request method=GET url=${url}`);
+          logDebugLine('[CafeSmart][auth-fetch] request', {
             method: 'GET',
             url,
           });
@@ -223,7 +232,10 @@ async function getAuth<TResponse>(
 
         if (!response.ok) {
           if (SHOULD_LOG_API_DEBUG) {
-            console.info('[CafeSmart][auth-fetch] HTTP error', {
+            console.info(
+              `[CafeSmart][auth-fetch] HTTP error method=GET url=${url} status=${response.status} apiCode=${data.code ?? ''} field=${data.field ?? ''} message=${data.message ?? ''}`,
+            );
+            logDebugLine('[CafeSmart][auth-fetch] HTTP error', {
               method: 'GET',
               url,
               status: response.status,
@@ -251,7 +263,10 @@ async function getAuth<TResponse>(
         }
 
         if (SHOULD_LOG_API_DEBUG) {
-          console.info('[CafeSmart][auth-fetch] network error', {
+          console.info(
+            `[CafeSmart][auth-fetch] network error method=GET url=${url} error=${JSON.stringify(describeAuthFetchError(error))}`,
+          );
+          logDebugLine('[CafeSmart][auth-fetch] network error', {
             method: 'GET',
             url,
             error: describeAuthFetchError(error),
