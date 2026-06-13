@@ -15,6 +15,17 @@ const googleClientId =
 const shouldLoadGoogleIdentityScript =
   Boolean(googleClientId) && Capacitor.getPlatform() !== 'android';
 
+if (import.meta.env.DEV || Capacitor.isNativePlatform()) {
+  console.log('[CafeSmart][startup-env]', {
+    MODE: import.meta.env.MODE,
+    VITE_API_URL:
+      (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+      '(empty)',
+    platform: Capacitor.getPlatform(),
+    isNative: Capacitor.isNativePlatform(),
+  });
+}
+
 registerServiceWorker();
 
 function Providers({ children }: { children: React.ReactNode }) {
