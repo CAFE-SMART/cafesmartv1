@@ -102,31 +102,36 @@ export default function SecadoInicio() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const cargarPendientes = () => {
-    const pendientes = loadSecadoSessions()
-      .filter((session) => session.estado !== 'COMPLETED')
-      .sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
+  const cargarPendientes = async () => {
+    try {
+      const sessions = await loadSecadoSessions();
+      const pendientes = sessions
+        .filter((session) => session.estado !== 'COMPLETED')
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
 
-    setPendingSessions(pendientes);
+      setPendingSessions(pendientes);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const cargar = async () => {
     setLoading(true);
     setError(null);
-    const sessions = loadSecadoSessions();
-    const pendientes = sessions
-      .filter((session) => session.estado !== 'COMPLETED')
-      .sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
-    const pendingLotIds = new Set(pendientes.map((session) => session.loteId));
-    setPendingSessions(pendientes);
-
     try {
+      const sessions = await loadSecadoSessions();
+      const pendientes = sessions
+        .filter((session) => session.estado !== 'COMPLETED')
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
+      const pendingLotIds = new Set(pendientes.map((session) => session.loteId));
+      setPendingSessions(pendientes);
+
       const data = await obtenerLotes();
       const lotesVisuales = applySecadoToLots(data);
       const verdesDisponibles = lotesVisuales.filter(

@@ -724,8 +724,9 @@ export default function Ajustes() {
     }
   };
 
-  const abrirProcesoSecado = () => {
-    if (getActiveSecadoSessions().length > 0) {
+  const abrirProcesoSecado = async () => {
+    const sessions = await getActiveSecadoSessions();
+    if (sessions.length > 0) {
       navigate('/inventario/secados', { state: { from: 'ajustes' } });
       return;
     }

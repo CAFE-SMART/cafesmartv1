@@ -306,9 +306,8 @@ export function crearCapacidadSinValidacion(): EstadoCapacidadCompra {
 export function crearCapacidadRequerida(): EstadoCapacidadCompra {
   return {
     validada: false,
-    nivel: 'requiere_configuracion',
-    mensaje:
-      'Antes de registrar una compra, configura la capacidad total de la bodega.',
+    nivel: 'normal',
+    mensaje: 'Capacidad de bodega no configurada.',
   };
 }
 

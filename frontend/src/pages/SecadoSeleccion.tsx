@@ -201,7 +201,7 @@ export default function SecadoSeleccion() {
           sublotes: mergedSublotes,
         });
         setSelectedWeights({});
-        setActiveSessions(getActiveSecadoSessions());
+        setActiveSessions(await getActiveSecadoSessions());
       } catch (err) {
         setError(
           err instanceof Error

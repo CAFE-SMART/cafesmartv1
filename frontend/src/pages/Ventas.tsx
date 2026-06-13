@@ -790,7 +790,7 @@ export default function Ventas() {
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
         : lotes;
       const secadosActivos = ENABLE_SECADO_PROTOTYPE
-        ? getActiveSecadoSessions()
+        ? await getActiveSecadoSessions()
         : [];
       setSecadoExcluidoVenta({
         sublotes: secadosActivos.reduce(

@@ -22,6 +22,7 @@ import {
 import {
   applySecadoToLots,
   getActiveSecadoSessions,
+  type SecadoSession,
 } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -506,11 +507,11 @@ function SecadoProcessCard({
   session,
   onOpen,
 }: {
-  session: ReturnType<typeof getActiveSecadoSessions>[number];
+  session: SecadoSession;
   onOpen: () => void;
 }) {
   const totalKg = session.sublotes.reduce(
-    (sum, sublote) => sum + sublote.pesoActual,
+    (sum: number, sublote: any) => sum + sublote.pesoActual,
     0,
   );
   const progress = secadoProgress(session.estado);
@@ -589,17 +590,25 @@ export default function Inventario() {
   const [capacidadBodegaForm, setCapacidadBodegaForm] = useState('');
   const [guardandoBodega, setGuardandoBodega] = useState(false);
   const [errorBodega, setErrorBodega] = useState<string | null>(null);
+  const [activeSecadoSessions, setActiveSecadoSessions] = useState<any[]>([]);
 
   const loadLots = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [data, config] = await Promise.all([
+      const [data, config, sessions] = await Promise.all([
         obtenerLotes(),
         obtenerConfiguracionBodega(),
+        ENABLE_SECADO_PROTOTYPE ? getActiveSecadoSessions() : Promise.resolve([]),
       ]);
 
+      setActiveSecadoSessions(
+        [...sessions].sort(
+          (a, b) =>
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        )
+      );
       setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
       setBodegaConfig({
         nombreBodega: config.nombreBodega,
@@ -798,16 +807,7 @@ export default function Inventario() {
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
     [lots],
   );
-  const activeSecadoSessions = useMemo(
-    () =>
-      ENABLE_SECADO_PROTOTYPE
-        ? [...getActiveSecadoSessions()].sort(
-          (a, b) =>
-            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-        )
-        : [],
-    [lots],
-  );
+  // activeSecadoSessions is now loaded as state in loadLots
 
   const isGreenInventoryView = isVerdeType(typeKey);
 

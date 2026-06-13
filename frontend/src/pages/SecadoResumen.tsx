@@ -92,9 +92,7 @@ async function persistirSecadoRemoto(
 export default function SecadoResumen() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [session, setSession] = useState(() =>
-    sessionId ? getSecadoSession(sessionId) : null,
-  );
+  const [session, setSession] = useState<any | null>(null);
   const [persisting, setPersisting] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [persisted, setPersisted] = useState(false);
@@ -106,49 +104,12 @@ export default function SecadoResumen() {
     persistStartedRef.current = true;
 
     const persistir = async () => {
-      const finalized = finalizeSecado(sessionId);
-      setSession(finalized);
-
-      if (!finalized) return;
-
       setPersisting(true);
       setPersistError(null);
 
       try {
-        const salidas: TransformarSecadoPayload['salidas'] = [
-          {
-            calidad: 'BUENO',
-            pesoKg: finalized.outputBuenoKg,
-            humedad: finalized.outputBuenoHumedad,
-          },
-          {
-            calidad: 'REGULAR',
-            pesoKg: finalized.outputRegularKg,
-            humedad: finalized.outputRegularHumedad,
-          },
-          {
-            calidad: 'MALO',
-            pesoKg: finalized.outputMaloKg ?? 0,
-            humedad: finalized.outputMaloHumedad ?? null,
-          },
-        ].filter(
-          (salida) => salida.pesoKg > 0,
-        ) as TransformarSecadoPayload['salidas'];
-
-        await persistirSecadoRemoto(
-          {
-            sessionId: finalized.id,
-            deviceId: await obtenerDeviceId(),
-            fuentes: finalized.sublotes.map((sublote) => ({
-              id: sublote.id,
-              pesoKg: sublote.pesoActual,
-            })),
-            salidas,
-          },
-          finalized.sublotes,
-        );
-
-        removeSecadoSession(finalized.id);
+        const finalized = await finalizeSecado(sessionId);
+        setSession(finalized);
         setPersisted(true);
       } catch (error) {
         persistStartedRef.current = false;
@@ -164,7 +125,7 @@ export default function SecadoResumen() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce((sum: number, sublote: any) => sum + sublote.pesoActual, 0)
         : 0,
     [session],
   );
@@ -174,8 +135,8 @@ export default function SecadoResumen() {
     (session?.outputMaloKg ?? 0);
   const sublotesOrigen =
     session?.sublotes
-      .map((sublote) => sublote.etiqueta)
-      .filter((etiqueta) => etiqueta.trim().length > 0) ?? [];
+      .map((sublote: any) => sublote.etiqueta)
+      .filter((etiqueta: string) => etiqueta.trim().length > 0) ?? [];
   const origenLabel =
     (session?.sublotes.length ?? 0) === 1
       ? 'Sublote original'
@@ -184,6 +145,14 @@ export default function SecadoResumen() {
     sublotesOrigen.length > 0
       ? sublotesOrigen.join(', ')
       : (session?.loteCodigo ?? '');
+
+  if (!session && persisting) {
+    return (
+      <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950 flex items-center justify-center">
+        <div className="text-sm font-bold text-slate-500">Finalizando y guardando secado...</div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (

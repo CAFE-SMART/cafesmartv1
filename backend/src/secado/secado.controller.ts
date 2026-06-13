@@ -16,6 +16,8 @@ import { StartSecadoDto } from './dto/start-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 
+import { SaveSecadoDraftDto } from './dto/save-secado-draft.dto';
+
 @Controller('secado')
 @UseGuards(JwtAuthGuard)
 export class SecadoController {
@@ -46,7 +48,17 @@ export class SecadoController {
       tipoCafeId,
       calidadId,
       dto.subloteIds,
+      dto.pesos,
     );
+  }
+
+  @Patch(':sessionId/draft')
+  saveDraft(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: SaveSecadoDraftDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.secadoService.saveSecadoDraft(req.user.sub, sessionId, dto);
   }
 
   @Patch(':sessionId/results')
