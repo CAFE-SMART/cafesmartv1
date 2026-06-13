@@ -37,6 +37,7 @@ type CloudStatusValue = {
 };
 
 const CloudStatusContext = createContext<CloudStatusValue | null>(null);
+const HEALTH_CHECK_TIMEOUT_MS = 10000;
 
 type HealthCheckResult = {
   ok: boolean;
@@ -165,7 +166,7 @@ export function CloudStatusProvider({
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
   const [backendReachable, setBackendReachable] = useState<boolean | null>(
-    null,
+    typeof navigator === 'undefined' || navigator.onLine ? null : false,
   );
   const [lastEvent, setLastEvent] = useState<CloudStatusEventDetail | null>(
     null,
@@ -175,13 +176,29 @@ export function CloudStatusProvider({
   const [reconnectedAt, setReconnectedAt] = useState<number | null>(null);
   const clearEventTimerRef = useRef<number | null>(null);
   const lastLoggedStatusRef = useRef('');
+  const healthCheckInFlightRef = useRef(false);
 
   const refreshHealth = useCallback(async () => {
+    if (healthCheckInFlightRef.current) {
+      return;
+    }
+
     const browserOnline =
       typeof navigator === 'undefined' ? isOnline : navigator.onLine;
 
+    if (!browserOnline) {
+      setIsOnline(false);
+      setBackendReachable(false);
+      setWasOffline(true);
+      return;
+    }
+
+    healthCheckInFlightRef.current = true;
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 6000);
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      HEALTH_CHECK_TIMEOUT_MS,
+    );
 
     try {
       const result = await pingBackend(controller.signal, browserOnline);
@@ -222,6 +239,7 @@ export function CloudStatusProvider({
         });
       }
     } finally {
+      healthCheckInFlightRef.current = false;
       window.clearTimeout(timeoutId);
     }
   }, [isOnline, wasOffline]);
@@ -364,9 +382,9 @@ export function CloudStatusProvider({
     if (!backendReachable) {
       return {
         tone: 'error',
-        title: 'No pudimos conectar con el servidor',
+        title: 'No pudimos conectar con la nube',
         detail:
-          'Revisa que el servidor esté encendido o intenta nuevamente.',
+          'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
         isOnline,
         backendReachable,
         isSyncing: false,

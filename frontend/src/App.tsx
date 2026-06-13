@@ -185,8 +185,9 @@ function GlobalOfflineNotice() {
       ? {
           key: 'server-unavailable',
           variant: 'error' as const,
-          title: 'No pudimos conectar con el servidor',
-          description: 'Revisa que el servidor esté encendido o intenta nuevamente.',
+          title: 'No pudimos conectar con la nube',
+          description:
+            'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
         }
       : isSyncing
         ? {

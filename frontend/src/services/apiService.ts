@@ -32,6 +32,7 @@ export class ApiRequestError extends Error {
 }
 
 const GET_CACHE_TTL_MS = 12_000;
+const DEFAULT_API_TIMEOUT_MS = 15_000;
 
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
 const getResponseCache = new Map<string, { expiresAt: number; data: unknown }>();
@@ -222,6 +223,13 @@ function describeFetchError(error: unknown) {
   return { message: String(error) };
 }
 
+function isNetworkOrTimeoutError(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof DOMException && error.name === 'AbortError')
+  );
+}
+
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
   const basesApi = construirBasesApi();
@@ -256,6 +264,14 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const requestPromise = (async () => {
     for (const apiBaseUrl of basesApi) {
       const url = `${apiBaseUrl}${endpoint}`;
+      const timeoutController = options.signal ? null : new AbortController();
+      const timeoutId = timeoutController
+        ? window.setTimeout(
+            () => timeoutController.abort(),
+            DEFAULT_API_TIMEOUT_MS,
+          )
+        : null;
+
       try {
         if (SHOULD_LOG_API_DEBUG) {
           console.info(`[CafeSmart][api-fetch] request method=${method} url=${url}`);
@@ -268,6 +284,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         const response = await fetch(url, {
           ...options,
           headers,
+          signal: options.signal ?? timeoutController?.signal,
         });
 
         const data = await response.json().catch(() => null);
@@ -323,7 +340,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
       } catch (error) {
         ultimoError = error;
 
-        if (!(error instanceof TypeError)) {
+        if (!isNetworkOrTimeoutError(error)) {
           throw error;
         }
 
@@ -336,6 +353,10 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
             url,
             error: describeFetchError(error),
           });
+        }
+      } finally {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
         }
       }
     }

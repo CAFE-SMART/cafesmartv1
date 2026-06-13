@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import API_BASE_URL from '../config/api';
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PASSWORD_RESET_TIMEOUT_MS = 15_000;
 
 type ResetPasswordStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -43,15 +44,23 @@ function isEmailNotFound(status: number, payload: unknown) {
 
 async function requestPasswordReset(email: string) {
   let response: Response;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    PASSWORD_RESET_TIMEOUT_MS,
+  );
 
   try {
     response = await fetch(`${normalizeApiBaseUrl()}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
+      signal: controller.signal,
     });
   } catch {
     throw buildResetError('NETWORK', 'No pudimos enviar el enlace.');
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 
   const payload = await response.json().catch(() => null);

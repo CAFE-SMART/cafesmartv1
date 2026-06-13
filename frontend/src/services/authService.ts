@@ -51,7 +51,13 @@ type CloudTrackingConfig = {
   successMessage?: string;
 };
 
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+
 function isNetworkFetchError(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
   if (!(error instanceof Error)) {
     return false;
   }
@@ -99,6 +105,12 @@ async function postAuth<TResponse>(
 
     for (const apiBaseUrl of buildApiBaseCandidates()) {
       const url = `${apiBaseUrl}/auth${endpoint}`;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        AUTH_REQUEST_TIMEOUT_MS,
+      );
+
       try {
         if (SHOULD_LOG_API_DEBUG) {
           console.info(`[CafeSmart][auth-fetch] request method=POST url=${url}`);
@@ -112,6 +124,7 @@ async function postAuth<TResponse>(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
 
         const data = (await response.json().catch(() => ({}))) as TResponse &
@@ -170,6 +183,8 @@ async function postAuth<TResponse>(
         }
 
         lastNetworkError = error;
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     }
 
@@ -214,6 +229,12 @@ async function getAuth<TResponse>(
   try {
     for (const apiBaseUrl of buildApiBaseCandidates()) {
       const url = `${apiBaseUrl}/auth${endpoint}`;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        AUTH_REQUEST_TIMEOUT_MS,
+      );
+
       try {
         if (SHOULD_LOG_API_DEBUG) {
           console.info(`[CafeSmart][auth-fetch] request method=GET url=${url}`);
@@ -226,6 +247,7 @@ async function getAuth<TResponse>(
         const response = await fetch(url, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
         });
         const data = (await response.json().catch(() => ({}))) as TResponse &
           RawApiError;
@@ -274,6 +296,8 @@ async function getAuth<TResponse>(
         }
 
         lastNetworkError = error;
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     }
 

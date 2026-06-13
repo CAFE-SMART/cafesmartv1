@@ -504,7 +504,7 @@ export default function Inicio() {
         setInventarioBodegaInicio([]);
         setError(
           backendReachable === false
-            ? 'No pudimos conectar con el servidor'
+            ? 'No pudimos conectar con la nube'
             : resolveDashboardErrorMessage(dashboardResult.reason),
         );
       }
@@ -937,15 +937,15 @@ export default function Inicio() {
             title={
               offlineCacheMissing
                 ? 'No hay información guardada'
-                : error === 'No pudimos conectar con el servidor'
-                  ? 'No pudimos conectar con el servidor'
+                : error === 'No pudimos conectar con la nube'
+                  ? 'No pudimos conectar con la nube'
                   : 'No pudimos cargar el inicio'
             }
             message={
               offlineCacheMissing
                 ? 'Conéctate a internet una vez para cargar tus datos y poder consultarlos sin conexión.'
-                : error === 'No pudimos conectar con el servidor'
-                  ? 'Revisa que el servidor esté encendido o intenta nuevamente.'
+                : error === 'No pudimos conectar con la nube'
+                  ? 'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.'
                   : 'Revisa tu conexión e intenta nuevamente.'
             }
           />

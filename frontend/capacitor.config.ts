@@ -23,9 +23,6 @@ const config: CapacitorConfig = {
   appId: 'com.cafesmart.app',
   appName: 'CafeSmart',
   webDir: 'dist',
-  server: {
-    androidScheme: 'http',
-  },
 };
 
 export default config;
