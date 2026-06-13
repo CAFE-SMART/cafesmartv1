@@ -1621,16 +1621,28 @@ export default function Compras() {
 
       const capacidadKg = capacidad.capacidadBodegaKg ?? 0;
       const inventarioActual = capacidad.inventarioActualKg ?? 0;
+      const nuevoTotal = inventarioActual + resumen.totalKg;
+      const porcentaje =
+        capacidadKg > 0 ? Math.round((nuevoTotal / capacidadKg) * 100) : 0;
 
       if (capacidad.nivel === 'exceso') {
-        const disponibleActual = Math.max(0, capacidadKg - inventarioActual);
-        setError(
-          disponibleActual <= 0
-            ? 'Bodega llena. Vende cafe para seguir comprando.'
-            : `La compra supera el espacio disponible. Hay ${formatoKg(disponibleActual)} libres. Reduce kilos o vende cafe para continuar.`,
-        );
-        setMostrarErrorFormulario(true);
-        setMostrarModalCapacidad(false);
+        setDatosCapacidad({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+        });
+        setMostrarModalCapacidad(true);
+        return false;
+      }
+
+      if (porcentaje >= 80) {
+        setDatosAlerta80({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+          porcentaje,
+        });
+        setMostrarModalAlerta80(true);
         return false;
       }
 

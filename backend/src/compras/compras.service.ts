@@ -329,19 +329,7 @@ export class ComprasService {
             );
           }
 
-          if (compraProcesada.capacidad.nivel === 'exceso') {
-            throw new BadRequestException(
-              apiError(
-                'COMPRA_CAPACIDAD_EXCEDIDA',
-                compraProcesada.capacidad.mensaje,
-                {
-                  details: {
-                    capacidad: compraProcesada.capacidad,
-                  },
-                },
-              ),
-            );
-          }
+
 
           const lotesCompra = await this.asegurarLotesCompra(
             tx,
