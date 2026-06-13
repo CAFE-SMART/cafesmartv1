@@ -4,7 +4,18 @@ import type {
   SubloteDetalle,
 } from '../services/lotesService';
 
+const LOCAL_STORAGE_KEY = 'cafesmart_secado_sessions';
 let secadoSessionsMemory: SecadoSession[] = [];
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stored) {
+      secadoSessionsMemory = JSON.parse(stored);
+    }
+  }
+} catch (e) {
+  console.error('Failed to load secado sessions from localStorage', e);
+}
 const SECADO_PROCESS_TYPE_ID = 'virtual-en-secado';
 const SECADO_PROCESS_QUALITY_ID = 'virtual-en-proceso';
 const SECADO_PROCESS_TYPE = 'EN SECADO';
@@ -108,6 +119,13 @@ function readStorage() {
 
 function writeStorage(sessions: SecadoSession[]) {
   secadoSessionsMemory = sessions;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sessions));
+    }
+  } catch (e) {
+    console.error('Failed to save secado sessions to localStorage', e);
+  }
 }
 
 function updateSession(

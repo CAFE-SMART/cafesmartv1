@@ -45,7 +45,7 @@ export function AppLoadingScreen() {
 
       <div className="relative z-10 flex w-full max-w-[430px] flex-col items-center text-center">
         <section className="animate-[appSplashFadeScale_360ms_ease-out_both]">
-          <CafeSmartLogo size="lg" />
+          <CafeSmartLogo />
         </section>
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">

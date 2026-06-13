@@ -11,7 +11,7 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import {
-  obtenerResumenDashboard,
+  obtenerDashboardSummary,
   type DashboardSummary,
 } from '../services/dashboardService';
 
@@ -71,7 +71,7 @@ export default function AnalisisFinanciero() {
     setLoading(true);
     setError(null);
     try {
-      const data = await obtenerResumenDashboard();
+      const data = await obtenerDashboardSummary();
       setSummary(data);
     } catch (err) {
       setError(
@@ -88,28 +88,35 @@ export default function AnalisisFinanciero() {
     void cargar();
   }, []);
 
+  const ingresos = summary?.totalVentasAcumulado ?? 0;
+  const egresos =
+    (summary?.totalComprasAcumulado ?? 0) +
+    (summary?.totalGastosAcumulado ?? 0);
+  const utilidad = summary?.utilidadTotalAcumulada ?? 0;
+  const merma = summary?.mermaTotalKg ?? 0;
+
   const chartData = useMemo(
     () => [
       {
         key: 'ingresos',
         label: 'Ingresos',
-        value: summary?.totalRevenue ?? 0,
+        value: ingresos,
         color: 'bg-[#2f6bff]',
       },
       {
         key: 'egresos',
         label: 'Egresos',
-        value: summary?.totalExpenses ?? 0,
+        value: egresos,
         color: 'bg-[#f97316]',
       },
       {
         key: 'utilidad',
         label: 'Utilidad',
-        value: Math.max(0, summary?.totalProfit ?? 0),
+        value: Math.max(0, utilidad),
         color: 'bg-[#10b981]',
       },
     ],
-    [summary],
+    [ingresos, egresos, utilidad],
   );
 
   const maxValue = Math.max(...chartData.map((item) => item.value), 1);
@@ -190,21 +197,21 @@ export default function AnalisisFinanciero() {
         <section className="grid gap-3">
           <Metric
             title="Ingresos"
-            value={loading ? '...' : formatMoney(summary?.totalRevenue ?? 0)}
+            value={loading ? '...' : formatMoney(ingresos)}
             hint="Ventas acumuladas registradas."
             icon={<TrendingUp size={20} />}
             accent="bg-[#eef2ff] text-[#2f6bff]"
           />
           <Metric
             title="Egresos"
-            value={loading ? '...' : formatMoney(summary?.totalExpenses ?? 0)}
+            value={loading ? '...' : formatMoney(egresos)}
             hint="Compras y gastos operativos acumulados."
             icon={<TrendingDown size={20} />}
             accent="bg-[#fff4eb] text-[#f97316]"
           />
           <Metric
             title="Utilidad estimada"
-            value={loading ? '...' : formatMoney(summary?.totalProfit ?? 0)}
+            value={loading ? '...' : formatMoney(utilidad)}
             hint="Resultado estimado del negocio."
             icon={<Wallet size={20} />}
             accent="bg-[#ecfdf5] text-[#059669]"
@@ -212,7 +219,7 @@ export default function AnalisisFinanciero() {
           <Metric
             title="Merma acumulada"
             value={
-              loading ? '...' : `${formatKg(summary?.totalWasteKg ?? 0)} kg`
+              loading ? '...' : `${formatKg(merma)} kg`
             }
             hint="Impacto acumulado del secado."
             icon={<BarChart3 size={20} />}

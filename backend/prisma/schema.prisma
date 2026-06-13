@@ -28,6 +28,7 @@ enum TipoMovimientoInventario {
   VENTA
   SECADO
   MEZCLA
+  MERMA_SECADO
 }
 
 enum TipoReferenciaInventario {
@@ -119,7 +120,16 @@ model Cliente {
 
   ventas Venta[]
 
+  @@index([organizacionId, deletedAt])
   @@map("cliente")
+}
+
+model PasswordResetToken {
+  email     String   @id @map("email")
+  code      String   @map("code")
+  expiresAt DateTime @map("expires_at")
+
+  @@map("password_reset_token")
 }
 
 model Productor {

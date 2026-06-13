@@ -729,9 +729,7 @@ export default function Ventas() {
     sublotes: 0,
     kg: 0,
   });
-  const [loteAjustandoId, setLoteAjustandoId] = React.useState<string | null>(
-    null,
-  );
+
   const [clientes, setClientes] = React.useState<ClienteOption[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] =
     React.useState<ClienteOption | null>(null);
@@ -1287,23 +1285,7 @@ export default function Ventas() {
     );
   };
 
-  const usarPesoRegistrado = (lote: LoteVenta) => {
-    setLoteAjustandoId(null);
-    setLotesVenta((prev) =>
-      prev.map((item) =>
-        item.id === lote.id
-          ? {
-              ...item,
-              pesoVerificadoKg: '',
-              cantidadKg:
-                modoVenta === 'PARCIAL'
-                  ? String(round2(lote.disponibleKg))
-                  : item.cantidadKg,
-            }
-          : item,
-      ),
-    );
-  };
+
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
     setClienteSeleccionado(cliente);
@@ -2015,10 +1997,7 @@ export default function Ventas() {
                         const cantidadIngresada = lote.cantidadKg.trim() !== '';
                         const precioIngresado = lote.precioKg.trim() !== '';
                         const disponibleVenta = getDisponibleVenta(lote);
-                        // Desactivados para no mostrar en la UI de Ajuste de Peso
-                        const ajustePesoKg = 0;
-                        const pesoVerificadoError = false;
-                        const estaAjustandoPeso = false;
+
                         // El sublote está "activo" si el usuario llenó al menos uno de los campos
                         const subloteActivo = cantidadIngresada || precioIngresado;
                         // Si el usuario intentó avanzar Y el sublote está activo, validar ambos campos
@@ -2064,94 +2043,7 @@ export default function Ventas() {
                                     Registrado: {kg(lote.disponibleKg)}
                                   </p>
                                 </div>
-                                {/* El botón Ajustar y su panel fueron desactivados y comentados
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-slate-100 px-3 text-[0.72rem] font-black text-slate-400 opacity-50 cursor-not-allowed"
-                                  aria-expanded={estaAjustandoPeso}
-                                >
-                                  <Scale size={14} />
-                                  Ajustar
-                                </button>
-                                */}
                               </div>
-                              {/* 
-                              {estaAjustandoPeso ? (
-                                <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <label
-                                      className="text-xs font-black text-slate-600"
-                                      htmlFor={`peso-${lote.id}`}
-                                    >
-                                      Peso total actual
-                                    </label>
-                                    <button
-                                      type="button"
-                                      onClick={() => usarPesoRegistrado(lote)}
-                                      className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#1D4ED8] shadow-sm"
-                                    >
-                                      Usar registrado
-                                    </button>
-                                  </div>
-                                  <input
-                                    id={`peso-${lote.id}`}
-                                    type="range"
-                                    min={0}
-                                    max={lote.disponibleKg}
-                                    step="0.01"
-                                    value={lote.pesoVerificadoKg === '' ? 0 : disponibleVenta}
-                                    onChange={(event) =>
-                                      updateLote(
-                                        lote.id,
-                                        'pesoVerificadoKg',
-                                        event.target.value,
-                                      )
-                                    }
-                                    className="mt-3 w-full accent-[#102d92]"
-                                  />
-                                  <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
-                                    <Scale
-                                      size={16}
-                                      className="shrink-0 text-[#1D4ED8]"
-                                    />
-                                    <input
-                                      type="text"
-                                      inputMode="decimal"
-                                      maxLength={12}
-                                      value={lote.pesoVerificadoKg}
-                                      onChange={(event) =>
-                                        updateLote(
-                                          lote.id,
-                                          'pesoVerificadoKg',
-                                          event.target.value,
-                                        )
-                                      }
-                                      placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                                      className={`w-full bg-transparent text-sm font-semibold outline-none ${
-                                        pesoVerificadoError
-                                          ? 'text-[#b42318]'
-                                          : 'text-slate-900'
-                                      }`}
-                                    />
-                                    <span className="text-xs font-black text-slate-400">
-                                      kg
-                                    </span>
-                                  </label>
-                                </div>
-                              ) : null}
-                              {pesoVerificadoError ? (
-                                <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                                  El peso verificado debe estar entre 0 y{' '}
-                                  {kg(lote.disponibleKg)}.
-                                </p>
-                              ) : ajustePesoKg > 0 ? (
-                                <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
-                                  Peso ajustado: se vendera sobre{' '}
-                                  {kg(disponibleVenta)}.
-                                </p>
-                              ) : null}
-                              */}
                             </div>
 
                             {modoVenta === 'PARCIAL' ? (

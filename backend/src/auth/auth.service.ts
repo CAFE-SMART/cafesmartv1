@@ -12,15 +12,15 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
 import { sendRecoveryEmail } from './mail.helper';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
-  private resetTokens = new Map<string, { code: string; expiresAt: Date }>();
-
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -365,10 +365,18 @@ export class AuthService {
     // Generate a 6-digit numeric code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in memory map with 15 minutes expiration
-    this.resetTokens.set(normalizedEmail, {
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    // Store in database with 15 minutes expiration
+    await this.prisma.passwordResetToken.upsert({
+      where: { email: normalizedEmail },
+      update: {
+        code,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+      create: {
+        email: normalizedEmail,
+        code,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
     });
 
     await sendRecoveryEmail(this.configService, normalizedEmail, code);
@@ -378,7 +386,9 @@ export class AuthService {
 
   async resetPassword(email: string, code: string, passwordNew: string) {
     const normalizedEmail = email.trim().toLowerCase();
-    const entry = this.resetTokens.get(normalizedEmail);
+    const entry = await this.prisma.passwordResetToken.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     if (!entry) {
       throw new HttpException(
@@ -388,7 +398,9 @@ export class AuthService {
     }
 
     if (entry.expiresAt < new Date()) {
-      this.resetTokens.delete(normalizedEmail);
+      await this.prisma.passwordResetToken.delete({
+        where: { email: normalizedEmail },
+      }).catch(() => {});
       throw new HttpException(
         { message: 'El código de recuperación ha expirado.' },
         HttpStatus.BAD_REQUEST,
@@ -407,7 +419,9 @@ export class AuthService {
       normalizedEmail,
       hashedPassword,
     );
-    this.resetTokens.delete(normalizedEmail);
+    await this.prisma.passwordResetToken.delete({
+      where: { email: normalizedEmail },
+    }).catch(() => {});
 
     return { message: 'Contraseña restablecida con éxito' };
   }

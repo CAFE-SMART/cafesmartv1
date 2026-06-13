@@ -22,7 +22,7 @@ import {
   type AuthResponse,
 } from '../services/authService';
 
-type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
+type TipoOrg = 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
 type ProcessStatus = 'creating' | 'success' | 'error';
 type SuccessStage = 'confirm' | 'welcome';
 
@@ -205,7 +205,10 @@ export default function SystemStatus() {
             email: response.user.email,
             name: response.user.name,
             organizacionId: response.user.organizacionId ?? null,
-            tipoOrganizacion: response.user.tipoOrganizacion ?? null,
+            tipoOrganizacion:
+              response.user.tipoOrganizacion === 'OTRO'
+                ? 'PERSONALIZADO'
+                : (response.user.tipoOrganizacion ?? null),
             otroTipoDetalle: response.user.otroTipoDetalle ?? null,
           },
           token: response.access_token,

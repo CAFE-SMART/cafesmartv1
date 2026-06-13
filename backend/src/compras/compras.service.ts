@@ -1122,7 +1122,7 @@ export class ComprasService {
       input.localId,
     );
 
-    if (compraEliminada?.deletedAt !== null) {
+    if (compraEliminada && compraEliminada.deletedAt !== null) {
       throw new ConflictException(
         apiError(
           'COMPRA_SYNC_ELIMINADA',
@@ -1136,7 +1136,7 @@ export class ComprasService {
       input,
     );
 
-    if (subloteExistente?.deletedAt !== null) {
+    if (subloteExistente && subloteExistente.deletedAt !== null) {
       throw new ConflictException(
         apiError(
           'COMPRA_SUBLOTE_SYNC_ELIMINADO',
