@@ -73,7 +73,11 @@ export function getApiBaseUrlCandidates() {
 export const API_URL = getApiBaseUrlCandidates()[0] ?? LOCAL_API_URL;
 
 if (SHOULD_LOG_API_DEBUG) {
+  console.info(
+    `[CafeSmart][api-config] VITE_API_URL=${configuredApiUrl || '(empty)'}`,
+  );
   console.info('[CafeSmart][api-config]', {
+    mode: import.meta.env.MODE,
     platform: Capacitor.getPlatform(),
     configuredApiUrl: configuredApiUrl || '(empty)',
     keepAndroidLocalhost,

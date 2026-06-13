@@ -60,10 +60,27 @@ async function pingBackend(
   const candidates = getApiBaseUrlCandidates();
   let lastResult: HealthCheckResult | null = null;
 
+  if (SHOULD_LOG_API_DEBUG) {
+    console.info('[CafeSmart][health-check] starting', {
+      VITE_API_URL:
+        (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+        '(empty)',
+      candidates,
+      browserOnline,
+    });
+  }
+
   for (const baseUrl of candidates) {
     const url = `${baseUrl.replace(/\/$/, '')}/`;
 
     try {
+      if (SHOULD_LOG_API_DEBUG) {
+        console.info('[CafeSmart][health-check] request', {
+          url,
+          method: 'GET',
+        });
+      }
+
       const response = await fetch(url, {
         method: 'GET',
         signal,
@@ -81,8 +98,9 @@ async function pingBackend(
       };
 
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check]', {
+        console.info('[CafeSmart][health-check] response', {
           ...result,
+          statusText: response.statusText,
           responsePreview: text.trim().slice(0, 80),
         });
       }
@@ -105,7 +123,7 @@ async function pingBackend(
       };
 
       if (SHOULD_LOG_API_DEBUG) {
-        console.info('[CafeSmart][health-check]', lastResult);
+        console.info('[CafeSmart][health-check] error', lastResult);
       }
     }
   }
@@ -139,6 +157,7 @@ export function CloudStatusProvider({
   const [wasOffline, setWasOffline] = useState(false);
   const [reconnectedAt, setReconnectedAt] = useState<number | null>(null);
   const clearEventTimerRef = useRef<number | null>(null);
+  const lastLoggedStatusRef = useRef('');
 
   const refreshHealth = useCallback(async () => {
     const browserOnline =
@@ -387,6 +406,40 @@ export function CloudStatusProvider({
     refreshHealth,
     wasOffline,
   ]);
+
+  useEffect(() => {
+    if (!SHOULD_LOG_API_DEBUG) {
+      return;
+    }
+
+    const isOffline = !value.isOnline || value.backendReachable === false;
+    const nextLoggedStatus = JSON.stringify({
+      tone: value.tone,
+      isOnline: value.isOnline,
+      isOffline,
+      backendReachable: value.backendReachable,
+      title: value.title,
+    });
+
+    if (lastLoggedStatusRef.current === nextLoggedStatus) {
+      return;
+    }
+
+    lastLoggedStatusRef.current = nextLoggedStatus;
+
+    console.info('[CafeSmart][cloud-status] final', {
+      VITE_API_URL:
+        (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+        '(empty)',
+      tone: value.tone,
+      cloudStatus: value.tone,
+      isOnline: value.isOnline,
+      isOffline,
+      backendReachable: value.backendReachable,
+      title: value.title,
+      detail: value.detail,
+    });
+  }, [value]);
 
   return (
     <CloudStatusContext.Provider value={value}>
