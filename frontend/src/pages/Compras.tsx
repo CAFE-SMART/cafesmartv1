@@ -358,9 +358,10 @@ function ProductorHint({ children }: { children: React.ReactNode }) {
   return <p className="mt-1.5 text-xs font-medium leading-5 text-slate-500">{children}</p>;
 }
 
-function ProductorFieldError({ message }: { message: string }) {
+function ProductorFieldError({ id, message }: { id?: string; message: string }) {
   return (
     <AppFeedbackMessage
+      id={id}
       variant="error"
       description={message}
       className="mt-2"
@@ -872,6 +873,7 @@ function CoffeeTypeDropdown({
 
 function CompactSelect<T extends string>({
   id,
+  labelledById,
   value,
   options,
   placeholder,
@@ -882,6 +884,7 @@ function CompactSelect<T extends string>({
   onChange,
 }: {
   id: string;
+  labelledById?: string;
   value: T | '';
   options: Array<{ value: T; label: string }>;
   placeholder: string;
@@ -902,6 +905,7 @@ function CompactSelect<T extends string>({
         type="button"
         aria-haspopup="listbox"
         aria-controls={listId}
+        aria-labelledby={labelledById ? `${labelledById} ${buttonId}` : undefined}
         {...ariaExpanded(open)}
         onClick={onToggle}
         onBlur={(event) => {
@@ -5766,15 +5770,26 @@ export default function Compras() {
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
                 <div className="order-2">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label htmlFor="productor-nombre" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     {productorForm.tipoDocumento === 'NIT'
                       ? 'Nombre de la empresa'
                       : 'Nombre completo'}
                   </label>
                   <input
+                    id="productor-nombre"
                     type="text"
                     value={productorForm.nombre}
                     disabled={!productorForm.tipoDocumento}
+                    aria-invalid={
+                      productorFormErrors.nombre && productorFormTouched.nombre
+                        ? 'true'
+                        : 'false'
+                    }
+                    aria-describedby={
+                      productorFormErrors.nombre && productorFormTouched.nombre
+                        ? 'productor-nombre-error'
+                        : undefined
+                    }
                     onBlur={() => {
                       const nextForm = productorForm;
                       const message = validateProductorField('nombre', nextForm);
@@ -5820,11 +5835,11 @@ export default function Compras() {
                       : 'Coloca su nombre y apellidos.'}
                   </ProductorHint>
                   {productorFormErrors.nombre && productorFormTouched.nombre ? (
-                    <ProductorFieldError message={productorFormErrors.nombre} />
+                    <ProductorFieldError id="productor-nombre-error" message={productorFormErrors.nombre} />
                   ) : null}
                 </div>
                 <div className="order-1">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label id="productor-document-type-label" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Tipo de documento
                   </label>
                   <ProductorHint>
@@ -5833,6 +5848,7 @@ export default function Compras() {
                   <div className="mt-2">
                     <CompactSelect
                       id="productor-document-type"
+                      labelledById="productor-document-type-label"
                       value={productorForm.tipoDocumento}
                       options={DOCUMENT_TYPE_OPTIONS}
                       placeholder="Selecciona el tipo de documento"
@@ -5872,18 +5888,30 @@ export default function Compras() {
                   {productorFormErrors.tipoDocumento &&
                   productorFormTouched.tipoDocumento ? (
                     <ProductorFieldError
+                      id="productor-document-type-error"
                       message={productorFormErrors.tipoDocumento}
                     />
                   ) : null}
                 </div>
                 <div className="order-3">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label htmlFor="productor-documento" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Número de documento
                   </label>
                   <input
+                    id="productor-documento"
                     type="text"
                     inputMode="numeric"
                     disabled={!productorForm.tipoDocumento}
+                    aria-invalid={
+                      productorFormErrors.documento && productorFormTouched.documento
+                        ? 'true'
+                        : 'false'
+                    }
+                    aria-describedby={
+                      productorFormErrors.documento && productorFormTouched.documento
+                        ? 'productor-documento-error'
+                        : undefined
+                    }
                     onPaste={(event) => {
                       if (!productorForm.tipoDocumento) {
                         event.preventDefault();
@@ -5939,18 +5967,29 @@ export default function Compras() {
                   </ProductorHint>
                   {productorFormErrors.documento &&
                   productorFormTouched.documento ? (
-                    <ProductorFieldError message={productorFormErrors.documento} />
+                    <ProductorFieldError id="productor-documento-error" message={productorFormErrors.documento} />
                   ) : null}
                 </div>
                 <div className="order-4">
-                  <label className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label htmlFor="productor-telefono" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
                     Teléfono (opcional)
                   </label>
                   <input
+                    id="productor-telefono"
                     type="text"
                     inputMode="numeric"
                     maxLength={12}
                     value={productorForm.telefono}
+                    aria-invalid={
+                      productorFormErrors.telefono && productorFormTouched.telefono
+                        ? 'true'
+                        : 'false'
+                    }
+                    aria-describedby={
+                      productorFormErrors.telefono && productorFormTouched.telefono
+                        ? 'productor-telefono-error'
+                        : undefined
+                    }
                     onBlur={() => {
                       const message = validateProductorField(
                         'telefono',
@@ -5986,7 +6025,7 @@ export default function Compras() {
                   <ProductorHint>Número celular colombiano.</ProductorHint>
                   {productorFormErrors.telefono &&
                   productorFormTouched.telefono ? (
-                    <ProductorFieldError message={productorFormErrors.telefono} />
+                    <ProductorFieldError id="productor-telefono-error" message={productorFormErrors.telefono} />
                   ) : null}
                 </div>
 

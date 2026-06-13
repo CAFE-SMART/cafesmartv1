@@ -410,6 +410,7 @@ function isDateValueInRange(value: string, min: string, max: string) {
 
 function CompactSelect<T extends string>({
   id,
+  labelledById,
   value,
   options,
   placeholder,
@@ -420,6 +421,7 @@ function CompactSelect<T extends string>({
   onChange,
 }: {
   id: string;
+  labelledById?: string;
   value: T | '';
   options: Array<{ value: T; label: string }>;
   placeholder: string;
@@ -441,6 +443,7 @@ function CompactSelect<T extends string>({
         type="button"
         aria-haspopup="listbox"
         aria-controls={listId}
+        aria-labelledby={labelledById ? `${labelledById} ${buttonId}` : undefined}
         {...ariaExpanded(open)}
         onClick={onToggle}
         onBlur={(event) => {
@@ -519,9 +522,10 @@ function getClienteModalInputClass(hasError = false) {
   }`;
 }
 
-function ClienteModalFieldError({ message }: { message: string }) {
+function ClienteModalFieldError({ id, message }: { id?: string; message: string }) {
   return (
     <AppFeedbackMessage
+      id={id}
       variant="error"
       description={message}
       className="mt-2"
@@ -3829,7 +3833,7 @@ export default function Ventas() {
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
                 <div className="order-2">
-                  <label className={clienteModalLabelClass}>
+                  <label htmlFor="cliente-nombre" className={clienteModalLabelClass}>
                     {clienteForm.tipoDocumento === 'NIT'
                       ? 'Nombre de la empresa'
                       : 'Nombre completo'}
@@ -3844,9 +3848,12 @@ export default function Ventas() {
                     </span>
                   </label>
                   <input
+                    id="cliente-nombre"
                     type="text"
                     value={clienteForm.nombre}
                     disabled={!clienteForm.tipoDocumento}
+                    aria-invalid={clienteFormErrors.nombre ? 'true' : 'false'}
+                    aria-describedby={clienteFormErrors.nombre ? 'cliente-nombre-error' : undefined}
                     placeholder={
                       !clienteForm.tipoDocumento
                         ? 'Primero selecciona el tipo de documento'
@@ -3898,12 +3905,12 @@ export default function Ventas() {
                   ) : null}
 
                   {clienteFormErrors.nombre ? (
-                    <ClienteModalFieldError message={clienteFormErrors.nombre} />
+                    <ClienteModalFieldError id="cliente-nombre-error" message={clienteFormErrors.nombre} />
                   ) : null}
                 </div>
 
                 <div className="order-1">
-                  <label className={clienteModalLabelClass}>
+                  <label id="cliente-document-type-label" className={clienteModalLabelClass}>
                     Tipo de documento
                   </label>
                   <p className={clienteModalHintClass}>
@@ -3912,6 +3919,7 @@ export default function Ventas() {
                   <div className="mt-2">
                     <CompactSelect
                       id="cliente-document-type"
+                      labelledById="cliente-document-type-label"
                       value={clienteForm.tipoDocumento}
                       options={DOCUMENT_TYPE_OPTIONS}
                       placeholder="Selecciona el tipo de documento"
@@ -3937,15 +3945,16 @@ export default function Ventas() {
                     />
                   </div>
                   {clienteFormErrors.tipoDocumento ? (
-                    <ClienteModalFieldError message={clienteFormErrors.tipoDocumento} />
+                    <ClienteModalFieldError id="cliente-document-type-error" message={clienteFormErrors.tipoDocumento} />
                   ) : null}
                 </div>
 
                 <div className="order-3">
-                  <label className={clienteModalLabelClass}>
+                  <label htmlFor="cliente-documento" className={clienteModalLabelClass}>
                     Número de documento
                   </label>
                   <input
+                    id="cliente-documento"
                     type="text"
                     inputMode={
                       clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
@@ -3958,6 +3967,8 @@ export default function Ventas() {
                     }}
                     maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
                     value={clienteForm.documento}
+                    aria-invalid={clienteFormErrors.documento ? 'true' : 'false'}
+                    aria-describedby={clienteFormErrors.documento ? 'cliente-documento-error' : undefined}
                     onChange={(event) => {
                       setClienteForm((actual) => ({
                         ...actual,
@@ -3987,19 +3998,22 @@ export default function Ventas() {
                       : 'Escribe solo números, sin puntos ni espacios.'}
                   </p>
                   {clienteFormErrors.documento ? (
-                    <ClienteModalFieldError message={clienteFormErrors.documento} />
+                    <ClienteModalFieldError id="cliente-documento-error" message={clienteFormErrors.documento} />
                   ) : null}
                 </div>
 
                 <div className="order-4">
-                  <label className={clienteModalLabelClass}>
+                  <label htmlFor="cliente-telefono" className={clienteModalLabelClass}>
                     Teléfono (opcional)
                   </label>
                   <input
+                    id="cliente-telefono"
                     type="text"
                     inputMode="numeric"
                     maxLength={12}
                     value={clienteForm.telefono}
+                    aria-invalid={clienteFormErrors.telefono ? 'true' : 'false'}
+                    aria-describedby={clienteFormErrors.telefono ? 'cliente-telefono-error' : undefined}
                     onChange={(event) => {
                       const raw = event.target.value;
                       const hasInvalid = /[^\d\s]/.test(raw);
@@ -4021,7 +4035,7 @@ export default function Ventas() {
                   />
                   <p className={clienteModalHintClass}>Número celular colombiano.</p>
                   {clienteFormErrors.telefono ? (
-                    <ClienteModalFieldError message={clienteFormErrors.telefono} />
+                    <ClienteModalFieldError id="cliente-telefono-error" message={clienteFormErrors.telefono} />
                   ) : null}
                 </div>
 
