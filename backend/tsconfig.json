@@ -11,6 +11,8 @@
     "outDir": "./dist",
     "incremental": true,
     "skipLibCheck": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": false
   },
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]

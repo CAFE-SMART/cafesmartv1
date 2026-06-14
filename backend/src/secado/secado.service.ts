@@ -689,6 +689,10 @@ export class SecadoService {
           include: SECADO_SESSION_INCLUDE,
         });
 
+        if (!sessionConRelaciones) {
+          throw new BadRequestException('Sesión de secado no encontrada.');
+        }
+
         return this.mapSession(sessionConRelaciones);
       },
       { maxWait: 10000, timeout: 25000 },

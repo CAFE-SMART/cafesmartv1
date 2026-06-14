@@ -651,7 +651,7 @@ describe('procesarVenta - inventario de bodega', () => {
         try {
           return await callback(tx);
         } finally {
-          liberarBloqueo?.();
+          (liberarBloqueo as (() => void) | null)?.();
         }
       }),
     };

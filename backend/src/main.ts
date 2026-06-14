@@ -4,6 +4,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { validationCodeForField } from './common/errors/api-error';
@@ -41,8 +42,19 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 3000;
 
+  app.use(helmet());
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const frontendUrl = process.env.FRONTEND_URL;
+
+  if (isProd && (!frontendUrl || frontendUrl === '*')) {
+    throw new Error(
+      'La variable de entorno FRONTEND_URL debe estar configurada en producción y no puede ser "*".',
+    );
+  }
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: frontendUrl || '*',
     credentials: true,
   });
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -82,5 +94,19 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Backend Cafe Smart corriendo en el puerto ${port}`);
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(
+    'Rechazo de promesa no manejado:',
+    reason,
+    'en la promesa:',
+    promise,
+  );
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Excepción no capturada crítica:', error);
+  process.exit(1);
+});
 
 void bootstrap();
