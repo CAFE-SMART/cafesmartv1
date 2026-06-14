@@ -10,8 +10,6 @@ import {
   type SecadoSession as ApiSecadoSession,
 } from '../services/secadoService';
 
-export const VISUAL_CAPACITY_KG = 3000;
-
 export type SecadoEstado = 'IN_PROCESS' | 'READY' | 'COMPLETED';
 
 export type SecadoSubloteSeleccionado = {
