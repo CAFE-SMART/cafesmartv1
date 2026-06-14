@@ -59,9 +59,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  
+
   const location = useLocation();
-  const initialMode = (location.state as { mode?: 'login' | 'forgot' | 'reset' } | null)?.mode || 'login';
+  const initialMode =
+    (location.state as { mode?: 'login' | 'forgot' | 'reset' } | null)?.mode ||
+    'login';
   const [mode, setMode] = useState<'login' | 'forgot' | 'reset'>(initialMode);
   const [code, setCode] = useState('');
   const [codeFieldError, setCodeFieldError] = useState<string | null>(null);
@@ -667,11 +669,13 @@ export default function Login() {
 
                 {import.meta.env.DEV ? (
                   <div className="rounded-[8px] border border-blue-100 bg-blue-50/70 p-3 text-[11px] text-blue-800 leading-relaxed">
-                    <strong>Nota (Desarrollo):</strong> El código se imprimió en la terminal del backend para facilitar tus pruebas locales.
+                    <strong>Nota (Desarrollo):</strong> El código se imprimió en
+                    la terminal del backend para facilitar tus pruebas locales.
                   </div>
                 ) : (
                   <p className="text-[11px] text-[#75859d] leading-relaxed">
-                    Si no recibes el correo en unos minutos, por favor revisa tu carpeta de correo no deseado (spam).
+                    Si no recibes el correo en unos minutos, por favor revisa tu
+                    carpeta de correo no deseado (spam).
                   </p>
                 )}
 

@@ -17,6 +17,27 @@ import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 import { SaveSecadoDraftDto } from './dto/save-secado-draft.dto';
 import { EstadoSecado } from '@prisma/client';
 import { validarResultadosSecadoCriticos } from './secado-validations';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
+
+export const SECADO_SESSION_INCLUDE = {
+  tipoCafe: true,
+  calidad: true,
+  lote: true,
+  sublotes: {
+    include: {
+      sublote: {
+        include: {
+          tipoCafe: true,
+          calidad: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type SecadoSessionWithRelations = Prisma.SecadoSessionGetPayload<{
+  include: typeof SECADO_SESSION_INCLUDE;
+}>;
 
 type FuenteSecado = {
   id: string;
@@ -387,7 +408,9 @@ export class SecadoService {
             where: {
               id: fuente.id,
               deletedAt: null,
-              pesoActual: { gte: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)) },
+              pesoActual: {
+                gte: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)),
+              },
             },
             data: {
               pesoActual: {
@@ -508,10 +531,9 @@ export class SecadoService {
     subloteIds: string[],
     pesos?: Record<string, number>,
   ) {
-    return this.prisma.$transaction(
+    const organizacionId = await this.getOrganizacionId(userId);
+    const resultado = await this.prisma.$transaction(
       async (tx) => {
-        const organizacionId = await this.getOrganizacionId(userId);
-
         const sublotes = await tx.sublote.findMany({
           where: {
             id: { in: subloteIds },
@@ -539,7 +561,12 @@ export class SecadoService {
 
           if (pesos) {
             const requested = pesos[sublote.id];
-            if (requested === undefined || requested === null || !Number.isFinite(requested) || requested <= 0) {
+            if (
+              requested === undefined ||
+              requested === null ||
+              !Number.isFinite(requested) ||
+              requested <= 0
+            ) {
               throw new BadRequestException(
                 apiError(
                   'SECADO_ENTRADA_INVALIDA',
@@ -580,7 +607,9 @@ export class SecadoService {
         totalInputKg = this.redondear(totalInputKg);
 
         for (const sublote of sublotes) {
-          const pesoSecar = pesos ? pesos[sublote.id]! : Number(sublote.pesoActual);
+          const pesoSecar = pesos
+            ? pesos[sublote.id]!
+            : Number(sublote.pesoActual);
           const updated = await tx.sublote.updateMany({
             where: {
               id: sublote.id,
@@ -625,7 +654,9 @@ export class SecadoService {
 
         await tx.secadoSessionSublote.createMany({
           data: sublotes.map((sublote) => {
-            const pesoAsignado = pesos ? pesos[sublote.id]! : Number(sublote.pesoActual);
+            const pesoAsignado = pesos
+              ? pesos[sublote.id]!
+              : Number(sublote.pesoActual);
             return {
               sessionId: session.id,
               subloteId: sublote.id,
@@ -636,7 +667,9 @@ export class SecadoService {
 
         await tx.inventarioMovimiento.createMany({
           data: sublotes.map((sublote) => {
-            const pesoAsignado = pesos ? pesos[sublote.id]! : Number(sublote.pesoActual);
+            const pesoAsignado = pesos
+              ? pesos[sublote.id]!
+              : Number(sublote.pesoActual);
             return {
               organizacionId,
               usuarioId: userId,
@@ -653,22 +686,16 @@ export class SecadoService {
 
         const sessionConRelaciones = await tx.secadoSession.findUnique({
           where: { id: session.id },
-          include: {
-            tipoCafe: true,
-            calidad: true,
-            lote: true,
-            sublotes: {
-              include: {
-                sublote: true,
-              },
-            },
-          },
+          include: SECADO_SESSION_INCLUDE,
         });
 
         return this.mapSession(sessionConRelaciones);
       },
       { maxWait: 10000, timeout: 25000 },
     );
+
+    invalidarDashboardCache(organizacionId);
+    return resultado;
   }
 
   async saveSecadoDraft(
@@ -696,22 +723,21 @@ export class SecadoService {
       data: {
         draftStartDate: dto.startDate ? new Date(dto.startDate) : undefined,
         draftEndDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        draftBuenoKg: dto.buenoKg !== undefined ? new Prisma.Decimal(dto.buenoKg) : undefined,
-        draftRegularKg: dto.regularKg !== undefined ? new Prisma.Decimal(dto.regularKg) : undefined,
-        draftMaloKg: dto.maloKg !== undefined ? new Prisma.Decimal(dto.maloKg) : undefined,
+        draftBuenoKg:
+          dto.buenoKg !== undefined
+            ? new Prisma.Decimal(dto.buenoKg)
+            : undefined,
+        draftRegularKg:
+          dto.regularKg !== undefined
+            ? new Prisma.Decimal(dto.regularKg)
+            : undefined,
+        draftMaloKg:
+          dto.maloKg !== undefined ? new Prisma.Decimal(dto.maloKg) : undefined,
       },
-      include: {
-        tipoCafe: true,
-        calidad: true,
-        lote: true,
-        sublotes: {
-          include: {
-            sublote: true,
-          },
-        },
-      },
+      include: SECADO_SESSION_INCLUDE,
     });
 
+    invalidarDashboardCache(organizacionId);
     return this.mapSession(updated);
   }
 
@@ -737,16 +763,15 @@ export class SecadoService {
 
     try {
       validarResultadosSecadoCriticos(Number(session.inputKg), dto);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { code?: string; message: string };
       throw new BadRequestException(
-        apiError(
-          e.code || 'SECADO_CANTIDAD_INVALIDA',
-          e.message,
-        ),
+        apiError(err.code || 'SECADO_CANTIDAD_INVALIDA', err.message),
       );
     }
 
-    const totalSalida = dto.outputBuenoKg + dto.outputRegularKg + (dto.outputMaloKg ?? 0);
+    const totalSalida =
+      dto.outputBuenoKg + dto.outputRegularKg + (dto.outputMaloKg ?? 0);
     const mermaKg = Math.max(0, Number(session.inputKg) - totalSalida);
     const rendimientoPct =
       Number(session.inputKg) > 0
@@ -758,46 +783,34 @@ export class SecadoService {
       data: {
         estado: EstadoSecado.READY,
         outputBuenoKg: dto.outputBuenoKg,
-        outputBuenoHumedad: dto.outputBuenoHumedad !== undefined ? dto.outputBuenoHumedad : null,
+        outputBuenoHumedad:
+          dto.outputBuenoHumedad !== undefined ? dto.outputBuenoHumedad : null,
         outputRegularKg: dto.outputRegularKg,
-        outputRegularHumedad: dto.outputRegularHumedad !== undefined ? dto.outputRegularHumedad : null,
+        outputRegularHumedad:
+          dto.outputRegularHumedad !== undefined
+            ? dto.outputRegularHumedad
+            : null,
         outputMaloKg: dto.outputMaloKg !== undefined ? dto.outputMaloKg : 0,
-        outputMaloHumedad: dto.outputMaloHumedad !== undefined ? dto.outputMaloHumedad : null,
+        outputMaloHumedad:
+          dto.outputMaloHumedad !== undefined ? dto.outputMaloHumedad : null,
         mermaKg,
         rendimientoPct,
       },
-      include: {
-        tipoCafe: true,
-        calidad: true,
-        lote: true,
-        sublotes: {
-          include: {
-            sublote: true,
-          },
-        },
-      },
+      include: SECADO_SESSION_INCLUDE,
     });
 
+    invalidarDashboardCache(organizacionId);
     return this.mapSession(updated);
   }
 
   async finalizeSecado(userId: string, sessionId: string) {
     const organizacionId = await this.getOrganizacionId(userId);
 
-    return this.prisma.$transaction(
+    const resultado = await this.prisma.$transaction(
       async (tx) => {
         const session = await tx.secadoSession.findUnique({
           where: { id: sessionId },
-          include: {
-            tipoCafe: true,
-            calidad: true,
-            lote: true,
-            sublotes: {
-              include: {
-                sublote: true,
-              },
-            },
-          },
+          include: SECADO_SESSION_INCLUDE,
         });
 
         if (!session || session.organizacionId !== organizacionId) {
@@ -822,12 +835,25 @@ export class SecadoService {
           );
         }
 
-        const [tipoSeco, calidadBueno, calidadRegular, calidadMalo] = await Promise.all([
-          tx.tipoCafe.findUnique({ where: { nombre: 'SECO' }, select: { id: true } }),
-          tx.calidad.findUnique({ where: { nombre: 'BUENO' }, select: { id: true } }),
-          tx.calidad.findUnique({ where: { nombre: 'REGULAR' }, select: { id: true } }),
-          tx.calidad.findUnique({ where: { nombre: 'MALO' }, select: { id: true } }),
-        ]);
+        const [tipoSeco, calidadBueno, calidadRegular, calidadMalo] =
+          await Promise.all([
+            tx.tipoCafe.findUnique({
+              where: { nombre: 'SECO' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'BUENO' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'REGULAR' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'MALO' },
+              select: { id: true },
+            }),
+          ]);
 
         if (!tipoSeco || !calidadBueno || !calidadRegular || !calidadMalo) {
           throw new BadRequestException(
@@ -872,9 +898,24 @@ export class SecadoService {
             : 0;
 
         const outputsToCreate = [
-          { qualityName: 'BUENO', qualityId: calidadBueno.id, peso: Number(session.outputBuenoKg), humedad: session.outputBuenoHumedad },
-          { qualityName: 'REGULAR', qualityId: calidadRegular.id, peso: Number(session.outputRegularKg), humedad: session.outputRegularHumedad },
-          { qualityName: 'MALO', qualityId: calidadMalo.id, peso: Number(session.outputMaloKg), humedad: session.outputMaloHumedad },
+          {
+            qualityName: 'BUENO',
+            qualityId: calidadBueno.id,
+            peso: Number(session.outputBuenoKg),
+            humedad: session.outputBuenoHumedad,
+          },
+          {
+            qualityName: 'REGULAR',
+            qualityId: calidadRegular.id,
+            peso: Number(session.outputRegularKg),
+            humedad: session.outputRegularHumedad,
+          },
+          {
+            qualityName: 'MALO',
+            qualityId: calidadMalo.id,
+            peso: Number(session.outputMaloKg),
+            humedad: session.outputMaloHumedad,
+          },
         ].filter((out) => out.peso > 0);
 
         for (const out of outputsToCreate) {
@@ -896,7 +937,9 @@ export class SecadoService {
               pesoActual: out.peso,
               precioKg: precioPromedioKg,
               costoTotal: this.redondear(precioPromedioKg * out.peso),
-              humedad: out.humedad ? new Prisma.Decimal(Number(out.humedad).toFixed(2)) : null,
+              humedad: out.humedad
+                ? new Prisma.Decimal(Number(out.humedad).toFixed(2))
+                : null,
               deviceId,
               localId: `secado:${session.id}:${out.qualityName.toLowerCase()}`,
             },
@@ -931,22 +974,16 @@ export class SecadoService {
             estado: EstadoSecado.COMPLETED,
             completedAt: new Date(),
           },
-          include: {
-            tipoCafe: true,
-            calidad: true,
-            lote: true,
-            sublotes: {
-              include: {
-                sublote: true,
-              },
-            },
-          },
+          include: SECADO_SESSION_INCLUDE,
         });
 
         return this.mapSession(sessionActualizada);
       },
       { maxWait: 10000, timeout: 25000 },
     );
+
+    invalidarDashboardCache(organizacionId);
+    return resultado;
   }
 
   async getActiveSecado(userId: string) {
@@ -958,16 +995,7 @@ export class SecadoService {
         estado: { in: [EstadoSecado.IN_PROCESS, EstadoSecado.READY] },
       },
       orderBy: { startedAt: 'desc' },
-      include: {
-        tipoCafe: true,
-        calidad: true,
-        lote: true,
-        sublotes: {
-          include: {
-            sublote: true,
-          },
-        },
-      },
+      include: SECADO_SESSION_INCLUDE,
     });
 
     if (!activeSession) return null;
@@ -984,16 +1012,7 @@ export class SecadoService {
         estado: { in: [EstadoSecado.IN_PROCESS, EstadoSecado.READY] },
       },
       orderBy: { startedAt: 'desc' },
-      include: {
-        tipoCafe: true,
-        calidad: true,
-        lote: true,
-        sublotes: {
-          include: {
-            sublote: true,
-          },
-        },
-      },
+      include: SECADO_SESSION_INCLUDE,
     });
 
     if (!activeSession) return null;
@@ -1008,23 +1027,14 @@ export class SecadoService {
         id: sessionId,
         organizacionId,
       },
-      include: {
-        tipoCafe: true,
-        calidad: true,
-        lote: true,
-        sublotes: {
-          include: {
-            sublote: true,
-          },
-        },
-      },
+      include: SECADO_SESSION_INCLUDE,
     });
 
     if (!session) return null;
     return this.mapSession(session);
   }
 
-  private mapSession(session: any) {
+  private mapSession(session: SecadoSessionWithRelations) {
     if (!session) return null;
     return {
       id: session.id,
@@ -1035,32 +1045,49 @@ export class SecadoService {
       tipoCafe: session.tipoCafe.nombre,
       calidadId: session.calidadId,
       calidad: session.calidad.nombre,
-      subloteIds: session.sublotes.map((s: any) => s.subloteId),
+      subloteIds: session.sublotes.map((s) => s.subloteId),
       inputKg: Number(session.inputKg),
       outputBuenoKg: Number(session.outputBuenoKg),
-      outputBuenoHumedad: session.outputBuenoHumedad ? Number(session.outputBuenoHumedad) : null,
+      outputBuenoHumedad: session.outputBuenoHumedad
+        ? Number(session.outputBuenoHumedad)
+        : null,
       outputRegularKg: Number(session.outputRegularKg),
-      outputRegularHumedad: session.outputRegularHumedad ? Number(session.outputRegularHumedad) : null,
+      outputRegularHumedad: session.outputRegularHumedad
+        ? Number(session.outputRegularHumedad)
+        : null,
       outputMaloKg: Number(session.outputMaloKg),
-      outputMaloHumedad: session.outputMaloHumedad ? Number(session.outputMaloHumedad) : null,
+      outputMaloHumedad: session.outputMaloHumedad
+        ? Number(session.outputMaloHumedad)
+        : null,
       mermaKg: Number(session.mermaKg),
-      rendimientoPct: session.rendimientoPct ? Number(session.rendimientoPct) : null,
+      rendimientoPct: session.rendimientoPct
+        ? Number(session.rendimientoPct)
+        : null,
       startedAt: session.startedAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
-      completedAt: session.completedAt ? session.completedAt.toISOString() : null,
-      draftStartDate: session.draftStartDate ? session.draftStartDate.toISOString() : null,
-      draftEndDate: session.draftEndDate ? session.draftEndDate.toISOString() : null,
+      completedAt: session.completedAt
+        ? session.completedAt.toISOString()
+        : null,
+      draftStartDate: session.draftStartDate
+        ? session.draftStartDate.toISOString()
+        : null,
+      draftEndDate: session.draftEndDate
+        ? session.draftEndDate.toISOString()
+        : null,
       draftBuenoKg: session.draftBuenoKg ? Number(session.draftBuenoKg) : null,
-      draftRegularKg: session.draftRegularKg ? Number(session.draftRegularKg) : null,
+      draftRegularKg: session.draftRegularKg
+        ? Number(session.draftRegularKg)
+        : null,
       draftMaloKg: session.draftMaloKg ? Number(session.draftMaloKg) : null,
-      sublotes: session.sublotes.map((s: any) => {
+      sublotes: session.sublotes.map((s, index) => {
         const now = new Date();
         const targetDate = new Date(s.sublote.creadoEn);
         const diffTime = Math.max(0, now.getTime() - targetDate.getTime());
         const diasEnBodega = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const etiqueta = `${s.sublote.tipoCafe.nombre.trim().charAt(0).toLowerCase()}${s.sublote.calidad.nombre.trim().charAt(0).toLowerCase()}-${index + 1}`;
         return {
           id: s.sublote.id,
-          etiqueta: s.sublote.etiqueta,
+          etiqueta,
           pesoActual: Number(s.pesoAsignado),
           pesoDisponible: Number(s.sublote.pesoActual) + Number(s.pesoAsignado),
           humedad: s.sublote.humedad ? Number(s.sublote.humedad) : null,

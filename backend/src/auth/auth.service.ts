@@ -398,9 +398,11 @@ export class AuthService {
     }
 
     if (entry.expiresAt < new Date()) {
-      await this.prisma.passwordResetToken.delete({
-        where: { email: normalizedEmail },
-      }).catch(() => {});
+      await this.prisma.passwordResetToken
+        .delete({
+          where: { email: normalizedEmail },
+        })
+        .catch(() => {});
       throw new HttpException(
         { message: 'El código de recuperación ha expirado.' },
         HttpStatus.BAD_REQUEST,
@@ -419,9 +421,11 @@ export class AuthService {
       normalizedEmail,
       hashedPassword,
     );
-    await this.prisma.passwordResetToken.delete({
-      where: { email: normalizedEmail },
-    }).catch(() => {});
+    await this.prisma.passwordResetToken
+      .delete({
+        where: { email: normalizedEmail },
+      })
+      .catch(() => {});
 
     return { message: 'Contraseña restablecida con éxito' };
   }

@@ -3,9 +3,15 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { ParametrosService } from '../parametros/parametros.service';
+import {
+  calcularGastosPorSubloteHelper,
+  SublotePesable,
+  VentaResumen,
+  GastoSubloteLink,
+} from '../common/utils/financiero';
 
 type DashboardMovimiento = {
   id: string;
@@ -88,6 +94,10 @@ const dashboardInicioCache = new Map<
   string,
   { expiresAt: number; data: DashboardInicioResponse }
 >();
+
+export function invalidarDashboardCache(organizacionId: string): void {
+  dashboardInicioCache.delete(organizacionId);
+}
 
 @Injectable()
 export class DashboardService {
@@ -822,53 +832,15 @@ export class DashboardService {
   }
 
   private calcularGastosPorSublote(
-    gastosSublote: Array<{
-      gastoOperativoId: string;
-      subloteId: string;
-      gastoOperativo: { montoGasto: Prisma.Decimal | number };
-    }>,
-    sublotes: Array<{ id: string; pesoActual: Prisma.Decimal | number }>,
-    ventasPorSublote: Map<string, { pesoVendido: number }>,
+    gastosSublote: GastoSubloteLink[],
+    sublotes: SublotePesable[],
+    ventasPorSublote: Map<string, VentaResumen>,
   ): Map<string, number> {
-    const linksPorGasto = new Map<string, typeof gastosSublote>();
-    const pesoBasePorSublote = new Map<string, number>();
-
-    for (const sublote of sublotes) {
-      pesoBasePorSublote.set(
-        sublote.id,
-        Number(sublote.pesoActual) +
-          (ventasPorSublote.get(sublote.id)?.pesoVendido ?? 0),
-      );
-    }
-
-    for (const link of gastosSublote) {
-      const current = linksPorGasto.get(link.gastoOperativoId) ?? [];
-      current.push(link);
-      linksPorGasto.set(link.gastoOperativoId, current);
-    }
-
-    const gastosPorSublote = new Map<string, number>();
-    for (const links of linksPorGasto.values()) {
-      const montoGasto = Number(links[0]?.gastoOperativo.montoGasto ?? 0);
-      const pesoBaseTotal = links.reduce(
-        (sum, link) => sum + (pesoBasePorSublote.get(link.subloteId) ?? 0),
-        0,
-      );
-
-      for (const link of links) {
-        const pesoBase = pesoBasePorSublote.get(link.subloteId) ?? 0;
-        const gastoAsignado =
-          pesoBaseTotal > 0
-            ? (pesoBase / pesoBaseTotal) * montoGasto
-            : montoGasto / links.length;
-        gastosPorSublote.set(
-          link.subloteId,
-          (gastosPorSublote.get(link.subloteId) ?? 0) + gastoAsignado,
-        );
-      }
-    }
-
-    return gastosPorSublote;
+    return calcularGastosPorSubloteHelper(
+      gastosSublote,
+      sublotes,
+      ventasPorSublote,
+    );
   }
 
   private async obtenerOrganizacionId(userId: string): Promise<string> {

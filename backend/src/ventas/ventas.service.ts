@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
 import { CreateVentaDto } from './dto/crear-venta.dto';
 import {
   buscarVentaActivaPorSync,
@@ -48,7 +49,8 @@ export class VentasService {
     );
 
     try {
-      const [minPrecioVentaStr, maxPrecioVentaStr] = this.prisma.parametroOrganizacion
+      const [minPrecioVentaStr, maxPrecioVentaStr] = this.prisma
+        .parametroOrganizacion
         ? await Promise.all([
             this.prisma.parametroOrganizacion.findUnique({
               where: {
@@ -69,11 +71,18 @@ export class VentasService {
           ])
         : [null, null];
 
-      const minPrecioVenta = minPrecioVentaStr?.valor ? Number(minPrecioVentaStr.valor) : 1000;
-      const maxPrecioVenta = maxPrecioVentaStr?.valor ? Number(maxPrecioVentaStr.valor) : 100000;
+      const minPrecioVenta = minPrecioVentaStr?.valor
+        ? Number(minPrecioVentaStr.valor)
+        : 1000;
+      const maxPrecioVenta = maxPrecioVentaStr?.valor
+        ? Number(maxPrecioVentaStr.valor)
+        : 100000;
 
       for (const [index, detalle] of input.detalles.entries()) {
-        if (detalle.precioKg < minPrecioVenta || detalle.precioKg > maxPrecioVenta) {
+        if (
+          detalle.precioKg < minPrecioVenta ||
+          detalle.precioKg > maxPrecioVenta
+        ) {
           throw new VentaValidacionCriticaError(
             'VENTA_PRECIO_INVALIDO',
             `El precio por kg debe estar entre $${minPrecioVenta.toLocaleString('es-CO')} y $${maxPrecioVenta.toLocaleString('es-CO')}.`,
@@ -82,7 +91,7 @@ export class VentasService {
         }
       }
 
-      return await procesarVenta(
+      const resultado = await procesarVenta(
         {
           ...input,
           organizacionId: organizacionIdFinal,
@@ -90,6 +99,9 @@ export class VentasService {
         },
         this.prisma,
       );
+
+      invalidarDashboardCache(organizacionIdFinal);
+      return resultado;
     } catch (error) {
       if (error instanceof VentaValidacionCriticaError) {
         throw new BadRequestException(

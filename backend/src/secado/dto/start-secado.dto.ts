@@ -1,4 +1,10 @@
-import { IsArray, ArrayMinSize, IsUUID, IsOptional, IsObject } from 'class-validator';
+import {
+  IsArray,
+  ArrayMinSize,
+  IsUUID,
+  IsOptional,
+  IsObject,
+} from 'class-validator';
 
 export class StartSecadoDto {
   @IsArray()

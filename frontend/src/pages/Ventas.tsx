@@ -9,7 +9,6 @@ import {
   ReceiptText,
   RefreshCw,
   Search,
-  Scale,
   Trash2,
   User,
   X,
@@ -132,9 +131,9 @@ const TIPOS_DOCUMENTO_CLIENTE: Array<{
   value: DocumentType;
   label: string;
 }> = [
-    { value: 'CC', label: 'Cédula de ciudadanía' },
-    { value: 'NIT', label: 'NIT' },
-  ];
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
 const CLIENTE_FORM_INICIAL: ClienteForm = {
   nombre: '',
   tipoDocumento: 'CC',
@@ -159,10 +158,11 @@ const norm = (v: string) =>
 const keyOf = (v: string) => v.trim().toUpperCase();
 
 function personFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${hasError
-    ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
-    : 'border-[#dde4f1] focus:border-[#173ea6]'
-    }`;
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${
+    hasError
+      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+      : 'border-[#dde4f1] focus:border-[#173ea6]'
+  }`;
 }
 
 function PersonFieldError({ message }: { message: string }) {
@@ -194,23 +194,6 @@ function isSecadoProcessLot(lote: LoteResumen | LoteVenta) {
 
 function coffeeWithQuality(tipoCafe: string, calidad: string) {
   return `${formatCoffeeLabel(tipoCafe)} - ${formatDisplayLabel(calidad)}`;
-}
-
-function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
-  return lotes
-    .filter((l) => l.pesoActual > 0)
-    .map((l) => ({
-      id: l.id,
-      codigo: l.codigo,
-      tipoCafeId: l.tipoCafeId,
-      tipoCafe: l.tipoCafe,
-      calidadId: l.calidadId,
-      calidad: l.calidad,
-      disponibleKg: l.pesoActual,
-      cantidadKg: '',
-      precioKg: '',
-      pesoVerificadoKg: '',
-    }));
 }
 
 const uid = () =>
@@ -375,30 +358,6 @@ function pesoVerificadoInvalido(lote: LoteVenta) {
   );
 }
 
-function distribuirPesoVerificado(
-  pool: Array<{ subloteId: string; disponibleKg: number }>,
-  pesoVerificado: number,
-) {
-  const totalActual = round2(
-    pool.reduce((sum, item) => sum + item.disponibleKg, 0),
-  );
-  if (pesoVerificado >= totalActual || totalActual <= 0) return pool;
-
-  let acumulado = 0;
-  return pool.map((item, index) => {
-    const disponibleKg =
-      index === pool.length - 1
-        ? round2(Math.max(0, pesoVerificado - acumulado))
-        : round2((item.disponibleKg / totalActual) * pesoVerificado);
-    acumulado = round2(acumulado + disponibleKg);
-
-    return {
-      ...item,
-      disponibleKg,
-    };
-  });
-}
-
 function datosPasoVenta(step: Step) {
   if (step === 1) {
     return {
@@ -418,7 +377,11 @@ function datosPasoVenta(step: Step) {
   };
 }
 
-function getVentasGuidance(message: string, minPrecio: number, maxPrecio: number): GuidedErrorMessage {
+function getVentasGuidance(
+  message: string,
+  minPrecio: number,
+  maxPrecio: number,
+): GuidedErrorMessage {
   if (message.includes('nombre')) {
     return createGuidedError(
       message,
@@ -809,11 +772,13 @@ export default function Ventas() {
           ),
         ),
       });
-      const lotesFiltrados = lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote));
+      const lotesFiltrados = lotesDisponibles.filter(
+        (lote) => !isSecadoProcessLot(lote),
+      );
       const lotesDetalles = await Promise.all(
         lotesFiltrados.map((lote) =>
-          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).catch(() => null)
-        )
+          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).catch(() => null),
+        ),
       );
 
       const list: LoteVenta[] = [];
@@ -823,9 +788,9 @@ export default function Ventas() {
         if (!detail) continue;
 
         const sublotesList = ENABLE_SECADO_PROTOTYPE
-          ? applySecadoToDetalle(detail, lote.tipoCafeId, lote.calidadId, {
+          ? (applySecadoToDetalle(detail, lote.tipoCafeId, lote.calidadId, {
               includeGeneratedOutputs: false,
-            })?.sublotes ?? []
+            })?.sublotes ?? [])
           : detail.sublotes;
 
         for (const sub of sublotesList) {
@@ -954,7 +919,12 @@ export default function Ventas() {
     }
 
     return invalidos;
-  }, [minPrecioVentaKg, precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
+  }, [
+    minPrecioVentaKg,
+    precioMaximoVentaPermitido,
+    preciosVentaTotal,
+    resumenDisponiblePorTipo,
+  ]);
   const preciosVentaTotalFaltantes = React.useMemo(
     () =>
       resumenDisponiblePorTipo.some(
@@ -1253,16 +1223,16 @@ export default function Ventas() {
         const normalizado =
           campo === 'precioKg'
             ? sanitizeIntegerVentaInput(
-              valor,
-              precioMaximoVentaPermitido,
-              l.precioKg,
-            )
+                valor,
+                precioMaximoVentaPermitido,
+                l.precioKg,
+              )
             : sanitizeDecimalVentaInput(
-              valor,
-              campo === 'pesoVerificadoKg'
-                ? l.disponibleKg
-                : getDisponibleVenta(l),
-            );
+                valor,
+                campo === 'pesoVerificadoKg'
+                  ? l.disponibleKg
+                  : getDisponibleVenta(l),
+              );
 
         const updatedLote = { ...l, [campo]: normalizado };
 
@@ -1283,8 +1253,6 @@ export default function Ventas() {
       }),
     );
   };
-
-
 
   const seleccionarCliente = React.useCallback((cliente: ClienteOption) => {
     setClienteSeleccionado(cliente);
@@ -1960,7 +1928,8 @@ export default function Ventas() {
                                   />
                                 </label>
                                 <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
-                                  Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                  Rango: {money(minPrecioVentaKg)} -{' '}
+                                  {money(precioMaximoVentaPermitido)}/kg
                                 </p>
                                 {precioTipoInvalido ? (
                                   <InlineGuidedError
@@ -1998,7 +1967,8 @@ export default function Ventas() {
                         const disponibleVenta = getDisponibleVenta(lote);
 
                         // El sublote está "activo" si el usuario llenó al menos uno de los campos
-                        const subloteActivo = cantidadIngresada || precioIngresado;
+                        const subloteActivo =
+                          cantidadIngresada || precioIngresado;
                         // Si el usuario intentó avanzar Y el sublote está activo, validar ambos campos
                         // Si solo uno está lleno, mostrar error en el faltante inmediatamente
                         const cantidadFalta =
@@ -2113,7 +2083,8 @@ export default function Ventas() {
                                 <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
                                   <p className="pl-1">Máx. disponible</p>
                                   <p className="pr-1 text-right">
-                                    Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                    Rango: {money(minPrecioVentaKg)} -{' '}
+                                    {money(precioMaximoVentaPermitido)}/kg
                                   </p>
                                 </div>
                               </>
@@ -2138,7 +2109,10 @@ export default function Ventas() {
                       className="mt-2"
                     />
                   ) : null}
-                  {intentoPaso2 && totalKg < PESO_MINIMO_KG && modoVenta === 'PARCIAL' && hayCantidadParcial ? (
+                  {intentoPaso2 &&
+                  totalKg < PESO_MINIMO_KG &&
+                  modoVenta === 'PARCIAL' &&
+                  hayCantidadParcial ? (
                     <InlineGuidedError
                       message={createGuidedError(
                         'La cantidad total de venta debe ser mínimo 5 kg.',
@@ -2149,7 +2123,9 @@ export default function Ventas() {
                       className="mt-2"
                     />
                   ) : null}
-                  {intentoPaso2 && totalDisponibleVenta < PESO_MINIMO_KG && modoVenta === 'TOTAL' ? (
+                  {intentoPaso2 &&
+                  totalDisponibleVenta < PESO_MINIMO_KG &&
+                  modoVenta === 'TOTAL' ? (
                     <InlineGuidedError
                       message={createGuidedError(
                         'La cantidad total disponible debe ser mínimo 5 kg.',
@@ -3013,7 +2989,11 @@ export default function Ventas() {
 
                 {clienteFormError ? (
                   <InlineGuidedError
-                    message={getVentasGuidance(clienteFormError, minPrecioVentaKg, precioMaximoVentaPermitido)}
+                    message={getVentasGuidance(
+                      clienteFormError,
+                      minPrecioVentaKg,
+                      precioMaximoVentaPermitido,
+                    )}
                   />
                 ) : null}
               </div>

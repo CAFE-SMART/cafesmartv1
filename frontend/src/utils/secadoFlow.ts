@@ -1,7 +1,4 @@
-import type {
-  LoteDetalle,
-  LoteResumen,
-} from '../services/lotesService';
+import type { LoteDetalle, LoteResumen } from '../services/lotesService';
 import {
   startSecado as startSecadoApi,
   saveSecadoResults as saveSecadoResultsApi,
@@ -68,7 +65,19 @@ export class SecadoValidationError extends Error {
   }
 }
 
-function mapApiSession(session: ApiSecadoSession & { loteCodigo?: string, sublotes?: any[], draftStartDate?: string | null, draftEndDate?: string | null, draftBuenoKg?: number | null, draftRegularKg?: number | null, draftMaloKg?: number | null }): SecadoSession {
+function mapApiSession(
+  session: ApiSecadoSession & {
+    loteCodigo?: string;
+    sublotes?: SecadoSubloteSeleccionado[];
+    draftStartDate?: string | null;
+    draftEndDate?: string | null;
+    draftBuenoKg?: number | null;
+    draftRegularKg?: number | null;
+    draftMaloKg?: number | null;
+    outputMaloKg?: number | null;
+    outputMaloHumedad?: number | null;
+  },
+): SecadoSession {
   return {
     id: session.id,
     estado: session.estado as SecadoEstado,
@@ -78,7 +87,7 @@ function mapApiSession(session: ApiSecadoSession & { loteCodigo?: string, sublot
     tipoCafe: session.tipoCafe,
     calidadId: session.calidadId,
     calidad: session.calidad,
-    sublotes: (session.sublotes || []).map((sub: any) => ({
+    sublotes: (session.sublotes || []).map((sub) => ({
       id: sub.id,
       etiqueta: sub.etiqueta,
       pesoActual: sub.pesoActual,
@@ -95,8 +104,8 @@ function mapApiSession(session: ApiSecadoSession & { loteCodigo?: string, sublot
     outputBuenoHumedad: session.outputBuenoHumedad,
     outputRegularKg: session.outputRegularKg,
     outputRegularHumedad: session.outputRegularHumedad,
-    outputMaloKg: (session as any).outputMaloKg ?? 0,
-    outputMaloHumedad: (session as any).outputMaloHumedad ?? null,
+    outputMaloKg: session.outputMaloKg ?? 0,
+    outputMaloHumedad: session.outputMaloHumedad ?? null,
     mermaKg: session.mermaKg,
     rendimientoPct: session.rendimientoPct || 0,
     draftStartDate: session.draftStartDate || null,
@@ -116,7 +125,9 @@ export function clearSecadoSessions(): void {
   // no-op, fully persisted on DB
 }
 
-export async function getSecadoSession(sessionId: string): Promise<SecadoSession | null> {
+export async function getSecadoSession(
+  sessionId: string,
+): Promise<SecadoSession | null> {
   const session = await getSecadoSessionApi(sessionId);
   return session ? mapApiSession(session) : null;
 }
@@ -145,7 +156,9 @@ export async function getActiveSecadoSessions(): Promise<SecadoSession[]> {
   return active ? [mapApiSession(active)] : [];
 }
 
-export async function getActiveSecadoSessionForLot(lotId: string): Promise<SecadoSession | null> {
+export async function getActiveSecadoSessionForLot(
+  lotId: string,
+): Promise<SecadoSession | null> {
   const active = await getActiveSecadoForLote(lotId);
   return active ? mapApiSession(active) : null;
 }
@@ -162,11 +175,17 @@ export async function startSecadoWithWeights(
   detalle: LoteDetalle,
   selectedWeights: Record<string, number>,
 ): Promise<SecadoSession> {
-  const subloteIds = Object.keys(selectedWeights).filter(id => selectedWeights[id] > 0);
-  const created = await startSecadoApi(detalle.lote.tipoCafeId, detalle.lote.calidadId, {
-    subloteIds,
-    pesos: selectedWeights,
-  });
+  const subloteIds = Object.keys(selectedWeights).filter(
+    (id) => selectedWeights[id] > 0,
+  );
+  const created = await startSecadoApi(
+    detalle.lote.tipoCafeId,
+    detalle.lote.calidadId,
+    {
+      subloteIds,
+      pesos: selectedWeights,
+    },
+  );
   return mapApiSession(created);
 }
 
@@ -192,18 +211,16 @@ export async function saveSecadoResults(
   return mapApiSession(updated);
 }
 
-export async function finalizeSecado(sessionId: string): Promise<SecadoSession> {
+export async function finalizeSecado(
+  sessionId: string,
+): Promise<SecadoSession> {
   const updated = await finalizeSecadoApi(sessionId);
   return mapApiSession(updated);
 }
 
-export function removeSecadoSession(sessionId: string): void {
-  // no-op, DB managed
-}
-
 export function applySecadoToLots(
   baseLots: LoteResumen[],
-  _options: any = {},
+  _options?: unknown,
 ): LoteResumen[] {
   return baseLots;
 }
@@ -212,7 +229,7 @@ export function applySecadoToDetalle(
   baseDetail: LoteDetalle | null,
   _tipoCafeId: string,
   _calidadId: string,
-  _options: any = {},
+  _options?: unknown,
 ): LoteDetalle | null {
   return baseDetail;
 }

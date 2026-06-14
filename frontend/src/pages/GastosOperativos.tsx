@@ -58,8 +58,6 @@ const MONTO_MAXIMO_GASTO = 99999999;
 const CONCEPTO_MAX_LENGTH = 60;
 const DESCRIPCION_MAX_LENGTH = 200;
 const CONCEPTO_VALIDO_REGEX = /^[\p{L}\s]+$/u;
-const CONCEPTO_TIENE_LETRA_REGEX = /\p{L}/u;
-const CONCEPTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 
 const BACKEND_FIELD_MAP: Record<string, FieldKey> = {
   conceptoGasto: 'concepto',

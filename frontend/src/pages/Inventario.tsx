@@ -428,10 +428,11 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span
-            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${isProcess
-              ? 'bg-[#fff2cc] text-[#946200]'
-              : 'bg-[#f2f3f7] text-slate-700'
-              }`}
+            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${
+              isProcess
+                ? 'bg-[#fff2cc] text-[#946200]'
+                : 'bg-[#f2f3f7] text-slate-700'
+            }`}
           >
             {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
@@ -511,7 +512,7 @@ function SecadoProcessCard({
   onOpen: () => void;
 }) {
   const totalKg = session.sublotes.reduce(
-    (sum: number, sublote: any) => sum + sublote.pesoActual,
+    (sum, sublote) => sum + sublote.pesoActual,
     0,
   );
   const progress = secadoProgress(session.estado);
@@ -519,10 +520,10 @@ function SecadoProcessCard({
   const fecha = Number.isNaN(startedAt.getTime())
     ? 'Hoy'
     : startedAt.toLocaleDateString('es-CO', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
 
   return (
     <button
@@ -590,7 +591,9 @@ export default function Inventario() {
   const [capacidadBodegaForm, setCapacidadBodegaForm] = useState('');
   const [guardandoBodega, setGuardandoBodega] = useState(false);
   const [errorBodega, setErrorBodega] = useState<string | null>(null);
-  const [activeSecadoSessions, setActiveSecadoSessions] = useState<any[]>([]);
+  const [activeSecadoSessions, setActiveSecadoSessions] = useState<
+    SecadoSession[]
+  >([]);
 
   const loadLots = async () => {
     setLoading(true);
@@ -600,14 +603,16 @@ export default function Inventario() {
       const [data, config, sessions] = await Promise.all([
         obtenerLotes(),
         obtenerConfiguracionBodega(),
-        ENABLE_SECADO_PROTOTYPE ? getActiveSecadoSessions() : Promise.resolve([]),
+        ENABLE_SECADO_PROTOTYPE
+          ? getActiveSecadoSessions()
+          : Promise.resolve([]),
       ]);
 
       setActiveSecadoSessions(
         [...sessions].sort(
           (a, b) =>
             new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-        )
+        ),
       );
       setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
       setBodegaConfig({
@@ -819,14 +824,16 @@ export default function Inventario() {
 
   return (
     <div
-      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
-        }`}
+      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
+        showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
+      }`}
     >
       <main
-        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${showGlobalEmptyState
-          ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
-          : 'flex-col gap-5'
-          }`}
+        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
+          showGlobalEmptyState
+            ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
+            : 'flex-col gap-5'
+        }`}
       >
         {!showGlobalEmptyState ? (
           <CapacityRing
@@ -859,10 +866,11 @@ export default function Inventario() {
 
                       setTypeKey(item.key);
                     }}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${active
-                      ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
-                      : 'border-[#d8deea] bg-white text-slate-600'
-                      }`}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
+                        : 'border-[#d8deea] bg-white text-slate-600'
+                    }`}
                   >
                     {displayCoffeeName(item.label)}
                   </button>
@@ -1035,10 +1043,10 @@ export default function Inventario() {
         ) : null}
 
         {!loading &&
-          !error &&
-          typeKey !== '' &&
-          typeKey !== 'EN SECADO' &&
-          orderedLots.length > 0 ? (
+        !error &&
+        typeKey !== '' &&
+        typeKey !== 'EN SECADO' &&
+        orderedLots.length > 0 ? (
           <section className={inventoryListClass(orderedLots.length)}>
             {orderedLots.map((lot) => (
               <QualityLotCard

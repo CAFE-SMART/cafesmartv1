@@ -31,6 +31,7 @@ import {
   saveSecadoDraft,
   startSecadoWithWeights,
   SecadoValidationError,
+  type SecadoSession,
 } from '../utils/secadoFlow';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -188,7 +189,7 @@ export default function SecadoProceso() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     sessionId ?? null,
   );
-  const [session, setSession] = useState<any | null>(null);
+  const [session, setSession] = useState<SecadoSession | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [step, setStep] = useState<'config' | 'active' | 'finish'>('config');
 
@@ -215,11 +216,26 @@ export default function SecadoProceso() {
           if (data) {
             setStartDate(dateInput(data.draftStartDate ?? data.startedAt));
             setEndDate(data.draftEndDate ?? getTodayLocalDateValue());
-            setBuenoKg((data.draftBuenoKg ?? data.outputBuenoKg) ? String(data.draftBuenoKg ?? data.outputBuenoKg) : '');
-            setRegularKg((data.draftRegularKg ?? data.outputRegularKg) ? String(data.draftRegularKg ?? data.outputRegularKg) : '');
-            setMaloKg((data.draftMaloKg ?? data.outputMaloKg) ? String(data.draftMaloKg ?? data.outputMaloKg) : '');
-            
-            if (searchParams.get('step') === 'finish' || data.estado === 'READY') {
+            setBuenoKg(
+              (data.draftBuenoKg ?? data.outputBuenoKg)
+                ? String(data.draftBuenoKg ?? data.outputBuenoKg)
+                : '',
+            );
+            setRegularKg(
+              (data.draftRegularKg ?? data.outputRegularKg)
+                ? String(data.draftRegularKg ?? data.outputRegularKg)
+                : '',
+            );
+            setMaloKg(
+              (data.draftMaloKg ?? data.outputMaloKg)
+                ? String(data.draftMaloKg ?? data.outputMaloKg)
+                : '',
+            );
+
+            if (
+              searchParams.get('step') === 'finish' ||
+              data.estado === 'READY'
+            ) {
               setStep('finish');
             } else {
               setStep('config');
@@ -259,7 +275,10 @@ export default function SecadoProceso() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum: number, sublote: any) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce(
+            (sum: number, sublote) => sum + sublote.pesoActual,
+            0,
+          )
         : pendingTotalEntrada,
     [pendingTotalEntrada, session],
   );
@@ -315,7 +334,7 @@ export default function SecadoProceso() {
 
       try {
         const resultados = await Promise.all(
-          session.sublotes.map((sublote: any) => listarGastosPorSublote(sublote.id)),
+          session.sublotes.map((sublote) => listarGastosPorSublote(sublote.id)),
         );
 
         if (cancelled) return;
@@ -450,7 +469,7 @@ export default function SecadoProceso() {
     if (!session) return;
 
     const subloteIds = session.sublotes
-      .map((sublote: any) => sublote.id)
+      .map((sublote) => sublote.id)
       .filter(Boolean);
 
     const query = new URLSearchParams();
@@ -511,7 +530,9 @@ export default function SecadoProceso() {
   if (loadingSession && !isNewFlow) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950 flex items-center justify-center">
-        <div className="text-sm font-bold text-slate-500">Cargando secado...</div>
+        <div className="text-sm font-bold text-slate-500">
+          Cargando secado...
+        </div>
       </div>
     );
   }

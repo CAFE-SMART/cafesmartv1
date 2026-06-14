@@ -139,10 +139,7 @@ export function validarVentaCritica(data: ProcesarVentaInput): void {
       );
     }
 
-    if (
-      !Number.isFinite(detalle.pesoVendido) ||
-      detalle.pesoVendido < 0.01
-    ) {
+    if (!Number.isFinite(detalle.pesoVendido) || detalle.pesoVendido < 0.01) {
       throw new VentaValidacionCriticaError(
         'VENTA_CANTIDAD_INVALIDA',
         `La cantidad a vender en cada sublote debe ser minimo 0.01 kg.`,
@@ -628,17 +625,8 @@ function ordenarDetallesPorSublote(
   return [...detalles].sort((a, b) => a.subloteId.localeCompare(b.subloteId));
 }
 
-/**
- * Utilidades de conversion para operar pesos y montos con dos decimales.
- */
-export function aCentiUnidades(valor: number): number {
-  return Math.round((valor + Number.EPSILON) * 100);
-}
-
-export function desdeCentiUnidades(valor: number): number {
-  return valor / 100;
-}
-
-export function normalizarADosDecimales(valor: number): number {
-  return desdeCentiUnidades(aCentiUnidades(valor));
-}
+import {
+  aCentiUnidades,
+  desdeCentiUnidades,
+  normalizarADosDecimales,
+} from '../common/utils/math';

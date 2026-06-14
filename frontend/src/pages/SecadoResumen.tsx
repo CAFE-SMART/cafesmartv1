@@ -1,18 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Home, LoaderCircle } from 'lucide-react';
-import {
-  finalizeSecado,
-  getSecadoSession,
-  removeSecadoSession,
-  type SecadoSubloteSeleccionado,
-} from '../utils/secadoFlow';
-import {
-  crearSecado,
-  transformarSecado,
-  type TransformarSecadoPayload,
-} from '../services/secadoService';
-import { obtenerDeviceId } from '../utils/deviceId';
+import { finalizeSecado, type SecadoSession } from '../utils/secadoFlow';
 import { ApiRequestError } from '../services/apiService';
 import {
   createGuidedError,
@@ -62,37 +51,10 @@ function getSecadoPersistGuidance(message: string) {
   );
 }
 
-async function persistirSecadoRemoto(
-  payload: TransformarSecadoPayload,
-  fuentes: SecadoSubloteSeleccionado[],
-): Promise<void> {
-  const fuente = fuentes[0];
-  const esSubloteCompleto =
-    fuentes.length === 1 &&
-    fuente &&
-    Number.isFinite(fuente.pesoDisponible) &&
-    Math.abs((fuente.pesoDisponible ?? 0) - fuente.pesoActual) < 0.01;
-
-  if (
-    esSubloteCompleto &&
-    payload.fuentes.length === 1 &&
-    payload.salidas.length === 1
-  ) {
-    await crearSecado({
-      subloteId: payload.fuentes[0].id,
-      pesoSalida: payload.salidas[0].pesoKg,
-      calidadSalida: payload.salidas[0].calidad,
-    });
-    return;
-  }
-
-  await transformarSecado(payload);
-}
-
 export default function SecadoResumen() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [session, setSession] = useState<any | null>(null);
+  const [session, setSession] = useState<SecadoSession | null>(null);
   const [persisting, setPersisting] = useState(false);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [persisted, setPersisted] = useState(false);
@@ -125,7 +87,10 @@ export default function SecadoResumen() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum: number, sublote: any) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce(
+            (sum: number, sublote) => sum + sublote.pesoActual,
+            0,
+          )
         : 0,
     [session],
   );
@@ -135,7 +100,7 @@ export default function SecadoResumen() {
     (session?.outputMaloKg ?? 0);
   const sublotesOrigen =
     session?.sublotes
-      .map((sublote: any) => sublote.etiqueta)
+      .map((sublote) => sublote.etiqueta)
       .filter((etiqueta: string) => etiqueta.trim().length > 0) ?? [];
   const origenLabel =
     (session?.sublotes.length ?? 0) === 1
@@ -149,7 +114,9 @@ export default function SecadoResumen() {
   if (!session && persisting) {
     return (
       <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950 flex items-center justify-center">
-        <div className="text-sm font-bold text-slate-500">Finalizando y guardando secado...</div>
+        <div className="text-sm font-bold text-slate-500">
+          Finalizando y guardando secado...
+        </div>
       </div>
     );
   }

@@ -515,7 +515,7 @@ export default function Sublotes() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
+  const [, setOfflineNoticeVisible] = useState(false);
   const [factorNotice, setFactorNotice] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{
     field: EditField;
@@ -1081,15 +1081,7 @@ export default function Sublotes() {
     return getDaysForSublote(subloteActivo);
   }, [subloteActivo]);
 
-  const subloteActivoIndex = useMemo(() => {
-    if (!detalle || !subloteActivo) return -1;
-    return detalle.sublotes.findIndex(
-      (sublote) => sublote.id === subloteActivo.id,
-    );
-  }, [detalle, subloteActivo]);
-
-  const subloteActivoNombre =
-    subloteActivo?.etiqueta ?? 'Sublote';
+  const subloteActivoNombre = subloteActivo?.etiqueta ?? 'Sublote';
 
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);

@@ -15,7 +15,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Save,
   ShoppingBag,
   Smile,
   SunMedium,
@@ -146,9 +145,9 @@ const TIPOS_DOCUMENTO_PRODUCTOR: Array<{
   value: DocumentType;
   label: string;
 }> = [
-    { value: 'CC', label: 'Cédula de ciudadanía' },
-    { value: 'NIT', label: 'NIT' },
-  ];
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
 
 const PRODUCTOR_FORM_INICIAL: ProductorForm = {
   nombre: '',
@@ -316,15 +315,22 @@ function isSubloteCompletado(
   minPrecioKg: number,
   maxPrecioKg: number,
 ) {
-  const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
+  const errors = getSubloteFieldErrors(
+    sublote,
+    minPesoKg,
+    maxPesoKg,
+    minPrecioKg,
+    maxPrecioKg,
+  );
   return countSubloteErrors(errors) === 0;
 }
 
 function productorFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition ${hasError
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition ${
+    hasError
       ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
       : 'border-[#dde4f1] focus:border-[#173ea6]'
-    }`;
+  }`;
 }
 
 function ProducerFieldError({ message }: { message: string }) {
@@ -857,8 +863,8 @@ export default function Compras() {
         const pesoMaximoConfig = Number(bodegaConfig.maxPesoKg);
         const maximoConfigurado =
           Number.isFinite(pesoMaximoConfig) &&
-            pesoMaximoConfig > 0 &&
-            pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
+          pesoMaximoConfig > 0 &&
+          pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
             ? pesoMaximoConfig
             : MAX_PESO_OPERATIVO_DEFAULT_KG;
         setMinPesoKg(bodegaConfig.minPesoKg ?? PESO_MINIMO_KG);
@@ -943,7 +949,14 @@ export default function Compras() {
         precio <= maxPrecioKg
       );
     });
-  }, [fechaCompraValidacion.isValid, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg, sublotes]);
+  }, [
+    fechaCompraValidacion.isValid,
+    minPesoKg,
+    maxPesoKg,
+    minPrecioKg,
+    maxPrecioKg,
+    sublotes,
+  ]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -1051,7 +1064,13 @@ export default function Compras() {
     sublotes[sublotes.length - 1] ??
     null;
   const subloteActualListo = subloteActual
-    ? isSubloteCompletado(subloteActual, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg)
+    ? isSubloteCompletado(
+        subloteActual,
+        minPesoKg,
+        maxPesoKg,
+        minPrecioKg,
+        maxPrecioKg,
+      )
     : false;
   const sublotesVisibles = sublotes;
   const sublotesAgregados = sublotesVisibles.filter(
@@ -1501,7 +1520,13 @@ export default function Compras() {
     }
 
     for (const [index, sublote] of sublotes.entries()) {
-      const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
+      const errors = getSubloteFieldErrors(
+        sublote,
+        minPesoKg,
+        maxPesoKg,
+        minPrecioKg,
+        maxPrecioKg,
+      );
       const errorCount = countSubloteErrors(errors);
 
       if (errorCount === 1) {
@@ -1858,7 +1883,7 @@ export default function Compras() {
             </div>
 
             {compraGuardada.capacidad &&
-              compraGuardada.capacidad.nivel !== 'normal' ? (
+            compraGuardada.capacidad.nivel !== 'normal' ? (
               <section
                 className={`mt-6 rounded-[16px] border p-4 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
               >
@@ -1979,7 +2004,7 @@ export default function Compras() {
                 productorSelectionMode === 'buscar'
                   ? 'border-[#1D4ED8]'
                   : 'border-[#e3e7f3]'
-                }`}
+              }`}
             >
               <div className="flex items-center gap-3">
                 <span
@@ -1987,7 +2012,7 @@ export default function Compras() {
                     productorSelectionMode === 'buscar'
                       ? 'bg-[#1D4ED8] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
-                    }`}
+                  }`}
                 >
                   <Search size={18} />
                 </span>
@@ -2004,7 +2029,7 @@ export default function Compras() {
                     productorSelectionMode === 'buscar'
                       ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
-                    }`}
+                  }`}
                 >
                   <Check size={12} />
                 </span>
@@ -2085,7 +2110,7 @@ export default function Compras() {
                 productorSelectionMode === 'generico'
                   ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                   : 'border-[#e3e7f3] bg-white'
-                }`}
+              }`}
             >
               <div className="flex items-center gap-3">
                 <span
@@ -2093,7 +2118,7 @@ export default function Compras() {
                     productorSelectionMode === 'generico'
                       ? 'bg-[#1D4ED8] text-white'
                       : 'bg-[#eef2f7] text-slate-500'
-                    }`}
+                  }`}
                 >
                   <User size={18} />
                 </span>
@@ -2110,7 +2135,7 @@ export default function Compras() {
                     productorSelectionMode === 'generico'
                       ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                       : 'border-[#cad2e2] bg-white text-transparent'
-                    }`}
+                  }`}
                 >
                   <Check size={12} />
                 </span>
@@ -2215,8 +2240,8 @@ export default function Compras() {
                 />
               </div>
               {mostrarErrorFormulario &&
-                step === 2 &&
-                !fechaCompraValidacion.isValid ? (
+              step === 2 &&
+              !fechaCompraValidacion.isValid ? (
                 <p className="mt-2 text-[0.85rem] font-semibold text-rose-500">
                   {fechaCompraValidacion.message ??
                     'Selecciona la fecha de compra.'}
@@ -2464,10 +2489,11 @@ export default function Compras() {
                             event.target.value,
                           )
                         }
-                        className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${sublote.tipoCafeId
+                        className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${
+                          sublote.tipoCafeId
                             ? 'border-[#dfe5f2] font-semibold text-slate-900'
                             : 'border-[#dfe5f2] font-medium text-slate-400'
-                          }`}
+                        }`}
                       >
                         <option value="">Seleccionar tipo de café</option>
                         {tiposCafe.map((tipoCafe) => (
@@ -2505,7 +2531,7 @@ export default function Compras() {
                                 sublote.id,
                                 'calidadId',
                                 calidad.id,
-                                )
+                              )
                             }
                             className={`rounded-[18px] border-2 px-2 py-3 text-sm font-semibold transition ${
                               activo
@@ -2569,7 +2595,8 @@ export default function Compras() {
                             }
                             actualizarSublote(sublote.id, 'pesoInicial', raw);
                           }}
-                          className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${pesoError
+                          className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${
+                            pesoError
                               ? 'border-rose-400 focus:border-rose-500'
                               : 'border-[#e4e8f3] focus:border-[#1D4ED8]'
                           }`}
@@ -3324,7 +3351,7 @@ export default function Compras() {
                           activo
                             ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
                             : 'text-slate-500'
-                          }`}
+                        }`}
                       >
                         {orden.label}
                       </button>
@@ -3361,7 +3388,7 @@ export default function Compras() {
               }}
             >
               {cargandoProductoresSelector &&
-                productoresSelectorVisibles.length === 0 ? (
+              productoresSelectorVisibles.length === 0 ? (
                 <div className="rounded-[16px] border border-[#e6ebf5] bg-[#fafbff] px-4 py-8 text-center">
                   <LoaderCircle
                     size={24}
@@ -3430,14 +3457,14 @@ export default function Compras() {
                             activo
                               ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
-                            }`}
+                          }`}
                         >
                           <span
                             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                               activo
                                 ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                                 : 'border-[#aebbd1] bg-white text-transparent'
-                              }`}
+                            }`}
                             aria-hidden="true"
                           >
                             {activo ? (
@@ -3582,7 +3609,7 @@ export default function Compras() {
                     type="text"
                     inputMode={
                       productorForm.tipoDocumento === 'CC' ||
-                        productorForm.tipoDocumento === 'NIT'
+                      productorForm.tipoDocumento === 'NIT'
                         ? 'numeric'
                         : 'text'
                     }

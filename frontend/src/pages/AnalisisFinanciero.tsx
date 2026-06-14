@@ -218,9 +218,7 @@ export default function AnalisisFinanciero() {
           />
           <Metric
             title="Merma acumulada"
-            value={
-              loading ? '...' : `${formatKg(merma)} kg`
-            }
+            value={loading ? '...' : `${formatKg(merma)} kg`}
             hint="Impacto acumulado del secado."
             icon={<BarChart3 size={20} />}
             accent="bg-[#fff7ed] text-[#c2410c]"

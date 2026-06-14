@@ -62,10 +62,22 @@ export class BodegaService {
       ),
       this.parametrosService.getParametroString('min_peso_kg', organizacionId),
       this.parametrosService.getParametroString('max_peso_kg', organizacionId),
-      this.parametrosService.getParametroString('min_precio_kg', organizacionId),
-      this.parametrosService.getParametroString('max_precio_kg', organizacionId),
-      this.parametrosService.getParametroString('min_precio_venta_kg', organizacionId),
-      this.parametrosService.getParametroString('max_precio_venta_kg', organizacionId),
+      this.parametrosService.getParametroString(
+        'min_precio_kg',
+        organizacionId,
+      ),
+      this.parametrosService.getParametroString(
+        'max_precio_kg',
+        organizacionId,
+      ),
+      this.parametrosService.getParametroString(
+        'min_precio_venta_kg',
+        organizacionId,
+      ),
+      this.parametrosService.getParametroString(
+        'max_precio_venta_kg',
+        organizacionId,
+      ),
     ]);
 
     const parsed = Number(capacidadKgStr);
@@ -102,7 +114,9 @@ export class BodegaService {
 
     const parsedMinPrecioVenta = Number(minPrecioVentaKgStr);
     const minPrecioVentaKg =
-      minPrecioVentaKgStr && Number.isFinite(parsedMinPrecioVenta) && parsedMinPrecioVenta > 0
+      minPrecioVentaKgStr &&
+      Number.isFinite(parsedMinPrecioVenta) &&
+      parsedMinPrecioVenta > 0
         ? parsedMinPrecioVenta
         : PRECIO_MINIMO_KG;
 
@@ -209,7 +223,9 @@ export class BodegaService {
     maxPrecioVentaKg: number;
   }> {
     if (!Number.isFinite(minPesoKg) || minPesoKg <= 0) {
-      throw new BadRequestException('El peso mínimo debe ser un número positivo');
+      throw new BadRequestException(
+        'El peso mínimo debe ser un número positivo',
+      );
     }
 
     if (
@@ -240,7 +256,10 @@ export class BodegaService {
       );
     }
 
-    if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg < minPrecioVentaKg) {
+    if (
+      !Number.isFinite(maxPrecioVentaKg) ||
+      maxPrecioVentaKg < minPrecioVentaKg
+    ) {
       throw new BadRequestException(
         'El precio máximo de venta debe ser mayor o igual al precio mínimo',
       );
@@ -279,6 +298,13 @@ export class BodegaService {
       ),
     ]);
 
-    return { minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg, minPrecioVentaKg, maxPrecioVentaKg };
+    return {
+      minPesoKg,
+      maxPesoKg,
+      minPrecioKg,
+      maxPrecioKg,
+      minPrecioVentaKg,
+      maxPrecioVentaKg,
+    };
   }
 }

@@ -129,7 +129,9 @@ export default function SecadoInicio() {
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
         );
-      const pendingLotIds = new Set(pendientes.map((session) => session.loteId));
+      const pendingLotIds = new Set(
+        pendientes.map((session) => session.loteId),
+      );
       setPendingSessions(pendientes);
 
       const data = await obtenerLotes();
@@ -176,7 +178,9 @@ export default function SecadoInicio() {
 
   const iniciarSeleccionado = () => {
     if (!loteSeleccionado || hasPending) return;
-    navigate(`/inventario/${loteSeleccionado.tipoCafeId}/${loteSeleccionado.calidadId}/secado`);
+    navigate(
+      `/inventario/${loteSeleccionado.tipoCafeId}/${loteSeleccionado.calidadId}/secado`,
+    );
   };
 
   return (

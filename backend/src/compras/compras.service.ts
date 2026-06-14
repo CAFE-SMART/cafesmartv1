@@ -13,7 +13,9 @@ import {
   TipoMovimientoInventario,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { aCentiUnidades, desdeCentiUnidades } from '../common/utils/math';
 import { apiError } from '../common/errors/api-error';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
 import { CreateCompraDto } from './dto/crear-compra.dto';
 import {
   CompraProcesada,
@@ -216,7 +218,7 @@ export class ComprasService {
        * Ejecuta la compra como una sola unidad de trabajo:
        * crea la compra, crea sublotes, actualiza el agregado y registra trazabilidad.
        */
-      return await this.prisma.$transaction(
+      const resultado = await this.prisma.$transaction(
         async (tx) => {
           const organizacionIdFinal = await this.obtenerOrganizacionId(
             tx,
@@ -243,51 +245,56 @@ export class ComprasService {
             input.productorId,
           );
 
-          const [minPesoStr, maxPesoStr, minPrecioStr, maxPrecioStr] = tx.parametroOrganizacion
-            ? await Promise.all([
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'min_peso_kg',
+          const [minPesoStr, maxPesoStr, minPrecioStr, maxPrecioStr] =
+            tx.parametroOrganizacion
+              ? await Promise.all([
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'min_peso_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'max_peso_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'max_peso_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'min_precio_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'min_precio_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'max_precio_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'max_precio_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-              ])
-            : [null, null, null, null];
+                    select: { valor: true },
+                  }),
+                ])
+              : [null, null, null, null];
 
           const minPeso = minPesoStr?.valor ? Number(minPesoStr.valor) : 5;
           const maxPeso = maxPesoStr?.valor ? Number(maxPesoStr.valor) : 99999;
-          const minPrecio = minPrecioStr?.valor ? Number(minPrecioStr.valor) : 1000;
-          const maxPrecio = maxPrecioStr?.valor ? Number(maxPrecioStr.valor) : 100000;
+          const minPrecio = minPrecioStr?.valor
+            ? Number(minPrecioStr.valor)
+            : 1000;
+          const maxPrecio = maxPrecioStr?.valor
+            ? Number(maxPrecioStr.valor)
+            : 100000;
 
           for (const [index, sublote] of input.sublotes.entries()) {
             if (sublote.pesoInicial < minPeso) {
@@ -314,8 +321,6 @@ export class ComprasService {
           }
 
           const compraProcesada = procesarCompra(input, contextoCapacidad);
-
-
 
           const lotesCompra = await this.asegurarLotesCompra(
             tx,
@@ -390,6 +395,9 @@ export class ComprasService {
         },
         { maxWait: 10000, timeout: 25000 },
       );
+
+      invalidarDashboardCache(organizacionIdCapacidad);
+      return resultado;
     } catch (error) {
       if (error instanceof CompraValidacionCriticaError) {
         throw new BadRequestException(
@@ -974,14 +982,12 @@ export class ComprasService {
           calidadId: movimiento.calidadId,
           tipoMovimiento: movimiento.tipoMovimiento,
           referenciaTipo: movimiento.referenciaTipo,
-          cantidadCenti: this.aCentiUnidades(movimiento.cantidad),
+          cantidadCenti: aCentiUnidades(movimiento.cantidad),
         });
         continue;
       }
 
-      movimientoActual.cantidadCenti += this.aCentiUnidades(
-        movimiento.cantidad,
-      );
+      movimientoActual.cantidadCenti += aCentiUnidades(movimiento.cantidad);
     }
 
     return [...acumulados.values()].map((movimiento) => ({
@@ -989,7 +995,7 @@ export class ComprasService {
       calidadId: movimiento.calidadId,
       tipoMovimiento: movimiento.tipoMovimiento,
       referenciaTipo: movimiento.referenciaTipo,
-      cantidad: this.desdeCentiUnidades(movimiento.cantidadCenti),
+      cantidad: desdeCentiUnidades(movimiento.cantidadCenti),
     }));
   }
 
@@ -1144,16 +1150,5 @@ export class ComprasService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     );
-  }
-
-  /**
-   * Utilidades de conversion para operar cantidades monetarias y de peso con dos decimales.
-   */
-  private aCentiUnidades(valor: number): number {
-    return Math.round((valor + Number.EPSILON) * 100);
-  }
-
-  private desdeCentiUnidades(valor: number): number {
-    return valor / 100;
   }
 }

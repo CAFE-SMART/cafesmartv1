@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,7 +9,10 @@ import {
   Package2,
   Scale,
 } from 'lucide-react';
-import { getActiveSecadoSessions, type SecadoSession } from '../utils/secadoFlow';
+import {
+  getActiveSecadoSessions,
+  type SecadoSession,
+} from '../utils/secadoFlow';
 import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 
 type ActiveSecadoSession = SecadoSession;
@@ -22,7 +25,7 @@ function kg(value: number) {
 }
 
 function totalEntrada(session: ActiveSecadoSession) {
-  return session.sublotes.reduce((sum: number, sublote: any) => sum + sublote.pesoActual, 0);
+  return session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0);
 }
 
 function daysSince(value: string) {
@@ -81,7 +84,7 @@ export default function SecadosActivos() {
   const locationState = (location.state ?? null) as { from?: string } | null;
   const [showAll, setShowAll] = useState(false);
   const [sessions, setSessions] = useState<ActiveSecadoSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -92,8 +95,9 @@ export default function SecadosActivos() {
           setSessions(
             [...data].sort(
               (a, b) =>
-                new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-            )
+                new Date(b.startedAt).getTime() -
+                new Date(a.startedAt).getTime(),
+            ),
           );
         }
       } catch (err) {
