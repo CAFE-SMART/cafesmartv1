@@ -20,6 +20,7 @@ import {
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { authSessionService } from '../services/authSessionService';
+import { AUTH_MESSAGES } from '../utils/authMessages';
 import {
   fieldInputClass,
   fieldLabelClass,
@@ -196,6 +197,46 @@ function clearLoginDraft() {
   }
 }
 
+function logLoginDebug(event: string, payload: Record<string, unknown>) {
+  console.info(`[CafeSmart][login] ${event} ${JSON.stringify(payload)}`);
+}
+
+function maskEmailForLog(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  const [local, domain] = trimmed.split('@');
+
+  if (!local || !domain) {
+    return trimmed ? '(correo inválido)' : '(vacío)';
+  }
+
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+function withLoginSafetyTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timeoutId: number | null = null;
+
+  operation.catch(() => undefined);
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      logLoginDebug('timeout', { timeoutMs: 17_000 });
+      reject({
+        message: AUTH_MESSAGES.cloudTimeout,
+        field: null,
+        action: null,
+        code: 'TIMEOUT',
+        status: 0,
+      } satisfies AuthError);
+    }, 17_000);
+  });
+
+  return Promise.race([operation, timeout]).finally(() => {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  });
+}
+
 export default function Login() {
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
   const isGoogleAuthEnabled = Boolean(googleClientId);
@@ -211,6 +252,7 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedAccountName, setRememberedAccountName] = useState('');
+  const [offlineSessionAvailable, setOfflineSessionAvailable] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
   const restoredLoginDraftRef = useRef(false);
@@ -218,8 +260,10 @@ export default function Login() {
   const navigate = useNavigate();
   const { setSession, token, hasCompany, hydrated } = useUser();
   const { isOnline, backendReachable } = useCloudStatus();
-  const isOffline = !isOnline || backendReachable === false;
-  const canUseGoogleAuth = isGoogleAuthEnabled && !isOffline;
+  const isOffline = !isOnline;
+  const isCloudChecking = isOnline && backendReachable === null;
+  const isCloudUnavailable = isOnline && backendReachable === false;
+  const canUseGoogleAuth = isGoogleAuthEnabled && isOnline;
 
   useEffect(() => {
     if (!hydrated || !token) {
@@ -243,7 +287,17 @@ export default function Login() {
     }
 
     const loadRememberedAccount = async () => {
-      const account = await getRememberedAccount();
+      const [account, offlineEntry] = await Promise.all([
+        getRememberedAccount(),
+        authSessionService.getLastSessionResult(),
+      ]);
+      if (active) {
+        setOfflineSessionAvailable(
+          offlineEntry.hasSession &&
+            offlineEntry.offlineAllowed &&
+            !offlineEntry.loggedOutManually,
+        );
+      }
       if (!active || !account.email) {
         return;
       }
@@ -403,13 +457,34 @@ export default function Login() {
       'Escríbela de nuevo con calma.',
     );
 
-  const getGlobalGuidance = (message: string): GuidedErrorMessage =>
-    createGuidedError(
+  const getGlobalGuidance = (message: string): GuidedErrorMessage => {
+    if (message.startsWith('Sin conexión.')) {
+      return createGuidedError(
+        message,
+        'Sin conexión.',
+        'No detectamos internet disponible en este dispositivo.',
+        offlineSessionAvailable
+          ? 'Puedes entrar con tu sesión guardada.'
+          : 'Conéctate a internet para iniciar sesión por primera vez.',
+      );
+    }
+
+    if (message === AUTH_MESSAGES.cloudUnavailable) {
+      return createGuidedError(
+        message,
+        'No pudimos conectar con la nube.',
+        'Puede ser internet, CORS o que Render todavía no responda.',
+        'Revisa tu conexión e intenta de nuevo.',
+      );
+    }
+
+    return createGuidedError(
       message,
       'Problema al iniciar.',
       'Puede ser un problema temporal o de conexión.',
       'Espera un momento e intenta nuevamente.',
     );
+  };
 
   const syncRememberedAccount = async (account: { email: string; name?: string | null }) => {
     if (rememberMe) {
@@ -438,7 +513,7 @@ export default function Login() {
 
     if (!offlineEntry.canEnter) {
       if (offlineEntry.reason === 'missing') {
-        setError('Necesitas internet para iniciar sesión por primera vez en este dispositivo.');
+        setError(AUTH_MESSAGES.offlineFirstLogin);
       } else if (offlineEntry.reason === 'email_mismatch') {
         setError('Esta cuenta no tiene una sesión guardada en este dispositivo.');
       } else if (offlineEntry.reason === 'disabled') {
@@ -457,6 +532,7 @@ export default function Login() {
       persist: false,
       offline: true,
     });
+    setOfflineSessionAvailable(true);
     clearLoginDraft();
     navigate(offlineEntry.session.hasCompany ? '/inicio' : '/crear-empresa');
     return true;
@@ -470,11 +546,22 @@ export default function Login() {
     setEmailFieldTone('assist');
     setPasswordFieldError(null);
 
+    logLoginDebug('submit iniciado', {
+      hasEmail: Boolean(email.trim()),
+      hasPassword: Boolean(password.trim()),
+      isOnline,
+      backendReachable,
+    });
+    logLoginDebug('email usado', {
+      email: maskEmailForLog(email),
+    });
+
     if (isOffline) {
       setLoading(true);
       try {
         await enterOfflineMode();
       } finally {
+        logLoginDebug('finally loading=false', { mode: 'offline' });
         setLoading(false);
       }
       return;
@@ -506,7 +593,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const data = await authService.login(email, password);
+      logLoginDebug('request enviado', {
+        backendReachable,
+        apiMode: import.meta.env.MODE,
+      });
+      const data = await withLoginSafetyTimeout(authService.login(email, password));
       const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
       const userSession = {
         id: data.user.id,
@@ -522,7 +613,7 @@ export default function Login() {
         user: userSession,
         token: data.access_token,
         hasCompany: nextHasCompany,
-        persist: false,
+        persist: true,
       });
       const reactivatedSession = await authSessionService.reactivateOfflineAccess({
         accessToken: data.access_token,
@@ -540,6 +631,7 @@ export default function Login() {
           source: reactivatedSession.source,
         });
       }
+      setOfflineSessionAvailable(true);
       await syncRememberedAccount({
         email: data.user.email || email.trim(),
         name: data.user.name,
@@ -549,6 +641,14 @@ export default function Login() {
       navigate(nextHasCompany ? '/inicio' : '/crear-empresa');
     } catch (err) {
       const authError = err as AuthError;
+      logLoginDebug('error capturado', {
+        code: authError.code,
+        status: authError.status ?? null,
+        field: authError.field ?? null,
+        action: authError.action ?? null,
+        browserOnline:
+          typeof navigator === 'undefined' ? null : navigator.onLine,
+      });
       const field = (authError.field || '').toLowerCase();
       const message = authError.message || 'No pudimos iniciar sesión en este momento.';
       const details = authError.details ?? {};
@@ -576,12 +676,30 @@ export default function Login() {
         setPassword('');
         setError(null);
       } else if (
+        authError.code === 'TIMEOUT' ||
+        authError.code === 'CORS_OR_NETWORK'
+      ) {
+        setError(
+          authError.code === 'TIMEOUT'
+            ? AUTH_MESSAGES.cloudTimeout
+            : AUTH_MESSAGES.cloudTryAgain,
+        );
+        setPasswordFieldError(null);
+      } else if (
         authError.code === 'OFFLINE' ||
         authError.status === 0 ||
         (typeof navigator !== 'undefined' && !navigator.onLine)
       ) {
-        const enteredOffline = await enterOfflineMode();
-        if (!enteredOffline) {
+        const browserOffline =
+          typeof navigator !== 'undefined' && navigator.onLine === false;
+
+        if (browserOffline) {
+          const enteredOffline = await enterOfflineMode();
+          if (!enteredOffline) {
+            setPasswordFieldError(null);
+          }
+        } else {
+          setError(AUTH_MESSAGES.cloudUnavailable);
           setPasswordFieldError(null);
         }
       } else if ((authError.status ?? 0) >= 500) {
@@ -592,6 +710,14 @@ export default function Login() {
         setPasswordFieldError(null);
       }
     } finally {
+      logLoginDebug('finally loading=false', {
+        isOnline,
+        backendReachable,
+      });
+      logLoginDebug('loading=false en finally', {
+        isOnline,
+        backendReachable,
+      });
       setLoading(false);
     }
   };
@@ -628,7 +754,7 @@ export default function Login() {
         user: userSession,
         token: data.access_token,
         hasCompany: nextHasCompany,
-        persist: false,
+        persist: true,
       });
       const reactivatedSession = await authSessionService.reactivateOfflineAccess({
         accessToken: data.access_token,
@@ -646,6 +772,7 @@ export default function Login() {
           source: reactivatedSession.source,
         });
       }
+      setOfflineSessionAvailable(true);
       await syncRememberedAccount({
         email: data.user.email,
         name: data.user.name,
@@ -668,7 +795,21 @@ export default function Login() {
       }
 
       const message = loginError.message || 'No se pudo iniciar sesión con Google.';
-      setError(message);
+      if (
+        loginError.code === 'OFFLINE' ||
+        loginError.status === 0 ||
+        (typeof navigator !== 'undefined' && !navigator.onLine)
+      ) {
+        const browserOffline =
+          typeof navigator !== 'undefined' && navigator.onLine === false;
+        setError(
+          browserOffline
+            ? AUTH_MESSAGES.offlineFirstLogin
+            : AUTH_MESSAGES.cloudUnavailable,
+        );
+      } else {
+        setError(message);
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -714,7 +855,35 @@ export default function Login() {
             >
               <p className="font-bold">Sin conexión</p>
               <p className="font-medium">
-                Puedes ingresar solo si ya tenías una sesión guardada en este dispositivo.
+                {offlineSessionAvailable
+                  ? 'Puedes ingresar con tu sesión guardada en este dispositivo.'
+                  : 'Conéctate a internet para iniciar sesión por primera vez.'}
+              </p>
+            </div>
+          ) : null}
+
+          {!error && !isOffline && isCloudChecking ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-5 text-blue-950 dark:border-blue-400/40 dark:bg-blue-500/15 dark:text-blue-100"
+            >
+              <p className="font-bold">Conectando con la nube</p>
+              <p className="font-medium">
+                Estamos conectando con la nube. Esto puede tardar unos segundos.
+              </p>
+            </div>
+          ) : null}
+
+          {!error && !isOffline && isCloudUnavailable ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-950 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100"
+            >
+              <p className="font-bold">Nube no disponible</p>
+              <p className="font-medium">
+                No pudimos conectar con la nube. Puedes intentar iniciar sesión de todas formas.
               </p>
             </div>
           ) : null}

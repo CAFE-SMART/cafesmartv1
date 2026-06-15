@@ -13,7 +13,17 @@ export const AUTH_MESSAGES = {
     'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
   googleNeedsRegister:
     'No encontramos una cuenta con este correo.',
-  offline: 'No pudimos conectarnos. Revisa tu internet e intenta nuevamente.',
+  offlineFirstLogin:
+    'Sin conexión. Conéctate a internet para iniciar sesión por primera vez.',
+  cloudWaking:
+    'Estamos conectando con la nube. Esto puede tardar unos segundos.',
+  cloudUnavailable:
+    'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+  cloudTimeout:
+    'No pudimos conectar con la nube. Intenta nuevamente.',
+  cloudTryAgain:
+    'No pudimos conectar con la nube. Intenta nuevamente en unos segundos.',
+  invalidCredentials: 'Correo o contraseña incorrectos.',
 } as const;
 
 export function normalizeMessage(
@@ -91,10 +101,16 @@ export function mapFriendlyAuthMessage(
 }
 
 export function buildOfflineAuthError(): AuthError {
+  const browserOffline =
+    typeof navigator !== 'undefined' && navigator.onLine === false;
+
   return {
-    message: AUTH_MESSAGES.offline,
+    message: browserOffline
+      ? AUTH_MESSAGES.offlineFirstLogin
+      : AUTH_MESSAGES.cloudUnavailable,
     field: null,
     action: null,
     code: 'OFFLINE',
+    status: 0,
   };
 }

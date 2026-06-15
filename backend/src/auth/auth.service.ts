@@ -164,8 +164,9 @@ export class AuthService {
    * Valida credenciales tradicionales y devuelve el contrato unificado de sesion.
    */
   async login(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await this.usersService.findByEmail(
-      email.trim().toLowerCase(),
+      normalizedEmail,
     );
 
     if (!user) {
@@ -182,7 +183,7 @@ export class AuthService {
       });
     }
 
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = await this.validatePassword(password, user.password, user.id);
     if (!valid) {
       throw new UnauthorizedException({
         message: 'La contraseña no coincide.',
@@ -191,6 +192,44 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(user, 'Login exitoso');
+  }
+
+  private async validatePassword(
+    candidatePassword: string,
+    storedPassword: string,
+    userId: string,
+  ) {
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(storedPassword);
+
+    if (isBcryptHash) {
+      try {
+        return await bcrypt.compare(candidatePassword, storedPassword);
+      } catch (error) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'login_password_compare_failed',
+            userId,
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        );
+        return false;
+      }
+    }
+
+    const isLegacyPlainTextMatch = candidatePassword === storedPassword;
+    if (isLegacyPlainTextMatch) {
+      const hashedPassword = await bcrypt.hash(candidatePassword, 10);
+      await this.usersService.updatePassword(userId, hashedPassword);
+      this.logger.warn(
+        JSON.stringify({
+          event: 'login_password_legacy_hash_migrated',
+          userId,
+        }),
+      );
+      return true;
+    }
+
+    return false;
   }
 
   async forgotPassword(email: string) {

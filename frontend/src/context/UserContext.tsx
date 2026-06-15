@@ -9,7 +9,6 @@ import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
   getAuthStorageValue,
-  removeAuthStorageValue,
   setRuntimeAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
@@ -89,25 +88,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         storedUserRaw,
         storedToken,
         storedHasCompany,
-        storedRememberSession,
       ] = await Promise.all([
         getAuthStorageValue(AUTH_STORAGE_KEYS.user),
         getAuthStorageValue(AUTH_STORAGE_KEYS.token),
         getAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany),
-        getAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession),
       ]);
 
       if (!active) {
-        return;
-      }
-
-      if (storedRememberSession === 'true') {
-        await clearAuthStorage();
-        await authSessionService.clearLastSession();
-        setUser(null);
-        setToken(null);
-        setHasCompany(false);
-        setHydrated(true);
         return;
       }
 
@@ -231,7 +218,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
       setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany)),
-      removeAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession),
+      setAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession, 'true'),
       authSessionService.saveLastSession({
         accessToken: data.token,
         user: data.user,

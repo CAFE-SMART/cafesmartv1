@@ -3,9 +3,11 @@ package com.cafesmart.app;
 import android.app.Dialog;
 import android.os.Bundle;
 import android.os.Message;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.CookieManager;
+import android.webkit.ConsoleMessage;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
@@ -82,6 +84,14 @@ public class MainActivity extends BridgeActivity {
             resultMsg.sendToTarget();
 
             return true;
+        }
+
+        @Override
+        public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+            if (consoleMessage != null && consoleMessage.message().contains("CafeSmart")) {
+                Log.i("CafeSmartWebView", consoleMessage.message());
+            }
+            return super.onConsoleMessage(consoleMessage);
         }
 
         @Override

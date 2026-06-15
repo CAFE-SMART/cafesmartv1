@@ -1,4 +1,5 @@
 ﻿import {
+  AUTH_MESSAGES,
   buildOfflineAuthError,
   mapFriendlyAuthMessage,
 } from '../utils/authMessages';
@@ -11,7 +12,7 @@ export type AuthError = {
   field: string | null;
   details?: Record<string, string[]>;
   action?: string | null;
-  code: 'OFFLINE' | 'HTTP' | 'UNKNOWN';
+  code: 'OFFLINE' | 'TIMEOUT' | 'CORS_OR_NETWORK' | 'HTTP' | 'UNKNOWN';
   apiCode?: string;
   status?: number;
 };
@@ -86,6 +87,65 @@ function describeAuthFetchError(error: unknown) {
   return { message: String(error) };
 }
 
+function buildNetworkAuthError(error: unknown): AuthError {
+  const browserOffline =
+    typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  if (browserOffline) {
+    return buildOfflineAuthError();
+  }
+
+  return {
+    message:
+      error instanceof DOMException && error.name === 'AbortError'
+        ? AUTH_MESSAGES.cloudTimeout
+        : AUTH_MESSAGES.cloudTryAgain,
+    field: null,
+    action: null,
+    code:
+      error instanceof DOMException && error.name === 'AbortError'
+        ? 'TIMEOUT'
+        : 'CORS_OR_NETWORK',
+    status: 0,
+  };
+}
+
+function isLoginEndpoint(endpoint: string) {
+  return endpoint === '/login';
+}
+
+function logLoginAuth(event: string, payload: Record<string, unknown>) {
+  if (!SHOULD_LOG_API_DEBUG) {
+    return;
+  }
+
+  console.info(`[CafeSmart][login] ${event} ${JSON.stringify(payload)}`);
+}
+
+function summarizeAuthResponse(data: RawApiError & Record<string, unknown>) {
+  const user = data.user as Record<string, unknown> | undefined;
+
+  return {
+    hasAccessToken: Boolean(data.access_token),
+    hasUser: Boolean(user),
+    hasUserEmail: Boolean(user?.email),
+    hasCompany: Boolean(data.hasCompany),
+    apiCode: data.code ?? null,
+    field: data.field ?? null,
+  };
+}
+
+function shouldEmitCloudError(error: Partial<AuthError>) {
+  const status = error.status ?? 0;
+  return (
+    status === 0 ||
+    status >= 500 ||
+    error.code === 'OFFLINE' ||
+    error.code === 'TIMEOUT' ||
+    error.code === 'CORS_OR_NETWORK'
+  );
+}
+
 async function postAuth<TResponse>(
   endpoint: string,
   body: Record<string, unknown>,
@@ -105,6 +165,7 @@ async function postAuth<TResponse>(
 
     for (const apiBaseUrl of buildApiBaseCandidates()) {
       const url = `${apiBaseUrl}/auth${endpoint}`;
+      const shouldLogLogin = isLoginEndpoint(endpoint);
       const controller = new AbortController();
       const timeoutId = window.setTimeout(
         () => controller.abort(),
@@ -115,6 +176,16 @@ async function postAuth<TResponse>(
         if (SHOULD_LOG_API_DEBUG) {
           console.info(`[CafeSmart][auth-fetch] request method=POST url=${url}`);
           logDebugLine('[CafeSmart][auth-fetch] request', {
+            method: 'POST',
+            url,
+          });
+        }
+        if (shouldLogLogin) {
+          logLoginAuth('endpoint exacto', {
+            endpoint: '/auth/login',
+            url,
+          });
+          logLoginAuth('request enviado', {
             method: 'POST',
             url,
           });
@@ -130,7 +201,32 @@ async function postAuth<TResponse>(
         const data = (await response.json().catch(() => ({}))) as TResponse &
           RawApiError;
 
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info(
+            `[CafeSmart][auth-fetch] response status=${response.status} method=POST url=${url}`,
+          );
+          logDebugLine('[CafeSmart][auth-fetch] response', {
+            method: 'POST',
+            url,
+            status: response.status,
+            ok: response.ok,
+          });
+        }
+        if (shouldLogLogin) {
+          logLoginAuth('status recibido', {
+            status: response.status,
+            ok: response.ok,
+          });
+          logLoginAuth(
+            'respuesta recibida',
+            summarizeAuthResponse(data as RawApiError & Record<string, unknown>),
+          );
+        }
+
         if (!response.ok) {
+          if (shouldLogLogin && response.status === 401) {
+            logLoginAuth('credenciales incorrectas', { status: response.status });
+          }
           if (SHOULD_LOG_API_DEBUG) {
             console.info(
               `[CafeSmart][auth-fetch] HTTP error method=POST url=${url} status=${response.status} apiCode=${data.code ?? ''} field=${data.field ?? ''} message=${data.message ?? ''}`,
@@ -146,7 +242,10 @@ async function postAuth<TResponse>(
           }
 
           const authError: AuthError = {
-            message: mapFriendlyAuthMessage(endpoint, data, fallbackError),
+            message:
+              endpoint === '/login' && response.status === 401
+                ? AUTH_MESSAGES.invalidCredentials
+                : mapFriendlyAuthMessage(endpoint, data, fallbackError),
             field: data.field ?? null,
             details: data.details,
             action: data.action ?? null,
@@ -165,6 +264,14 @@ async function postAuth<TResponse>(
           });
         }
 
+        if (shouldLogLogin) {
+          logLoginAuth('login exitoso', {
+            hasAccessToken: Boolean((data as AuthResponse).access_token),
+            hasUser: Boolean((data as AuthResponse).user),
+            hasCompany: Boolean((data as AuthResponse).hasCompany),
+          });
+        }
+
         return data;
       } catch (error) {
         if (!isNetworkFetchError(error)) {
@@ -172,9 +279,27 @@ async function postAuth<TResponse>(
         }
 
         if (SHOULD_LOG_API_DEBUG) {
+          const isTimeout =
+            error instanceof DOMException && error.name === 'AbortError';
+          if (shouldLogLogin) {
+            logLoginAuth(isTimeout ? 'timeout' : 'error de red', {
+              url,
+              browserOnline:
+                typeof navigator === 'undefined' ? null : navigator.onLine,
+              error: describeAuthFetchError(error),
+            });
+            if (error instanceof TypeError) {
+              logLoginAuth('cors suspected', { url });
+            }
+          }
           console.info(
-            `[CafeSmart][auth-fetch] network error method=POST url=${url} error=${JSON.stringify(describeAuthFetchError(error))}`,
+            `[CafeSmart][auth-fetch] ${isTimeout ? 'timeout' : 'network error'} method=POST url=${url} error=${JSON.stringify(describeAuthFetchError(error))}`,
           );
+          if (error instanceof TypeError) {
+            console.info(
+              `[CafeSmart][auth-fetch] cors suspected method=POST url=${url}`,
+            );
+          }
           logDebugLine('[CafeSmart][auth-fetch] network error', {
             method: 'POST',
             url,
@@ -192,17 +317,19 @@ async function postAuth<TResponse>(
   } catch (error) {
     if (cloudTracking?.enabled) {
       const knownError = error as Partial<AuthError>;
-      emitCloudStatusEvent({
-        status: 'error',
-        source: cloudTracking.source ?? 'sync',
-        message:
-          knownError.message ||
-          'No pudimos completar la acción. Vuelve a intentarlo.',
-      });
+      if (shouldEmitCloudError(knownError)) {
+        emitCloudStatusEvent({
+          status: 'error',
+          source: cloudTracking.source ?? 'sync',
+          message:
+            knownError.message ||
+            'No pudimos completar la acción. Vuelve a intentarlo.',
+        });
+      }
     }
 
     if (isNetworkFetchError(error)) {
-      throw buildOfflineAuthError();
+      throw buildNetworkAuthError(error);
     }
 
     const knownError = error as Partial<AuthError>;
@@ -304,7 +431,7 @@ async function getAuth<TResponse>(
     throw lastNetworkError ?? buildOfflineAuthError();
   } catch (error) {
     if (isNetworkFetchError(error)) {
-      throw buildOfflineAuthError();
+      throw buildNetworkAuthError(error);
     }
 
     const knownError = error as Partial<AuthError>;

@@ -287,6 +287,18 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
           signal: options.signal ?? timeoutController?.signal,
         });
 
+        if (SHOULD_LOG_API_DEBUG) {
+          console.info(
+            `[CafeSmart][api-fetch] response status=${response.status} method=${method} url=${url}`,
+          );
+          logDebugLine('[CafeSmart][api-fetch] response', {
+            method,
+            url,
+            status: response.status,
+            ok: response.ok,
+          });
+        }
+
         const data = await response.json().catch(() => null);
 
         if (!response.ok) {
@@ -345,10 +357,18 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         }
 
         if (SHOULD_LOG_API_DEBUG) {
+          const isTimeout =
+            error instanceof DOMException && error.name === 'AbortError';
+          const logLabel = isTimeout ? 'timeout' : 'network error';
           console.info(
-            `[CafeSmart][api-fetch] network error method=${method} url=${url} error=${JSON.stringify(describeFetchError(error))}`,
+            `[CafeSmart][api-fetch] ${logLabel} method=${method} url=${url} error=${JSON.stringify(describeFetchError(error))}`,
           );
-          logDebugLine('[CafeSmart][api-fetch] network error', {
+          if (error instanceof TypeError) {
+            console.info(
+              `[CafeSmart][api-fetch] cors suspected method=${method} url=${url}`,
+            );
+          }
+          logDebugLine(`[CafeSmart][api-fetch] ${logLabel}`, {
             method,
             url,
             error: describeFetchError(error),

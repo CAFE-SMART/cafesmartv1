@@ -29,6 +29,7 @@ type CloudStatusValue = {
   detail: string;
   isOnline: boolean;
   backendReachable: boolean | null;
+  backendIssue: string | null;
   isSyncing: boolean;
   wasOffline: boolean;
   reconnectedAt: number | null;
@@ -38,12 +39,14 @@ type CloudStatusValue = {
 
 const CloudStatusContext = createContext<CloudStatusValue | null>(null);
 const HEALTH_CHECK_TIMEOUT_MS = 10000;
+const CHECKING_FALLBACK_TIMEOUT_MS = HEALTH_CHECK_TIMEOUT_MS + 2000;
 
 type HealthCheckResult = {
   ok: boolean;
   url: string;
   status: number;
   browserOnline: boolean;
+  issue: string | null;
   error?: string;
 };
 
@@ -53,6 +56,18 @@ function describeHealthError(error: unknown) {
   }
 
   return String(error);
+}
+
+function classifyHealthIssue(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'timeout';
+  }
+
+  if (error instanceof TypeError) {
+    return 'cors_or_network';
+  }
+
+  return 'unreachable';
 }
 
 async function pingBackend(
@@ -97,14 +112,13 @@ async function pingBackend(
         cache: 'no-store',
       });
       const text = await response.text().catch(() => '');
-      const ok =
-        response.ok &&
-        (!text.trim() || text.trim().includes('Cafe Smart API running'));
+      const ok = response.ok;
       const result = {
         ok,
         url,
         status: response.status,
         browserOnline,
+        issue: ok ? null : response.status >= 500 ? 'server_error' : 'unreachable',
       };
 
       if (SHOULD_LOG_API_DEBUG) {
@@ -134,6 +148,7 @@ async function pingBackend(
         url,
         status: 0,
         browserOnline,
+        issue: classifyHealthIssue(error),
         error: describeHealthError(error),
       };
 
@@ -152,6 +167,7 @@ async function pingBackend(
       url: '',
       status: 0,
       browserOnline,
+      issue: 'unreachable',
       error: 'No API base URL candidates configured.',
     }
   );
@@ -167,6 +183,9 @@ export function CloudStatusProvider({
   );
   const [backendReachable, setBackendReachable] = useState<boolean | null>(
     typeof navigator === 'undefined' || navigator.onLine ? null : false,
+  );
+  const [backendIssue, setBackendIssue] = useState<string | null>(
+    typeof navigator === 'undefined' || navigator.onLine ? null : 'offline',
   );
   const [lastEvent, setLastEvent] = useState<CloudStatusEventDetail | null>(
     null,
@@ -189,6 +208,7 @@ export function CloudStatusProvider({
     if (!browserOnline) {
       setIsOnline(false);
       setBackendReachable(false);
+      setBackendIssue('offline');
       setWasOffline(true);
       return;
     }
@@ -210,6 +230,7 @@ export function CloudStatusProvider({
       }
 
       setBackendReachable(result.ok);
+      setBackendIssue(result.issue);
 
       if (SHOULD_LOG_API_DEBUG && !result.ok) {
         console.info(
@@ -220,6 +241,7 @@ export function CloudStatusProvider({
           apiUrl: result.url,
           status: result.status,
           error: result.error,
+          issue: result.issue,
         });
       }
 
@@ -228,6 +250,7 @@ export function CloudStatusProvider({
       }
     } catch (error) {
       setBackendReachable(false);
+      setBackendIssue(classifyHealthIssue(error));
       setWasOffline(true);
       if (SHOULD_LOG_API_DEBUG) {
         console.info(
@@ -257,6 +280,7 @@ export function CloudStatusProvider({
       setIsOnline(false);
       setWasOffline(true);
       setBackendReachable(false);
+      setBackendIssue('offline');
     };
 
     window.addEventListener('online', handleOnline);
@@ -292,6 +316,29 @@ export function CloudStatusProvider({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [refreshHealth, wasOffline]);
+
+  useEffect(() => {
+    if (backendReachable !== null) {
+      return;
+    }
+
+    const fallbackId = window.setTimeout(() => {
+      setBackendReachable(false);
+      setBackendIssue('timeout');
+      if (SHOULD_LOG_API_DEBUG) {
+        console.info(
+          `[CafeSmart][health-check] fallback timeout reached after ${CHECKING_FALLBACK_TIMEOUT_MS}ms`,
+        );
+        logDebugLine('[CafeSmart][health-check] fallback timeout', {
+          timeoutMs: CHECKING_FALLBACK_TIMEOUT_MS,
+        });
+      }
+    }, CHECKING_FALLBACK_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(fallbackId);
+    };
+  }, [backendReachable]);
 
   useEffect(() => {
     const handleCloudEvent = (event: Event) => {
@@ -341,6 +388,7 @@ export function CloudStatusProvider({
           'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: false,
         wasOffline,
         reconnectedAt,
@@ -356,6 +404,7 @@ export function CloudStatusProvider({
         detail: 'Con internet. Sincronizando cambios...',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: true,
         wasOffline,
         reconnectedAt,
@@ -367,10 +416,11 @@ export function CloudStatusProvider({
     if (backendReachable === null) {
       return {
         tone: 'checking',
-        title: 'Conectando',
-        detail: 'Validando internet y nube.',
+        title: 'Conectando con la nube',
+        detail: 'Estamos conectando con la nube. Esto puede tardar unos segundos.',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: false,
         wasOffline,
         reconnectedAt,
@@ -381,12 +431,13 @@ export function CloudStatusProvider({
 
     if (!backendReachable) {
       return {
-        tone: 'error',
-        title: 'No pudimos conectar con la nube',
+        tone: 'degraded',
+        title: 'Conectando con la nube',
         detail:
-          'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+          'Estamos conectando con la nube. Esto puede tardar unos segundos.',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: false,
         wasOffline,
         reconnectedAt,
@@ -402,6 +453,7 @@ export function CloudStatusProvider({
         detail: 'Con internet. Tus cambios ya están guardados.',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: false,
         wasOffline,
         reconnectedAt,
@@ -412,12 +464,13 @@ export function CloudStatusProvider({
 
     if (lastEvent?.status === 'error') {
       return {
-        tone: 'offline',
-        title: 'Sin conexión',
+        tone: 'degraded',
+        title: 'No pudimos conectar con la nube',
         detail:
-          'Sin internet. Tus cambios se almacenan y se subirán a la nube al reconectar.',
+          'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
         isOnline,
         backendReachable,
+        backendIssue,
         isSyncing: false,
         wasOffline,
         reconnectedAt,
@@ -432,6 +485,7 @@ export function CloudStatusProvider({
       detail: 'Con internet. Tus cambios ya están guardados.',
       isOnline,
       backendReachable,
+      backendIssue,
       isSyncing: false,
       wasOffline,
       reconnectedAt,
@@ -440,6 +494,7 @@ export function CloudStatusProvider({
     };
   }, [
     backendReachable,
+    backendIssue,
     isOnline,
     lastEvent,
     lastSyncAt,
@@ -453,12 +508,13 @@ export function CloudStatusProvider({
       return;
     }
 
-    const isOffline = !value.isOnline || value.backendReachable === false;
+    const isOffline = !value.isOnline;
     const nextLoggedStatus = JSON.stringify({
       tone: value.tone,
       isOnline: value.isOnline,
       isOffline,
       backendReachable: value.backendReachable,
+      backendIssue: value.backendIssue,
       title: value.title,
     });
 
@@ -472,7 +528,7 @@ export function CloudStatusProvider({
       `[CafeSmart][cloud-status] final VITE_API_URL=${
         (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
         '(empty)'
-      } tone=${value.tone} isOnline=${value.isOnline} isOffline=${isOffline} backendReachable=${value.backendReachable} title=${value.title}`,
+      } tone=${value.tone} isOnline=${value.isOnline} isOffline=${isOffline} backendReachable=${value.backendReachable} backendIssue=${value.backendIssue ?? ''} title=${value.title}`,
     );
     logDebugLine('[CafeSmart][cloud-status] final', {
       VITE_API_URL:
@@ -483,6 +539,7 @@ export function CloudStatusProvider({
       isOnline: value.isOnline,
       isOffline,
       backendReachable: value.backendReachable,
+      backendIssue: value.backendIssue,
       title: value.title,
       detail: value.detail,
     });

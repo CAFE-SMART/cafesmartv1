@@ -5,7 +5,8 @@ export function useNetworkStatus() {
 
   return {
     ...status,
-    isOffline: !status.isOnline || status.backendReachable === false,
+    isOffline: !status.isOnline,
+    backendUnavailable: status.isOnline && status.backendReachable === false,
     isReconnecting: status.tone === 'checking',
   };
 }

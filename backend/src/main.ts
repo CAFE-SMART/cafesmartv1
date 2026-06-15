@@ -45,9 +45,13 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
   const appCorsOrigins = [
     'capacitor://localhost',
+    'ionic://localhost',
     'http://localhost',
+    'https://localhost',
+    'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://cafesmart-v1.onrender.com',
   ];
   const localDevOrigins = [
     'http://localhost:4173',
@@ -67,6 +71,10 @@ async function bootstrap() {
   app.enableCors({
     origin:
       allowedCorsOrigins.length > 0 ? allowedCorsOrigins : nodeEnv !== 'production',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: false,
+    optionsSuccessStatus: 204,
   });
   app.useGlobalFilters(new HttpExceptionFilter());
 
