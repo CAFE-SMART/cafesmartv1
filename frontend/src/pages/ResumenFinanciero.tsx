@@ -125,6 +125,10 @@ async function cargarMovimientosHistoricos(): Promise<{
   movimientos: MovimientoFinanciero[];
   sectionErrors: HistorialSectionStatus;
 }> {
+  logHistorialDebug('compras', 'request', { url: HISTORIAL_ENDPOINTS.compras });
+  logHistorialDebug('ventas', 'request', { url: HISTORIAL_ENDPOINTS.ventas });
+  logHistorialDebug('gastos', 'request', { url: HISTORIAL_ENDPOINTS.gastos });
+
   const [comprasResult, ventasResult, gastosResult] = await Promise.allSettled([
     listarCompras(),
     listarVentas(),
@@ -133,56 +137,105 @@ async function cargarMovimientosHistoricos(): Promise<{
 
   const sectionErrors = emptyHistorialSectionStatus();
 
-  const comprasMovimientos =
-    comprasResult.status === 'fulfilled'
-      ? comprasResult.value.map((compra): DashboardMovimiento => ({
-          id: compra.id,
-          tipo: 'COMPRA',
-          nombre: compra.productorNombre ?? 'Productor sin registrar',
-          kg: compra.sublotes.reduce(
-            (total, sublote) => total + sublote.pesoInicial,
-            0,
-          ),
-          valor: compra.totalCompra,
-          fecha: compra.fecha,
-        }))
+  const compras =
+    comprasResult.status === 'fulfilled' && Array.isArray(comprasResult.value)
+      ? comprasResult.value
       : [];
+  const comprasMovimientos = compras.map((compra): DashboardMovimiento => ({
+    id: compra.id,
+    tipo: 'COMPRA',
+    nombre: compra.productorNombre ?? 'Productor sin registrar',
+    kg: Array.isArray(compra.sublotes)
+      ? compra.sublotes.reduce(
+          (total, sublote) => total + (Number(sublote.pesoInicial) || 0),
+          0,
+        )
+      : 0,
+    valor: Number(compra.totalCompra) || 0,
+    fecha: compra.fecha,
+  }));
   if (comprasResult.status === 'rejected') {
     sectionErrors.compras = HISTORIAL_SECTION_ERROR;
+    logHistorialDebug('compras', 'error', {
+      url: HISTORIAL_ENDPOINTS.compras,
+      error:
+        comprasResult.reason instanceof Error
+          ? comprasResult.reason.message
+          : String(comprasResult.reason),
+    });
+  } else {
+    logHistorialDebug('compras', 'response', {
+      url: HISTORIAL_ENDPOINTS.compras,
+      status: 200,
+      count: comprasMovimientos.length,
+    });
   }
 
-  const ventasMovimientos =
-    ventasResult.status === 'fulfilled'
-      ? ventasResult.value.registros.map((venta): DashboardMovimiento => ({
-          id: venta.id,
-          tipo: 'VENTA',
-          nombre: venta.clienteNombre || 'Cliente general',
-          kg: venta.totalKg,
-          valor: venta.totalVenta,
-          fecha: venta.fecha,
-        }))
+  const ventasRegistros =
+    ventasResult.status === 'fulfilled' &&
+    ventasResult.value &&
+    Array.isArray(ventasResult.value.registros)
+      ? ventasResult.value.registros
       : [];
+  const ventasMovimientos = ventasRegistros.map((venta): DashboardMovimiento => ({
+    id: venta.id,
+    tipo: 'VENTA',
+    nombre: venta.clienteNombre || 'Cliente general',
+    kg: Number(venta.totalKg) || 0,
+    valor: Number(venta.totalVenta) || 0,
+    fecha: venta.fecha,
+  }));
   if (ventasResult.status === 'rejected') {
     sectionErrors.ventas = HISTORIAL_SECTION_ERROR;
+    logHistorialDebug('ventas', 'error', {
+      url: HISTORIAL_ENDPOINTS.ventas,
+      error:
+        ventasResult.reason instanceof Error
+          ? ventasResult.reason.message
+          : String(ventasResult.reason),
+    });
+  } else {
+    logHistorialDebug('ventas', 'response', {
+      url: HISTORIAL_ENDPOINTS.ventas,
+      status: 200,
+      count: ventasMovimientos.length,
+      hasRegistrosArray: Array.isArray(ventasResult.value?.registros),
+    });
   }
 
-  const gastosMovimientos =
-    gastosResult.status === 'fulfilled'
-      ? gastosResult.value.map((gasto): MovimientoFinanciero => ({
-          id: gasto.id,
-          tipo: 'GASTO',
-          nombre: gasto.conceptoGasto || gasto.tipoGasto,
-          kg: gasto.sublotes.reduce(
-            (total, sublote) => total + sublote.pesoActual,
-            0,
-          ),
-          valor: gasto.montoGasto,
-          fecha: gasto.fechaGasto,
-          gasto,
-        }))
+  const gastos =
+    gastosResult.status === 'fulfilled' && Array.isArray(gastosResult.value)
+      ? gastosResult.value
       : [];
+  const gastosMovimientos = gastos.map((gasto): MovimientoFinanciero => ({
+    id: gasto.id,
+    tipo: 'GASTO',
+    nombre: gasto.conceptoGasto || gasto.tipoGasto,
+    kg: Array.isArray(gasto.sublotes)
+      ? gasto.sublotes.reduce(
+          (total, sublote) => total + (Number(sublote.pesoActual) || 0),
+          0,
+        )
+      : 0,
+    valor: Number(gasto.montoGasto) || 0,
+    fecha: gasto.fechaGasto,
+    gasto,
+  }));
   if (gastosResult.status === 'rejected') {
     sectionErrors.gastos = HISTORIAL_SECTION_ERROR;
+    logHistorialDebug('gastos', 'error', {
+      url: HISTORIAL_ENDPOINTS.gastos,
+      error:
+        gastosResult.reason instanceof Error
+          ? gastosResult.reason.message
+          : String(gastosResult.reason),
+    });
+  } else {
+    logHistorialDebug('gastos', 'response', {
+      url: HISTORIAL_ENDPOINTS.gastos,
+      status: 200,
+      count: gastosMovimientos.length,
+    });
   }
 
   return {
@@ -276,6 +329,11 @@ const TIPOS_GASTO: GastoTipo[] = [
 const GASTO_MONTO_MAX = 20000000;
 const HISTORIAL_SECTION_ERROR =
   'No pudimos cargar este historial. Intenta nuevamente.';
+const HISTORIAL_ENDPOINTS: Record<HistorialSection, string> = {
+  compras: '/compras',
+  ventas: '/ventas',
+  gastos: '/gastos',
+};
 
 function emptyHistorialSectionStatus(): HistorialSectionStatus {
   return {
@@ -283,6 +341,16 @@ function emptyHistorialSectionStatus(): HistorialSectionStatus {
     ventas: null,
     gastos: null,
   };
+}
+
+function logHistorialDebug(
+  section: HistorialSection,
+  event: string,
+  payload: Record<string, unknown>,
+) {
+  console.info(
+    `[CafeSmart][historial-${section}] ${event} ${JSON.stringify(payload)}`,
+  );
 }
 
 function saveFinancialAccessSession() {
@@ -1341,6 +1409,21 @@ export default function ResumenFinanciero() {
     historialTipo !== 'TODOS' ||
     historialEstado !== 'TODOS' ||
     historialSort !== 'recent';
+  const historialStats = useMemo(() => {
+    const build = (tipo: HistorialTipo) => {
+      const items = movimientos.filter((item) => item.tipo === tipo);
+      return {
+        count: items.length,
+        total: items.reduce((sum, item) => sum + (Number(item.valor) || 0), 0),
+      };
+    };
+
+    return {
+      ventas: build('VENTA'),
+      compras: build('COMPRA'),
+      gastos: build('GASTO'),
+    };
+  }, [movimientos]);
   const getHistorialSectionKey = (
     tipo: HistorialTipo | null,
   ): HistorialSection | null => {
@@ -1351,6 +1434,20 @@ export default function ResumenFinanciero() {
   };
   const historialActivoError =
     historialSectionErrors[getHistorialSectionKey(historialActivo) ?? 'compras'];
+  const getHistorialEmptyMessage = () => {
+    if (historialSort === 'date' && historialDate) {
+      if (historialActivo === 'VENTA') return 'No hay ventas para la fecha seleccionada.';
+      if (historialActivo === 'COMPRA') return 'No hay compras para la fecha seleccionada.';
+      return 'No hay gastos para la fecha seleccionada.';
+    }
+
+    if (historialFiltrosActivos) return 'No hay registros con esos filtros.';
+    if (historialActivo === 'VENTA') return 'Aún no hay ventas registradas.';
+    if (historialActivo === 'COMPRA') return 'Aún no hay compras registradas.';
+    if (historialActivo === 'GASTO') return 'Aún no hay gastos registrados.';
+
+    return 'Aún no hay movimientos registrados.';
+  };
   const abrirHistorial = (tipo: HistorialTipo) => {
     setHistorialActivo(tipo);
     setHistorialSearch('');
@@ -2155,6 +2252,7 @@ export default function ResumenFinanciero() {
                   {
                     tipo: 'VENTA' as const,
                     section: 'ventas' as const,
+                    emptyText: 'Aún no hay ventas registradas.',
                     title: 'Historial de ventas',
                     text: 'Consulta ventas registradas.',
                     icon: ShoppingCart,
@@ -2163,6 +2261,7 @@ export default function ResumenFinanciero() {
                   {
                     tipo: 'COMPRA' as const,
                     section: 'compras' as const,
+                    emptyText: 'Aún no hay compras registradas.',
                     title: 'Historial de compras',
                     text: 'Consulta compras registradas.',
                     icon: PackageCheck,
@@ -2171,6 +2270,7 @@ export default function ResumenFinanciero() {
                   {
                     tipo: 'GASTO' as const,
                     section: 'gastos' as const,
+                    emptyText: 'Aún no hay gastos registrados.',
                     title: 'Historial de gastos',
                     text: 'Consulta gastos registrados.',
                     icon: Wallet,
@@ -2178,6 +2278,15 @@ export default function ResumenFinanciero() {
                   },
                 ].map((item) => {
                   const Icon = item.icon;
+                  const sectionError = historialSectionErrors[item.section];
+                  const sectionStats = historialStats[item.section];
+                  const sectionText = sectionError
+                    ? sectionError
+                    : sectionStats.count > 0
+                      ? `${sectionStats.count} registro${
+                          sectionStats.count === 1 ? '' : 's'
+                        } · ${formatCurrency(sectionStats.total)}`
+                      : item.emptyText;
                   return (
                     <button
                       key={item.tipo}
@@ -2195,8 +2304,7 @@ export default function ResumenFinanciero() {
                           {item.title}
                         </span>
                         <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          {historialSectionErrors[item.section] ??
-                            item.text}
+                          {sectionText}
                         </span>
                       </span>
                     </button>
@@ -2422,15 +2530,7 @@ export default function ResumenFinanciero() {
                       </div>
                     ) : historialMovimientos.length === 0 ? (
                       <p className="rounded-[14px] bg-[#f8fafc] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
-                        {historialSort === 'date' && historialDate
-                          ? historialActivo === 'VENTA'
-                            ? 'No hay ventas para la fecha seleccionada.'
-                            : historialActivo === 'COMPRA'
-                              ? 'No hay compras para la fecha seleccionada.'
-                              : 'No hay gastos para la fecha seleccionada.'
-                          : historialFiltrosActivos
-                            ? 'No hay registros con esos filtros.'
-                            : 'Aún no hay movimientos registrados.'}
+                        {getHistorialEmptyMessage()}
                       </p>
                     ) : (
                       <div className="space-y-2">
