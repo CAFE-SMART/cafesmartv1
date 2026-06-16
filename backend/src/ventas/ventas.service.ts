@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -31,6 +32,8 @@ import {
 
 @Injectable()
 export class VentasService {
+  private readonly logger = new Logger(VentasService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listarVentas(
@@ -42,191 +45,200 @@ export class VentasService {
       limit?: number;
     } = {},
   ) {
-    const organizacionId = await this.obtenerOrganizacionId(userId);
-    const where: Prisma.VentaWhereInput = {
-      organizacionId,
-      deletedAt: null,
-      ...(filtros.fecha ? { fecha: this.crearFiltroDia(filtros.fecha) } : {}),
-    };
-    const direccion = filtros.orden === 'oldest' ? 'asc' : 'desc';
-    const pagination = this.crearPaginacion(filtros.page, filtros.limit);
+    let organizacionId: string | undefined;
 
-    const ventas = await this.prisma.venta.findMany({
-      where,
-      orderBy: [{ fecha: direccion }, { createdAt: direccion }],
-      ...(pagination ?? {}),
-      include: {
-        cliente: {
-          select: {
-            nombre: true,
-            documento: true,
-          },
-        },
-        detalles: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            subloteId: true,
-            pesoVendido: true,
-            precioKg: true,
-            subtotal: true,
-            codigoSublote: true,
-            tipoCafeSnapshot: true,
-            calidadSnapshot: true,
-            precioCompraKg: true,
-            fechaIngresoSublote: true,
-            inventarioRestante: true,
-            createdAt: true,
-            sublote: {
-              select: {
-                id: true,
-                precioKg: true,
-                pesoActual: true,
-                creadoEn: true,
-                compra: {
-                  select: {
-                    fecha: true,
-                  },
-                },
-                tipoCafe: {
-                  select: {
-                    nombre: true,
-                  },
-                },
-                calidad: {
-                  select: {
-                    nombre: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const subloteIds = [
-      ...new Set(
-        ventas.flatMap((venta) =>
-          venta.detalles.map((detalle) => detalle.subloteId),
-        ),
-      ),
-    ];
-    const sublotesOrganizacion = await this.prisma.sublote.findMany({
-      where: {
+    try {
+      organizacionId = await this.obtenerOrganizacionId(userId);
+      const where: Prisma.VentaWhereInput = {
+        organizacionId,
         deletedAt: null,
-        compra: {
-          deletedAt: null,
-          organizacionId,
-        },
-      },
-      select: {
-        id: true,
-        creadoEn: true,
-        compra: { select: { fecha: true } },
-        tipoCafe: { select: { nombre: true } },
-        calidad: { select: { nombre: true } },
-      },
-    });
-    const codigoPorSublote = this.generarMapaCodigosSublote(sublotesOrganizacion);
-    const detallesPosteriores =
-      subloteIds.length > 0
-        ? await this.prisma.ventaDetalle.findMany({
-            where: {
-              deletedAt: null,
-              subloteId: { in: subloteIds },
-              venta: {
-                organizacionId,
-                deletedAt: null,
-              },
+        ...(filtros.fecha ? { fecha: this.crearFiltroDia(filtros.fecha) } : {}),
+      };
+      const direccion = filtros.orden === 'oldest' ? 'asc' : 'desc';
+      const pagination = this.crearPaginacion(filtros.page, filtros.limit);
+
+      const ventas = await this.prisma.venta.findMany({
+        where,
+        orderBy: [{ fecha: direccion }, { createdAt: direccion }],
+        ...(pagination ?? {}),
+        include: {
+          cliente: {
+            select: {
+              nombre: true,
+              documento: true,
             },
+          },
+          detalles: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'asc' },
             select: {
               id: true,
               subloteId: true,
               pesoVendido: true,
+              precioKg: true,
+              subtotal: true,
+              codigoSublote: true,
+              tipoCafeSnapshot: true,
+              calidadSnapshot: true,
+              precioCompraKg: true,
+              fechaIngresoSublote: true,
+              inventarioRestante: true,
               createdAt: true,
             },
-          })
-        : [];
+          },
+        },
+      });
 
-    const totalAcumulado = ventas.reduce(
-      (total, venta) => total + Number(venta.totalVenta),
-      0,
-    );
-
-    return {
-      totalAcumulado,
-      registros: ventas.map((venta) => ({
-        id: venta.id,
-        fecha: venta.fecha.toISOString(),
-        clienteNombre: venta.cliente?.nombre ?? 'Cliente general',
-        clienteDocumento: venta.cliente?.documento ?? '',
-        totalVenta: Number(venta.totalVenta),
-        totalKg: venta.detalles.reduce(
-          (total, detalle) => total + Number(detalle.pesoVendido),
-          0,
+      const subloteIds = [
+        ...new Set(
+          ventas.flatMap((venta) =>
+            venta.detalles.map((detalle) => detalle.subloteId).filter(Boolean),
+          ),
         ),
-        detalles: venta.detalles.map((detalle, index) => {
-          const vendidoDespues = detallesPosteriores.reduce((total, item) => {
-            if (item.subloteId !== detalle.subloteId) return total;
-            if (item.id === detalle.id) return total;
-            if (item.createdAt <= detalle.createdAt) return total;
-            return total + Number(item.pesoVendido);
-          }, 0);
-          return {
-            subloteId: detalle.subloteId,
-            subloteCodigo:
+      ];
+      const sublotesHistorial = await this.obtenerSublotesHistorialSeguro(
+        organizacionId,
+        subloteIds,
+      );
+      const codigoPorSublote = this.generarMapaCodigosSublote(sublotesHistorial);
+      const sublotePorId = new Map(
+        sublotesHistorial.map((sublote) => [sublote.id, sublote]),
+      );
+      const detallesPosteriores =
+        subloteIds.length > 0
+          ? await this.prisma.ventaDetalle.findMany({
+              where: {
+                deletedAt: null,
+                subloteId: { in: subloteIds },
+                venta: {
+                  organizacionId,
+                  deletedAt: null,
+                },
+              },
+              select: {
+                id: true,
+                subloteId: true,
+                pesoVendido: true,
+                createdAt: true,
+              },
+            })
+          : [];
+
+      const totalAcumulado = ventas.reduce(
+        (total, venta) => total + Number(venta.totalVenta),
+        0,
+      );
+
+      return {
+        totalAcumulado,
+        registros: ventas.map((venta) => ({
+          id: venta.id,
+          fecha: venta.fecha.toISOString(),
+          clienteNombre: venta.cliente?.nombre ?? 'Cliente general',
+          clienteDocumento: venta.cliente?.documento ?? '',
+          totalVenta: Number(venta.totalVenta),
+          totalKg: venta.detalles.reduce(
+            (total, detalle) => total + Number(detalle.pesoVendido),
+            0,
+          ),
+          detalles: venta.detalles.map((detalle, index) => {
+            const sublote = sublotePorId.get(detalle.subloteId);
+            const vendidoDespues = detallesPosteriores.reduce((total, item) => {
+              if (item.subloteId !== detalle.subloteId) return total;
+              if (item.id === detalle.id) return total;
+              if (item.createdAt <= detalle.createdAt) return total;
+              return total + Number(item.pesoVendido);
+            }, 0);
+            const codigoSublote =
               detalle.codigoSublote ??
               codigoPorSublote.get(detalle.subloteId) ??
-              `SUB-${String(index + 1).padStart(2, '0')}`,
-            tipoCafe: detalle.tipoCafeSnapshot ?? detalle.sublote.tipoCafe.nombre,
-            calidad: detalle.calidadSnapshot ?? detalle.sublote.calidad.nombre,
-            fechaIngreso:
+              `SUB-${String(index + 1).padStart(2, '0')}`;
+            const fechaIngreso =
               detalle.fechaIngresoSublote?.toISOString() ??
-              detalle.sublote.compra.fecha.toISOString(),
-            pesoVendido: Number(detalle.pesoVendido),
-            precioKg: Number(detalle.precioKg),
-            precioCompra: Number(detalle.precioCompraKg ?? detalle.sublote.precioKg),
-            subtotal: Number(detalle.subtotal),
-            ventaNumero: index + 1,
-            pesoRestante:
+              sublote?.compra?.fecha?.toISOString() ??
+              venta.fecha.toISOString();
+            const precioCompra = Number(
+              detalle.precioCompraKg ?? sublote?.precioKg ?? 0,
+            );
+            const pesoRestante =
               detalle.inventarioRestante !== null &&
               detalle.inventarioRestante !== undefined
                 ? Number(detalle.inventarioRestante)
-                : Number(detalle.sublote.pesoActual) + vendidoDespues,
-          };
+                : Number(sublote?.pesoActual ?? 0) + vendidoDespues;
+
+            return {
+              subloteId: detalle.subloteId,
+              subloteCodigo: codigoSublote,
+              tipoCafe:
+                detalle.tipoCafeSnapshot ??
+                sublote?.tipoCafe?.nombre ??
+                'Tipo sin registrar',
+              calidad:
+                detalle.calidadSnapshot ??
+                sublote?.calidad?.nombre ??
+                'Calidad sin registrar',
+              fechaIngreso,
+              pesoVendido: Number(detalle.pesoVendido),
+              precioKg: Number(detalle.precioKg),
+              precioCompra,
+              subtotal: Number(detalle.subtotal),
+              ventaNumero: index + 1,
+              pesoRestante,
+            };
+          }),
+          detallesSublotes: venta.detalles.map((detalle, index) => {
+            const sublote = sublotePorId.get(detalle.subloteId);
+            const vendidoDespues = detallesPosteriores.reduce((total, item) => {
+              if (item.subloteId !== detalle.subloteId) return total;
+              if (item.id === detalle.id) return total;
+              if (item.createdAt <= detalle.createdAt) return total;
+              return total + Number(item.pesoVendido);
+            }, 0);
+            return {
+              subloteId: detalle.subloteId,
+              codigoSublote:
+                detalle.codigoSublote ??
+                codigoPorSublote.get(detalle.subloteId) ??
+                `SUB-${String(index + 1).padStart(2, '0')}`,
+              tipoCafe:
+                detalle.tipoCafeSnapshot ??
+                sublote?.tipoCafe?.nombre ??
+                'Tipo sin registrar',
+              calidad:
+                detalle.calidadSnapshot ??
+                sublote?.calidad?.nombre ??
+                'Calidad sin registrar',
+              kilosVendidos: Number(detalle.pesoVendido),
+              precioVentaKg: Number(detalle.precioKg),
+              precioCompraKg: Number(
+                detalle.precioCompraKg ?? sublote?.precioKg ?? 0,
+              ),
+              fechaIngreso:
+                detalle.fechaIngresoSublote?.toISOString() ??
+                sublote?.compra?.fecha?.toISOString() ??
+                venta.fecha.toISOString(),
+              inventarioRestante:
+                detalle.inventarioRestante !== null &&
+                detalle.inventarioRestante !== undefined
+                  ? Number(detalle.inventarioRestante)
+                  : Number(sublote?.pesoActual ?? 0) + vendidoDespues,
+            };
+          }),
+        })),
+      };
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          event: '[Ventas][findAll] error real',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          queryParams: filtros,
+          userId,
+          organizacionId,
         }),
-        detallesSublotes: venta.detalles.map((detalle, index) => {
-          const vendidoDespues = detallesPosteriores.reduce((total, item) => {
-            if (item.subloteId !== detalle.subloteId) return total;
-            if (item.id === detalle.id) return total;
-            if (item.createdAt <= detalle.createdAt) return total;
-            return total + Number(item.pesoVendido);
-          }, 0);
-          return {
-            subloteId: detalle.subloteId,
-            codigoSublote:
-              detalle.codigoSublote ??
-              codigoPorSublote.get(detalle.subloteId) ??
-              `SUB-${String(index + 1).padStart(2, '0')}`,
-            tipoCafe: detalle.tipoCafeSnapshot ?? detalle.sublote.tipoCafe.nombre,
-            calidad: detalle.calidadSnapshot ?? detalle.sublote.calidad.nombre,
-            kilosVendidos: Number(detalle.pesoVendido),
-            precioVentaKg: Number(detalle.precioKg),
-            precioCompraKg: Number(detalle.precioCompraKg ?? detalle.sublote.precioKg),
-            fechaIngreso:
-              detalle.fechaIngresoSublote?.toISOString() ??
-              detalle.sublote.compra.fecha.toISOString(),
-            inventarioRestante:
-              detalle.inventarioRestante !== null &&
-              detalle.inventarioRestante !== undefined
-                ? Number(detalle.inventarioRestante)
-                : Number(detalle.sublote.pesoActual) + vendidoDespues,
-          };
-        }),
-      })),
-    };
+      );
+      throw error;
+    }
   }
 
   async crearVenta(
@@ -437,7 +449,7 @@ export class VentasService {
 
   private crearPaginacion(page?: number, limit?: number) {
     const safeLimit = Number.isFinite(limit)
-      ? Math.min(Math.max(Math.trunc(limit as number), 1), 100)
+      ? Math.min(Math.max(Math.trunc(limit as number), 1), 500)
       : undefined;
     if (!safeLimit) return null;
 
@@ -451,9 +463,50 @@ export class VentasService {
     };
   }
 
+  private async obtenerSublotesHistorialSeguro(
+    organizacionId: string,
+    subloteIds: string[],
+  ) {
+    if (subloteIds.length === 0) return [];
+
+    try {
+      return await this.prisma.sublote.findMany({
+        where: {
+          id: { in: subloteIds },
+          compra: {
+            organizacionId,
+          },
+        },
+        select: {
+          id: true,
+          precioKg: true,
+          pesoActual: true,
+          creadoEn: true,
+          compra: { select: { fecha: true } },
+          tipoCafe: { select: { nombre: true } },
+          calidad: { select: { nombre: true } },
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          event: '[Ventas][findAll] sublotes lookup failed',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          organizacionId,
+          subloteIdsCount: subloteIds.length,
+        }),
+      );
+
+      return [];
+    }
+  }
+
   private generarMapaCodigosSublote(
     sublotes: Array<{
       id: string;
+      precioKg?: Prisma.Decimal;
+      pesoActual?: Prisma.Decimal;
       creadoEn: Date;
       compra: { fecha: Date };
       tipoCafe: { nombre: string };

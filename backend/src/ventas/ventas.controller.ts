@@ -26,11 +26,14 @@ export class VentasController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const pageNumber = page ? Number(page) : undefined;
+    const limitNumber = limit ? Number(limit) : undefined;
+
     return this.ventasService.listarVentas(req.user.sub, {
       fecha,
       orden,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      page: Number.isFinite(pageNumber) ? pageNumber : undefined,
+      limit: Number.isFinite(limitNumber) ? limitNumber : undefined,
     });
   }
 
