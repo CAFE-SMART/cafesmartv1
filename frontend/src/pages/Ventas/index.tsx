@@ -48,6 +48,7 @@ import { ModalConfirmacionVenta } from './components/ModalConfirmacionVenta';
 import { CafeSmartErrorState } from '../../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
+import { shareMovementSummary } from '../../services/shareMovementSummary';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { formatCoffeeFullName, getCoffeeCodePrefix, getSubloteCodeMap } from '../../utils/coffeeCodes';
 import {
@@ -2002,6 +2003,41 @@ export default function Ventas() {
           primaryLabel="Registrar otra venta"
           onPrimary={reiniciar}
           onHome={() => navigate('/inicio')}
+          onShareSummary={() => {
+            const firstItem = ventaGuardada.items[0];
+            const uniqueTipos = Array.from(
+              new Set(ventaGuardada.items.map((item) => item.tipoCafe).filter(Boolean)),
+            );
+            const uniqueCalidades = Array.from(
+              new Set(ventaGuardada.items.map((item) => item.calidad).filter(Boolean)),
+            );
+
+            return shareMovementSummary({
+              type: 'venta',
+              data: {
+                cliente: ventaGuardada.clienteNombre,
+                tipoCafe:
+                  uniqueTipos.length === 1
+                    ? uniqueTipos[0]
+                    : firstItem?.tipoCafe
+                      ? 'Varios'
+                      : undefined,
+                calidad:
+                  uniqueCalidades.length === 1
+                    ? uniqueCalidades[0]
+                    : firstItem?.calidad
+                      ? 'Varias'
+                      : undefined,
+                totalKg: ventaGuardada.totalKg,
+                precioKg:
+                  ventaGuardada.totalKg > 0
+                    ? ventaGuardada.totalVenta / ventaGuardada.totalKg
+                    : undefined,
+                totalVenta: ventaGuardada.totalVenta,
+                fecha: ventaGuardada.fecha,
+              },
+            });
+          }}
           capacityNotice={
             ventaGuardada.items.length > 0 ? (
               <section className="rounded-[18px] border border-blue-100 bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-800">

@@ -88,6 +88,7 @@ import {
   validatePhoneNumber,
 } from '../utils/personValidation';
 import { sanitizeSearchInput } from '../utils/inputLimits';
+import { shareMovementSummary } from '../services/shareMovementSummary';
 
 type Step = 1 | 2 | 3;
 type SubloteForm = {
@@ -3772,6 +3773,17 @@ export default function Compras() {
         primaryLabel="Registrar otra compra"
         onPrimary={iniciarNuevaCompra}
         onHome={() => navigate('/inicio')}
+        onShareSummary={() =>
+          shareMovementSummary({
+            type: 'compra',
+            data: {
+              productor: compraGuardada.productorNombre,
+              totalKg: compraGuardada.totalKg,
+              totalPagado: compraGuardada.totalCompra,
+              fecha: compraGuardada.fecha,
+            },
+          })
+        }
         rows={[
           {
             icon: '1',

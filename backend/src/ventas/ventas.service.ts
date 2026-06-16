@@ -134,7 +134,7 @@ export class VentasService {
         registros: ventas.map((venta) => ({
           id: venta.id,
           fecha: venta.fecha.toISOString(),
-          clienteNombre: venta.cliente?.nombre ?? 'Cliente general',
+          clienteNombre: venta.cliente?.nombre ?? 'Cliente no registrado',
           clienteDocumento: venta.cliente?.documento ?? '',
           totalVenta: Number(venta.totalVenta),
           totalKg: venta.detalles.reduce(
@@ -172,11 +172,11 @@ export class VentasService {
               tipoCafe:
                 detalle.tipoCafeSnapshot ??
                 sublote?.tipoCafe?.nombre ??
-                'Tipo sin registrar',
+                'No especificado',
               calidad:
                 detalle.calidadSnapshot ??
                 sublote?.calidad?.nombre ??
-                'Calidad sin registrar',
+                'No especificada',
               fechaIngreso,
               pesoVendido: Number(detalle.pesoVendido),
               precioKg: Number(detalle.precioKg),
@@ -203,11 +203,11 @@ export class VentasService {
               tipoCafe:
                 detalle.tipoCafeSnapshot ??
                 sublote?.tipoCafe?.nombre ??
-                'Tipo sin registrar',
+                'No especificado',
               calidad:
                 detalle.calidadSnapshot ??
                 sublote?.calidad?.nombre ??
-                'Calidad sin registrar',
+                'No especificada',
               kilosVendidos: Number(detalle.pesoVendido),
               precioVentaKg: Number(detalle.precioKg),
               precioCompraKg: Number(
@@ -229,7 +229,7 @@ export class VentasService {
     } catch (error) {
       this.logger.error(
         JSON.stringify({
-          event: '[Ventas][findAll] error real',
+          event: '[Ventas][findAll] ERROR_REAL',
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           queryParams: filtros,
