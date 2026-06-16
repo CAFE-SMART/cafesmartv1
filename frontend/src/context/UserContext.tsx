@@ -13,6 +13,7 @@ import {
   setAuthStorageValue,
 } from '../storage/authStorage';
 import { authSessionService } from '../services/authSessionService';
+import { clearFinancialAccessSession } from '../services/financialAccessService';
 import { parseJwtPayload } from '../utils/jwt';
 
 type TipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO';
@@ -257,6 +258,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
     }
 
+    clearFinancialAccessSession();
     await authSessionService.disableOfflineAccess();
     await clearAuthStorage();
   };

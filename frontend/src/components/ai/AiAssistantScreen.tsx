@@ -31,6 +31,7 @@ import {
   type AiConversationType,
   type Conversation,
 } from '../../services/aiConversationService';
+import { hasValidFinancialAccessSession } from '../../services/financialAccessService';
 import { AiTypingIndicator } from './AiTypingIndicator';
 
 type AiAssistantScreenProps = {
@@ -48,7 +49,6 @@ const QUOTA_CODES = new Set([
   'AI_DISABLED',
   'AI_SERVICE_NOT_CONFIGURED',
 ]);
-const FINANCIAL_ACCESS_SESSION_KEY = 'cafesmart:financial-access-granted';
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -73,17 +73,6 @@ function formatGeneratedAt(value?: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
-}
-
-function hasValidFinancialAccessSession() {
-  try {
-    const raw = sessionStorage.getItem(FINANCIAL_ACCESS_SESSION_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as { expiresAt?: number };
-    return Boolean(parsed.expiresAt && parsed.expiresAt > Date.now());
-  } catch {
-    return false;
-  }
 }
 
 export function AiAssistantScreen({

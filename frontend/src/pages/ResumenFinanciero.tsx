@@ -50,7 +50,12 @@ import {
   type SubloteDetalle,
 } from '../services/lotesService';
 import { HEAVY_API_TIMEOUT_MS } from '../services/apiService';
-import { verificarPasswordFinanciero } from '../services/financialAccessService';
+import {
+  FinancialAccessError,
+  hasValidFinancialAccessSession,
+  saveFinancialAccessSession,
+  verificarAccesoFinanciero,
+} from '../services/financialAccessService';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import granitoInteligente from '../assets/granito-inteligente.png';
 import {
@@ -299,8 +304,6 @@ const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
 const HUMEDAD_MINIMA_IDEAL = 10;
 const HUMEDAD_MAXIMA_IDEAL = 12;
 const FACTOR_BASE_MERCADO = 94;
-const FINANCIAL_ACCESS_SESSION_KEY = 'cafesmart:financial-access-granted';
-const FINANCIAL_ACCESS_TTL_MS = 30 * 60 * 1000;
 
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 type HistorialTipo = 'VENTA' | 'COMPRA' | 'GASTO';
@@ -353,31 +356,6 @@ function logHistorialDebug(
   );
 }
 
-function saveFinancialAccessSession() {
-  try {
-    sessionStorage.setItem(
-      FINANCIAL_ACCESS_SESSION_KEY,
-      JSON.stringify({ expiresAt: Date.now() + FINANCIAL_ACCESS_TTL_MS }),
-    );
-  } catch {
-    // El acceso sigue válido en memoria aunque sessionStorage no esté disponible.
-  }
-}
-
-function hasValidFinancialAccessSession() {
-  try {
-    const raw = sessionStorage.getItem(FINANCIAL_ACCESS_SESSION_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as { expiresAt?: number };
-    if (!parsed.expiresAt || parsed.expiresAt < Date.now()) {
-      sessionStorage.removeItem(FINANCIAL_ACCESS_SESSION_KEY);
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
 function ariaPressed(active: boolean) {
   return { 'aria-pressed': active ? 'true' : 'false' } as const;
 }
@@ -1130,6 +1108,29 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
   );
 }
 
+function FinancialAccessRestrictedState({ onBack }: { onBack: () => void }) {
+  return (
+    <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
+      <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200">
+        <Lock size={18} />
+      </span>
+      <h2 className="mt-3 text-[1rem] font-black text-slate-900 dark:text-slate-100">
+        Acceso restringido
+      </h2>
+      <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
+        Solo un administrador puede ver el resumen financiero.
+      </p>
+      <button
+        type="button"
+        onClick={onBack}
+        className={`${secondaryButtonClass} mt-4 text-[0.7rem]`}
+      >
+        Volver a ajustes
+      </button>
+    </section>
+  );
+}
+
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1174,6 +1175,7 @@ export default function ResumenFinanciero() {
     movements: false,
     histories: false,
   });
+  const shouldRestrictByRole = useMemo(() => false, []);
   const [showMermaAudit, setShowMermaAudit] = useState(false);
   const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
   const [laboratoryAnalysis, setLaboratoryAnalysis] =
@@ -1260,7 +1262,7 @@ export default function ResumenFinanciero() {
 
   const handleUnlock = async () => {
     if (!password.trim()) {
-      setError('Escribe la contraseña del administrador.');
+      setError('Ingresa la contraseña para continuar.');
       return;
     }
 
@@ -1268,13 +1270,17 @@ export default function ResumenFinanciero() {
     setError(null);
 
     try {
-      await verificarPasswordFinanciero(password);
+      await verificarAccesoFinanciero(password);
       saveFinancialAccessSession();
       setAuthorized(true);
       setPassword('');
       await cargar();
     } catch (err) {
-      setError('No pudimos validar la contraseña. Intenta nuevamente.');
+      setError(
+        err instanceof FinancialAccessError
+          ? err.message
+          : 'No pudimos validar la contraseña. Intenta nuevamente.',
+      );
     } finally {
       setLoading(false);
     }
@@ -1285,14 +1291,6 @@ export default function ResumenFinanciero() {
     navigate('/resumen-financiero/analisis-inteligente', {
       state: { financialAccessGranted: true },
     });
-  };
-
-  const handleRetryAccess = () => {
-    void handleUnlock();
-  };
-
-  const handleBackAccess = () => {
-    navigate(-1);
   };
 
   const movimientos = useMemo(() => {
@@ -1715,21 +1713,6 @@ export default function ResumenFinanciero() {
     );
   }
 
-  if (!authorized && error) {
-    return (
-      <CafeSmartErrorState
-        title="No pudimos cargar el acceso financiero"
-        message={error}
-        primaryLabel="Volver a intentar"
-        secondaryLabel="Volver"
-        onPrimary={handleRetryAccess}
-        onSecondary={handleBackAccess}
-        primaryBusy={loading}
-        fullScreen
-      />
-    );
-  }
-
   if (authorized && error && !historialActivo) {
     return (
       <CafeSmartErrorState
@@ -1786,7 +1769,9 @@ export default function ResumenFinanciero() {
           </section>
         ) : null}
 
-        {!authorized ? (
+        {shouldRestrictByRole ? (
+          <FinancialAccessRestrictedState onBack={() => navigate('/ajustes')} />
+        ) : !authorized ? (
           <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
             <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200">
               <Lock size={18} />
@@ -1795,11 +1780,18 @@ export default function ResumenFinanciero() {
               Acceso financiero
             </h2>
             <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
-              Ingresa la contraseña del administrador para ver utilidad, merma y
-              análisis.
+              Esta sección contiene información sensible del negocio. Ingresa la
+              contraseña de acceso para ver balance, merma y movimientos.
             </p>
-            <div className="relative mt-4">
+            <label
+              htmlFor="financial-access-password"
+              className="mt-4 block text-left text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300"
+            >
+              Contraseña de acceso
+            </label>
+            <div className="relative mt-2">
               <input
+                id="financial-access-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -1809,7 +1801,8 @@ export default function ResumenFinanciero() {
                   }
                 }}
                 className={`${fieldInputClass} pr-11`}
-                placeholder="Contraseña"
+                placeholder="Contraseña de acceso"
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -1820,13 +1813,22 @@ export default function ResumenFinanciero() {
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
+            {error ? (
+              <AppFeedbackMessage
+                variant="error"
+                title="Acceso no autorizado"
+                description={error}
+                className="mt-3 text-left"
+                autoClose={false}
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => void handleUnlock()}
               disabled={loading}
               className={`${primaryButtonClass} mt-3 text-[0.7rem]`}
             >
-              {loading ? 'Validando...' : 'Ver resumen financiero'}
+              {loading ? 'Validando acceso...' : 'Ver resumen financiero'}
             </button>
           </section>
         ) : (
