@@ -6,7 +6,7 @@ import {
   Loader,
   Mail,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartLogo } from '../components/CafeSmartLogo';
 import { useResetPassword } from '../hooks/useResetPassword';
@@ -88,6 +88,24 @@ function RecoveryErrorNotice({
 
 export default function RecuperarPassword() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const recoveryState = location.state as {
+    returnTo?: string;
+    returnLabel?: string;
+  } | null;
+  const returnTo =
+    typeof recoveryState?.returnTo === 'string' && recoveryState.returnTo.startsWith('/')
+      ? recoveryState.returnTo
+      : '/login';
+  const returnLabel =
+    typeof recoveryState?.returnLabel === 'string' && recoveryState.returnLabel.trim()
+      ? recoveryState.returnLabel
+      : returnTo === '/resumen-financiero'
+        ? 'Volver al acceso financiero'
+        : 'Volver al login';
+  const handleBack = () => {
+    navigate(returnTo);
+  };
   const {
     email,
     setEmail,
@@ -104,11 +122,12 @@ export default function RecuperarPassword() {
     <header className="flex items-center gap-3">
       <button
         type="button"
-        onClick={() => navigate('/login')}
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dbe7ff] bg-white text-[#102d92] shadow-sm transition hover:bg-[#f5f9ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800"
-        aria-label="Volver al login"
+        onClick={handleBack}
+        className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-[#dbe7ff] bg-white px-3 text-xs font-black text-[#102d92] shadow-sm transition hover:bg-[#f5f9ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800"
+        aria-label={returnLabel}
       >
         <ArrowLeft size={18} />
+        <span>{returnLabel}</span>
       </button>
       <h1 className="text-[1.25rem] font-black tracking-tight text-slate-950 dark:text-slate-100">
         Recuperar contraseña
@@ -196,6 +215,14 @@ export default function RecuperarPassword() {
                 Contactar soporte
               </a>
             </div>
+
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[16px] border border-[#cdd8ef] bg-white px-4 text-[0.82rem] font-black text-[#102d92] shadow-[0_8px_18px_rgba(15,23,42,0.045)] transition hover:border-[#93c5fd] hover:bg-[#f5f9ff] active:scale-[0.985] focus:outline-none focus:ring-4 focus:ring-[#1e3a8a]/10 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              {returnLabel}
+            </button>
           </section>
         ) : (
           <form onSubmit={handleSubmit} noValidate className="mt-7 space-y-4">

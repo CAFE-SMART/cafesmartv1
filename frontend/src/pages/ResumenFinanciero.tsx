@@ -1108,29 +1108,6 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
   );
 }
 
-function FinancialAccessRestrictedState({ onBack }: { onBack: () => void }) {
-  return (
-    <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
-      <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200">
-        <Lock size={18} />
-      </span>
-      <h2 className="mt-3 text-[1rem] font-black text-slate-900 dark:text-slate-100">
-        Acceso restringido
-      </h2>
-      <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
-        Solo un administrador puede ver el resumen financiero.
-      </p>
-      <button
-        type="button"
-        onClick={onBack}
-        className={`${secondaryButtonClass} mt-4 text-[0.7rem]`}
-      >
-        Volver a ajustes
-      </button>
-    </section>
-  );
-}
-
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1175,7 +1152,6 @@ export default function ResumenFinanciero() {
     movements: false,
     histories: false,
   });
-  const shouldRestrictByRole = useMemo(() => false, []);
   const [showMermaAudit, setShowMermaAudit] = useState(false);
   const [mermaAuditView, setMermaAuditView] = useState<'summary' | 'laboratory'>('summary');
   const [laboratoryAnalysis, setLaboratoryAnalysis] =
@@ -1262,7 +1238,7 @@ export default function ResumenFinanciero() {
 
   const handleUnlock = async () => {
     if (!password.trim()) {
-      setError('Ingresa la contraseña para continuar.');
+      setError('Ingresa tu contraseña para continuar.');
       return;
     }
 
@@ -1769,9 +1745,7 @@ export default function ResumenFinanciero() {
           </section>
         ) : null}
 
-        {shouldRestrictByRole ? (
-          <FinancialAccessRestrictedState onBack={() => navigate('/ajustes')} />
-        ) : !authorized ? (
+        {!authorized ? (
           <section className="mt-6 rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900">
             <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200">
               <Lock size={18} />
@@ -1780,14 +1754,14 @@ export default function ResumenFinanciero() {
               Acceso financiero
             </h2>
             <p className="mt-2 text-[0.66rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
-              Esta sección contiene información sensible del negocio. Ingresa la
-              contraseña de acceso para ver balance, merma y movimientos.
+              Esta sección contiene información sensible del negocio. Ingresa tu
+              contraseña para ver balance, merma y movimientos.
             </p>
             <label
               htmlFor="financial-access-password"
               className="mt-4 block text-left text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300"
             >
-              Contraseña de acceso
+              Contraseña
             </label>
             <div className="relative mt-2">
               <input
@@ -1801,7 +1775,7 @@ export default function ResumenFinanciero() {
                   }
                 }}
                 className={`${fieldInputClass} pr-11`}
-                placeholder="Contraseña de acceso"
+                placeholder="Contraseña"
                 autoComplete="current-password"
               />
               <button
@@ -1816,12 +1790,26 @@ export default function ResumenFinanciero() {
             {error ? (
               <AppFeedbackMessage
                 variant="error"
-                title="Acceso no autorizado"
+                title="No pudimos validar el acceso"
                 description={error}
                 className="mt-3 text-left"
                 autoClose={false}
               />
             ) : null}
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/recuperar-password', {
+                  state: {
+                    returnTo: '/resumen-financiero',
+                    returnLabel: 'Volver al acceso financiero',
+                  },
+                })
+              }
+              className="mt-3 text-[0.72rem] font-black text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:text-blue-300"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
             <button
               type="button"
               onClick={() => void handleUnlock()}

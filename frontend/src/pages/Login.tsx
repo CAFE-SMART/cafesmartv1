@@ -980,7 +980,14 @@ export default function Login() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => navigate('/recuperar')}
+                  onClick={() =>
+                    navigate('/recuperar-password', {
+                      state: {
+                        returnTo: '/login',
+                        returnLabel: 'Volver al login',
+                      },
+                    })
+                  }
                   className="text-sm font-bold text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:text-blue-300"
                 >
                   ¿Olvidaste tu contraseña?

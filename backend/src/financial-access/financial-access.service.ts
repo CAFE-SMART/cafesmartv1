@@ -1,30 +1,24 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createHash, timingSafeEqual } from 'crypto';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class FinancialAccessService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly authService: AuthService) {}
 
-  verify(password: string) {
-    const expectedPassword = this.configService.get<string>(
-      'FINANCIAL_ACCESS_PASSWORD',
-    );
-
-    if (!expectedPassword) {
-      throw new ServiceUnavailableException({
-        ok: false,
-        message: 'Acceso financiero no configurado',
-      });
-    }
-
-    if (!password) {
+  async verifyUserPassword(userId: string, password: string) {
+    if (!password.trim()) {
       return false;
     }
 
-    const inputHash = createHash('sha256').update(password).digest();
-    const expectedHash = createHash('sha256').update(expectedPassword).digest();
+    try {
+      await this.authService.verifyCurrentPassword(userId, password);
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        return false;
+      }
 
-    return timingSafeEqual(inputHash, expectedHash);
+      throw error;
+    }
   }
 }

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -17,8 +18,14 @@ export class FinancialAccessController {
   @Post('verify')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  verify(@Body() dto: { password?: string }) {
-    const authorized = this.financialAccessService.verify(dto.password ?? '');
+  async verify(
+    @Body() dto: { password?: string },
+    @Req() req: { user: { sub: string } },
+  ) {
+    const authorized = await this.financialAccessService.verifyUserPassword(
+      req.user.sub,
+      dto.password ?? '',
+    );
 
     if (!authorized) {
       throw new ForbiddenException({
