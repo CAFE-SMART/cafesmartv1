@@ -48,6 +48,15 @@ export class UsersService {
           mode: 'insensitive',
         },
       },
+      select: {
+        id: true,
+        correo: true,
+        nombre: true,
+        telefono: true,
+        password: true,
+        googleId: true,
+        organizacionId: true,
+      },
     });
   }
 
