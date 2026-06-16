@@ -19,6 +19,7 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { CloudStatusBadge } from '../components/CloudStatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartDatePicker } from '../components/common/CafeSmartDatePicker';
 import { SystemSaveError } from '../components/SystemSaveError';
 import {
   createGuidedError,
@@ -133,6 +134,7 @@ export default function Gastos() {
   const [saveErrorDetail, setSaveErrorDetail] = React.useState<unknown>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [lotes, setLotes] = React.useState<LoteResumen[]>([]);
+  const [fechaPickerOpen, setFechaPickerOpen] = React.useState(false);
   const [loadingLotes, setLoadingLotes] = React.useState(false);
   const [loadLotesError, setLoadLotesError] = React.useState<string | null>(
     null,
@@ -365,29 +367,24 @@ export default function Gastos() {
                 </p>
               </div>
               <div>
-                <label
-                  htmlFor="gasto-rapido-fecha"
-                  className="mb-2 block text-sm font-black text-slate-700"
-                >
-                  Fecha
-                </label>
-                <div className="flex items-center gap-3 rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3">
-                  <input
-                    id="gasto-rapido-fecha"
-                    type="date"
-                    value={form.fecha}
-                    min={BUSINESS_MIN_DATE_VALUE}
-                    max={getTodayLocalDateValue()}
-                    onChange={(event) =>
-                      setForm((actual) => ({
-                        ...actual,
-                        fecha: event.target.value,
-                      }))
-                    }
-                    className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none"
-                  />
-                  <CalendarDays size={16} className="text-slate-400" />
-                </div>
+                <CafeSmartDatePicker
+                  value={form.fecha}
+                  minDate={BUSINESS_MIN_DATE_VALUE}
+                  maxDate={getTodayLocalDateValue()}
+                  open={fechaPickerOpen}
+                  label="Fecha"
+                  placeholder="Selecciona fecha"
+                  clearable={false}
+                  dialogLabel="Calendario de gasto"
+                  onToggle={() => setFechaPickerOpen((open) => !open)}
+                  onClose={() => setFechaPickerOpen(false)}
+                  onChange={(value) =>
+                    setForm((actual) => ({
+                      ...actual,
+                      fecha: value || getTodayLocalDateValue(),
+                    }))
+                  }
+                />
               </div>
             </div>
 

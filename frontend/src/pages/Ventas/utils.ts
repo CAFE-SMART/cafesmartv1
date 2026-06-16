@@ -172,22 +172,25 @@ export const uid = () =>
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 // Lote functions
+export function isLoteVendible(lote: LoteResumen) {
+  const searchable = norm(
+    `${lote.id} ${lote.codigo} ${lote.tipoCafeId} ${lote.tipoCafe} ${lote.calidadId} ${lote.calidad}`,
+  );
+  const noVendible =
+    searchable.includes('en secado') ||
+    searchable.includes('secado activo') ||
+    searchable.includes('proceso de secado') ||
+    searchable.includes('no disponible') ||
+    searchable.includes('virtual-en-secado') ||
+    searchable.includes('virtual-en-proceso') ||
+    searchable.includes('secado-proceso');
+
+  return lote.pesoActual > 0 && !noVendible;
+}
+
 export function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
   return lotes
-    .filter((l) => {
-      const searchable = norm(
-        `${l.id} ${l.codigo} ${l.tipoCafeId} ${l.tipoCafe} ${l.calidadId} ${l.calidad}`,
-      );
-      const noVendible =
-        searchable.includes('en secado') ||
-        searchable.includes('secado activo') ||
-        searchable.includes('proceso de secado') ||
-        searchable.includes('no disponible') ||
-        searchable.includes('virtual-en-secado') ||
-        searchable.includes('secado-proceso');
-
-      return l.pesoActual > 0 && !noVendible;
-    })
+    .filter(isLoteVendible)
     .map((l) => ({
       id: l.id,
       codigo: l.codigo,

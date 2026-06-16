@@ -8,7 +8,7 @@ import { AppFeedbackMessage } from './components/AppFeedbackMessage';
 import { InternalLoadingScreen } from './components/InternalLoadingScreen';
 import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation } from 'react-router-dom';
-import { AUTH_STORAGE_KEYS, getAuthStorageValue } from './storage/authStorage';
+import { getStoredAuthToken } from './storage/authStorage';
 import { themeClasses } from './theme/themeClasses';
 
 type ErrorBoundaryProps = {
@@ -85,7 +85,7 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
   private handleGoHome = async () => {
     const path = window.location.pathname;
     const inAuthFlow = isPublicRoute(path);
-    const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
+    const token = await getStoredAuthToken();
 
     if (path.startsWith('/ajustes')) {
       window.location.assign('/ajustes');

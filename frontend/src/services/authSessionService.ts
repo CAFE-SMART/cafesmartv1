@@ -102,6 +102,62 @@ function getSessionFreshness(session: Partial<CachedAuthSession>) {
   return session.sessionUpdatedAt ?? session.lastLoginAt ?? 0;
 }
 
+async function hasActiveStoredCredentials(session: CachedAuthSession) {
+  const [storedToken, storedUserRaw] = await Promise.all([
+    getAuthStorageValue(AUTH_STORAGE_KEYS.token),
+    getAuthStorageValue(AUTH_STORAGE_KEYS.user),
+  ]);
+
+  if (!storedToken || storedToken !== session.accessToken || !storedUserRaw) {
+    return false;
+  }
+
+  try {
+    const storedUser = JSON.parse(storedUserRaw) as Partial<CachedUser> & {
+      correo?: string;
+      nombre?: string;
+    };
+    const storedEmail = storedUser.email ?? storedUser.correo;
+    return (
+      typeof storedEmail === 'string' &&
+      normalizeEmail(storedEmail) === normalizeEmail(session.user.email)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function shouldRepairOfflineFlags(session: CachedAuthSession) {
+  return (
+    Boolean(session.accessToken) &&
+    Boolean(session.user?.id) &&
+    Boolean(session.user?.email) &&
+    session.hasCompany === true &&
+    session.offlineAllowed !== true &&
+    session.loggedOutManually !== true
+  );
+}
+
+async function hasManualLogoutMarker() {
+  return Boolean(await getAuthStorageValue(AUTH_STORAGE_KEYS.manualLogout));
+}
+
+async function shouldRepairDisabledSession(session: CachedAuthSession) {
+  if (shouldRepairOfflineFlags(session)) {
+    return true;
+  }
+
+  if (session.loggedOutManually !== true) {
+    return false;
+  }
+
+  if (await hasActiveStoredCredentials(session)) {
+    return true;
+  }
+
+  return !(await hasManualLogoutMarker());
+}
+
 async function readStoredSession(): Promise<StoredSessionRead> {
   let indexedDbSession: Partial<CachedAuthSession> | null = null;
   try {
@@ -154,6 +210,10 @@ export const authSessionService = {
       AUTH_STORAGE_KEYS.lastSession,
       JSON.stringify(normalized),
     );
+
+    if (normalized.loggedOutManually !== true) {
+      await removeAuthStorageValue(AUTH_STORAGE_KEYS.manualLogout);
+    }
 
     return { source, session: normalized };
   },
@@ -234,7 +294,16 @@ export const authSessionService = {
         return { session: null, reason: 'invalid' };
       }
 
-      const session = normalizeSession(parsed as CachedAuthSession);
+      let session = normalizeSession(parsed as CachedAuthSession);
+
+      if (await shouldRepairDisabledSession(session)) {
+        const repaired = await this.saveLastSession({
+          ...session,
+          offlineAllowed: true,
+          loggedOutManually: false,
+        });
+        session = repaired.session;
+      }
 
       if (session.offlineAllowed !== true || session.loggedOutManually === true) {
         return { session: null, reason: 'disabled' };
@@ -277,6 +346,10 @@ export const authSessionService = {
         offlineAllowed: false,
         loggedOutManually: true,
       });
+      await setAuthStorageValue(
+        AUTH_STORAGE_KEYS.manualLogout,
+        String(Date.now()),
+      );
       if (import.meta.env.DEV) {
         console.info('[offline-login] session disabled by logout', {
           reason: 'manual_logout',
@@ -298,9 +371,19 @@ export const authSessionService = {
     const storedSession = stored?.session;
 
     if (storedSession && hasMinimumSessionData(storedSession)) {
-      const session = normalizeSession(storedSession as CachedAuthSession);
+      let session = normalizeSession(storedSession as CachedAuthSession);
       const cachedEmail = normalizeEmail(session.user.email);
       const emailMatches = Boolean(requestedEmail && requestedEmail === cachedEmail);
+
+      if (await shouldRepairDisabledSession(session)) {
+        const repaired = await this.saveLastSession({
+          ...session,
+          offlineAllowed: true,
+          loggedOutManually: false,
+        });
+        session = repaired.session;
+      }
+
       const diagnostics = {
         offlineAllowed: session.offlineAllowed,
         loggedOutManually: session.loggedOutManually,

@@ -22,6 +22,7 @@ import {
 import { ApiRequestError } from '../services/apiService';
 import { AccessibleModal } from '../components/AccessibleModal';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartDatePicker } from '../components/common/CafeSmartDatePicker';
 import { InternalLoadingScreen } from '../components/InternalLoadingScreen';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -1138,10 +1139,16 @@ export default function GastosOperativos() {
                 Fecha
               </label>
               <div ref={fechaInputRef} tabIndex={-1}>
-                <GastoDatePicker
+                <CafeSmartDatePicker
                   value={fecha}
+                  minDate={BUSINESS_MIN_DATE_VALUE}
+                  maxDate={getTodayLocalDateValue()}
                   open={fechaPickerOpen}
                   hasError={Boolean(fieldErrors.fecha)}
+                  label="Fecha"
+                  placeholder="Selecciona fecha"
+                  clearable={false}
+                  dialogLabel="Calendario de fecha de gasto"
                   onToggle={() => setFechaPickerOpen((open) => !open)}
                   onClose={() => setFechaPickerOpen(false)}
                   onChange={(nextFecha) => {

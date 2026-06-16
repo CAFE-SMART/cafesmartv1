@@ -34,6 +34,7 @@ import { SmartSelect } from '../components/SmartSelect';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
 import { InternalLoadingScreen } from '../components/InternalLoadingScreen';
 import { TransactionSuccessScreen } from '../components/TransactionSuccessScreen';
+import { CafeSmartDatePicker } from '../components/common/CafeSmartDatePicker';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import {
   createGuidedError,
@@ -4130,11 +4131,15 @@ export default function Compras() {
                     <p className="text-[0.92rem] font-black tracking-[0.03em] text-slate-700">
                       Fecha de compra
                     </p>
-                    <PurchaseDatePicker
+                    <CafeSmartDatePicker
                       value={fecha}
-                      min={BUSINESS_MIN_DATE_VALUE}
-                      max={hoyLocal()}
+                      minDate={BUSINESS_MIN_DATE_VALUE}
+                      maxDate={hoyLocal()}
                       open={tipoCafeDropdownOpenId === 'fecha-compra'}
+                      label="Fecha de compra"
+                      placeholder="Selecciona fecha"
+                      clearable={false}
+                      dialogLabel="Calendario de fecha de compra"
                       onToggle={() =>
                         setTipoCafeDropdownOpenId((actual) =>
                           actual === 'fecha-compra' ? null : 'fecha-compra',
@@ -5347,11 +5352,14 @@ export default function Compras() {
               <div className="mt-4 grid gap-3">
                 <label className="block">
                   <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
-                  <PurchaseDatePicker
+                  <CafeSmartDatePicker
                       value={historialCompraFecha}
-                    min={BUSINESS_MIN_DATE_VALUE}
-                      max={getTodayLocalDateValue()}
+                    minDate={BUSINESS_MIN_DATE_VALUE}
+                      maxDate={getTodayLocalDateValue()}
                     open={historialCompraFechaPickerOpen}
+                    label="Fecha"
+                    placeholder="Fecha"
+                    dialogLabel="Calendario de historial de compras"
                     onToggle={() =>
                       setHistorialCompraFechaPickerOpen((open) => !open)
                     }

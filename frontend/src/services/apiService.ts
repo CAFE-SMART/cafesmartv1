@@ -1,4 +1,7 @@
-import { AUTH_STORAGE_KEYS, getAuthStorageValue } from '../storage/authStorage';
+import {
+  getStoredAuthToken,
+  restorePrimaryAuthFromLastSession,
+} from '../storage/authStorage';
 import { getApiBaseUrlCandidates, SHOULD_LOG_API_DEBUG } from '../config/api';
 import { getOfflineCache, saveOfflineCache } from './offlineCacheService';
 import { logDebugLine } from '../utils/debugLog';
@@ -239,7 +242,7 @@ function isNetworkOrTimeoutError(error: unknown) {
 
 export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) => {
   const { timeoutMs = DEFAULT_API_TIMEOUT_MS, ...fetchOptions } = options;
-  const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
+  const token = await getStoredAuthToken();
   const basesApi = construirBasesApi();
   const method = (fetchOptions.method ?? 'GET').toUpperCase();
   const canDedupe = method === 'GET' && !fetchOptions.signal;
@@ -261,24 +264,41 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
     if (cached) getResponseCache.delete(dedupeKey);
   }
 
-  const headers = {
+  const buildHeaders = (authToken: string | null) => ({
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     ...options.headers,
-  };
+  });
 
   let ultimoError: unknown = null;
 
   const requestPromise = (async () => {
     for (const apiBaseUrl of basesApi) {
       const url = `${apiBaseUrl}${endpoint}`;
-      const timeoutController = fetchOptions.signal ? null : new AbortController();
-      const timeoutId = timeoutController
-        ? window.setTimeout(
-            () => timeoutController.abort(),
-            timeoutMs,
-          )
-        : null;
+      let requestToken = token;
+      let retriedAfterAuthRestore = false;
+
+      const runFetch = async () => {
+        const timeoutController = fetchOptions.signal ? null : new AbortController();
+        const timeoutId = timeoutController
+          ? window.setTimeout(
+              () => timeoutController.abort(),
+              timeoutMs,
+            )
+          : null;
+
+        try {
+          return await fetch(url, {
+            ...fetchOptions,
+            headers: buildHeaders(requestToken),
+            signal: fetchOptions.signal ?? timeoutController?.signal,
+          });
+        } finally {
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+          }
+        }
+      };
 
       try {
         if (SHOULD_LOG_API_DEBUG) {
@@ -289,11 +309,25 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
           });
         }
 
-        const response = await fetch(url, {
-          ...fetchOptions,
-          headers,
-          signal: fetchOptions.signal ?? timeoutController?.signal,
-        });
+        let response = await runFetch();
+
+        if (response.status === 401 && !retriedAfterAuthRestore) {
+          const restored = await restorePrimaryAuthFromLastSession();
+          if (restored?.token && restored.token !== requestToken) {
+            retriedAfterAuthRestore = true;
+            requestToken = restored.token;
+            if (SHOULD_LOG_API_DEBUG) {
+              console.info(
+                `[CafeSmart][api-fetch] retry after auth restore method=${method} url=${url}`,
+              );
+              logDebugLine('[CafeSmart][api-fetch] retry after auth restore', {
+                method,
+                url,
+              });
+            }
+            response = await runFetch();
+          }
+        }
 
         if (SHOULD_LOG_API_DEBUG) {
           console.info(
@@ -381,10 +415,6 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
             url,
             error: describeFetchError(error),
           });
-        }
-      } finally {
-        if (timeoutId !== null) {
-          window.clearTimeout(timeoutId);
         }
       }
     }

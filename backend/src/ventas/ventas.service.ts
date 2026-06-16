@@ -231,6 +231,7 @@ export class VentasService {
       fecha: input.fecha ?? null,
       clienteId: input.clienteId ?? null,
       clienteRapido: input.clienteRapido ?? null,
+      clienteNombre: input.clienteNombre ?? null,
       totalKg: input.totalKg ?? null,
       totalEstimado: input.totalEstimado ?? null,
       deviceIdPresent: Boolean(input.deviceId),
@@ -248,10 +249,13 @@ export class VentasService {
     };
 
     console.error(
-      '[CafeSmart][POST /ventas] DTO recibido:',
+      '[CafeSmart][ventas-create] payload recibido:',
       JSON.stringify(payloadLog, null, 2),
     );
-    console.error('[CafeSmart][POST /ventas] Usuario autenticado:', userId);
+    console.error('[CafeSmart][ventas-create] user recibido:', {
+      userId,
+      organizacionId: organizacionIdFinal,
+    });
 
     try {
       return await procesarVenta(
@@ -281,14 +285,21 @@ export class VentasService {
           payload: payloadLog,
         }),
       );
-      console.error('[CafeSmart][POST /ventas] Error real:', error);
+      console.error(
+        '[CafeSmart][ventas-create] payload recibido:',
+        JSON.stringify(payloadLog, null, 2),
+      );
+      console.error('[CafeSmart][ventas-create] user recibido:', {
+        userId,
+        organizacionId: organizacionIdFinal,
+      });
+      console.error('[CafeSmart][ventas-create] error real:', error);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        console.error('[CafeSmart][POST /ventas] Prisma code:', error.code);
-        console.error(
-          '[CafeSmart][POST /ventas] Prisma message:',
-          error.message,
-        );
-        console.error('[CafeSmart][POST /ventas] Prisma meta:', error.meta);
+        console.error('[CafeSmart][ventas-create] prisma error:', {
+          code: error.code,
+          message: error.message,
+          meta: error.meta,
+        });
       }
 
       if (error instanceof VentaValidacionCriticaError) {
@@ -400,6 +411,26 @@ export class VentasService {
           message:
             'Ya recibimos una venta con ese identificador de sincronizacion. Revise si el equipo ya la envio antes.',
         });
+      }
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2003') {
+          throw new BadRequestException({
+            code: 'VENTA_RELACION_INVALIDA',
+            message:
+              'La venta referencia un cliente, sublote, usuario u organizacion que no esta disponible. Actualiza los datos e intenta de nuevo.',
+            details: error.meta,
+          });
+        }
+
+        if (error.code === 'P2028') {
+          throw new ConflictException({
+            code: 'VENTA_TRANSACCION_TIMEOUT',
+            message:
+              'La venta tardo demasiado en procesarse. Intenta nuevamente en unos segundos.',
+            details: error.meta,
+          });
+        }
       }
 
       throw error;

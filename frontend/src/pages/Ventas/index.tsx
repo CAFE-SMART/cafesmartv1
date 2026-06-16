@@ -48,6 +48,7 @@ import { ModalConfirmacionVenta } from './components/ModalConfirmacionVenta';
 import { CafeSmartErrorState } from '../../components/CafeSmartErrorState';
 import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingScreen';
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
+import { CafeSmartDatePicker } from '../../components/common/CafeSmartDatePicker';
 import { shareMovementSummary } from '../../services/shareMovementSummary';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { formatCoffeeFullName, getCoffeeCodePrefix, getSubloteCodeMap } from '../../utils/coffeeCodes';
@@ -2210,11 +2211,15 @@ export default function Ventas() {
                       Fecha de venta
                     </span>
                     <div className="min-w-0 flex-1 sm:max-w-[55%]">
-                      <SalesDatePicker
+                      <CafeSmartDatePicker
                         value={fechaVenta}
-                        min={BUSINESS_MIN_DATE_VALUE}
-                        max={getTodayLocalDateValue()}
+                        minDate={BUSINESS_MIN_DATE_VALUE}
+                        maxDate={getTodayLocalDateValue()}
                         open={fechaVentaPickerOpen}
+                        label="Fecha de venta"
+                        placeholder="Selecciona fecha"
+                        clearable={false}
+                        dialogLabel="Calendario de fecha de venta"
                         onToggle={() => setFechaVentaPickerOpen((open) => !open)}
                         onClose={() => setFechaVentaPickerOpen(false)}
                         onChange={(value) => {

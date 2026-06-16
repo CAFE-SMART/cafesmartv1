@@ -45,7 +45,7 @@ describe('VentasService - errores de inventario', () => {
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as ConflictException).getResponse()).toMatchObject({
         code: 'INSUFFICIENT_STOCK',
-        message: 'No hay suficiente inventario para realizar la venta',
+        message: 'No hay suficiente café disponible para completar esta venta.',
       });
     }
   });

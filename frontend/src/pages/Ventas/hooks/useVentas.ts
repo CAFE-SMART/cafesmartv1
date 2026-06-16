@@ -17,7 +17,7 @@ import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import { getTodayLocalDateValue, validateBusinessDateRange, toIsoDateAtUtcNoon } from '../../../utils/date';
 import { VENTA_DRAFT_STORAGE_KEY, VENTA_FILTRO_TODOS } from '../constants';
 import type { VentaGuardadaResumen, ClienteOption, ClienteForm, ClienteFormErrors, LoteVenta, ModoVenta, Step, VentaParcialCardAlert, VentaFifoItem } from '../types';
-import { dedupeClientesOptions, distribuirPesoVerificado, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getPesoVerificado, getVentaSubmitMessage, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos } from '../utils';
+import { dedupeClientesOptions, distribuirPesoVerificado, esErrorGeneralGuardadoVenta, findClienteExistente, getDisponibleVenta, getPesoVerificado, getVentaSubmitMessage, isLoteVendible, isValidCantidadInput, isValidPrecioInput, kg, mapClienteToOption, mkLotes, money, norm, pesoVerificadoInvalido, round2, toNum, uid, soloDigitos } from '../utils';
 import { ENABLE_SECADO_PROTOTYPE } from '../../../config/features';
 import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFlow';
 import { getSubloteCodeMap } from '../../../utils/coffeeCodes';
@@ -202,9 +202,10 @@ export function useVentas() {
       const lotes = lotesResult.value;
       const clientesData = clientesResult.status === 'fulfilled' ? clientesResult.value : [];
       const lotesDisponibles = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(lotes, { includeGeneratedOutputs: false }) : lotes;
-      setLotesVenta(mkLotes(lotesDisponibles));
+      const lotesVendibles = lotesDisponibles.filter(isLoteVendible);
+      setLotesVenta(mkLotes(lotesVendibles));
       setClientes(dedupeClientesOptions(clientesData.map(mapClienteToOption)));
-      void saveOfflineCache(INVENTORY_SUBLOTES_CACHE_KEY, lotesDisponibles);
+      void saveOfflineCache(INVENTORY_SUBLOTES_CACHE_KEY, lotesVendibles);
       void saveOfflineCache(CATALOG_CLIENTES_CACHE_KEY, clientesData);
       if (bodegaResult.status === 'fulfilled') {
         void saveOfflineCache(WAREHOUSE_CAPACITY_CACHE_KEY, bodegaResult.value);
@@ -268,7 +269,7 @@ export function useVentas() {
         );
       }
       void Promise.allSettled(
-        lotesDisponibles.map((lote) =>
+        lotesVendibles.map((lote) =>
           obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).then((detalle) =>
             saveOfflineCache(
               detalleSublotesCacheKey(lote.tipoCafeId, lote.calidadId),

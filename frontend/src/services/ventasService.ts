@@ -1,4 +1,5 @@
 import { apiFetch, invalidateApiCache } from './apiService';
+import { getStoredAuthToken } from '../storage/authStorage';
 
 export type VentaClientePayload = {
   nombre: string;
@@ -118,26 +119,46 @@ export async function listarVentas(params: ListarVentasParams = {}) {
 }
 
 export async function crearVenta(payload: CreateVentaPayload) {
+  const token = await getStoredAuthToken();
+  if (!token) {
+    throw new Error('No hay sesión activa. Inicia sesión nuevamente.');
+  }
+
+  const payloadFiltrado: CreateVentaPayload = {
+    ...payload,
+    detalles: payload.detalles.filter(
+      (detalle) =>
+        Boolean(detalle.subloteId) &&
+        Number(detalle.pesoVendido) > 0 &&
+        Number(detalle.precioKg) > 0,
+    ),
+  };
+
+  if (payloadFiltrado.detalles.length === 0) {
+    throw new Error('Agrega al menos un cafe con cantidad y precio validos.');
+  }
+
   const payloadLog = {
     endpoint: '/ventas',
-    fecha: payload.fecha ?? null,
-    clienteId: payload.clienteId ?? null,
-    clienteRapido: Boolean(payload.clienteRapido),
-    clienteNombre: payload.clienteNombre ?? null,
-    deviceIdPresent: Boolean(payload.deviceId),
-    localIdPresent: Boolean(payload.localId),
-    detallesCount: payload.detalles.length,
-    totalKg: payload.detalles.reduce(
+    authTokenPresent: true,
+    fecha: payloadFiltrado.fecha ?? null,
+    clienteId: payloadFiltrado.clienteId ?? null,
+    clienteRapido: Boolean(payloadFiltrado.clienteRapido),
+    clienteNombre: payloadFiltrado.clienteNombre ?? null,
+    deviceIdPresent: Boolean(payloadFiltrado.deviceId),
+    localIdPresent: Boolean(payloadFiltrado.localId),
+    detallesCount: payloadFiltrado.detalles.length,
+    totalKg: payloadFiltrado.detalles.reduce(
       (total, detalle) => total + Number(detalle.pesoVendido || 0),
       0,
     ),
-    totalEstimado: payload.detalles.reduce(
+    totalEstimado: payloadFiltrado.detalles.reduce(
       (total, detalle) =>
         total +
         Number(detalle.pesoVendido || 0) * Number(detalle.precioKg || 0),
       0,
     ),
-    detalles: payload.detalles.map((detalle, index) => ({
+    detalles: payloadFiltrado.detalles.map((detalle, index) => ({
       index,
       subloteId: detalle.subloteId || null,
       pesoVendido: detalle.pesoVendido,
@@ -152,7 +173,7 @@ export async function crearVenta(payload: CreateVentaPayload) {
   try {
     const response = (await apiFetch('/ventas', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payloadFiltrado),
       timeoutMs: VENTA_CREATE_TIMEOUT_MS,
     })) as CreateVentaResponse;
 

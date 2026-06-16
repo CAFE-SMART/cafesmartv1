@@ -9,6 +9,7 @@ import {
   AUTH_STORAGE_KEYS,
   clearAuthStorage,
   getAuthStorageValue,
+  restorePrimaryAuthFromLastSession,
   setRuntimeAuthStorageValue,
   setAuthStorageValue,
 } from '../storage/authStorage';
@@ -115,12 +116,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (!storedToken || !storedUserRaw) {
+      let currentUserRaw = storedUserRaw;
+      let currentToken = storedToken;
+      let currentHasCompany = storedHasCompany;
+
+      if (!currentToken || !currentUserRaw) {
+        const restored = await restorePrimaryAuthFromLastSession();
+        if (!active) return;
+
+        if (restored) {
+          currentToken = restored.token;
+          currentUserRaw = JSON.stringify(restored.user);
+          currentHasCompany = String(restored.hasCompany);
+          console.info(
+            '[offline-login] credenciales primarias restauradas desde auth_last_session',
+            JSON.stringify({ hasCompany: restored.hasCompany }),
+          );
+        }
+      }
+
+      if (!currentToken || !currentUserRaw) {
         if (!browserOnline) {
           const cached = await authSessionService.getLastSessionResult();
           if (!active) return;
 
           if (cached.session) {
+            await restorePrimaryAuthFromLastSession();
+            if (!active) return;
             setToken(cached.session.accessToken);
             setHasCompany(cached.session.hasCompany);
             setUser(cached.session.user);
@@ -141,17 +163,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const expirationMs = getTokenExpirationMs(storedToken);
+      const expirationMs = getTokenExpirationMs(currentToken);
       const isExpired = expirationMs !== null && expirationMs <= Date.now();
 
       if (isExpired) {
         if (!browserOnline) {
           try {
-            const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
+            const parsed = JSON.parse(currentUserRaw) as StoredUserShape;
             const nextHasCompany =
-              storedHasCompany === 'true' || Boolean(parsed.organizacionId);
+              currentHasCompany === 'true' || Boolean(parsed.organizacionId);
 
-            setToken(storedToken);
+            setToken(currentToken);
             setHasCompany(nextHasCompany);
             setUser(mapStoredUserToUser(parsed));
             setOfflineSession(true);
@@ -195,11 +217,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
+        const parsed = JSON.parse(currentUserRaw) as StoredUserShape;
         const nextHasCompany =
-          storedHasCompany === 'true' || Boolean(parsed.organizacionId);
+          currentHasCompany === 'true' || Boolean(parsed.organizacionId);
 
-        setToken(storedToken);
+        setToken(currentToken);
         setHasCompany(nextHasCompany);
         setUser(mapStoredUserToUser(parsed));
       } catch {

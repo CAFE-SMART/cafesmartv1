@@ -292,11 +292,7 @@ export default function Login() {
         authSessionService.getLastSessionResult(),
       ]);
       if (active) {
-        setOfflineSessionAvailable(
-          offlineEntry.hasSession &&
-            offlineEntry.offlineAllowed &&
-            !offlineEntry.loggedOutManually,
-        );
+        setOfflineSessionAvailable(Boolean(offlineEntry.session));
       }
       if (!active || !account.email) {
         return;

@@ -146,11 +146,20 @@ export function useRegisterForm({
     }
 
     if (Object.keys(nextErrors).length > 0) {
+      console.log('[CafeSmart][register-step1] errores:', nextErrors);
       setStepOneErrors(nextErrors);
       setError('Revisa los campos resaltados.');
       return;
     }
 
+    console.log('[CafeSmart][register-step1] datos validos:', {
+      nombreOrganizacion: normalizeBusinessNameInput(nombreOrganizacion).trim(),
+      tipoOrganizacion,
+      descripcionOrganizacion:
+        normalizeBusinessDescriptionInput(descripcionOrganizacion).trim() ||
+        null,
+    });
+    console.log('[CafeSmart][register-step1] avanzando a paso 2');
     setStepOneErrors({});
     setStep(2);
   };

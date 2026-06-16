@@ -25,10 +25,14 @@ type VentaActivaConDetalles = Venta & { detalles: VentaDetalle[] };
 type DetalleProcesado = {
   subloteId: string;
   tipoCafeId: string;
+  tipoCafeNombre: string;
   calidadId: string;
+  calidadNombre: string;
   pesoVendido: number;
   precioKg: number;
   subtotal: number;
+  precioCompraKg: number;
+  fechaIngreso: Date;
   deviceId: string;
   localId: string;
 };
@@ -335,6 +339,15 @@ export async function procesarVenta(
             pesoVendido: detalle.pesoVendido,
             precioKg: detalle.precioKg,
             subtotal: detalle.subtotal,
+            codigoSublote: detalle.subloteId,
+            tipoCafeSnapshot: detalle.tipoCafeNombre,
+            calidadSnapshot: detalle.calidadNombre,
+            precioCompraKg: detalle.precioCompraKg,
+            fechaIngresoSublote: detalle.fechaIngreso,
+            inventarioRestante: normalizarADosDecimales(
+              Number(sublotesPorId.get(detalle.subloteId)?.pesoActual ?? 0) -
+                detalle.pesoVendido,
+            ),
             deviceId: detalle.deviceId,
             localId: detalle.localId,
           },
@@ -610,11 +623,16 @@ function procesarDetalleVenta(params: {
   sublote: {
     id: string;
     tipoCafeId: string;
+    tipoCafeNombre: string;
     calidadId: string;
+    calidadNombre: string;
+    precioKg?: Prisma.Decimal;
+    fechaIngreso?: Date;
   };
 }): DetalleProcesado {
   const pesoVendido = normalizarADosDecimales(params.detalle.pesoVendido);
   const precioKg = normalizarADosDecimales(params.detalle.precioKg);
+  const precioCompraKg = Number(params.sublote.precioKg);
   const subtotal = desdeCentiUnidades(
     Math.round((aCentiUnidades(pesoVendido) * aCentiUnidades(precioKg)) / 100),
   );
@@ -622,10 +640,16 @@ function procesarDetalleVenta(params: {
   return {
     subloteId: params.sublote.id,
     tipoCafeId: params.sublote.tipoCafeId,
+    tipoCafeNombre: params.sublote.tipoCafeNombre ?? '',
     calidadId: params.sublote.calidadId,
+    calidadNombre: params.sublote.calidadNombre ?? '',
     pesoVendido,
     precioKg,
     subtotal,
+    precioCompraKg: Number.isFinite(precioCompraKg)
+      ? normalizarADosDecimales(precioCompraKg)
+      : 0,
+    fechaIngreso: params.sublote.fechaIngreso ?? new Date(0),
     deviceId: params.deviceIdVenta,
     localId: construirLocalIdDetalle(params.localIdVenta, params.sublote.id),
   };

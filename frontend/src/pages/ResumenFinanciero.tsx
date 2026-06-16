@@ -61,6 +61,7 @@ import {
   verificarAccesoFinanciero,
 } from '../services/financialAccessService';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
+import { CafeSmartDatePicker } from '../components/common/CafeSmartDatePicker';
 import granitoInteligente from '../assets/granito-inteligente.png';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -2594,9 +2595,14 @@ export default function ResumenFinanciero() {
                         <label className="mb-1 block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                           Fecha específica
                         </label>
-                        <HistoryDatePicker
+                        <CafeSmartDatePicker
                           value={historialDate}
+                          minDate={BUSINESS_MIN_DATE_VALUE}
+                          maxDate={getTodayLocalDateValue()}
                           open={historialDateOpen}
+                          label="Fecha especifica"
+                          placeholder="Fecha"
+                          dialogLabel="Calendario de historial financiero"
                           onToggle={() => setHistorialDateOpen((open) => !open)}
                           onClose={() => setHistorialDateOpen(false)}
                           onChange={setHistorialDate}
@@ -2824,9 +2830,15 @@ export default function ResumenFinanciero() {
                         <span className={fieldLabelClass}>
                           Fecha
                         </span>
-                        <HistoryDatePicker
+                        <CafeSmartDatePicker
                           value={gastoEditForm.fechaGasto}
+                          minDate={BUSINESS_MIN_DATE_VALUE}
+                          maxDate={getTodayLocalDateValue()}
                           open={gastoEditFechaOpen}
+                          label="Fecha"
+                          placeholder="Fecha"
+                          clearable={false}
+                          dialogLabel="Calendario de fecha de gasto"
                           onToggle={() => setGastoEditFechaOpen((open) => !open)}
                           onClose={() => setGastoEditFechaOpen(false)}
                           onChange={(value) =>
