@@ -33,6 +33,11 @@ export class ApiRequestError extends Error {
 
 const GET_CACHE_TTL_MS = 12_000;
 const DEFAULT_API_TIMEOUT_MS = 15_000;
+export const HEAVY_API_TIMEOUT_MS = 45_000;
+
+export type ApiFetchOptions = RequestInit & {
+  timeoutMs?: number;
+};
 
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
 const getResponseCache = new Map<string, { expiresAt: number; data: unknown }>();
@@ -230,11 +235,12 @@ function isNetworkOrTimeoutError(error: unknown) {
   );
 }
 
-export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) => {
+  const { timeoutMs = DEFAULT_API_TIMEOUT_MS, ...fetchOptions } = options;
   const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
   const basesApi = construirBasesApi();
-  const method = (options.method ?? 'GET').toUpperCase();
-  const canDedupe = method === 'GET' && !options.signal;
+  const method = (fetchOptions.method ?? 'GET').toUpperCase();
+  const canDedupe = method === 'GET' && !fetchOptions.signal;
   const dedupeKey = canDedupe
     ? `${token ?? 'anonymous'}::${endpoint}`
     : null;
@@ -264,11 +270,11 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const requestPromise = (async () => {
     for (const apiBaseUrl of basesApi) {
       const url = `${apiBaseUrl}${endpoint}`;
-      const timeoutController = options.signal ? null : new AbortController();
+      const timeoutController = fetchOptions.signal ? null : new AbortController();
       const timeoutId = timeoutController
         ? window.setTimeout(
             () => timeoutController.abort(),
-            DEFAULT_API_TIMEOUT_MS,
+            timeoutMs,
           )
         : null;
 
@@ -282,9 +288,9 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         }
 
         const response = await fetch(url, {
-          ...options,
+          ...fetchOptions,
           headers,
-          signal: options.signal ?? timeoutController?.signal,
+          signal: fetchOptions.signal ?? timeoutController?.signal,
         });
 
         if (SHOULD_LOG_API_DEBUG) {

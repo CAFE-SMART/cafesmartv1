@@ -79,6 +79,11 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     const inAuthFlow = isPublicRoute(path);
     const token = await getAuthStorageValue(AUTH_STORAGE_KEYS.token);
 
+    if (path.startsWith('/ajustes')) {
+      window.location.assign('/ajustes');
+      return;
+    }
+
     if (path.startsWith('/ventas')) {
       window.location.assign('/ventas');
       return;
@@ -93,6 +98,7 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
       const path = typeof window !== 'undefined' ? window.location.pathname : '';
       const inAuthFlow = isPublicRoute(path);
       const inVentasFlow = path.startsWith('/ventas');
+      const inAjustesFlow = path.startsWith('/ajustes');
 
       return (
         <CafeSmartErrorState
@@ -111,7 +117,9 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
           }
           primaryLabel="Reintentar"
           secondaryLabel={
-            inVentasFlow
+            inAjustesFlow
+              ? 'Volver a ajustes'
+              : inVentasFlow
                 ? 'Volver a ventas'
                 : 'Volver al inicio'
           }

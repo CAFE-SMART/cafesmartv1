@@ -46,8 +46,10 @@ import { listarVentas } from '../services/ventasService';
 import {
   obtenerDetalleLote,
   obtenerLotes,
+  type LoteDetalle,
   type SubloteDetalle,
 } from '../services/lotesService';
+import { HEAVY_API_TIMEOUT_MS } from '../services/apiService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import granitoInteligente from '../assets/granito-inteligente.png';
@@ -119,42 +121,78 @@ function getLocalDateValueFromRecord(value: string) {
   return formatLocalDateValue(parsed);
 }
 
-async function cargarMovimientosHistoricos(): Promise<MovimientoFinanciero[]> {
-  const [compras, ventasResponse, gastos] = await Promise.all([
+async function cargarMovimientosHistoricos(): Promise<{
+  movimientos: MovimientoFinanciero[];
+  sectionErrors: HistorialSectionStatus;
+}> {
+  const [comprasResult, ventasResult, gastosResult] = await Promise.allSettled([
     listarCompras(),
     listarVentas(),
     listarGastos(),
   ]);
 
-  const comprasMovimientos = compras.map((compra): DashboardMovimiento => ({
-    id: compra.id,
-    tipo: 'COMPRA',
-    nombre: compra.productorNombre ?? 'Productor sin registrar',
-    kg: compra.sublotes.reduce((total, sublote) => total + sublote.pesoInicial, 0),
-    valor: compra.totalCompra,
-    fecha: compra.fecha,
-  }));
+  const sectionErrors = emptyHistorialSectionStatus();
 
-  const ventasMovimientos = ventasResponse.registros.map((venta): DashboardMovimiento => ({
-    id: venta.id,
-    tipo: 'VENTA',
-    nombre: venta.clienteNombre || 'Cliente general',
-    kg: venta.totalKg,
-    valor: venta.totalVenta,
-    fecha: venta.fecha,
-  }));
+  const comprasMovimientos =
+    comprasResult.status === 'fulfilled'
+      ? comprasResult.value.map((compra): DashboardMovimiento => ({
+          id: compra.id,
+          tipo: 'COMPRA',
+          nombre: compra.productorNombre ?? 'Productor sin registrar',
+          kg: compra.sublotes.reduce(
+            (total, sublote) => total + sublote.pesoInicial,
+            0,
+          ),
+          valor: compra.totalCompra,
+          fecha: compra.fecha,
+        }))
+      : [];
+  if (comprasResult.status === 'rejected') {
+    sectionErrors.compras = HISTORIAL_SECTION_ERROR;
+  }
 
-  const gastosMovimientos = gastos.map((gasto): MovimientoFinanciero => ({
-    id: gasto.id,
-    tipo: 'GASTO',
-    nombre: gasto.conceptoGasto || gasto.tipoGasto,
-    kg: gasto.sublotes.reduce((total, sublote) => total + sublote.pesoActual, 0),
-    valor: gasto.montoGasto,
-    fecha: gasto.fechaGasto,
-    gasto,
-  }));
+  const ventasMovimientos =
+    ventasResult.status === 'fulfilled'
+      ? ventasResult.value.registros.map((venta): DashboardMovimiento => ({
+          id: venta.id,
+          tipo: 'VENTA',
+          nombre: venta.clienteNombre || 'Cliente general',
+          kg: venta.totalKg,
+          valor: venta.totalVenta,
+          fecha: venta.fecha,
+        }))
+      : [];
+  if (ventasResult.status === 'rejected') {
+    sectionErrors.ventas = HISTORIAL_SECTION_ERROR;
+  }
 
-  return [...comprasMovimientos, ...ventasMovimientos, ...gastosMovimientos];
+  const gastosMovimientos =
+    gastosResult.status === 'fulfilled'
+      ? gastosResult.value.map((gasto): MovimientoFinanciero => ({
+          id: gasto.id,
+          tipo: 'GASTO',
+          nombre: gasto.conceptoGasto || gasto.tipoGasto,
+          kg: gasto.sublotes.reduce(
+            (total, sublote) => total + sublote.pesoActual,
+            0,
+          ),
+          valor: gasto.montoGasto,
+          fecha: gasto.fechaGasto,
+          gasto,
+        }))
+      : [];
+  if (gastosResult.status === 'rejected') {
+    sectionErrors.gastos = HISTORIAL_SECTION_ERROR;
+  }
+
+  return {
+    movimientos: [
+      ...comprasMovimientos,
+      ...ventasMovimientos,
+      ...gastosMovimientos,
+    ],
+    sectionErrors,
+  };
 }
 
 function formatChartDayLabel(value: Date) {
@@ -216,6 +254,8 @@ type HistorialTipo = 'VENTA' | 'COMPRA' | 'GASTO';
 type MovimientoFinanciero = DashboardMovimiento & {
   gasto?: GastoItem;
 };
+type HistorialSection = 'compras' | 'ventas' | 'gastos';
+type HistorialSectionStatus = Record<HistorialSection, string | null>;
 type GastoEditForm = {
   conceptoGasto: string;
   descripcion: string;
@@ -234,6 +274,16 @@ const TIPOS_GASTO: GastoTipo[] = [
   'OTROS',
 ];
 const GASTO_MONTO_MAX = 20000000;
+const HISTORIAL_SECTION_ERROR =
+  'No pudimos cargar este historial. Intenta nuevamente.';
+
+function emptyHistorialSectionStatus(): HistorialSectionStatus {
+  return {
+    compras: null,
+    ventas: null,
+    gastos: null,
+  };
+}
 
 function saveFinancialAccessSession() {
   try {
@@ -706,11 +756,21 @@ function buildLaboratoryAnalysis(sublotes: SubloteDetalle[]): LaboratoryAnalysis
 
 async function cargarAnalisisLaboratorio(): Promise<LaboratoryAnalysis> {
   const lotes = await obtenerLotes();
-  const detalles = await Promise.all(
+  const detallesResult = await Promise.allSettled(
     lotes
       .filter((lote) => lote.pesoActual > 0)
-      .map((lote) => obtenerDetalleLote(lote.tipoCafeId, lote.calidadId)),
+      .map((lote) =>
+        obtenerDetalleLote(lote.tipoCafeId, lote.calidadId, {
+          timeoutMs: HEAVY_API_TIMEOUT_MS,
+        }),
+      ),
   );
+  const detalles = detallesResult
+    .filter(
+      (result): result is PromiseFulfilledResult<LoteDetalle> =>
+        result.status === 'fulfilled',
+    )
+    .map((result) => result.value);
   const sublotes = detalles.flatMap((detalle) => detalle.sublotes);
   const analysis = buildLaboratoryAnalysis(sublotes);
 
@@ -1022,6 +1082,8 @@ export default function ResumenFinanciero() {
   const [historialCompleto, setHistorialCompleto] = useState<MovimientoFinanciero[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError] = useState<string | null>(null);
+  const [historialSectionErrors, setHistorialSectionErrors] =
+    useState<HistorialSectionStatus>(() => emptyHistorialSectionStatus());
   const [historialActivo, setHistorialActivo] = useState<HistorialTipo | null>(null);
   const [historialSearch, setHistorialSearch] = useState('');
   const [historialDate, setHistorialDate] = useState('');
@@ -1076,10 +1138,17 @@ export default function ResumenFinanciero() {
       }
 
       if (historialResult.status === 'fulfilled') {
-        setHistorialCompleto(historialResult.value);
+        setHistorialCompleto(historialResult.value.movimientos);
+        setHistorialSectionErrors(historialResult.value.sectionErrors);
+        setHistorialError(null);
       } else {
         setHistorialCompleto([]);
-        setHistorialError('No pudimos cargar el historial. Intenta nuevamente.');
+        setHistorialSectionErrors({
+          compras: HISTORIAL_SECTION_ERROR,
+          ventas: HISTORIAL_SECTION_ERROR,
+          gastos: HISTORIAL_SECTION_ERROR,
+        });
+        setHistorialError(HISTORIAL_SECTION_ERROR);
       }
 
       setLaboratoryAnalysis(
@@ -1272,6 +1341,16 @@ export default function ResumenFinanciero() {
     historialTipo !== 'TODOS' ||
     historialEstado !== 'TODOS' ||
     historialSort !== 'recent';
+  const getHistorialSectionKey = (
+    tipo: HistorialTipo | null,
+  ): HistorialSection | null => {
+    if (tipo === 'COMPRA') return 'compras';
+    if (tipo === 'VENTA') return 'ventas';
+    if (tipo === 'GASTO') return 'gastos';
+    return null;
+  };
+  const historialActivoError =
+    historialSectionErrors[getHistorialSectionKey(historialActivo) ?? 'compras'];
   const abrirHistorial = (tipo: HistorialTipo) => {
     setHistorialActivo(tipo);
     setHistorialSearch('');
@@ -2075,6 +2154,7 @@ export default function ResumenFinanciero() {
                 {[
                   {
                     tipo: 'VENTA' as const,
+                    section: 'ventas' as const,
                     title: 'Historial de ventas',
                     text: 'Consulta ventas registradas.',
                     icon: ShoppingCart,
@@ -2082,6 +2162,7 @@ export default function ResumenFinanciero() {
                   },
                   {
                     tipo: 'COMPRA' as const,
+                    section: 'compras' as const,
                     title: 'Historial de compras',
                     text: 'Consulta compras registradas.',
                     icon: PackageCheck,
@@ -2089,6 +2170,7 @@ export default function ResumenFinanciero() {
                   },
                   {
                     tipo: 'GASTO' as const,
+                    section: 'gastos' as const,
                     title: 'Historial de gastos',
                     text: 'Consulta gastos registrados.',
                     icon: Wallet,
@@ -2113,7 +2195,8 @@ export default function ResumenFinanciero() {
                           {item.title}
                         </span>
                         <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          {item.text}
+                          {historialSectionErrors[item.section] ??
+                            item.text}
                         </span>
                       </span>
                     </button>
@@ -2308,11 +2391,15 @@ export default function ResumenFinanciero() {
                     ) : null}
                   </header>
                   <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                    {historialError ? (
+                    {historialError || historialActivoError ? (
                       <div className="flex min-h-full items-center justify-center py-4">
                         <CafeSmartErrorState
                           title="No pudimos cargar el historial"
-                          message={historialError}
+                          message={
+                            historialActivoError ??
+                            historialError ??
+                            HISTORIAL_SECTION_ERROR
+                          }
                           primaryLabel="Reintentar"
                           secondaryLabel="Volver"
                           onPrimary={recargarHistorial}
@@ -2343,7 +2430,7 @@ export default function ResumenFinanciero() {
                               : 'No hay gastos para la fecha seleccionada.'
                           : historialFiltrosActivos
                             ? 'No hay registros con esos filtros.'
-                            : 'Aún no hay registros históricos disponibles.'}
+                            : 'Aún no hay movimientos registrados.'}
                       </p>
                     ) : (
                       <div className="space-y-2">

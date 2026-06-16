@@ -1,4 +1,4 @@
-import { apiFetch } from './apiService';
+import { apiFetch, type ApiFetchOptions } from './apiService';
 
 export type LoteResumen = {
   id: string;
@@ -96,9 +96,11 @@ export async function obtenerLotes() {
 export async function obtenerDetalleLote(
   tipoCafeId: string,
   calidadId: string,
+  options: Pick<ApiFetchOptions, 'signal' | 'timeoutMs'> = {},
 ) {
   return apiFetch(
     `/lotes/${tipoCafeId}/${calidadId}/sublotes`,
+    options,
   ) as Promise<LoteDetalle>;
 }
 

@@ -4683,7 +4683,8 @@ export default function Compras() {
                   const calidad =
                     nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
                   const peso = leerCantidadCompra(sublote.pesoInicial).valor;
-                  const totalItem = peso * leerPrecioCompra(sublote.precioKg).valor;
+                  const precioKg = leerPrecioCompra(sublote.precioKg).valor;
+                  const totalItem = peso * precioKg;
                   const visual = iconoTipoCafe(tipoCafe);
 
                   return (
@@ -4701,22 +4702,21 @@ export default function Compras() {
                               {tipoCafe} — {calidad}
                             </p>
                             <p className="mt-0.5 text-[1.05rem] font-black leading-tight text-slate-950">
-                              {peso.toLocaleString('es-CO', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 2,
-                              })}{' '}
-                              kg · {formatoMoneda(totalItem)}
+                              Total: {formatoMoneda(totalItem)}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[0.78rem] font-bold text-slate-700">
-                                {peso.toLocaleString('es-CO', {
+                                Peso: {peso.toLocaleString('es-CO', {
                                   minimumFractionDigits: 0,
                                   maximumFractionDigits: 2,
                                 })}{' '}
                                 kg
                               </span>
                               <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[0.78rem] font-black text-[#173ea6]">
-                                {formatoMoneda(totalItem)}
+                                Precio/kg: {formatoMoneda(precioKg)}
+                              </span>
+                              <span className="rounded-full bg-[#ecfdf5] px-2.5 py-1 text-[0.78rem] font-black text-emerald-700">
+                                Total: {formatoMoneda(totalItem)}
                               </span>
                             </div>
                           </div>
@@ -5476,7 +5476,8 @@ export default function Compras() {
                 const calidad =
                   nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
                 const peso = leerCantidadCompra(sublote.pesoInicial).valor;
-                const totalItem = peso * leerPrecioCompra(sublote.precioKg).valor;
+                const precioKg = leerPrecioCompra(sublote.precioKg).valor;
+                const totalItem = peso * precioKg;
                 return (
                   <article
                     key={sublote.id}
@@ -5488,11 +5489,12 @@ export default function Compras() {
                           {tipoCafe} — {calidad}
                         </p>
                         <p className="mt-1 text-sm font-bold text-slate-600">
-                          {peso.toLocaleString('es-CO', {
+                          Peso: {peso.toLocaleString('es-CO', {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 2,
                           })}{' '}
-                          kg · {formatoMoneda(totalItem)}
+                          kg · Precio/kg: {formatoMoneda(precioKg)} · Total:{' '}
+                          {formatoMoneda(totalItem)}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-1.5">

@@ -86,6 +86,7 @@ import {
   actualizarPerfilUsuario,
 } from '../services/userSettingsService';
 import {
+  fieldHelpTextClass,
   fieldInputClass,
   fieldLabelClass,
   fieldTextareaClass,

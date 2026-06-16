@@ -2553,10 +2553,13 @@ export default function Ventas() {
                           {cantidad > 0 ? (
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
                               <span className={`rounded-full border px-2 py-1 text-[0.6rem] font-black ${qualityStyles.chip}`}>
-                                {kg(cantidad)}
+                                Peso: {kg(cantidad)}
                               </span>
                               <span className="rounded-full border border-[#dbe4ff] bg-white px-2 py-1 text-[0.6rem] font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100">
-                                {money(cantidad * toNum(lote.precioKg))}
+                                Precio/kg: {money(toNum(lote.precioKg))}
+                              </span>
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[0.6rem] font-black text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200">
+                                Total: {money(cantidad * toNum(lote.precioKg))}
                               </span>
                               {!ajustesVentaParcialConfirmados[lote.id] ? (
                                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[0.58rem] font-black text-amber-800">
@@ -2643,7 +2646,9 @@ export default function Ventas() {
                                 </label>
                               </div>
                               <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[#eef3ff] px-3 py-2 text-[0.72rem] font-black text-[#102d92] dark:bg-blue-500/15 dark:text-blue-100">
-                                <span>Total estimado</span>
+                                <span>
+                                  Total: {kg(cantidad)} x {money(toNum(lote.precioKg))}/kg
+                                </span>
                                 <span>{money(cantidad * toNum(lote.precioKg))}</span>
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-2">
