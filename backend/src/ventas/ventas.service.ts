@@ -77,12 +77,6 @@ export class VentasService {
               pesoVendido: true,
               precioKg: true,
               subtotal: true,
-              codigoSublote: true,
-              tipoCafeSnapshot: true,
-              calidadSnapshot: true,
-              precioCompraKg: true,
-              fechaIngresoSublote: true,
-              inventarioRestante: true,
               createdAt: true,
             },
           },
@@ -150,33 +144,20 @@ export class VentasService {
               return total + Number(item.pesoVendido);
             }, 0);
             const codigoSublote =
-              detalle.codigoSublote ??
               codigoPorSublote.get(detalle.subloteId) ??
               `SUB-${String(index + 1).padStart(2, '0')}`;
             const fechaIngreso =
-              detalle.fechaIngresoSublote?.toISOString() ??
               sublote?.compra?.fecha?.toISOString() ??
               venta.fecha.toISOString();
-            const precioCompra = Number(
-              detalle.precioCompraKg ?? sublote?.precioKg ?? 0,
-            );
+            const precioCompra = Number(sublote?.precioKg ?? 0);
             const pesoRestante =
-              detalle.inventarioRestante !== null &&
-              detalle.inventarioRestante !== undefined
-                ? Number(detalle.inventarioRestante)
-                : Number(sublote?.pesoActual ?? 0) + vendidoDespues;
+              Number(sublote?.pesoActual ?? 0) + vendidoDespues;
 
             return {
               subloteId: detalle.subloteId,
               subloteCodigo: codigoSublote,
-              tipoCafe:
-                detalle.tipoCafeSnapshot ??
-                sublote?.tipoCafe?.nombre ??
-                'No especificado',
-              calidad:
-                detalle.calidadSnapshot ??
-                sublote?.calidad?.nombre ??
-                'No especificada',
+              tipoCafe: sublote?.tipoCafe?.nombre ?? 'No especificado',
+              calidad: sublote?.calidad?.nombre ?? 'No especificada',
               fechaIngreso,
               pesoVendido: Number(detalle.pesoVendido),
               precioKg: Number(detalle.precioKg),
@@ -197,31 +178,17 @@ export class VentasService {
             return {
               subloteId: detalle.subloteId,
               codigoSublote:
-                detalle.codigoSublote ??
                 codigoPorSublote.get(detalle.subloteId) ??
                 `SUB-${String(index + 1).padStart(2, '0')}`,
-              tipoCafe:
-                detalle.tipoCafeSnapshot ??
-                sublote?.tipoCafe?.nombre ??
-                'No especificado',
-              calidad:
-                detalle.calidadSnapshot ??
-                sublote?.calidad?.nombre ??
-                'No especificada',
+              tipoCafe: sublote?.tipoCafe?.nombre ?? 'No especificado',
+              calidad: sublote?.calidad?.nombre ?? 'No especificada',
               kilosVendidos: Number(detalle.pesoVendido),
               precioVentaKg: Number(detalle.precioKg),
-              precioCompraKg: Number(
-                detalle.precioCompraKg ?? sublote?.precioKg ?? 0,
-              ),
+              precioCompraKg: Number(sublote?.precioKg ?? 0),
               fechaIngreso:
-                detalle.fechaIngresoSublote?.toISOString() ??
                 sublote?.compra?.fecha?.toISOString() ??
                 venta.fecha.toISOString(),
-              inventarioRestante:
-                detalle.inventarioRestante !== null &&
-                detalle.inventarioRestante !== undefined
-                  ? Number(detalle.inventarioRestante)
-                  : Number(sublote?.pesoActual ?? 0) + vendidoDespues,
+              inventarioRestante: Number(sublote?.pesoActual ?? 0) + vendidoDespues,
             };
           }),
         })),
