@@ -73,6 +73,7 @@ export default function AppRoutes() {
           <Route path="/gastos" element={<GastosListado />} />
           <Route path="/gastos/registro" element={<GastosOperativos />} />
           <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
+          <Route path="/resumen-financiero/acceso" element={<ResumenFinanciero />} />
           <Route path="/asistente" element={<AsistenteIA />} />
           <Route
             path="/resumen-financiero/analisis-inteligente"

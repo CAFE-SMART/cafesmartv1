@@ -90,8 +90,10 @@ export default function RecuperarPassword() {
   const navigate = useNavigate();
   const location = useLocation();
   const recoveryState = location.state as {
+    origin?: string;
     returnTo?: string;
     returnLabel?: string;
+    finalBackTo?: string;
   } | null;
   const returnTo =
     typeof recoveryState?.returnTo === 'string' && recoveryState.returnTo.startsWith('/')
@@ -100,11 +102,23 @@ export default function RecuperarPassword() {
   const returnLabel =
     typeof recoveryState?.returnLabel === 'string' && recoveryState.returnLabel.trim()
       ? recoveryState.returnLabel
-      : returnTo === '/resumen-financiero'
+      : returnTo === '/resumen-financiero/acceso'
         ? 'Volver al acceso financiero'
         : 'Volver al login';
   const handleBack = () => {
-    navigate(returnTo);
+    navigate(returnTo, {
+      replace: true,
+      state:
+        recoveryState?.origin === 'financial-access'
+          ? {
+              finalBackTo:
+                typeof recoveryState.finalBackTo === 'string' &&
+                recoveryState.finalBackTo.startsWith('/')
+                  ? recoveryState.finalBackTo
+                  : '/ajustes',
+            }
+          : undefined,
+    });
   };
   const {
     email,
@@ -127,7 +141,6 @@ export default function RecuperarPassword() {
         aria-label={returnLabel}
       >
         <ArrowLeft size={18} />
-        <span>{returnLabel}</span>
       </button>
       <h1 className="text-[1.25rem] font-black tracking-tight text-slate-950 dark:text-slate-100">
         Recuperar contraseña

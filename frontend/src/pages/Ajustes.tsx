@@ -3492,7 +3492,14 @@ export default function Ajustes() {
             </div>
             <button
               type="button"
-              onClick={() => navigate('/resumen-financiero')}
+              onClick={() =>
+                navigate('/resumen-financiero/acceso', {
+                  state: {
+                    returnTo: '/ajustes',
+                    finalBackTo: '/ajustes',
+                  },
+                })
+              }
               className="relative z-10 mt-4 flex min-h-[36px] w-fit items-center justify-center rounded-[999px] bg-[#2b57d3] px-4 text-xs font-semibold text-white opacity-90 mx-auto dark:bg-blue-600"
             >
               Acceder ahora

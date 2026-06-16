@@ -1111,9 +1111,24 @@ function MermaLaboratoryView({ data, onBack, onClose }: MermaLaboratoryViewProps
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
   const location = useLocation();
+  const navigationState = location.state as {
+    financialAccessGranted?: boolean;
+    finalBackTo?: string;
+    returnTo?: string;
+  } | null;
+  const backTo =
+    typeof navigationState?.finalBackTo === 'string' &&
+    navigationState.finalBackTo.startsWith('/')
+      ? navigationState.finalBackTo
+      : typeof navigationState?.returnTo === 'string' &&
+          navigationState.returnTo.startsWith('/')
+        ? navigationState.returnTo
+        : '/ajustes';
+  const handleBackToSettings = () => {
+    navigate(backTo, { replace: true });
+  };
   const financialAccessGranted =
-    (location.state as { financialAccessGranted?: boolean } | null)
-      ?.financialAccessGranted === true;
+    navigationState?.financialAccessGranted === true;
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1697,7 +1712,7 @@ export default function ResumenFinanciero() {
         primaryLabel="Reintentar"
         secondaryLabel="Volver"
         onPrimary={() => void cargar(true)}
-        onSecondary={() => navigate(-1)}
+        onSecondary={handleBackToSettings}
         primaryBusy={loading || refreshing}
         fullScreen
       />
@@ -1710,7 +1725,7 @@ export default function ResumenFinanciero() {
         <header className="grid min-h-[54px] grid-cols-[44px_1fr_auto] items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBackToSettings}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white dark:text-slate-100 dark:hover:bg-slate-900"
             aria-label="Volver"
           >
@@ -1800,9 +1815,12 @@ export default function ResumenFinanciero() {
               type="button"
               onClick={() =>
                 navigate('/recuperar-password', {
+                  replace: true,
                   state: {
-                    returnTo: '/resumen-financiero',
+                    origin: 'financial-access',
+                    returnTo: '/resumen-financiero/acceso',
                     returnLabel: 'Volver al acceso financiero',
+                    finalBackTo: backTo,
                   },
                 })
               }
