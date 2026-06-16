@@ -74,6 +74,14 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
     });
   };
 
+  private handleBackToEdit = () => {
+    this.setState({ hasError: false }, () => {
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.history.replaceState(null, '', currentPath);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+  };
+
   private handleGoHome = async () => {
     const path = window.location.pathname;
     const inAuthFlow = isPublicRoute(path);
@@ -105,26 +113,33 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
           fullScreen
           title={
             inAuthFlow
-              ? 'No pudimos cargar el acceso'
+              ? 'No pudimos cargar tu sesión'
               : 'No pudimos cargar la pantalla'
           }
           message={
             isOffline
               ? 'Estás sin conexión. Intentaremos usar información guardada en este dispositivo.'
               : inAuthFlow
-                ? 'Puedes volver al login o intentar cargar nuevamente.'
+                ? 'Intenta nuevamente o vuelve a revisar tus datos.'
                 : 'Puedes ir al inicio o intentar cargar la pantalla otra vez.'
+          }
+          info={
+            inAuthFlow
+              ? 'Conservamos la información escrita. Puedes reintentar o volver a editar.'
+              : undefined
           }
           primaryLabel="Reintentar"
           secondaryLabel={
-            inAjustesFlow
+            inAuthFlow
+              ? 'Volver a editar'
+              : inAjustesFlow
               ? 'Volver a ajustes'
               : inVentasFlow
                 ? 'Volver a ventas'
                 : 'Volver al inicio'
           }
           onPrimary={this.handleRetry}
-          onSecondary={inAuthFlow ? undefined : this.handleGoHome}
+          onSecondary={inAuthFlow ? this.handleBackToEdit : this.handleGoHome}
         />
       );
     }

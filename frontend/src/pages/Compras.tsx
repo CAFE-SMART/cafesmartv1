@@ -5055,26 +5055,26 @@ export default function Compras() {
 
       {mostrarModalCapacidad && datosCapacidad ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
-            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
-            <div className="mt-5 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c]">
+          <div className="w-full max-w-[400px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border dark:border-slate-700 dark:bg-slate-900">
+            <div className="mx-auto h-2 w-14 rounded-full bg-[#d7deeb] dark:bg-slate-700" />
+            <div className="mt-4 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff7ed] text-[#ea580c] dark:bg-amber-500/18 dark:text-amber-300">
                 <AlertTriangle size={24} />
               </div>
-              <h2 className="mt-5 text-[1.8rem] font-semibold leading-tight text-slate-900">
-                Capacidad de bodega superada
+              <h2 className="mt-4 text-[1.45rem] font-black leading-tight text-slate-900 dark:text-slate-50">
+                Capacidad superada
               </h2>
-              <p className="mt-3 text-[1rem] leading-7 text-slate-500">
-                Con esta compra, la bodega puede superar su capacidad registrada.
-                En la operación real puedes continuar, pero se recomienda revisar
-                el espacio disponible.
+              <p className="mt-2 text-[0.9rem] font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                La bodega superará su capacidad.
+                <br />
+                Revisa el espacio antes de continuar.
               </p>
             </div>
 
-            <div className="mt-5 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4">
-              <div className="flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Capacidad máxima</span>
-                <span className="font-semibold text-slate-900">
+            <div className="mt-4 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4 dark:border-amber-500/35 dark:bg-slate-800">
+              <div className="flex items-center justify-between gap-3 text-[0.84rem]">
+                <span className="font-black text-slate-600 dark:text-slate-300">Capacidad máxima</span>
+                <span className="font-black text-slate-950 dark:text-slate-50">
                   {datosCapacidad.capacidadKg.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
@@ -5082,9 +5082,9 @@ export default function Compras() {
                   kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Ocupación actual</span>
-                <span className="font-semibold text-slate-900">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
+                <span className="font-black text-slate-600 dark:text-slate-300">Ocupación actual</span>
+                <span className="font-black text-slate-950 dark:text-slate-50">
                   {datosCapacidad.inventarioActual.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
@@ -5092,9 +5092,9 @@ export default function Compras() {
                   kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Peso de la compra</span>
-                <span className="font-semibold text-slate-900">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
+                <span className="font-black text-slate-600 dark:text-slate-300">Peso de la compra</span>
+                <span className="font-black text-slate-950 dark:text-slate-50">
                   {(datosCapacidad.pesoCompra ?? resumen.totalKg).toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
@@ -5102,9 +5102,9 @@ export default function Compras() {
                   kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Después de la compra</span>
-                <span className="font-semibold text-[#ea580c]">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
+                <span className="font-black text-slate-600 dark:text-slate-300">Después de la compra</span>
+                <span className="font-black text-[#c2410c] dark:text-amber-300">
                   {datosCapacidad.nuevoTotal.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
@@ -5112,9 +5112,9 @@ export default function Compras() {
                   kg
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[0.95rem] text-slate-600">
-                <span>Ocupación proyectada</span>
-                <span className="font-semibold text-[#ea580c]">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
+                <span className="font-black text-slate-600 dark:text-slate-300">Ocupación proyectada</span>
+                <span className="font-black text-[#c2410c] dark:text-amber-300">
                   {Math.round(
                     datosCapacidad.porcentaje ??
                       (datosCapacidad.nuevoTotal / datosCapacidad.capacidadKg) * 100,
@@ -5124,21 +5124,21 @@ export default function Compras() {
               </div>
             </div>
 
-            <label className="mt-5 flex items-start gap-3 rounded-[16px] border border-amber-200 bg-amber-50 p-4 text-left">
+            <label className="mt-4 flex min-h-[56px] items-center gap-3 rounded-[16px] border border-amber-200 bg-amber-50 p-4 text-left dark:border-amber-500/40 dark:bg-amber-500/12">
               <input
                 type="checkbox"
                 checked={capacidadRiesgoConfirmada}
                 onChange={(event) =>
                   setCapacidadRiesgoConfirmada(event.target.checked)
                 }
-                className="mt-1 h-5 w-5 rounded border-amber-400 text-[#ea580c] focus:ring-[#ea580c]/30"
+                className="h-5 w-5 rounded border-amber-500 text-[#1f3fa7] focus:ring-[#1f3fa7]/30 dark:border-amber-300 dark:bg-slate-900"
               />
-              <span className="text-sm font-semibold leading-5 text-amber-950">
-                Entiendo el riesgo y deseo continuar.
+              <span className="text-sm font-black leading-5 text-amber-950 dark:text-amber-100">
+                Entiendo y deseo continuar
               </span>
             </label>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-5 grid gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -5146,7 +5146,7 @@ export default function Compras() {
                   setMostrarModalConfirmar(true);
                 }}
                 disabled={!capacidadRiesgoConfirmada}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] bg-[#ea580c] px-5 py-3 text-[1.15rem] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-[14px] bg-[#1f3fa7] px-5 py-3 text-[1rem] font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
               >
                 Continuar compra
               </button>
@@ -5156,7 +5156,7 @@ export default function Compras() {
                   setMostrarModalCapacidad(false);
                   setCapacidadRiesgoConfirmada(false);
                 }}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.05rem] font-semibold text-[#c2410c]"
+                className="inline-flex min-h-[48px] items-center justify-center rounded-[14px] px-5 py-3 text-[0.96rem] font-black text-[#c2410c] dark:text-amber-300"
               >
                 Cancelar
               </button>

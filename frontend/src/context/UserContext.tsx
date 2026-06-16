@@ -65,6 +65,20 @@ const UserContext = createContext<UserState | null>(null);
 const SESSION_EXPIRED_MESSAGE_KEY = 'cafesmart_session_expired_message';
 const LOGIN_DRAFT_STORAGE_KEY = 'cafesmart:login-draft:v1';
 
+function mapStoredUserToUser(parsed: StoredUserShape): User {
+  return {
+    id: parsed.id,
+    email: parsed.email ?? parsed.correo ?? '',
+    name: parsed.name ?? parsed.nombre ?? '',
+    telefono: parsed.telefono ?? null,
+    organizacionId: parsed.organizacionId ?? null,
+    nombreOrganizacion: parsed.nombreOrganizacion ?? null,
+    tipoOrganizacion: parsed.tipoOrganizacion ?? null,
+    otroTipoDetalle: parsed.otroTipoDetalle ?? null,
+    descripcionOrganizacion: parsed.descripcionOrganizacion ?? null,
+  };
+}
+
 function getTokenExpirationMs(token: string): number | null {
   const payload = parseJwtPayload<{ exp?: number }>(token);
   if (!payload?.exp) {
@@ -85,6 +99,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     const hydrate = async () => {
+      const browserOnline =
+        typeof navigator === 'undefined' ? true : navigator.onLine;
       const [
         storedUserRaw,
         storedToken,
@@ -100,6 +116,24 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!storedToken || !storedUserRaw) {
+        if (!browserOnline) {
+          const cached = await authSessionService.getLastSessionResult();
+          if (!active) return;
+
+          if (cached.session) {
+            setToken(cached.session.accessToken);
+            setHasCompany(cached.session.hasCompany);
+            setUser(cached.session.user);
+            setOfflineSession(true);
+            setHydrated(true);
+            console.info(
+              '[offline-login] sesion cacheada restaurada durante hidratacion',
+              JSON.stringify({ reason: cached.reason }),
+            );
+            return;
+          }
+        }
+
         setUser(null);
         setToken(null);
         setHasCompany(false);
@@ -111,6 +145,41 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const isExpired = expirationMs !== null && expirationMs <= Date.now();
 
       if (isExpired) {
+        if (!browserOnline) {
+          try {
+            const parsed = JSON.parse(storedUserRaw) as StoredUserShape;
+            const nextHasCompany =
+              storedHasCompany === 'true' || Boolean(parsed.organizacionId);
+
+            setToken(storedToken);
+            setHasCompany(nextHasCompany);
+            setUser(mapStoredUserToUser(parsed));
+            setOfflineSession(true);
+            setHydrated(true);
+            console.info(
+              '[offline-login] token vencido aceptado temporalmente sin conexion',
+              JSON.stringify({ hasCompany: nextHasCompany }),
+            );
+            return;
+          } catch {
+            const cached = await authSessionService.getLastSessionResult();
+            if (!active) return;
+
+            if (cached.session) {
+              setToken(cached.session.accessToken);
+              setHasCompany(cached.session.hasCompany);
+              setUser(cached.session.user);
+              setOfflineSession(true);
+              setHydrated(true);
+              console.info(
+                '[offline-login] sesion cacheada restaurada con token vencido',
+                JSON.stringify({ reason: cached.reason }),
+              );
+              return;
+            }
+          }
+        }
+
         await clearAuthStorage();
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem(
@@ -132,17 +201,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
         setToken(storedToken);
         setHasCompany(nextHasCompany);
-        setUser({
-          id: parsed.id,
-          email: parsed.email ?? parsed.correo ?? '',
-          name: parsed.name ?? parsed.nombre ?? '',
-          telefono: parsed.telefono ?? null,
-          organizacionId: parsed.organizacionId ?? null,
-          nombreOrganizacion: parsed.nombreOrganizacion ?? null,
-          tipoOrganizacion: parsed.tipoOrganizacion ?? null,
-          otroTipoDetalle: parsed.otroTipoDetalle ?? null,
-          descripcionOrganizacion: parsed.descripcionOrganizacion ?? null,
-        });
+        setUser(mapStoredUserToUser(parsed));
       } catch {
         await clearAuthStorage();
         setUser(null);

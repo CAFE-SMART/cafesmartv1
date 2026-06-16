@@ -6,7 +6,12 @@ export const ProtectedRoute = () => {
   const { token, hasCompany, hydrated } = useUser();
 
   if (!hydrated) {
-    return <AppLoadingScreen />;
+    return (
+      <AppLoadingScreen
+        title="Cargando tu sesión..."
+        subtitle="Revisando la información guardada en este dispositivo"
+      />
+    );
   }
 
   // Si no hay token, lo mandamos al login.

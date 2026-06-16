@@ -18,7 +18,11 @@ export type CreateVentaPayload = {
   fecha?: string;
   deviceId: string;
   localId: string;
-  clienteId?: string;
+  clienteId?: string | null;
+  clienteRapido?: boolean;
+  clienteNombre?: string;
+  totalKg?: number;
+  totalEstimado?: number;
   detalles: VentaDetallePayload[];
 };
 
@@ -118,6 +122,8 @@ export async function crearVenta(payload: CreateVentaPayload) {
     endpoint: '/ventas',
     fecha: payload.fecha ?? null,
     clienteId: payload.clienteId ?? null,
+    clienteRapido: Boolean(payload.clienteRapido),
+    clienteNombre: payload.clienteNombre ?? null,
     deviceIdPresent: Boolean(payload.deviceId),
     localIdPresent: Boolean(payload.localId),
     detallesCount: payload.detalles.length,

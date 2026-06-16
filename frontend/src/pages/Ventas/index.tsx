@@ -1510,11 +1510,11 @@ function getClientePhoneError(value: string) {
 function getVentaSubmitMessage(error: unknown) {
   if (error instanceof ApiRequestError) {
     if (error.status === 0) {
-      return 'Revisa la conexión a internet y vuelve a intentarlo.';
+      return 'No tienes conexión. Guardamos tu borrador para intentarlo después.';
     }
 
     if (error.status >= 500) {
-      return 'No pudimos completar la venta. Vuelve a intentarlo.';
+      return 'La venta no se pudo guardar por un problema del servidor. Tus datos siguen seguros. Intenta nuevamente.';
     }
 
     if (
@@ -1532,8 +1532,11 @@ function getVentaSubmitMessage(error: unknown) {
       return 'El precio por kg debe ser mínimo $1,000.';
     }
 
-    if (error.code === 'VENTA_SUBLOTE_INVALIDO') {
-      return 'El sublote seleccionado no esta disponible para la venta.';
+    if (
+      error.code === 'VENTA_SUBLOTE_INVALIDO' ||
+      error.code === 'SUBLOTE_NOT_FOUND'
+    ) {
+      return 'No encontramos el lote seleccionado. Actualiza el inventario e intenta de nuevo.';
     }
   }
 
@@ -1555,6 +1558,7 @@ function esErrorGeneralGuardadoVenta(error: unknown) {
     'VENTA_CANTIDAD_INVALIDA',
     'VENTA_PRECIO_INVALIDO',
     'VENTA_SUBLOTE_INVALIDO',
+    'SUBLOTE_NOT_FOUND',
   ]);
 
   return !error.field && !erroresCorregibles.has(error.code ?? '');

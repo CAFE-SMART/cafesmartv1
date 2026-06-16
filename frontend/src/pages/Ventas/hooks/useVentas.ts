@@ -775,9 +775,17 @@ export function useVentas() {
         const deviceId = await obtenerDeviceId();
         const payload = {
           ...(fechaVentaIso ? { fecha: fechaVentaIso } : {}),
-          ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
+          ...(clienteSeleccionado.rapido
+            ? {
+                clienteId: null,
+                clienteRapido: true,
+                clienteNombre: clienteSeleccionado.nombre || 'Cliente General',
+              }
+            : { clienteId: clienteSeleccionado.id, clienteRapido: false }),
           deviceId,
           localId: ventaLocalIdRef.current,
+          totalKg,
+          totalEstimado,
           detalles,
         };
 
@@ -944,9 +952,17 @@ export function useVentas() {
       const fechaVentaIso = toIsoDateAtUtcNoon(fechaVenta);
       const payloadVenta = {
         ...(fechaVentaIso ? { fecha: fechaVentaIso } : {}),
-        ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
+        ...(clienteSeleccionado.rapido
+          ? {
+              clienteId: null,
+              clienteRapido: true,
+              clienteNombre: clienteSeleccionado.nombre || 'Cliente General',
+            }
+          : { clienteId: clienteSeleccionado.id, clienteRapido: false }),
         deviceId: await obtenerDeviceId(),
         localId: ventaLocalIdRef.current,
+        totalKg,
+        totalEstimado,
         detalles,
       };
 

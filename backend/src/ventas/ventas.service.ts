@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -226,6 +227,31 @@ export class VentasService {
       userId,
       organizacionId,
     );
+    const payloadLog = {
+      fecha: input.fecha ?? null,
+      clienteId: input.clienteId ?? null,
+      clienteRapido: input.clienteRapido ?? null,
+      totalKg: input.totalKg ?? null,
+      totalEstimado: input.totalEstimado ?? null,
+      deviceIdPresent: Boolean(input.deviceId),
+      localIdPresent: Boolean(input.localId),
+      detallesCount: Array.isArray(input.detalles) ? input.detalles.length : 0,
+      detalles: Array.isArray(input.detalles)
+        ? input.detalles.map((detalle, index) => ({
+            index,
+            subloteId: detalle.subloteId,
+            pesoVendido: detalle.pesoVendido,
+            precioKg: detalle.precioKg,
+            subtotal: detalle.subtotal ?? null,
+          }))
+        : [],
+    };
+
+    console.error(
+      '[CafeSmart][POST /ventas] DTO recibido:',
+      JSON.stringify(payloadLog, null, 2),
+    );
+    console.error('[CafeSmart][POST /ventas] Usuario autenticado:', userId);
 
     try {
       return await procesarVenta(
@@ -239,30 +265,31 @@ export class VentasService {
     } catch (error) {
       this.logger.error(
         JSON.stringify({
-          event: '[Ventas][create] ERROR_REAL',
+          event: '[CafeSmart][POST /ventas] Error real',
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
+          prismaCode:
+            error instanceof Prisma.PrismaClientKnownRequestError
+              ? error.code
+              : undefined,
+          prismaMeta:
+            error instanceof Prisma.PrismaClientKnownRequestError
+              ? error.meta
+              : undefined,
           userId,
           organizacionId: organizacionIdFinal,
-          payload: {
-            fecha: input.fecha ?? null,
-            clienteId: input.clienteId ?? null,
-            deviceIdPresent: Boolean(input.deviceId),
-            localIdPresent: Boolean(input.localId),
-            detallesCount: Array.isArray(input.detalles)
-              ? input.detalles.length
-              : 0,
-            detalles: Array.isArray(input.detalles)
-              ? input.detalles.map((detalle, index) => ({
-                  index,
-                  subloteId: detalle.subloteId,
-                  pesoVendido: detalle.pesoVendido,
-                  precioKg: detalle.precioKg,
-                }))
-              : [],
-          },
+          payload: payloadLog,
         }),
       );
+      console.error('[CafeSmart][POST /ventas] Error real:', error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('[CafeSmart][POST /ventas] Prisma code:', error.code);
+        console.error(
+          '[CafeSmart][POST /ventas] Prisma message:',
+          error.message,
+        );
+        console.error('[CafeSmart][POST /ventas] Prisma meta:', error.meta);
+      }
 
       if (error instanceof VentaValidacionCriticaError) {
         throw new BadRequestException(
@@ -282,10 +309,11 @@ export class VentasService {
       }
 
       if (error instanceof SubloteNoEncontradoError) {
-        throw new BadRequestException({
-          code: 'VENTA_SUBLOTE_INVALIDO',
+        throw new NotFoundException({
+          code: 'SUBLOTE_NOT_FOUND',
           message:
-            'Uno o varios sublotes ya no estan disponibles para la venta. Revise el inventario y vuelva a intentarlo.',
+            'No encontramos el lote seleccionado. Actualiza el inventario e intenta de nuevo.',
+          field: 'subloteId',
           details: {
             subloteIds: error.subloteIds,
           },
@@ -306,7 +334,8 @@ export class VentasService {
       if (error instanceof StockInsuficienteError) {
         throw new ConflictException({
           code: 'INSUFFICIENT_STOCK',
-          message: 'No hay suficiente inventario para realizar la venta',
+          message: 'No hay suficiente café disponible para completar esta venta.',
+          field: 'pesoVendido',
           details: error.detalles.map((detalle) => ({
             subloteId: detalle.subloteId,
             disponibleKg: detalle.disponibleKg,
@@ -318,7 +347,8 @@ export class VentasService {
       if (error instanceof InventarioNoEncontradoError) {
         throw new ConflictException({
           code: 'INSUFFICIENT_STOCK',
-          message: 'No hay suficiente inventario para realizar la venta',
+          message: 'No hay suficiente café disponible para completar esta venta.',
+          field: 'pesoVendido',
           details: error.movimientos,
         });
       }
@@ -326,7 +356,8 @@ export class VentasService {
       if (error instanceof InventarioInconsistenteError) {
         throw new ConflictException({
           code: 'INSUFFICIENT_STOCK',
-          message: 'No hay suficiente inventario para realizar la venta',
+          message: 'No hay suficiente café disponible para completar esta venta.',
+          field: 'pesoVendido',
           details: error.movimientos,
         });
       }

@@ -53,6 +53,20 @@ export class CreateVentaDto {
   @IsBoolean({ message: 'clienteRapido debe ser verdadero o falso' })
   clienteRapido?: boolean;
 
+  @IsOptional()
+  @IsString({ message: 'clienteNombre debe ser un texto' })
+  clienteNombre?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'totalKg debe ser un numero' })
+  totalKg?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'totalEstimado debe ser un numero' })
+  totalEstimado?: number;
+
   @IsArray({ message: 'Los detalles deben venir en una lista' })
   @ArrayMinSize(1, { message: 'Debe registrar al menos un detalle de venta' })
   @ValidateNested({ each: true })

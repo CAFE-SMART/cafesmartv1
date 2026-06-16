@@ -77,6 +77,8 @@ const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
   VENTA_CANTIDAD_INVALIDA: 'Ingresa una cantidad mayor a 0.',
   VENTA_PRECIO_INVALIDO: 'El precio por kg debe ser mínimo $1,000.',
   VENTA_SUBLOTE_INVALIDO: 'El sublote seleccionado no está disponible para la venta.',
+  SUBLOTE_NOT_FOUND:
+    'No encontramos el lote seleccionado. Actualiza el inventario e intenta de nuevo.',
   COMPRA_PESO_INVALIDO: 'Ingresa un peso mayor a 0 kg.',
   COMPRA_PRECIO_INVALIDO: 'Ingresa un precio válido por kg.',
   COMPRA_PRECIO_ALTO: 'Revisa el precio ingresado. Parece demasiado alto.',
