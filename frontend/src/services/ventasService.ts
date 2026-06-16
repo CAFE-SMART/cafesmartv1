@@ -95,6 +95,7 @@ export type ListarVentasParams = {
   page?: number;
   limit?: number;
   signal?: AbortSignal;
+  timeoutMs?: number;
 };
 
 export async function listarVentas(params: ListarVentasParams = {}) {
@@ -104,7 +105,10 @@ export async function listarVentas(params: ListarVentasParams = {}) {
   if (params.page) search.set('page', String(params.page));
   if (params.limit) search.set('limit', String(params.limit));
   const query = search.toString() ? `?${search.toString()}` : '';
-  return apiFetch(`/ventas${query}`, { signal: params.signal }) as Promise<VentaListadoResponse>;
+  return apiFetch(`/ventas${query}`, {
+    signal: params.signal,
+    timeoutMs: params.timeoutMs,
+  }) as Promise<VentaListadoResponse>;
 }
 
 export async function crearVenta(payload: CreateVentaPayload) {

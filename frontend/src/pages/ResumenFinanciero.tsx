@@ -42,7 +42,11 @@ import {
   type GastoItem,
   type GastoTipo,
 } from '../services/gastosService';
-import { listarVentas } from '../services/ventasService';
+import {
+  listarVentas,
+  type VentaListadoItem,
+  type VentaListadoResponse,
+} from '../services/ventasService';
 import {
   obtenerDetalleLote,
   obtenerLotes,
@@ -131,12 +135,11 @@ async function cargarMovimientosHistoricos(): Promise<{
   sectionErrors: HistorialSectionStatus;
 }> {
   logHistorialDebug('compras', 'request', { url: HISTORIAL_ENDPOINTS.compras });
-  logHistorialDebug('ventas', 'request', { url: HISTORIAL_ENDPOINTS.ventas });
   logHistorialDebug('gastos', 'request', { url: HISTORIAL_ENDPOINTS.gastos });
 
   const [comprasResult, ventasResult, gastosResult] = await Promise.allSettled([
     listarCompras(),
-    listarVentas(),
+    cargarVentasMovimientos(),
     listarGastos(),
   ]);
 
@@ -176,20 +179,10 @@ async function cargarMovimientosHistoricos(): Promise<{
     });
   }
 
-  const ventasRegistros =
-    ventasResult.status === 'fulfilled' &&
-    ventasResult.value &&
-    Array.isArray(ventasResult.value.registros)
-      ? ventasResult.value.registros
+  const ventasMovimientos =
+    ventasResult.status === 'fulfilled' && Array.isArray(ventasResult.value)
+      ? ventasResult.value
       : [];
-  const ventasMovimientos = ventasRegistros.map((venta): DashboardMovimiento => ({
-    id: venta.id,
-    tipo: 'VENTA',
-    nombre: venta.clienteNombre || 'Cliente general',
-    kg: Number(venta.totalKg) || 0,
-    valor: Number(venta.totalVenta) || 0,
-    fecha: venta.fecha,
-  }));
   if (ventasResult.status === 'rejected') {
     sectionErrors.ventas = HISTORIAL_SECTION_ERROR;
     logHistorialDebug('ventas', 'error', {
@@ -204,7 +197,6 @@ async function cargarMovimientosHistoricos(): Promise<{
       url: HISTORIAL_ENDPOINTS.ventas,
       status: 200,
       count: ventasMovimientos.length,
-      hasRegistrosArray: Array.isArray(ventasResult.value?.registros),
     });
   }
 
@@ -338,6 +330,39 @@ const HISTORIAL_ENDPOINTS: Record<HistorialSection, string> = {
   gastos: '/gastos',
 };
 
+function normalizarVentasResponse(response: VentaListadoResponse | VentaListadoItem[]) {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (response && Array.isArray(response.registros)) {
+    return response.registros;
+  }
+
+  const maybeResponse = response as {
+    data?: unknown;
+    ventas?: unknown;
+    items?: unknown;
+  };
+
+  if (Array.isArray(maybeResponse.data)) return maybeResponse.data as VentaListadoItem[];
+  if (Array.isArray(maybeResponse.ventas)) return maybeResponse.ventas as VentaListadoItem[];
+  if (Array.isArray(maybeResponse.items)) return maybeResponse.items as VentaListadoItem[];
+
+  return [];
+}
+
+function ventasToMovimientos(ventasRegistros: VentaListadoItem[]) {
+  return ventasRegistros.map((venta): DashboardMovimiento => ({
+    id: venta.id,
+    tipo: 'VENTA',
+    nombre: venta.clienteNombre || 'Cliente general',
+    kg: Number(venta.totalKg) || 0,
+    valor: Number(venta.totalVenta) || 0,
+    fecha: venta.fecha,
+  }));
+}
+
 function emptyHistorialSectionStatus(): HistorialSectionStatus {
   return {
     compras: null,
@@ -354,6 +379,30 @@ function logHistorialDebug(
   console.info(
     `[CafeSmart][historial-${section}] ${event} ${JSON.stringify(payload)}`,
   );
+}
+
+async function cargarVentasMovimientos() {
+  logHistorialDebug('ventas', 'request', { url: HISTORIAL_ENDPOINTS.ventas });
+  const response = (await listarVentas({
+    limit: 500,
+    timeoutMs: HEAVY_API_TIMEOUT_MS,
+  })) as VentaListadoResponse | VentaListadoItem[];
+  const ventasRegistros = normalizarVentasResponse(response);
+  const ventasMovimientos = ventasToMovimientos(ventasRegistros);
+
+  logHistorialDebug('ventas', 'response', {
+    url: HISTORIAL_ENDPOINTS.ventas,
+    status: 200,
+    hasRegistrosArray:
+      !Array.isArray(response) && Array.isArray(response?.registros),
+    responseIsArray: Array.isArray(response),
+  });
+  logHistorialDebug('ventas', 'recordsCount', {
+    url: HISTORIAL_ENDPOINTS.ventas,
+    count: ventasMovimientos.length,
+  });
+
+  return ventasMovimientos;
 }
 
 function ariaPressed(active: boolean) {
@@ -1449,9 +1498,80 @@ export default function ResumenFinanciero() {
     setHistorialVisibleCount(30);
     setHistorialFilterFeedback(null);
   };
-  const recargarHistorial = () => {
-    setRefreshFeedback('Actualizando información...');
-    void cargar(true);
+  const recargarHistorial = async () => {
+    if (!historialActivo || refreshing) return;
+
+    const section = getHistorialSectionKey(historialActivo);
+    if (!section) return;
+
+    setRefreshing(true);
+    setHistorialError(null);
+    setHistorialSectionErrors((current) => ({ ...current, [section]: null }));
+
+    try {
+      let nextMovimientos: MovimientoFinanciero[] = [];
+
+      if (historialActivo === 'VENTA') {
+        nextMovimientos = await cargarVentasMovimientos();
+      } else if (historialActivo === 'COMPRA') {
+        logHistorialDebug('compras', 'request', { url: HISTORIAL_ENDPOINTS.compras });
+        const compras = await listarCompras();
+        nextMovimientos = compras.map((compra): DashboardMovimiento => ({
+          id: compra.id,
+          tipo: 'COMPRA',
+          nombre: compra.productorNombre ?? 'Productor sin registrar',
+          kg: Array.isArray(compra.sublotes)
+            ? compra.sublotes.reduce(
+                (total, sublote) => total + (Number(sublote.pesoInicial) || 0),
+                0,
+              )
+            : 0,
+          valor: Number(compra.totalCompra) || 0,
+          fecha: compra.fecha,
+        }));
+        logHistorialDebug('compras', 'recordsCount', {
+          url: HISTORIAL_ENDPOINTS.compras,
+          count: nextMovimientos.length,
+        });
+      } else {
+        logHistorialDebug('gastos', 'request', { url: HISTORIAL_ENDPOINTS.gastos });
+        const gastos = await listarGastos();
+        nextMovimientos = gastos.map((gasto): MovimientoFinanciero => ({
+          id: gasto.id,
+          tipo: 'GASTO',
+          nombre: gasto.conceptoGasto || gasto.tipoGasto,
+          kg: Array.isArray(gasto.sublotes)
+            ? gasto.sublotes.reduce(
+                (total, sublote) => total + (Number(sublote.pesoActual) || 0),
+                0,
+              )
+            : 0,
+          valor: Number(gasto.montoGasto) || 0,
+          fecha: gasto.fechaGasto,
+          gasto,
+        }));
+        logHistorialDebug('gastos', 'recordsCount', {
+          url: HISTORIAL_ENDPOINTS.gastos,
+          count: nextMovimientos.length,
+        });
+      }
+
+      setHistorialCompleto((current) => [
+        ...current.filter((item) => item.tipo !== historialActivo),
+        ...nextMovimientos,
+      ]);
+    } catch (err) {
+      setHistorialSectionErrors((current) => ({
+        ...current,
+        [section]: HISTORIAL_SECTION_ERROR,
+      }));
+      logHistorialDebug(section, 'error', {
+        url: HISTORIAL_ENDPOINTS[section],
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setRefreshing(false);
+    }
   };
   const limpiarFiltrosHistorial = () => {
     if (!historialFiltrosActivos) return;

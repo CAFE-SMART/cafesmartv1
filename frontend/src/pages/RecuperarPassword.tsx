@@ -105,6 +105,8 @@ export default function RecuperarPassword() {
       : returnTo === '/resumen-financiero/acceso'
         ? 'Volver al acceso financiero'
         : 'Volver al login';
+  const resetOrigin =
+    recoveryState?.origin === 'financial-access' ? 'financial-access' : 'login';
   const handleBack = () => {
     navigate(returnTo, {
       replace: true,
@@ -130,14 +132,14 @@ export default function RecuperarPassword() {
     handleSubmit,
     reenviarEnlace,
     usarOtroCorreo,
-  } = useResetPassword();
+  } = useResetPassword({ origin: resetOrigin });
 
   const header = (
     <header className="flex items-center gap-3">
       <button
         type="button"
         onClick={handleBack}
-        className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-[#dbe7ff] bg-white px-3 text-xs font-black text-[#102d92] shadow-sm transition hover:bg-[#f5f9ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dbe7ff] bg-white text-[#102d92] shadow-sm transition hover:bg-[#f5f9ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-800"
         aria-label={returnLabel}
       >
         <ArrowLeft size={18} />
