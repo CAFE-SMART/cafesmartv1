@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -30,6 +31,11 @@ export class CreateVentaDetalleDto {
   @Min(PRECIO_MINIMO_KG, { message: 'El precio por kg debe ser mínimo $1,000' })
   @Max(100000, { message: 'El precio por kg no puede superar los 100,000' })
   precioKg: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El subtotal debe ser un numero' })
+  subtotal?: number;
 }
 
 export class CreateVentaDto {
@@ -42,6 +48,10 @@ export class CreateVentaDto {
   @IsString({ message: 'clienteId debe ser un texto' })
   @IsNotEmpty({ message: 'clienteId no puede venir vacio' })
   clienteId?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'clienteRapido debe ser verdadero o falso' })
+  clienteRapido?: boolean;
 
   @IsArray({ message: 'Los detalles deben venir en una lista' })
   @ArrayMinSize(1, { message: 'Debe registrar al menos un detalle de venta' })

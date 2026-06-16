@@ -2003,7 +2003,7 @@ export default function Ventas() {
           primaryLabel="Registrar otra venta"
           onPrimary={reiniciar}
           onHome={() => navigate('/inicio')}
-          onShareSummary={() => {
+          onShareSummary={(format) => {
             const firstItem = ventaGuardada.items[0];
             const uniqueTipos = Array.from(
               new Set(ventaGuardada.items.map((item) => item.tipoCafe).filter(Boolean)),
@@ -2014,6 +2014,7 @@ export default function Ventas() {
 
             return shareMovementSummary({
               type: 'venta',
+              format,
               data: {
                 cliente: ventaGuardada.clienteNombre,
                 tipoCafe:
@@ -2035,6 +2036,7 @@ export default function Ventas() {
                     : undefined,
                 totalVenta: ventaGuardada.totalVenta,
                 fecha: ventaGuardada.fecha,
+                referencia: ventaGuardada.referenciaId,
               },
             });
           }}

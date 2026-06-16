@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Share2 } from 'lucide-react';
+import { FileText, ImageIcon } from 'lucide-react';
 import { CafeSmartErrorState } from './CafeSmartErrorState';
+import type { ShareSummaryFormat } from '../services/shareMovementSummary';
 
 type SummaryRow = {
   icon: React.ReactNode;
@@ -19,7 +20,7 @@ type TransactionSuccessScreenProps = {
   onPrimary: () => void;
   onHome: () => void;
   capacityNotice?: React.ReactNode;
-  onShareSummary?: () => Promise<boolean>;
+  onShareSummary?: (format: ShareSummaryFormat) => Promise<boolean>;
 };
 
 export function TransactionSuccessScreen({
@@ -38,14 +39,14 @@ export function TransactionSuccessScreen({
   const [shareError, setShareError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
 
-  const handleShare = async () => {
+  const handleShare = async (format: ShareSummaryFormat) => {
     if (!onShareSummary || sharing) return;
 
     setSharing(true);
     setShareError(null);
 
     try {
-      const opened = await onShareSummary();
+      const opened = await onShareSummary(format);
       if (!opened) {
         setShareError('No pudimos abrir las opciones de compartir.');
       }
@@ -67,15 +68,26 @@ export function TransactionSuccessScreen({
       extraAction={
         onShareSummary ? (
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => void handleShare()}
-              disabled={sharing}
-              className="inline-flex min-h-[50px] w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#cbd5e1] bg-white px-3 text-center text-[0.82rem] font-black leading-tight text-[#1e3a8a] shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 hover:border-[#93c5fd] hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-            >
-              <Share2 size={17} aria-hidden="true" />
-              {sharing ? 'Abriendo...' : 'Compartir resumen'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void handleShare('image')}
+                disabled={sharing}
+                className="inline-flex min-h-[50px] w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#cbd5e1] bg-white px-3 text-center text-[0.82rem] font-black leading-tight text-[#1e3a8a] shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 hover:border-[#93c5fd] hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                <ImageIcon size={17} aria-hidden="true" />
+                {sharing ? 'Abriendo...' : 'Compartir imagen'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleShare('pdf')}
+                disabled={sharing}
+                className="inline-flex min-h-[50px] w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#cbd5e1] bg-white px-3 text-center text-[0.82rem] font-black leading-tight text-[#1e3a8a] shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 hover:border-[#93c5fd] hover:bg-white hover:shadow-[0_12px_24px_rgba(15,23,42,0.07)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                <FileText size={17} aria-hidden="true" />
+                {sharing ? 'Abriendo...' : 'Compartir PDF'}
+              </button>
+            </div>
             {shareError ? (
               <p
                 role="alert"

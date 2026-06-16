@@ -110,6 +110,7 @@ type CompraGuardadaResumen = {
     tipoCafe: string;
     calidad: string;
     pesoInicial: number;
+    precioKg: number;
   }>;
 };
 
@@ -3711,6 +3712,7 @@ export default function Compras() {
             tipoCafe: nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café',
             calidad: nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad',
             pesoInicial: peso,
+            precioKg: leerPrecioCompra(sublote.precioKg).valor,
           };
         }),
       });
@@ -3773,17 +3775,32 @@ export default function Compras() {
         primaryLabel="Registrar otra compra"
         onPrimary={iniciarNuevaCompra}
         onHome={() => navigate('/inicio')}
-        onShareSummary={() =>
-          shareMovementSummary({
+        onShareSummary={(format) => {
+          const tipos = Array.from(
+            new Set(compraGuardada.sublotes.map((sublote) => sublote.tipoCafe).filter(Boolean)),
+          );
+          const calidades = Array.from(
+            new Set(compraGuardada.sublotes.map((sublote) => sublote.calidad).filter(Boolean)),
+          );
+
+          return shareMovementSummary({
             type: 'compra',
+            format,
             data: {
               productor: compraGuardada.productorNombre,
+              tipoCafe: tipos.length === 1 ? tipos[0] : 'Varios',
+              calidad: calidades.length === 1 ? calidades[0] : 'Varias',
               totalKg: compraGuardada.totalKg,
+              precioKg:
+                compraGuardada.totalKg > 0
+                  ? compraGuardada.totalCompra / compraGuardada.totalKg
+                  : undefined,
               totalPagado: compraGuardada.totalCompra,
               fecha: compraGuardada.fecha,
+              referencia: compraGuardada.sublotes[0]?.id,
             },
-          })
-        }
+          });
+        }}
         rows={[
           {
             icon: '1',

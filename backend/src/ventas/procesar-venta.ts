@@ -204,10 +204,6 @@ export async function procesarVenta(
       const sublotesPorId = new Map(
         sublotes.map((sublote) => [sublote.id, sublote]),
       );
-      const codigosSublote = await generarMapaCodigosSublote(
-        tx,
-        data.organizacionId,
-      );
       const faltantes = data.detalles
         .map((detalle) => detalle.subloteId)
         .filter((subloteId) => !sublotesPorId.has(subloteId));
@@ -285,10 +281,6 @@ export async function procesarVenta(
       const detallesCreados: VentaDetalle[] = [];
 
       for (const detalle of detallesOrdenados) {
-        const subloteOriginal = sublotesPorId.get(detalle.subloteId)!;
-        const inventarioRestante = normalizarADosDecimales(
-          Number(subloteOriginal.pesoActual) - detalle.pesoVendido,
-        );
         const actualizacionSublote = await tx.sublote.updateMany({
           where: {
             id: detalle.subloteId,
@@ -343,12 +335,6 @@ export async function procesarVenta(
             pesoVendido: detalle.pesoVendido,
             precioKg: detalle.precioKg,
             subtotal: detalle.subtotal,
-            codigoSublote: codigosSublote.get(detalle.subloteId) ?? null,
-            tipoCafeSnapshot: subloteOriginal.tipoCafeNombre,
-            calidadSnapshot: subloteOriginal.calidadNombre,
-            precioCompraKg: normalizarADosDecimales(Number(subloteOriginal.precioKg)),
-            fechaIngresoSublote: subloteOriginal.fechaIngreso,
-            inventarioRestante,
             deviceId: detalle.deviceId,
             localId: detalle.localId,
           },
