@@ -237,6 +237,33 @@ export class VentasService {
         this.prisma,
       );
     } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          event: '[Ventas][create] ERROR_REAL',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          userId,
+          organizacionId: organizacionIdFinal,
+          payload: {
+            fecha: input.fecha ?? null,
+            clienteId: input.clienteId ?? null,
+            deviceIdPresent: Boolean(input.deviceId),
+            localIdPresent: Boolean(input.localId),
+            detallesCount: Array.isArray(input.detalles)
+              ? input.detalles.length
+              : 0,
+            detalles: Array.isArray(input.detalles)
+              ? input.detalles.map((detalle, index) => ({
+                  index,
+                  subloteId: detalle.subloteId,
+                  pesoVendido: detalle.pesoVendido,
+                  precioKg: detalle.precioKg,
+                }))
+              : [],
+          },
+        }),
+      );
+
       if (error instanceof VentaValidacionCriticaError) {
         throw new BadRequestException(
           apiError(error.code, error.message, { details: error.details }),

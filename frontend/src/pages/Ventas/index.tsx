@@ -117,49 +117,49 @@ type LoteVenta = {
 function getBodegaVentaTone(ocupacion: number) {
   if (ocupacion >= 100) {
     return {
-      badge: '🔴 CRÍTICA',
+      badge: 'Sobrecapacidad',
       border: 'border-rose-200',
       bg: 'bg-rose-50',
-      badgeClass: 'bg-rose-100 text-rose-800',
+      badgeClass: 'bg-rose-100 text-rose-700',
       text: 'text-rose-800',
       bar: 'bg-rose-500',
-      track: 'bg-rose-100',
-      icon: 'bg-white text-rose-700',
+      track: 'bg-slate-100',
+      icon: 'text-rose-700',
     };
   }
   if (ocupacion >= 90) {
     return {
-      badge: '🟠 CASI LLENA',
-      border: 'border-orange-200',
-      bg: 'bg-orange-50',
-      badgeClass: 'bg-orange-100 text-orange-800',
-      text: 'text-orange-800',
-      bar: 'bg-orange-400',
-      track: 'bg-orange-100',
-      icon: 'bg-white text-orange-700',
+      badge: 'Casi llena',
+      border: 'border-amber-200',
+      bg: 'bg-amber-50',
+      badgeClass: 'bg-amber-100 text-amber-700',
+      text: 'text-amber-800',
+      bar: 'bg-amber-400',
+      track: 'bg-slate-100',
+      icon: 'text-amber-700',
     };
   }
   if (ocupacion >= 70) {
     return {
-      badge: '🟡 MEDIA',
+      badge: 'Casi llena',
       border: 'border-amber-200',
       bg: 'bg-amber-50',
-      badgeClass: 'bg-amber-100 text-amber-800',
+      badgeClass: 'bg-amber-100 text-amber-700',
       text: 'text-amber-800',
       bar: 'bg-amber-400',
-      track: 'bg-amber-100',
-      icon: 'bg-white text-amber-700',
+      track: 'bg-slate-100',
+      icon: 'text-amber-700',
     };
   }
   return {
-    badge: '🔵 DISPONIBLE',
+    badge: 'Disponible',
     border: 'border-sky-200',
     bg: 'bg-sky-50',
-    badgeClass: 'bg-sky-100 text-sky-800',
+    badgeClass: 'bg-sky-100 text-sky-700',
     text: 'text-sky-800',
     bar: 'bg-sky-500',
-    track: 'bg-sky-100',
-    icon: 'bg-white text-sky-700',
+    track: 'bg-slate-100',
+    icon: 'text-sky-700',
   };
 }
 
@@ -187,40 +187,37 @@ function BodegaVentaInfoContent({
   const liberaMucho = liberadoKg >= Math.max(25, capacidadKg * 0.05);
 
   return (
-    <div className="space-y-3" aria-live="polite">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-[0.65rem] font-black ${tone.badgeClass}`}>
+    <div className="space-y-3 pr-1" aria-live="polite">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-[0.08em] ${tone.badgeClass}`}>
+            <Warehouse size={12} aria-hidden="true" />
             {tone.badge}
           </span>
-          <p className="mt-3 text-[0.72rem] font-black uppercase tracking-[0.1em] text-slate-500">
-            Espacio disponible
-          </p>
-          <p className={`mt-1 text-[1.55rem] font-black leading-tight ${tone.text}`}>
-            {kg(libreActual)} libres
-          </p>
         </div>
-        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] shadow-sm ${tone.icon}`}>
-          <Warehouse size={21} />
+        <span className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">
+          Espacio disponible
         </span>
       </div>
 
-      <div className={`mt-3 h-3 overflow-hidden rounded-full ${tone.track}`}>
+      <p className={`whitespace-nowrap text-[1.2rem] font-black leading-none ${tone.text}`}>
+        {kg(libreActual)} libres
+      </p>
+
+      <div className={`h-2 overflow-hidden rounded-full ${tone.track}`}>
         <div
-          className={`h-full rounded-full transition-all duration-500 ease-out ${tone.bar}`}
+          className={`h-full rounded-full ${tone.bar}`}
           style={{ width: `${ocupacionActual}%` }}
         />
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-        <span className="font-semibold text-slate-600">Disponible después:</span>
-        <span className={`whitespace-nowrap text-base font-black ${tone.text}`}>
+      <div className="flex items-center justify-between gap-2 rounded-[14px] bg-slate-50 px-3 py-2 text-[0.78rem]">
+        <span className="whitespace-nowrap font-black text-slate-500">
+          Disponible después:
+        </span>
+        <span className={`whitespace-nowrap font-black leading-tight ${tone.text}`}>
           {kg(libreDespues)}
         </span>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
-        <span>Ocupación después</span>
-        <span>{Math.round(ocupacionDespues)}%</span>
       </div>
 
       {ventaKg > 0 ? (
@@ -236,6 +233,9 @@ function BodegaVentaInfoContent({
           duration={liberaMucho ? 2600 : 4000}
         />
       ) : null}
+      <p className="text-[0.72rem] font-bold text-slate-500">
+        Ocupación después: {Math.round(ocupacionDespues)}%
+      </p>
     </div>
   );
 }
@@ -273,7 +273,7 @@ function BodegaVentaInfoModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="venta-bodega-info-title"
-        className={`w-full max-w-[360px] rounded-[22px] border p-4 shadow-[0_28px_70px_rgba(15,23,42,0.28)] ${tone.border} ${tone.bg}`}
+        className={`w-full max-w-[360px] rounded-[16px] border px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.12)] backdrop-blur-sm ${tone.border} ${tone.bg}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

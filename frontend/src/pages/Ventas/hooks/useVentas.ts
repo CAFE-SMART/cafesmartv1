@@ -914,15 +914,56 @@ export function useVentas() {
         }
         if (restante > 0.001) throw new Error(`La cantidad supera el disponible en ${lote.codigo}.`);
       }
+      const detalleInvalido = detalles.find((detalle) => {
+        return (
+          !detalle.subloteId ||
+          !Number.isFinite(detalle.pesoVendido) ||
+          detalle.pesoVendido <= 0 ||
+          !Number.isFinite(detalle.precioKg) ||
+          detalle.precioKg <= 0
+        );
+      });
+
+      if (detalleInvalido) {
+        console.info(
+          '[CafeSmart][ventas-submit] payload invalido',
+          JSON.stringify({
+            subloteId: detalleInvalido.subloteId || null,
+            pesoVendido: detalleInvalido.pesoVendido,
+            precioKg: detalleInvalido.precioKg,
+          }),
+        );
+        throw new Error(
+          !detalleInvalido.subloteId
+            ? 'El sublote seleccionado no esta disponible para la venta.'
+            : 'Revisa cantidad y precio antes de registrar la venta.',
+        );
+      }
+
       setVentaFifoBreakdown(desgloseFIFO);
       const fechaVentaIso = toIsoDateAtUtcNoon(fechaVenta);
-      const respuesta = await crearVenta({
+      const payloadVenta = {
         ...(fechaVentaIso ? { fecha: fechaVentaIso } : {}),
         ...(!clienteSeleccionado.rapido ? { clienteId: clienteSeleccionado.id } : {}),
         deviceId: await obtenerDeviceId(),
         localId: ventaLocalIdRef.current,
         detalles,
-      });
+      };
+
+      console.info(
+        '[CafeSmart][ventas-submit] payload listo',
+        JSON.stringify({
+          fecha: payloadVenta.fecha ?? null,
+          clienteId: payloadVenta.clienteId ?? null,
+          clienteRapido: Boolean(clienteSeleccionado.rapido),
+          detallesCount: detalles.length,
+          totalKg,
+          totalEstimado,
+          detalleIds: detalles.map((detalle) => detalle.subloteId),
+        }),
+      );
+
+      const respuesta = await crearVenta(payloadVenta);
       const ventaResumen: VentaGuardadaResumen = {
         referenciaId: respuesta.venta.id,
         fecha: respuesta.venta.fecha,
@@ -945,6 +986,25 @@ export function useVentas() {
       await cargarLotes();
     } catch (error) {
       const mensaje = getVentaSubmitMessage(error);
+      console.info(
+        '[CafeSmart][ventas-submit] error capturado',
+        JSON.stringify({
+          name: error instanceof Error ? error.name : typeof error,
+          message: error instanceof Error ? error.message : String(error),
+          status:
+            typeof error === 'object' && error && 'status' in error
+              ? (error as { status?: number }).status
+              : null,
+          code:
+            typeof error === 'object' && error && 'code' in error
+              ? (error as { code?: string | null }).code
+              : null,
+          field:
+            typeof error === 'object' && error && 'field' in error
+              ? (error as { field?: string | null }).field
+              : null,
+        }),
+      );
       if (esErrorGeneralGuardadoVenta(error)) {
         setRegistroErrorMensaje(mensaje);
         setSubmitError(null);

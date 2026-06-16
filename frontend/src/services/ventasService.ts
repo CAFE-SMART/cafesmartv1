@@ -89,6 +89,8 @@ export type VentaListadoResponse = {
   registros: VentaListadoItem[];
 };
 
+const VENTA_CREATE_TIMEOUT_MS = 30_000;
+
 export type ListarVentasParams = {
   fecha?: string;
   orden?: 'recent' | 'oldest';
@@ -112,12 +114,80 @@ export async function listarVentas(params: ListarVentasParams = {}) {
 }
 
 export async function crearVenta(payload: CreateVentaPayload) {
-  const response = await apiFetch('/ventas', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }) as CreateVentaResponse;
-  invalidateApiCache();
-  return response;
+  const payloadLog = {
+    endpoint: '/ventas',
+    fecha: payload.fecha ?? null,
+    clienteId: payload.clienteId ?? null,
+    deviceIdPresent: Boolean(payload.deviceId),
+    localIdPresent: Boolean(payload.localId),
+    detallesCount: payload.detalles.length,
+    totalKg: payload.detalles.reduce(
+      (total, detalle) => total + Number(detalle.pesoVendido || 0),
+      0,
+    ),
+    totalEstimado: payload.detalles.reduce(
+      (total, detalle) =>
+        total +
+        Number(detalle.pesoVendido || 0) * Number(detalle.precioKg || 0),
+      0,
+    ),
+    detalles: payload.detalles.map((detalle, index) => ({
+      index,
+      subloteId: detalle.subloteId || null,
+      pesoVendido: detalle.pesoVendido,
+      precioKg: detalle.precioKg,
+      subtotal:
+        Number(detalle.pesoVendido || 0) * Number(detalle.precioKg || 0),
+    })),
+  };
+
+  console.info('[CafeSmart][ventas-create] request', JSON.stringify(payloadLog));
+
+  try {
+    const response = (await apiFetch('/ventas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: VENTA_CREATE_TIMEOUT_MS,
+    })) as CreateVentaResponse;
+
+    console.info(
+      '[CafeSmart][ventas-create] response',
+      JSON.stringify({
+        ventaId: response.venta?.id ?? null,
+        fecha: response.venta?.fecha ?? null,
+        totalVenta: response.venta?.totalVenta ?? null,
+        detallesCount: response.detalles?.length ?? 0,
+      }),
+    );
+
+    invalidateApiCache();
+    return response;
+  } catch (error) {
+    console.info(
+      '[CafeSmart][ventas-create] error',
+      JSON.stringify({
+        name: error instanceof Error ? error.name : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+        status:
+          typeof error === 'object' && error && 'status' in error
+            ? (error as { status?: number }).status
+            : null,
+        code:
+          typeof error === 'object' && error && 'code' in error
+            ? (error as { code?: string | null }).code
+            : null,
+        field:
+          typeof error === 'object' && error && 'field' in error
+            ? (error as { field?: string | null }).field
+            : null,
+        details:
+          typeof error === 'object' && error && 'details' in error
+            ? (error as { details?: unknown }).details
+            : null,
+      }),
+    );
+    throw error;
+  }
 }
 
 export function sortByFIFO(l:any[]):any[]{return[...l].sort((a,b)=>{return new Date(a.fechaIngreso||a.fecha).getTime()-new Date(b.fechaIngreso||b.fecha).getTime()})}

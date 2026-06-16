@@ -24,7 +24,7 @@ type ShareMovementSummaryInput =
 function formatCurrency(value: number) {
   return `$${new Intl.NumberFormat('es-CO', {
     maximumFractionDigits: 0,
-  }).format(Number(value) || 0)}`;
+  }).format(Number(value) || 0)} COP`;
 }
 
 function formatKg(value: number) {
@@ -48,10 +48,12 @@ function buildCompraText(data: CompraShareData) {
   return [
     'Compra registrada en Café Smart',
     '',
-    `Productor: ${data.productor || 'Productor no registrado'}`,
-    `Total kg: ${formatKg(data.totalKg)}`,
+    `Productor: ${data.productor || 'Sin productor registrado'}`,
+    `Cantidad: ${formatKg(data.totalKg)}`,
     `Total pagado: ${formatCurrency(data.totalPagado)}`,
     `Fecha: ${formatShareDate(data.fecha)}`,
+    '',
+    'Registro generado desde Café Smart.',
   ].join('\n');
 }
 
@@ -59,20 +61,22 @@ function buildVentaText(data: VentaShareData) {
   const lines = [
     'Venta registrada en Café Smart',
     '',
-    `Cliente: ${data.cliente || 'Cliente no registrado'}`,
+    `Cliente: ${data.cliente || 'Sin cliente registrado'}`,
   ];
 
   if (data.tipoCafe) lines.push(`Tipo de café: ${data.tipoCafe}`);
   if (data.calidad) lines.push(`Calidad: ${data.calidad}`);
 
-  lines.push(`Total kg vendidos: ${formatKg(data.totalKg)}`);
+  lines.push(`Cantidad vendida: ${formatKg(data.totalKg)}`);
 
   if (data.precioKg !== undefined) {
     lines.push(`Precio por kg: ${formatCurrency(data.precioKg)}`);
   }
 
-  lines.push(`Total recibido: ${formatCurrency(data.totalVenta)}`);
+  lines.push(`Total de la venta: ${formatCurrency(data.totalVenta)}`);
   lines.push(`Fecha: ${formatShareDate(data.fecha)}`);
+  lines.push('');
+  lines.push('Registro generado desde Café Smart.');
 
   return lines.join('\n');
 }

@@ -484,13 +484,32 @@ export function getVentaSubmitMessage(error: unknown) {
     }
 
     if (error.status >= 500) {
-      return 'No pudimos completar la venta. Vuelve a intentarlo.';
+      return 'No pudimos completar la venta por un problema temporal del servidor. Intenta nuevamente en unos segundos.';
     }
 
     if (
       error.code === 'INSUFFICIENT_STOCK' ||
       error.code === 'VENTA_INVENTARIO_INSUFICIENTE'
     ) {
+      const details = error.details as unknown;
+      const stockDetails = Array.isArray(details)
+        ? details
+        : Object.values(error.details ?? {}).flat();
+      const stockDetail = stockDetails.find(
+        (detail): detail is { disponibleKg?: number; solicitadoKg?: number } =>
+          Boolean(detail) && typeof detail === 'object',
+      );
+
+      if (
+        stockDetail &&
+        typeof stockDetail.disponibleKg === 'number' &&
+        typeof stockDetail.solicitadoKg === 'number'
+      ) {
+        return `La cantidad supera el inventario disponible. Máximo disponible: ${kg(
+          stockDetail.disponibleKg,
+        )}; solicitado: ${kg(stockDetail.solicitadoKg)}.`;
+      }
+
       return 'La cantidad supera el inventario disponible.';
     }
 
@@ -507,6 +526,14 @@ export function getVentaSubmitMessage(error: unknown) {
     if (error.code === 'VENTA_SUBLOTE_INVALIDO') {
       return 'El sublote seleccionado no esta disponible para la venta.';
     }
+
+    if (error.message) {
+      return error.message;
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
   }
 
   return 'No fue posible registrar la venta. Intenta nuevamente.';
