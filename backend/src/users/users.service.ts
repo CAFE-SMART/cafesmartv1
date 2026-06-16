@@ -48,17 +48,6 @@ export class UsersService {
           mode: 'insensitive',
         },
       },
-      include: {
-        organizacion: {
-          select: {
-            id: true,
-            nombre: true,
-            tipo: true,
-            otroTipoDetalle: true,
-            descripcion: true,
-          },
-        },
-      },
     });
   }
 
