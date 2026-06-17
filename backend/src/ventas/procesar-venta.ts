@@ -12,7 +12,7 @@ import { generarCodigoLote, generarPrefijoCodigo } from '../common/codigo-lote.u
 
 export type CrearVentaResultado = {
   venta: Venta;
-  detalles: VentaDetalle[];
+  detalles: VentaDetalleBase[];
 };
 
 export type ProcesarVentaInput = CreateVentaDto & {
@@ -21,6 +21,22 @@ export type ProcesarVentaInput = CreateVentaDto & {
 };
 
 type VentaActivaConDetalles = Venta & { detalles: VentaDetalle[] };
+
+type VentaDetalleBase = Pick<
+  VentaDetalle,
+  | 'id'
+  | 'ventaId'
+  | 'subloteId'
+  | 'pesoVendido'
+  | 'precioKg'
+  | 'subtotal'
+  | 'deviceId'
+  | 'localId'
+  | 'syncStatus'
+  | 'deletedAt'
+  | 'createdAt'
+  | 'updatedAt'
+>;
 
 type DetalleProcesado = {
   subloteId: string;
@@ -302,7 +318,7 @@ export async function procesarVenta(
         },
       });
 
-      const detallesCreados: VentaDetalle[] = [];
+      const detallesCreados: VentaDetalleBase[] = [];
 
       for (const detalle of detallesOrdenados) {
         const actualizacionSublote = await tx.sublote.updateMany({
@@ -365,6 +381,20 @@ export async function procesarVenta(
             ),
             ventaDetalleCompatColumns,
           ),
+          select: {
+            id: true,
+            ventaId: true,
+            subloteId: true,
+            pesoVendido: true,
+            precioKg: true,
+            subtotal: true,
+            deviceId: true,
+            localId: true,
+            syncStatus: true,
+            deletedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         });
 
         detallesCreados.push(detalleCreado);

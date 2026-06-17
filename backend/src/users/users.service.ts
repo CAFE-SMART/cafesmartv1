@@ -158,6 +158,9 @@ export class UsersService {
               }
             : {}),
         },
+        select: {
+          id: true,
+        },
       });
 
       return tx.user.create({
