@@ -147,6 +147,16 @@ async function shouldRepairDisabledSession(session: CachedAuthSession) {
     return true;
   }
 
+  if (
+    session.loggedOutManually === true &&
+    Boolean(session.accessToken) &&
+    Boolean(session.user?.id) &&
+    Boolean(session.user?.email) &&
+    session.hasCompany === true
+  ) {
+    return true;
+  }
+
   if (session.loggedOutManually !== true) {
     return false;
   }

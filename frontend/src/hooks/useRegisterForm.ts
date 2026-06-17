@@ -28,6 +28,25 @@ type UseRegisterFormParams = {
   navigate: NavigateFunction;
 };
 
+function scrollToFirstInvalidField(fieldIds: string[]) {
+  if (typeof window === 'undefined') return;
+
+  window.setTimeout(() => {
+    const target = fieldIds
+      .map((id) => document.getElementById(id))
+      .find((element): element is HTMLElement => Boolean(element));
+
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLButtonElement
+    ) {
+      target.focus({ preventScroll: true });
+    }
+  }, 60);
+}
+
 export function useRegisterForm({
   hasGoogleFlow,
   routeState,
@@ -126,6 +145,7 @@ export function useRegisterForm({
 
   const goToStep2 = () => {
     setError(null);
+    console.log('[CafeSmart][register-step1] validando');
     const nextErrors: StepOneErrors = {};
     const businessNameError = validateBusinessName(nombreOrganizacion);
     const businessDescriptionError = validateBusinessDescription(
@@ -146,19 +166,35 @@ export function useRegisterForm({
     }
 
     if (Object.keys(nextErrors).length > 0) {
-      console.log('[CafeSmart][register-step1] errores:', nextErrors);
+      console.log(
+        '[CafeSmart][register-step1] errores:',
+        JSON.stringify(nextErrors, null, 2),
+      );
       setStepOneErrors(nextErrors);
       setError('Revisa los campos resaltados.');
+      scrollToFirstInvalidField([
+        nextErrors.nombreOrganizacion ? 'register-business-name' : '',
+        nextErrors.tipoOrganizacion ? 'register-business-type-group' : '',
+        nextErrors.descripcionOrganizacion ? 'register-business-description' : '',
+      ]);
       return;
     }
 
-    console.log('[CafeSmart][register-step1] datos validos:', {
-      nombreOrganizacion: normalizeBusinessNameInput(nombreOrganizacion).trim(),
-      tipoOrganizacion,
-      descripcionOrganizacion:
-        normalizeBusinessDescriptionInput(descripcionOrganizacion).trim() ||
+    console.log(
+      '[CafeSmart][register-step1] datos validos:',
+      JSON.stringify(
+        {
+          nombreOrganizacion:
+            normalizeBusinessNameInput(nombreOrganizacion).trim(),
+          tipoOrganizacion,
+          descripcionOrganizacion:
+            normalizeBusinessDescriptionInput(descripcionOrganizacion).trim() ||
+            null,
+        },
         null,
-    });
+        2,
+      ),
+    );
     console.log('[CafeSmart][register-step1] avanzando a paso 2');
     setStepOneErrors({});
     setStep(2);
@@ -266,6 +302,14 @@ export function useRegisterForm({
     if (Object.keys(nextErrors).length > 0) {
       setStepTwoErrors(nextErrors);
       setError('Revisa los campos resaltados.');
+      scrollToFirstInvalidField([
+        nextErrors.nombre ? 'register-admin-name' : '',
+        nextErrors.apellidos ? 'register-admin-lastname' : '',
+        nextErrors.telefono ? 'register-admin-phone' : '',
+        nextErrors.correo ? 'register-admin-email' : '',
+        nextErrors.password ? 'register-admin-password' : '',
+        nextErrors.confirmPassword ? 'register-admin-password-confirm' : '',
+      ]);
       return;
     }
 

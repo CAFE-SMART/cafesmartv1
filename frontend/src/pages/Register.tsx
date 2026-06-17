@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -161,6 +162,8 @@ export default function Register() {
   const isGoogleAuthEnabled = Boolean(
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim(),
   );
+  const canRenderGoogleAuth =
+    isGoogleAuthEnabled && Capacitor.getPlatform() !== 'android';
   const [googleLoading, setGoogleLoading] = useState(false);
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
     null,
@@ -451,9 +454,11 @@ export default function Register() {
                   Tipo de negocio
                 </p>
                 <div
+                  id="register-business-type-group"
                   className="grid grid-cols-1 gap-3"
                   role="radiogroup"
                   aria-label="Tipo de negocio"
+                  tabIndex={-1}
                 >
                   {businessTypes.map((type) => (
                     <BusinessTypeCard
@@ -792,7 +797,7 @@ export default function Register() {
                     Crear cuenta
                   </button>
 
-                  {!hasGoogleFlow && isGoogleAuthEnabled ? (
+                  {!hasGoogleFlow && canRenderGoogleAuth ? (
                     <div className="space-y-3 pt-1">
                       <Divider label="O continua con" />
                       {googleLoading ? (

@@ -114,15 +114,10 @@ async function saveRestoredPrimaryAuth(session: StoredLastSession) {
 }
 
 export async function restorePrimaryAuthFromLastSession() {
-  const manualLogoutMarker = await getAuthStorageValue(AUTH_STORAGE_KEYS.manualLogout);
   const raw = await getAuthStorageValue(AUTH_STORAGE_KEYS.lastSession);
   const session = parseLastSession(raw);
 
   if (!session?.accessToken || !session.user) {
-    return null;
-  }
-
-  if (session.loggedOutManually === true && manualLogoutMarker) {
     return null;
   }
 
