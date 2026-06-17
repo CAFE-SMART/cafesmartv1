@@ -210,6 +210,13 @@ type PeopleAdminForm = {
 
 const PROFILE_NAME_MAX_LENGTH = 60;
 const PROFILE_EMAIL_MAX_LENGTH = 60;
+const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_AVATAR_ALLOWED_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/gif',
+]);
 
 function validateProfileName(value: string) {
   const result = validatePersonName(value, 'El nombre');
@@ -251,6 +258,22 @@ function getInitials(value: string) {
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase())
     .join('') || 'CS';
+}
+
+function isAllowedAvatarType(type: string) {
+  return PROFILE_AVATAR_ALLOWED_TYPES.has(type.toLowerCase());
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('Formato de imagen no válido.'));
+    reader.onerror = () => reject(reader.error ?? new Error('No pudimos leer la imagen.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function formatKg(value: number) {
@@ -518,6 +541,17 @@ export default function Ajustes() {
     telefono: formatPhoneNumber(user?.telefono ?? ''),
   }));
   const profileBaselineRef = React.useRef<ProfileSettings | null>(null);
+  const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState(
+    () => user?.avatarUrl ?? '',
+  );
+  const [profileAvatarDraft, setProfileAvatarDraft] = useState<string | null>(null);
+  const [profileAvatarRemove, setProfileAvatarRemove] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [company, setCompany] = useState<CompanySettings>(() => ({
     nombreEmpresa: '',
     tipoEmpresa: '',
@@ -566,6 +600,8 @@ export default function Ajustes() {
   const [isEditingBodega, setIsEditingBodega] = useState(false);
   const [isEditingLimites, setIsEditingLimites] = useState(false);
   const [guardandoLimites, setGuardandoLimites] = useState(false);
+  const [guardandoBodega, setGuardandoBodega] = useState(false);
+  const [guardandoEmpresa, setGuardandoEmpresa] = useState(false);
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
   const [nombreLimitNotice, setNombreLimitNotice] = useState(false);
   const [peopleMode, setPeopleMode] = useState<PeopleAdminMode>(null);
@@ -633,11 +669,15 @@ export default function Ajustes() {
     'screen-reader' | 'high-contrast' | 'font-scale' | null
   >(null);
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
+  const currentAvatarUrl = profileAvatarRemove
+    ? ''
+    : profileAvatarDraft ?? profileAvatarUrl ?? user?.avatarUrl ?? '';
 
   const clearFeedback = () => {
     setError(null);
     setSuccess(null);
     setFloatingError(null);
+    setProfileFeedback(null);
   };
 
   useEffect(() => {
@@ -695,6 +735,9 @@ export default function Ajustes() {
     clearFeedback();
     profileBaselineRef.current = profile;
     setProfileErrors({});
+    setProfileAvatarDraft(null);
+    setProfileAvatarRemove(false);
+    setProfileFeedback(null);
     setIsEditingProfile(true);
     setIsViewingPublicProfile(false);
     setIsEditingCompany(false);
@@ -708,6 +751,9 @@ export default function Ajustes() {
       setProfile(profileBaselineRef.current);
     }
     setProfileErrors({});
+    setProfileAvatarDraft(null);
+    setProfileAvatarRemove(false);
+    setProfileFeedback(null);
     profileBaselineRef.current = null;
     setIsEditingProfile(false);
   };
@@ -824,16 +870,24 @@ export default function Ajustes() {
       !isEditingCompany &&
       (!company.nombreEmpresa ||
         !company.tipoEmpresa ||
-        (company.nombreEmpresa === 'Mi negocio cafetero' && nombreOrganizacionReal))
+        ((company.nombreEmpresa === 'Mi negocio cafetero' ||
+          company.nombreEmpresa === 'Negocio sin nombre') &&
+          nombreOrganizacionReal))
     ) {
       setCompany((prev) => ({
         nombreEmpresa:
-          !prev.nombreEmpresa || prev.nombreEmpresa === 'Mi negocio cafetero'
-            ? nombreOrganizacionReal || 'Mi negocio cafetero'
+          !prev.nombreEmpresa ||
+          prev.nombreEmpresa === 'Mi negocio cafetero' ||
+          prev.nombreEmpresa === 'Negocio sin nombre'
+            ? nombreOrganizacionReal || 'Negocio sin nombre'
             : prev.nombreEmpresa,
         tipoEmpresa: nextTipo,
         descripcion: nextDescripcion,
       }));
+    }
+
+    if (!profileAvatarDraft && !profileAvatarRemove && user?.avatarUrl !== profileAvatarUrl) {
+      setProfileAvatarUrl(user?.avatarUrl ?? '');
     }
   }, [
     company.nombreEmpresa,
@@ -850,6 +904,10 @@ export default function Ajustes() {
     user?.nombreOrganizacion,
     user?.tipoOrganizacion,
     user?.descripcionOrganizacion,
+    user?.avatarUrl,
+    profileAvatarDraft,
+    profileAvatarRemove,
+    profileAvatarUrl,
   ]);
 
   const cargarInventario = async () => {
@@ -1084,13 +1142,69 @@ export default function Ajustes() {
     setPeopleFormErrors({});
   };
 
-  const guardarPerfil = async () => {
-    clearFeedback();
-    if (isOffline) {
-      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
-      setFloatingError(getAjustesGuidance(OFFLINE_BLOCKED_ACTION_MESSAGE));
+  const seleccionarFotoPerfil = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setProfileFeedback(null);
+    setError(null);
+
+    if (!file) return;
+
+    if (!isAllowedAvatarType(file.type)) {
+      setProfileFeedback({
+        variant: 'error',
+        message: 'Formato no permitido. Usa PNG, JPG o GIF.',
+      });
       return;
     }
+
+    if (file.size <= 0) {
+      setProfileFeedback({
+        variant: 'error',
+        message: 'El archivo está vacío. Elige otra imagen.',
+      });
+      return;
+    }
+
+    if (file.size > PROFILE_AVATAR_MAX_BYTES) {
+      setProfileFeedback({
+        variant: 'error',
+        message: 'La imagen es demasiado pesada. Elige una imagen menor a 5 MB.',
+      });
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setProfileAvatarDraft(dataUrl);
+      setProfileAvatarRemove(false);
+      setProfileFeedback({
+        variant: isOffline ? 'warning' : 'success',
+        message: isOffline
+          ? 'Foto guardada como borrador en este dispositivo.'
+          : 'Vista previa lista. Guarda cambios para conservarla.',
+      });
+    } catch {
+      setProfileFeedback({
+        variant: 'error',
+        message: 'No pudimos leer la imagen. Intenta con otro archivo.',
+      });
+    }
+  };
+
+  const quitarFotoPerfil = () => {
+    setProfileAvatarDraft(null);
+    setProfileAvatarRemove(true);
+    setProfileFeedback({
+      variant: 'warning',
+      message: 'La foto se quitará cuando guardes los cambios.',
+    });
+  };
+
+  const guardarPerfil = async () => {
+    clearFeedback();
 
     const telefono = sanitizeDigits(profile.telefono, 10);
     const nextErrors: ProfileErrors = {};
@@ -1120,13 +1234,25 @@ export default function Ajustes() {
       correo: profile.correo.trim().slice(0, PROFILE_EMAIL_MAX_LENGTH),
       telefono,
     };
+    const nextAvatarUrl = profileAvatarRemove
+      ? null
+      : profileAvatarDraft ?? profileAvatarUrl ?? null;
 
     try {
-      const perfilActualizado = await actualizarPerfilUsuario({
-        nombre: normalizedProfile.nombre,
-        correo: normalizedProfile.correo,
-        telefono: normalizedProfile.telefono || null,
-      });
+      setGuardandoPerfil(true);
+      const perfilActualizado = isOffline
+        ? {
+            id: user?.id ?? '',
+            nombre: normalizedProfile.nombre,
+            correo: normalizedProfile.correo,
+            telefono: normalizedProfile.telefono || null,
+            organizacionId: user?.organizacionId ?? null,
+          }
+        : await actualizarPerfilUsuario({
+            nombre: normalizedProfile.nombre,
+            correo: normalizedProfile.correo,
+            telefono: normalizedProfile.telefono || null,
+          });
 
       const nextProfile = {
         nombre: perfilActualizado.nombre,
@@ -1138,6 +1264,9 @@ export default function Ajustes() {
         ...prev,
         ...nextProfile,
       }));
+      setProfileAvatarUrl(nextAvatarUrl ?? '');
+      setProfileAvatarDraft(null);
+      setProfileAvatarRemove(false);
       profileBaselineRef.current = nextProfile;
       setProfileErrors({});
 
@@ -1153,6 +1282,7 @@ export default function Ajustes() {
             telefono: nextProfile.telefono,
             organizacionId:
               perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+            avatarUrl: nextAvatarUrl,
           },
         });
         await updateRememberedAccountIfCurrent({
@@ -1163,10 +1293,19 @@ export default function Ajustes() {
       }
 
       setSuccess('Perfil actualizado correctamente.');
+      setProfileFeedback({
+        variant: isOffline ? 'warning' : 'success',
+        message: isOffline
+          ? 'Foto guardada en este dispositivo. Se sincronizará cuando tengas conexión.'
+          : 'Perfil actualizado correctamente.',
+      });
     } catch (error) {
       const message = 'No pudimos actualizar tu perfil. Intenta de nuevo.';
       setError(message);
+      setProfileFeedback({ variant: 'error', message });
       setFloatingError(getAjustesGuidance(message));
+    } finally {
+      setGuardandoPerfil(false);
     }
   };
 
@@ -1197,22 +1336,25 @@ export default function Ajustes() {
     const nombreEmpresa = normalizeCompanyName(company.nombreEmpresa);
     const descripcionEmpresa = company.descripcion.trim().replace(/\s+/g, ' ');
     try {
+      setGuardandoEmpresa(true);
       const organizacionActualizada = await actualizarConfiguracionOrganizacion({
         nombreOrganizacion: nombreEmpresa,
         tipoOrganizacion: company.tipoEmpresa,
         descripcionOrganizacion: descripcionEmpresa || null,
       });
+      const descripcionActualizada =
+        organizacionActualizada.descripcion ?? descripcionEmpresa;
       setCompany((prev) => ({
         ...prev,
-        nombreEmpresa,
+        nombreEmpresa: organizacionActualizada.nombre ?? nombreEmpresa,
         tipoEmpresa: organizacionActualizada.tipo,
-        descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
+        descripcion: descripcionActualizada,
       }));
       companyBaselineRef.current = {
         ...company,
-        nombreEmpresa,
+        nombreEmpresa: organizacionActualizada.nombre ?? nombreEmpresa,
         tipoEmpresa: organizacionActualizada.tipo,
-        descripcion: organizacionActualizada.descripcion ?? descripcionEmpresa,
+        descripcion: descripcionActualizada,
       };
       if (user && token) {
         await setSession({
@@ -1220,19 +1362,20 @@ export default function Ajustes() {
           hasCompany,
           user: {
             ...user,
-            nombreOrganizacion: organizacionActualizada.nombre,
+            nombreOrganizacion: organizacionActualizada.nombre ?? nombreEmpresa,
             tipoOrganizacion: organizacionActualizada.tipo as typeof user.tipoOrganizacion,
             otroTipoDetalle: organizacionActualizada.otroTipoDetalle ?? null,
-            descripcionOrganizacion: organizacionActualizada.descripcion ?? null,
+            descripcionOrganizacion: descripcionActualizada || null,
           },
         });
       }
-      setIsEditingCompany(false);
       setSuccess('Negocio actualizado correctamente.');
     } catch {
       const message = 'No pudimos guardar los cambios. Intenta nuevamente.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
+    } finally {
+      setGuardandoEmpresa(false);
     }
   };
 
@@ -1339,6 +1482,7 @@ export default function Ajustes() {
     }
 
     try {
+      setGuardandoBodega(true);
       const result = await guardarConfiguracionBodega({
         nombreBodega,
         capacidadKg: capacidad,
@@ -1347,11 +1491,13 @@ export default function Ajustes() {
       setNombreBodega(result.nombreBodega);
       setCapacidadKg(result.capacidadKg ? String(result.capacidadKg) : '');
       setUpdatedAt(result.updatedAt);
-      setSuccess('Capacidad de bodega actualizada.');
+      setSuccess('Capacidad de bodega actualizada correctamente.');
     } catch (err) {
       const message =
         'No pudimos guardar la capacidad. Revisa tu conexión e intenta nuevamente.';
       setError(message);
+    } finally {
+      setGuardandoBodega(false);
     }
   };
 
@@ -1432,7 +1578,6 @@ export default function Ajustes() {
       setLimitMinPrecioVentaKg(String(limitesGuardados.minPrecioVentaKg));
       setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
       setSuccess('Límites actualizados.');
-      setIsEditingLimites(false);
     } catch {
       setError('No pudimos guardar los límites. Revisa tu conexión e intenta nuevamente.');
     } finally {
@@ -2302,15 +2447,32 @@ export default function Ajustes() {
         </CafeSmartModal>
 
         <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={abrirEditorPerfil}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                abrirEditorPerfil();
+              }
+            }}
+            className="flex cursor-pointer items-center gap-3 rounded-[16px] outline-none transition focus-visible:ring-4 focus-visible:ring-[#102d92]/15"
+            aria-label="Abrir edición de perfil"
+          >
             <div className="relative shrink-0">
-              <div className="h-14 w-14 rounded-full bg-[#eef2ff] p-1 shadow-inner">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#102d92]">
-                  <UserCircle2 size={28} />
-                </div>
-              </div>
-              <div className="absolute -right-1 -bottom-1 rounded-full bg-[#102d92] p-1.5 text-white">
-                <Settings size={10} />
+              <div className="h-14 w-14 overflow-hidden rounded-full bg-[#eef2ff] p-1 shadow-inner">
+                {currentAvatarUrl ? (
+                  <img
+                    src={currentAvatarUrl}
+                    alt=""
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[#102d92]">
+                    <UserCircle2 size={28} />
+                  </div>
+                )}
               </div>
             </div>
             <div className="min-w-0 flex-1">
@@ -2324,25 +2486,10 @@ export default function Ajustes() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={abrirPerfilPublico}
-                aria-label="Ver perfil de usuario"
-                title="Ver perfil"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#f3f4f6] text-[#1f3fa7] transition hover:bg-[#e9edf5] active:scale-95"
-              >
-                <Eye size={17} />
-              </button>
-              <button
-                type="button"
-                onClick={abrirEditorPerfil}
-                aria-label="Editar perfil de usuario"
-                title="Editar perfil"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#f3f4f6] text-[#1f3fa7] transition hover:bg-[#e9edf5] active:scale-95"
-              >
-                <Pencil size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setMostrarConfirmacionCerrarSesion(true)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMostrarConfirmacionCerrarSesion(true);
+                }}
                 disabled={cerrandoSesion}
                 aria-label={cerrandoSesion ? 'Cerrando sesión' : 'Cerrar sesión'}
                 title="Cerrar sesión"
@@ -2514,29 +2661,107 @@ export default function Ajustes() {
 
           {isEditingProfile ? (
             <div
-              className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
+              className="fixed inset-0 z-[90] flex items-stretch justify-center bg-slate-950/55 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
               onClick={cerrarEditorPerfil}
             >
             <section
               role="dialog"
               aria-modal="true"
               aria-labelledby="editar-perfil-title"
-              className="max-h-[88dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#e7ebf6] bg-[#fbfcff] p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+              className="flex h-[100dvh] w-full max-w-[520px] flex-col overflow-hidden bg-[#071b4d] text-white shadow-[0_24px_70px_rgba(15,23,42,0.30)] animate-[cafesmartFadeUp_220ms_ease-out_both] sm:h-[min(92dvh,820px)] sm:rounded-[26px]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center justify-between gap-3">
-                <h3 id="editar-perfil-title" className="text-base font-black text-slate-950">
-                  Editar perfil
-                </h3>
+              <div className="shrink-0 border-b border-white/10 px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
+                <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 id="editar-perfil-title" className="text-xl font-black">
+                    Editar perfil
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-blue-100">
+                    Gestiona tu información personal y la foto de perfil.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={cerrarEditorPerfil}
                   aria-label="Cerrar edición de perfil"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15"
                 >
                   <X size={18} />
                 </button>
               </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <div className="rounded-[22px] border border-white/10 bg-white/8 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="flex flex-col items-center text-center">
+                  <div className="h-24 w-24 overflow-hidden rounded-full bg-white/10 p-1 ring-1 ring-white/20">
+                    {currentAvatarUrl ? (
+                      <img
+                        src={currentAvatarUrl}
+                        alt=""
+                        className="h-full w-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center rounded-full bg-[#eaf0ff] text-2xl font-black text-[#102d92]">
+                        {getInitials(profile.nombre || company.nombreEmpresa)}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
+                  <p className="text-xs font-semibold text-blue-100">
+                    {company.nombreEmpresa || 'Negocio sin nombre'}
+                  </p>
+                </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/gif"
+                  className="hidden"
+                  onChange={(event) => void seleccionarFotoPerfil(event)}
+                />
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-white px-3 text-sm font-black text-[#102d92]"
+                  >
+                    Cambiar foto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={quitarFotoPerfil}
+                    disabled={!currentAvatarUrl}
+                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-white/20 px-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Quitar foto
+                  </button>
+                </div>
+                <p className="mt-3 text-center text-xs font-semibold text-blue-100">
+                  Puedes usar imágenes PNG, JPG o GIF.
+                </p>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={abrirPerfilPublico}
+                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-white/15 bg-white/10 px-3 text-sm font-black text-white"
+                >
+                  <Eye size={15} /> Ver perfil
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-white/15 bg-white/10 px-3 text-sm font-black text-white"
+                >
+                  <Pencil size={15} /> Editar información
+                </button>
+              </div>
+              {profileFeedback ? (
+                <AppFeedbackMessage
+                  variant={profileFeedback.variant}
+                  description={profileFeedback.message}
+                  className="mt-4"
+                />
+              ) : null}
               {error && activeErrorSection === 'profile' ? (
                 <AppFeedbackMessage
                   variant="error"
@@ -2679,10 +2904,15 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={guardarPerfil}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white"
+                  disabled={guardandoPerfil}
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
                 >
-                  <Save size={15} />
-                  Guardar perfil
+                  {guardandoPerfil ? (
+                    <LoaderCircle size={15} className="animate-spin" />
+                  ) : (
+                    <Save size={15} />
+                  )}
+                  {guardandoPerfil ? 'Guardando...' : 'Guardar cambios'}
                 </button>
                 <button
                   type="button"
@@ -2691,6 +2921,7 @@ export default function Ajustes() {
                 >
                   Cancelar
                 </button>
+              </div>
               </div>
             </section>
             </div>
@@ -3642,10 +3873,15 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={guardarEmpresa}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white"
+                  disabled={guardandoEmpresa}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
                 >
-                  <Save size={15} />
-                  Guardar negocio
+                  {guardandoEmpresa ? (
+                    <LoaderCircle size={15} className="animate-spin" />
+                  ) : (
+                    <Save size={15} />
+                  )}
+                  {guardandoEmpresa ? 'Guardando...' : 'Guardar negocio'}
                 </button>
                 <button
                   type="button"
@@ -3771,16 +4007,21 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={guardarBodega}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  disabled={guardandoBodega}
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
-                  <Save size={14} />
-                  Guardar cambios
+                  {guardandoBodega ? (
+                    <LoaderCircle size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  {guardandoBodega ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
-              {success === 'Capacidad de bodega actualizada.' ? (
+              {success === 'Capacidad de bodega actualizada correctamente.' ? (
                 <AppFeedbackMessage
                   variant="success"
-                  description="Capacidad de bodega actualizada."
+                  description="Capacidad de bodega actualizada correctamente."
                   action={
                     <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
                       <X size={14} />
@@ -4014,6 +4255,12 @@ export default function Ajustes() {
 
               {error ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
+              ) : null}
+              {success === 'Límites actualizados.' ? (
+                <AppFeedbackMessage
+                  variant="success"
+                  description="Límites actualizados correctamente."
+                />
               ) : null}
 
               <button

@@ -297,6 +297,8 @@ export class UsersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const supportsOrganizationDescription =
+        await this.supportsOrganizationDescriptionColumn(tx);
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { organizacionId: true },
@@ -313,14 +315,14 @@ export class UsersService {
         data: {
           nombre,
           tipo,
-          descripcion,
+          ...(supportsOrganizationDescription ? { descripcion } : {}),
         },
         select: {
           id: true,
           nombre: true,
           tipo: true,
           otroTipoDetalle: true,
-          descripcion: true,
+          ...(supportsOrganizationDescription ? { descripcion: true } : {}),
         },
       });
     });

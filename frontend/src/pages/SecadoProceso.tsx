@@ -489,6 +489,19 @@ const MAX_SECADO_OUTPUT_KG = 100000;
 const MAX_SECADO_EXPENSE_COP = 20000000;
 const SECADO_DRAFT_STORAGE_KEY = 'cafe-smart:secado-draft:v1';
 const SECADO_SELECTION_DRAFT_PREFIX = 'cafe-smart:secado-seleccion-draft:v1';
+const SECADO_RETURN_PATHS = new Set([
+  '/inventario',
+  '/ajustes',
+  '/compras',
+  '/ventas',
+  '/inicio',
+]);
+
+function getSecadoReturnPath(from?: string) {
+  if (!from) return '/inicio';
+  const normalized = from.split('?')[0]?.replace(/\/$/, '') || from;
+  return SECADO_RETURN_PATHS.has(normalized) ? normalized : '/inicio';
+}
 
 function clearSecadoDrafts() {
   if (typeof window === 'undefined') return;
@@ -527,10 +540,9 @@ export default function SecadoProceso() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [searchParams] = useSearchParams();
   const session = sessionId ? getSecadoSession(sessionId) : null;
-  const originPath =
-    (location.state as { from?: string } | null)?.from === '/ajustes'
-      ? '/ajustes'
-      : '/inventario';
+  const originPath = getSecadoReturnPath(
+    (location.state as { from?: string } | null)?.from,
+  );
 
   const [showDivisionModal, setShowDivisionModal] = useState(false);
   const [divisionData, setDivisionData] = useState<{ peso: number; calidad: string } | null>(null);
@@ -1046,7 +1058,7 @@ export default function SecadoProceso() {
                   />
                   Proceso Activo
                 </span>
-                <span className="rounded-full bg-[#dbe8ff] px-3 py-1 text-[0.68rem] font-black text-[#102d92]">
+                <span className="inline-flex min-w-[72px] max-w-[44vw] shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-white px-3.5 py-2 text-center text-[0.78rem] font-black leading-none text-[#08256d] shadow-sm ring-1 ring-[#c7d8ff]">
                   {kg(totalEntrada)}
                 </span>
               </div>
@@ -1073,12 +1085,15 @@ export default function SecadoProceso() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/inicio')}
+                  onClick={() => navigate(originPath)}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#c7d8ff] bg-white px-3 text-xs font-black text-[#102d92] transition hover:bg-[#f4f7ff]"
                 >
-                  <ArrowLeft size={15} /> Ir a inicio
+                  <ArrowLeft size={15} /> Salir
                 </button>
               </div>
+              <p className="mt-2 text-center text-[0.68rem] font-semibold text-slate-500">
+                Regresarás al módulo desde donde iniciaste.
+              </p>
             </div>
           </main>
         ) : null}

@@ -7,6 +7,7 @@ type StoredSessionUser = {
   name?: string;
   nombre?: string;
   organizacionId?: string | null;
+  avatarUrl?: string | null;
 };
 
 type StoredLastSession = {

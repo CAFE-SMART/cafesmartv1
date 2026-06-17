@@ -266,7 +266,13 @@ export default function SecadoInicio() {
     restoreSecadoDraft?: boolean;
   } | null;
   const initialView = locationState?.secadoView;
-  const originPath = locationState?.from === '/ajustes' ? '/ajustes' : '/inventario';
+  const originPath =
+    locationState?.from &&
+    ['/inventario', '/ajustes', '/compras', '/ventas', '/inicio'].includes(
+      locationState.from,
+    )
+      ? locationState.from
+      : '/inventario';
   const [view, setView] = useState<SecadoView>(
     initialView === 'pending' ? 'pending' : 'start',
   );

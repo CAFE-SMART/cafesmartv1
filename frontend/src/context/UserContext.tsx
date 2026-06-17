@@ -29,6 +29,7 @@ type User = {
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
   descripcionOrganizacion?: string | null;
+  avatarUrl?: string | null;
 };
 
 type StoredUserShape = {
@@ -43,6 +44,7 @@ type StoredUserShape = {
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
   descripcionOrganizacion?: string | null;
+  avatarUrl?: string | null;
 };
 
 type UserSessionInput = {
@@ -77,6 +79,7 @@ function mapStoredUserToUser(parsed: StoredUserShape): User {
     tipoOrganizacion: parsed.tipoOrganizacion ?? null,
     otroTipoDetalle: parsed.otroTipoDetalle ?? null,
     descripcionOrganizacion: parsed.descripcionOrganizacion ?? null,
+    avatarUrl: parsed.avatarUrl ?? null,
   };
 }
 

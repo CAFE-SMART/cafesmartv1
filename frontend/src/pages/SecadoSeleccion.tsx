@@ -113,9 +113,13 @@ export default function SecadoSeleccion() {
     tipoCafeId: string;
     calidadId: string;
   }>();
+  const rawOriginPath = (location.state as { from?: string } | null)?.from;
   const originPath =
-    (location.state as { from?: string } | null)?.from === '/ajustes'
-      ? '/ajustes'
+    rawOriginPath &&
+    ['/inventario', '/ajustes', '/compras', '/ventas', '/inicio'].includes(
+      rawOriginPath,
+    )
+      ? rawOriginPath
       : '/inventario';
   const [detalle, setDetalle] = useState<LoteDetalle | null>(null);
   const [selectedWeights, setSelectedWeights] = useState<
