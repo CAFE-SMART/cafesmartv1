@@ -146,6 +146,26 @@ export default function SystemStatus() {
 
       try {
         let response: AuthResponse;
+        console.log(
+          '[CafeSmart][register-submit] payload:',
+          JSON.stringify(
+            {
+              email: processState.correo,
+              nombre: processState.nombre,
+              telefono: processState.telefono,
+              tipoOrganizacion: toAuthTipoOrganizacion(
+                processState.tipoOrganizacion,
+              ),
+              nombreOrganizacion: processState.nombreOrganizacion,
+              hasPassword: Boolean(processState.password),
+              hasGoogleFlow: Boolean(
+                processState.hasGoogleFlow && processState.googleToken,
+              ),
+            },
+            null,
+            2,
+          ),
+        );
 
         if (processState.hasGoogleFlow && processState.googleToken) {
           response = await authService.registerWithGoogle({
@@ -210,6 +230,14 @@ export default function SystemStatus() {
       } catch (err) {
         const authError = err as AuthError;
         const field = (authError.field ?? '').toLowerCase();
+        console.error('[CafeSmart][register-submit] error:', {
+          name: err instanceof Error ? err.name : typeof err,
+          status: authError.status ?? null,
+          code: authError.code ?? authError.apiCode ?? null,
+          message: authError.message ?? null,
+          field: authError.field ?? null,
+          details: authError.details ?? null,
+        });
 
         registrationStartedRef.current = false;
         setStatus('error');

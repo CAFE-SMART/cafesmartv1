@@ -64,12 +64,24 @@ export class AuthService {
    * Registra un administrador nuevo junto con su organizacion inicial.
    */
   async register(dto: RegisterDto) {
+    console.log('[CafeSmart][register] etapa 1: payload recibido', {
+      correo: dto.correo,
+      nombrePresent: Boolean(dto.nombre?.trim()),
+      telefonoPresent: Boolean(dto.telefono?.trim()),
+      nombreOrganizacionPresent: Boolean(dto.nombreOrganizacion?.trim()),
+      tipoOrganizacion: dto.tipoOrganizacion,
+      descripcionPresent: Boolean(dto.descripcionOrganizacion?.trim()),
+      hasPassword: Boolean(dto.password),
+    });
+
+    console.log('[CafeSmart][register] etapa 2: validando email');
     const normalizedEmail = dto.correo.trim().toLowerCase();
+    console.log('[CafeSmart][register] etapa 3: validando duplicado');
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser) {
       throw new HttpException(
         {
-          message: 'El correo ya esta registrado',
+          message: 'Ya existe una cuenta registrada con este correo.',
           field: 'email',
         },
         HttpStatus.CONFLICT,
@@ -80,6 +92,9 @@ export class AuthService {
 
     let user;
     try {
+      console.log('[CafeSmart][register] etapa 4: creando usuario');
+      console.log('[CafeSmart][register] etapa 5: creando organización');
+      console.log('[CafeSmart][register] etapa 6: creando configuración inicial');
       user = await this.usersService.createAdminWithOrganization({
         nombreOrganizacion: dto.nombreOrganizacion,
         tipoOrganizacion: dto.tipoOrganizacion,
@@ -90,7 +105,23 @@ export class AuthService {
         telefono: dto.telefono,
         password: hashedPassword,
       });
+      console.log('[CafeSmart][register] etapa 7: registro completado', {
+        userId: user.id,
+        organizacionId: user.organizacionId,
+      });
     } catch (error) {
+      console.error('[CafeSmart][register] error real:', error);
+      if (
+        typeof error === 'object' &&
+        error &&
+        ('code' in error || 'meta' in error)
+      ) {
+        console.error('[CafeSmart][register] prisma error:', {
+          code: (error as { code?: string }).code,
+          message: error instanceof Error ? error.message : String(error),
+          meta: (error as { meta?: unknown }).meta,
+        });
+      }
       this.throwIfUniqueConstraint(error);
       throw error;
     }

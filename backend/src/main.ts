@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { Prisma } from '@prisma/client';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { validationCodeForField } from './common/errors/api-error';
@@ -35,6 +36,19 @@ function flattenValidationErrors(
   });
 }
 
+function getDatabaseUrlKind(databaseUrl?: string) {
+  if (!databaseUrl) return 'missing';
+
+  try {
+    const url = new URL(databaseUrl);
+    const host = url.hostname.toLowerCase();
+    if (host.includes('pooler') || host.includes('pool')) return 'pooler';
+    return 'direct';
+  } catch {
+    return 'invalid';
+  }
+}
+
 /**
  * Configura el backend con CORS, validacion global y formato uniforme de errores.
  */
@@ -43,6 +57,14 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = Number(configService.get('PORT') ?? 3000);
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+  const databaseUrl = configService.get<string>('DATABASE_URL');
+
+  console.log('[CafeSmart][boot] commit:', process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown');
+  console.log('[CafeSmart][boot] build time:', process.env.BUILD_TIME || process.env.RENDER_BUILD_TIME || 'unknown');
+  console.log('[CafeSmart][boot] node env:', nodeEnv);
+  console.log('[CafeSmart][boot] prisma client:', Prisma.prismaVersion.client);
+  console.log('[CafeSmart][boot] database url kind:', getDatabaseUrlKind(databaseUrl));
+  console.log('[CafeSmart][boot] backend version:', process.env.npm_package_version || 'unknown');
   const appCorsOrigins = [
     'capacitor://localhost',
     'ionic://localhost',

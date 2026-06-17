@@ -49,6 +49,15 @@ type MovimientoAgrupado = {
   cantidad: number;
 };
 
+type VentaDetalleCompatColumns = {
+  codigoSublote: boolean;
+  tipoCafeSnapshot: boolean;
+  calidadSnapshot: boolean;
+  precioCompraKg: boolean;
+  fechaIngresoSublote: boolean;
+  inventarioRestante: boolean;
+};
+
 type SubloteBloqueado = {
   id: string;
   pesoActual: Prisma.Decimal;
@@ -180,11 +189,14 @@ export async function procesarVenta(
   data: ProcesarVentaInput,
   prisma: PrismaClient,
 ): Promise<CrearVentaResultado> {
+  console.log('[CafeSmart][ventas-create] etapa 1: validando payload');
   validarVentaCritica(data);
   validarSublotesDuplicados(data);
 
   return prisma.$transaction(
     async (tx) => {
+      const ventaDetalleCompatColumns =
+        await obtenerColumnasCompatiblesVentaDetalle(tx);
       const ventaPorSync = await buscarVentaPorSync(
         tx,
         data.deviceId,
@@ -199,6 +211,9 @@ export async function procesarVenta(
         throw new VentaEliminadaError();
       }
 
+      console.log('[CafeSmart][ventas-create] etapa 2: buscando sublote', {
+        subloteIds: data.detalles.map((detalle) => detalle.subloteId),
+      });
       const sublotes = await bloquearSublotesDisponibles(
         tx,
         data.detalles.map((detalle) => detalle.subloteId),
@@ -215,6 +230,10 @@ export async function procesarVenta(
       if (faltantes.length > 0) {
         throw new SubloteNoEncontradoError([...new Set(faltantes)]);
       }
+      console.log('[CafeSmart][ventas-create] etapa 3: sublote encontrado', {
+        encontrados: sublotes.length,
+        columnasVentaDetalle: ventaDetalleCompatColumns,
+      });
 
       const detallesProcesados = data.detalles.map((detalle) =>
         procesarDetalleVenta({
@@ -270,6 +289,7 @@ export async function procesarVenta(
         }
       }
 
+      console.log('[CafeSmart][ventas-create] etapa 4: creando venta');
       const venta = await tx.venta.create({
         data: {
           fecha: data.fecha ? new Date(data.fecha) : undefined,
@@ -332,25 +352,19 @@ export async function procesarVenta(
           ]);
         }
 
+        console.log('[CafeSmart][ventas-create] etapa 5: creando detalle', {
+          subloteId: detalle.subloteId,
+        });
         const detalleCreado = await tx.ventaDetalle.create({
-          data: {
-            ventaId: venta.id,
-            subloteId: detalle.subloteId,
-            pesoVendido: detalle.pesoVendido,
-            precioKg: detalle.precioKg,
-            subtotal: detalle.subtotal,
-            codigoSublote: detalle.subloteId,
-            tipoCafeSnapshot: detalle.tipoCafeNombre,
-            calidadSnapshot: detalle.calidadNombre,
-            precioCompraKg: detalle.precioCompraKg,
-            fechaIngresoSublote: detalle.fechaIngreso,
-            inventarioRestante: normalizarADosDecimales(
+          data: construirVentaDetalleCreateData(
+            venta.id,
+            detalle,
+            normalizarADosDecimales(
               Number(sublotesPorId.get(detalle.subloteId)?.pesoActual ?? 0) -
                 detalle.pesoVendido,
             ),
-            deviceId: detalle.deviceId,
-            localId: detalle.localId,
-          },
+            ventaDetalleCompatColumns,
+          ),
         });
 
         detallesCreados.push(detalleCreado);
@@ -374,6 +388,10 @@ export async function procesarVenta(
         agruparMovimientosInventario(detallesOrdenados);
 
       for (const movimiento of movimientosAgrupados) {
+        console.log(
+          '[CafeSmart][ventas-create] etapa 6: actualizando inventario',
+          movimiento,
+        );
         const inventario = await tx.inventario.findUnique({
           where: {
             organizacionId_tipoCafeId_calidadId: {
@@ -413,6 +431,10 @@ export async function procesarVenta(
         }
       }
 
+      console.log('[CafeSmart][ventas-create] etapa 7: transacción completada', {
+        ventaId: venta.id,
+        detalles: detallesCreados.length,
+      });
       return {
         venta,
         detalles: detallesCreados,
@@ -420,6 +442,92 @@ export async function procesarVenta(
     },
     { maxWait: 10000, timeout: 25000 },
   );
+}
+
+async function obtenerColumnasCompatiblesVentaDetalle(
+  tx: Prisma.TransactionClient,
+): Promise<VentaDetalleCompatColumns> {
+  if (process.env.NODE_ENV === 'test') {
+    return {
+      codigoSublote: true,
+      tipoCafeSnapshot: true,
+      calidadSnapshot: true,
+      precioCompraKg: true,
+      fechaIngresoSublote: true,
+      inventarioRestante: true,
+    };
+  }
+
+  const expected = {
+    codigoSublote: 'codigo_sublote',
+    tipoCafeSnapshot: 'tipo_cafe',
+    calidadSnapshot: 'calidad',
+    precioCompraKg: 'precio_compra_kg',
+    fechaIngresoSublote: 'fecha_ingreso_sublote',
+    inventarioRestante: 'inventario_restante',
+  } as const;
+
+  try {
+    const rows = await tx.$queryRaw<Array<{ column_name: string }>>(Prisma.sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'venta_detalle'
+        AND column_name IN (${Prisma.join(Object.values(expected))})
+    `);
+    const existingColumns = new Set(rows.map((row) => row.column_name));
+
+    return Object.fromEntries(
+      Object.entries(expected).map(([property, column]) => [
+        property,
+        existingColumns.has(column),
+      ]),
+    ) as VentaDetalleCompatColumns;
+  } catch (error) {
+    console.error(
+      '[CafeSmart][ventas-create] no se pudieron verificar columnas venta_detalle:',
+      error,
+    );
+    return {
+      codigoSublote: true,
+      tipoCafeSnapshot: true,
+      calidadSnapshot: true,
+      precioCompraKg: true,
+      fechaIngresoSublote: true,
+      inventarioRestante: true,
+    };
+  }
+}
+
+function construirVentaDetalleCreateData(
+  ventaId: string,
+  detalle: DetalleProcesado,
+  inventarioRestante: number,
+  compatColumns: VentaDetalleCompatColumns,
+): Prisma.VentaDetalleUncheckedCreateInput {
+  const data: Prisma.VentaDetalleUncheckedCreateInput = {
+    ventaId,
+    subloteId: detalle.subloteId,
+    pesoVendido: detalle.pesoVendido,
+    precioKg: detalle.precioKg,
+    subtotal: detalle.subtotal,
+    deviceId: detalle.deviceId,
+    localId: detalle.localId,
+  };
+
+  if (compatColumns.codigoSublote) data.codigoSublote = detalle.subloteId;
+  if (compatColumns.tipoCafeSnapshot) {
+    data.tipoCafeSnapshot = detalle.tipoCafeNombre;
+  }
+  if (compatColumns.calidadSnapshot) data.calidadSnapshot = detalle.calidadNombre;
+  if (compatColumns.precioCompraKg) data.precioCompraKg = detalle.precioCompraKg;
+  if (compatColumns.fechaIngresoSublote) {
+    data.fechaIngresoSublote = detalle.fechaIngreso;
+  }
+  if (compatColumns.inventarioRestante) {
+    data.inventarioRestante = inventarioRestante;
+  }
+
+  return data;
 }
 
 /**

@@ -143,14 +143,20 @@ export class UsersService {
    */
   async createAdminWithOrganization(input: CreateAdminWithOrganizationInput) {
     return this.prisma.$transaction(async (tx) => {
+      const supportsOrganizationDescription =
+        await this.supportsOrganizationDescriptionColumn(tx);
       const organization = await tx.organization.create({
         data: {
           nombre: input.nombreOrganizacion,
           tipo: input.tipoOrganizacion,
           otroTipoDetalle: input.otroTipoDetalle ?? null,
-          descripcion: this.normalizeOptionalDescription(
-            input.descripcionOrganizacion,
-          ),
+          ...(supportsOrganizationDescription
+            ? {
+                descripcion: this.normalizeOptionalDescription(
+                  input.descripcionOrganizacion,
+                ),
+              }
+            : {}),
         },
       });
 
@@ -175,6 +181,30 @@ export class UsersService {
         },
       });
     });
+  }
+
+  private async supportsOrganizationDescriptionColumn(
+    tx: Prisma.TransactionClient,
+  ) {
+    if (process.env.NODE_ENV === 'test') {
+      return true;
+    }
+
+    try {
+      const rows = await tx.$queryRaw<Array<{ column_name: string }>>(Prisma.sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'organizacion'
+          AND column_name = 'descripcion'
+      `);
+      return rows.length > 0;
+    } catch (error) {
+      console.error(
+        '[CafeSmart][register] no se pudo verificar columna organizacion.descripcion:',
+        error,
+      );
+      return true;
+    }
   }
 
   async linkGoogleAccount(userId: string, googleId: string) {
