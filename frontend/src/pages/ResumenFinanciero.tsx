@@ -743,6 +743,12 @@ function joinUniqueValues(values: Array<string | null | undefined>) {
   return 'Varias';
 }
 
+function hasMultipleValues(values: Array<string | null | undefined>) {
+  return (
+    new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]).size > 1
+  );
+}
+
 function getMovimientoReferencia(item: MovimientoFinanciero) {
   return item.id ? `REF-${item.id.slice(0, 8).toUpperCase()}` : 'Sin referencia';
 }
@@ -754,10 +760,16 @@ function getMovimientoDetalleRows(item: MovimientoFinanciero) {
     const totalKg =
       item.kg ||
       sublotes.reduce((total, sublote) => total + (Number(sublote.pesoInicial) || 0), 0);
+    const multipleCoffee = hasMultipleValues(sublotes.map((sublote) => sublote.tipoCafe));
+    const multipleQuality = hasMultipleValues(sublotes.map((sublote) => sublote.calidad));
     return [
       ['Productor', compra?.productorNombre ?? item.nombre ?? 'Productor sin registrar'],
-      ['Tipo de café', joinUniqueValues(sublotes.map((sublote) => sublote.tipoCafe))],
-      ['Calidad', joinUniqueValues(sublotes.map((sublote) => sublote.calidad))],
+      ...(multipleCoffee
+        ? []
+        : [['Tipo de café', joinUniqueValues(sublotes.map((sublote) => sublote.tipoCafe))]]),
+      ...(multipleQuality
+        ? []
+        : [['Calidad', joinUniqueValues(sublotes.map((sublote) => sublote.calidad))]]),
       ['Cantidad', totalKg > 0 ? formatKg(totalKg) : 'Sin dato'],
       ['Precio/kg', totalKg > 0 ? formatCurrency(item.valor / totalKg) : 'Sin dato'],
       ['Total pagado', formatCurrency(item.valor)],
@@ -774,6 +786,8 @@ function getMovimientoDetalleRows(item: MovimientoFinanciero) {
     const calidadValues = detalles.map((detalle) =>
       'calidad' in detalle ? detalle.calidad : undefined,
     );
+    const multipleCoffee = hasMultipleValues(tipoCafeValues);
+    const multipleQuality = hasMultipleValues(calidadValues);
     const totalKg =
       item.kg ||
       detalles.reduce((total, detalle) => {
@@ -782,8 +796,8 @@ function getMovimientoDetalleRows(item: MovimientoFinanciero) {
       }, 0);
     return [
       ['Cliente', venta?.clienteNombre ?? item.nombre ?? 'Cliente general'],
-      ['Tipo de café', joinUniqueValues(tipoCafeValues)],
-      ['Calidad', joinUniqueValues(calidadValues)],
+      ...(multipleCoffee ? [] : [['Tipo de café', joinUniqueValues(tipoCafeValues)]]),
+      ...(multipleQuality ? [] : [['Calidad', joinUniqueValues(calidadValues)]]),
       ['Cantidad', totalKg > 0 ? formatKg(totalKg) : 'Sin dato'],
       ['Precio/kg', totalKg > 0 ? formatCurrency(item.valor / totalKg) : 'Sin dato'],
       ['Total vendido', formatCurrency(item.valor)],
@@ -800,6 +814,45 @@ function getMovimientoDetalleRows(item: MovimientoFinanciero) {
     ['Tipo de gasto', titleCase(gasto?.tipoGasto ?? 'OTROS')],
     ['Referencia', getMovimientoReferencia(item)],
   ];
+}
+
+function getMovimientoDetalleItems(item: MovimientoFinanciero) {
+  if (item.tipo === 'COMPRA') {
+    return (item.compra?.sublotes ?? []).map((sublote) => {
+      const kg = Number(sublote.pesoInicial) || 0;
+      const precioKg = Number(sublote.precioKg) || 0;
+      return {
+        title: [sublote.tipoCafe, sublote.calidad].filter(Boolean).join(' ') || 'Café',
+        detail: `${formatKg(kg)} · ${formatCurrency(precioKg)}/kg`,
+        total: formatCurrency(kg * precioKg),
+      };
+    });
+  }
+
+  if (item.tipo === 'VENTA') {
+    const detalles = item.venta?.detallesSublotes ?? item.venta?.detalles ?? [];
+    return detalles.map((detalle) => {
+      const tipoCafe = 'tipoCafe' in detalle ? detalle.tipoCafe : undefined;
+      const calidad = 'calidad' in detalle ? detalle.calidad : undefined;
+      const kg =
+        'kilosVendidos' in detalle
+          ? Number(detalle.kilosVendidos) || 0
+          : Number(detalle.pesoVendido) || 0;
+      const precioKg =
+        'precioVentaKg' in detalle
+          ? Number(detalle.precioVentaKg) || 0
+          : Number(detalle.precioKg) || 0;
+      const subtotal =
+        'subtotal' in detalle ? Number(detalle.subtotal) || kg * precioKg : kg * precioKg;
+      return {
+        title: [tipoCafe, calidad].filter(Boolean).join(' ') || 'Café vendido',
+        detail: `${formatKg(kg)} · ${formatCurrency(precioKg)}/kg`,
+        total: formatCurrency(subtotal),
+      };
+    });
+  }
+
+  return [];
 }
 
 function sanitizeMoneyInput(value: string) {
@@ -2901,6 +2954,35 @@ export default function ResumenFinanciero() {
                       </div>
                     ))}
                   </div>
+                  {getMovimientoDetalleItems(historialDetalle).length > 1 ? (
+                    <div className="mt-4 rounded-[16px] border border-slate-200 bg-[#fbfcff] p-3 dark:border-slate-700 dark:bg-slate-950">
+                      <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-200">
+                        Detalle del comprobante
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {getMovimientoDetalleItems(historialDetalle).map((detalle, index) => (
+                          <article
+                            key={`${detalle.title}-${index}`}
+                            className="rounded-[12px] bg-white px-3 py-2.5 shadow-sm dark:bg-slate-900"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-slate-950 dark:text-slate-100">
+                                  {detalle.title}
+                                </p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                                  {detalle.detail}
+                                </p>
+                              </div>
+                              <p className="shrink-0 text-sm font-black text-[#102d92] dark:text-blue-100">
+                                {detalle.total}
+                              </p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </section>
               </div>
             ) : null}

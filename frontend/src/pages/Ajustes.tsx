@@ -604,6 +604,7 @@ export default function Ajustes() {
   const [secadoQualityFilter, setSecadoQualityFilter] =
     useState<SecadoQualityFilter>('TODOS');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileInfoOpen, setProfileInfoOpen] = useState(false);
   const [isViewingPublicProfile, setIsViewingPublicProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
@@ -770,6 +771,7 @@ export default function Ajustes() {
     setProfileAvatarFile(null);
     setProfileAvatarRemove(false);
     setProfileFeedback(null);
+    setProfileInfoOpen(false);
     profileBaselineRef.current = null;
     setIsEditingProfile(false);
   };
@@ -856,9 +858,14 @@ export default function Ajustes() {
     createdAt: productor.createdAt,
   });
 
-  const cargarPersonasAdmin = async (mode: Exclude<PeopleAdminMode, null>) => {
+  const cargarPersonasAdmin = async (
+    mode: Exclude<PeopleAdminMode, null>,
+    options: { resetSearch?: boolean } = {},
+  ) => {
     setPeopleMode(mode);
-    setPeopleSearch('');
+    if (options.resetSearch ?? true) {
+      setPeopleSearch('');
+    }
     setPeopleError(null);
     setPeopleLoading(true);
     try {
@@ -871,7 +878,7 @@ export default function Ajustes() {
         setProductoresAdmin(productoresData.map(mapProductorAdmin));
       }
     } catch {
-      setPeopleError('No pudimos cargar los registros. Intenta nuevamente.');
+      setPeopleError('No pudimos cargar los contactos');
     } finally {
       setPeopleLoading(false);
     }
@@ -1369,6 +1376,7 @@ export default function Ajustes() {
         });
       }
 
+      setProfileInfoOpen(false);
       setSuccess('Perfil actualizado correctamente.');
       setProfileFeedback({
         variant: isOffline ? 'warning' : 'success',
@@ -2765,8 +2773,16 @@ export default function Ajustes() {
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#102d92] text-base font-black text-white">
-                  {getInitials(profile.nombre || company.nombreEmpresa)}
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#102d92] text-base font-black text-white">
+                  {currentAvatarUrl ? (
+                    <img
+                      src={currentAvatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    getInitials(profile.nombre || company.nombreEmpresa)
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-black text-slate-900">
@@ -2839,23 +2855,23 @@ export default function Ajustes() {
 
           {isEditingProfile ? (
             <div
-              className="fixed inset-0 z-[90] flex items-stretch justify-center bg-slate-950/55 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
+              className="fixed inset-0 z-[90] flex items-stretch justify-center bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
               onClick={cerrarEditorPerfil}
             >
             <section
               role="dialog"
               aria-modal="true"
               aria-labelledby="editar-perfil-title"
-              className="flex h-[100dvh] w-full max-w-[520px] flex-col overflow-hidden bg-[#071b4d] text-white shadow-[0_24px_70px_rgba(15,23,42,0.30)] animate-[cafesmartFadeUp_220ms_ease-out_both] sm:h-[min(92dvh,820px)] sm:rounded-[26px]"
+              className="flex h-[100dvh] w-full max-w-[520px] flex-col overflow-hidden bg-[#f8fbff] text-slate-950 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both] dark:bg-slate-950 dark:text-slate-100 sm:h-[min(92dvh,820px)] sm:rounded-[26px]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="shrink-0 border-b border-white/10 px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
+              <div className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 id="editar-perfil-title" className="text-xl font-black">
                     Editar perfil
                   </h3>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-blue-100">
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-300">
                     Gestiona tu información personal y la foto de perfil.
                   </p>
                 </div>
@@ -2863,16 +2879,16 @@ export default function Ajustes() {
                   type="button"
                   onClick={cerrarEditorPerfil}
                   aria-label="Cerrar edición de perfil"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <X size={18} />
                 </button>
               </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-              <div className="rounded-[22px] border border-white/10 bg-white/8 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex flex-col items-center text-center">
-                  <div className="h-24 w-24 overflow-hidden rounded-full bg-white/10 p-1 ring-1 ring-white/20">
+                  <div className="h-24 w-24 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
                     {currentAvatarUrl ? (
                       <img
                         src={currentAvatarUrl}
@@ -2886,7 +2902,7 @@ export default function Ajustes() {
                     )}
                   </div>
                   <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
-                  <p className="text-xs font-semibold text-blue-100">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
                     {company.nombreEmpresa || 'Negocio sin nombre'}
                   </p>
                 </div>
@@ -2901,7 +2917,7 @@ export default function Ajustes() {
                   <button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
-                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-white px-3 text-sm font-black text-[#102d92]"
+                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white"
                   >
                     Cambiar foto
                   </button>
@@ -2909,7 +2925,7 @@ export default function Ajustes() {
                     type="button"
                     onClick={quitarFotoPerfil}
                     disabled={!currentAvatarUrl}
-                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-white/20 px-3 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:opacity-45"
+                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   >
                     Quitar foto
                   </button>
@@ -2919,13 +2935,14 @@ export default function Ajustes() {
                 <button
                   type="button"
                   onClick={abrirPerfilPublico}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-white/15 bg-white/10 px-3 text-sm font-black text-white"
+                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
                 >
                   <Eye size={15} /> Ver perfil
                 </button>
                 <button
                   type="button"
-                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-white/15 bg-white/10 px-3 text-sm font-black text-white"
+                  onClick={() => setProfileInfoOpen(true)}
+                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white dark:bg-blue-600"
                 >
                   <Pencil size={15} /> Editar información
                 </button>
@@ -2956,6 +2973,37 @@ export default function Ajustes() {
                   }
                 />
               ) : null}
+              {profileInfoOpen ? (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+                  <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="editar-info-perfil-title"
+                    className="max-h-[88dvh] w-full max-w-[400px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <h4
+                          id="editar-info-perfil-title"
+                          className="text-lg font-black text-slate-950 dark:text-slate-100"
+                        >
+                          Editar información
+                        </h4>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Actualiza tus datos personales.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProfileInfoOpen(false)}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                        aria-label="Cerrar edición de información"
+                      >
+                        <X size={17} />
+                      </button>
+                    </div>
+                    <div className="space-y-4">
               <div>
               <label className={fieldLabelClass}>
                 Nombre completo
@@ -3078,7 +3126,7 @@ export default function Ajustes() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={guardarPerfil}
+                  onClick={() => void guardarPerfil()}
                   disabled={guardandoPerfil}
                   className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
                 >
@@ -3087,16 +3135,20 @@ export default function Ajustes() {
                   ) : (
                     <Save size={15} />
                   )}
-                  {guardandoPerfil ? 'Guardando...' : 'Guardar cambios'}
+                  {guardandoPerfil ? 'Guardando...' : 'Guardar datos'}
                 </button>
                 <button
                   type="button"
-                  onClick={cerrarEditorPerfil}
+                  onClick={() => setProfileInfoOpen(false)}
                   className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85]"
                 >
                   Cancelar
                 </button>
               </div>
+                    </div>
+                  </section>
+                </div>
+              ) : null}
               </div>
             </section>
             </div>
@@ -4713,7 +4765,11 @@ export default function Ajustes() {
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setPeopleMode(option.value as Exclude<PeopleAdminMode, null>)}
+                    onClick={() =>
+                      void cargarPersonasAdmin(option.value as Exclude<PeopleAdminMode, null>, {
+                        resetSearch: false,
+                      })
+                    }
                     className={`min-h-[34px] rounded-full px-3 text-xs font-black ${
                       peopleMode === option.value
                         ? 'bg-[#102d92] text-white dark:bg-blue-600'
@@ -4762,7 +4818,9 @@ export default function Ajustes() {
                 </div>
               </div>
               <p className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">
-                {peopleFiltered.length} contacto{peopleFiltered.length === 1 ? '' : 's'}
+                {peopleError
+                  ? 'Contactos no disponibles'
+                  : `${peopleFiltered.length} contacto${peopleFiltered.length === 1 ? '' : 's'}`}
               </p>
               {peopleSearchResult.isSimilar ? (
                 <AppFeedbackMessage
@@ -4790,26 +4848,42 @@ export default function Ajustes() {
                   Cargando registros...
                 </p>
               ) : peopleError ? (
-                <AppFeedbackMessage variant="error" description={peopleError}>
+                <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-5 text-left shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10">
+                  <p className="text-sm font-black text-amber-900 dark:text-amber-100">
+                    No pudimos cargar los contactos
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Revisa tu conexión e intenta nuevamente.
+                  </p>
                   <button
                     type="button"
-                    onClick={() => peopleMode && void cargarPersonasAdmin(peopleMode)}
-                    className="rounded-[12px] bg-[#102d92] px-4 py-2 text-xs font-black text-white"
+                    onClick={() =>
+                      peopleMode &&
+                      void cargarPersonasAdmin(peopleMode, { resetSearch: false })
+                    }
+                    className="mt-4 rounded-[12px] border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-100 dark:border-amber-400/40 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-slate-800"
                   >
                     Reintentar
                   </button>
-                </AppFeedbackMessage>
+                </div>
               ) : peopleFiltered.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   <p className="font-bold text-slate-800 dark:text-slate-100">
-                    Aún no hay contactos registrados
+                    {peopleSearch.trim()
+                      ? 'No encontramos contactos con esa búsqueda'
+                      : 'Sin contactos registrados'}
+                  </p>
+                  <p className="mt-1 font-semibold text-slate-500 dark:text-slate-300">
+                    {peopleSearch.trim()
+                      ? 'Prueba con otro nombre, documento o teléfono.'
+                      : 'Agrega clientes o productores para usarlos en compras y ventas.'}
                   </p>
                   <button
                     type="button"
                     onClick={iniciarRegistroPersona}
                     className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#1f3fa7] px-4 text-sm font-bold text-white"
                   >
-                    Registrar contacto
+                    Nuevo contacto
                   </button>
                 </div>
               ) : (
