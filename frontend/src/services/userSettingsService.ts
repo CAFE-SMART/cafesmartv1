@@ -1,4 +1,6 @@
 import { apiFetch } from './apiService';
+import { getApiBaseUrlCandidates } from '../config/api';
+import { getStoredAuthToken } from '../storage/authStorage';
 
 export type OrganizationSettingsResponse = {
   id: string;
@@ -13,6 +15,7 @@ export type UserProfileResponse = {
   nombre: string;
   correo: string;
   telefono: string | null;
+  avatarUrl?: string | null;
   organizacionId?: string | null;
 };
 
@@ -35,5 +38,51 @@ export function actualizarPerfilUsuario(input: {
   return apiFetch('/users/profile', {
     method: 'PATCH',
     body: JSON.stringify(input),
+  }) as Promise<UserProfileResponse>;
+}
+
+export async function subirFotoPerfil(file: File) {
+  const token = await getStoredAuthToken();
+  if (!token) {
+    throw new Error('No hay sesión activa. Inicia sesión nuevamente.');
+  }
+
+  const formData = new FormData();
+  formData.append('avatar', file);
+  let lastError: unknown = null;
+
+  for (const apiBaseUrl of getApiBaseUrlCandidates()) {
+    try {
+      const response = await fetch(`${apiBaseUrl}/users/profile/avatar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = (await response.json().catch(() => ({}))) as
+        | UserProfileResponse
+        | { message?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          typeof data.message === 'string'
+            ? data.message
+            : 'No pudimos subir la foto de perfil.',
+        );
+      }
+
+      return data as UserProfileResponse;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('No pudimos subir la foto de perfil.');
+}
+
+export function quitarFotoPerfilRemota() {
+  return apiFetch('/users/profile/avatar', {
+    method: 'DELETE',
   }) as Promise<UserProfileResponse>;
 }

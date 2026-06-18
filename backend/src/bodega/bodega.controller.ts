@@ -2,9 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -18,7 +21,11 @@ import {
 } from '../common/request-context';
 import { PrismaService } from '../prisma/prisma.service';
 import { BodegaService } from './bodega.service';
-import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
+import {
+  ActualizarBodegaDto,
+  CrearBodegaDto,
+  EditarBodegaDto,
+} from './dto/actualizar-bodega.dto';
 
 @Controller('bodega')
 export class BodegaController {
@@ -26,6 +33,55 @@ export class BodegaController {
     private readonly bodegaService: BodegaService,
     private readonly prisma: PrismaService,
   ) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async listarBodegas(@Req() req: { user: { sub: string } }) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.listarBodegas(organizacionId);
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  async crearBodega(
+    @Body() dto: CrearBodegaDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.crearBodega(organizacionId, dto);
+  }
+
+  @Get('detalle/:id')
+  @UseGuards(JwtAuthGuard)
+  async obtenerBodega(
+    @Param('id') id: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.obtenerBodega(organizacionId, id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  async editarBodega(
+    @Param('id') id: string,
+    @Body() dto: EditarBodegaDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.editarBodega(organizacionId, id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async eliminarBodega(
+    @Param('id') id: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.eliminarBodega(organizacionId, id);
+  }
 
   @Get('configuracion')
   @UseGuards(JwtAuthGuard)

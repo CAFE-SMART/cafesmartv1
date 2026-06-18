@@ -251,7 +251,7 @@ export function CafeSmartDatePicker({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Cancelar calendario"
+                aria-label="Cerrar calendario"
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X size={17} aria-hidden="true" />
@@ -417,41 +417,32 @@ export function CafeSmartDatePicker({
               {longDraftLabel || 'Selecciona una fecha'}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#eadcc6] pt-3 dark:border-slate-700">
-              <div className="flex items-center gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#eadcc6] pt-3 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={selectToday}
+                className="min-h-[42px] rounded-full px-3 text-sm font-black text-[#102d92] transition hover:bg-white dark:text-blue-100 dark:hover:bg-slate-800"
+              >
+                Hoy
+              </button>
+              {clearable ? (
                 <button
                   type="button"
-                  onClick={selectToday}
-                  className="min-h-[42px] rounded-full px-4 text-sm font-black text-[#102d92] transition hover:bg-white dark:text-blue-100 dark:hover:bg-slate-800"
+                  onClick={clearSelection}
+                  className="min-h-[42px] rounded-full px-3 text-sm font-black text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  Hoy
+                  Limpiar
                 </button>
-                {clearable ? (
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    className="min-h-[42px] rounded-full px-4 text-sm font-black text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    Limpiar
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="min-h-[42px] rounded-full px-4 text-sm font-black text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={applyDraft}
-                  className="min-h-[42px] rounded-full bg-[#102d92] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.22)] transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/20 dark:bg-blue-600 dark:hover:bg-blue-500"
-                >
-                  Aplicar
-                </button>
-              </div>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              <button
+                type="button"
+                onClick={applyDraft}
+                className="min-h-[42px] rounded-full bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.22)] transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/20 dark:bg-blue-600 dark:hover:bg-blue-500"
+              >
+                Aplicar
+              </button>
             </div>
           </div>
         </>

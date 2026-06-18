@@ -41,6 +41,7 @@ export class ClientesService {
         id: true,
         nombre: true,
         documento: true,
+        tipoDocumento: true,
         telefono: true,
         createdAt: true,
       },
@@ -50,7 +51,7 @@ export class ClientesService {
       id: cliente.id,
       nombre: cliente.nombre,
       documento: cliente.documento,
-      tipoDocumento: this.inferirTipoDocumento(cliente.documento),
+      tipoDocumento: (cliente.tipoDocumento as TipoDocumento | null) ?? this.inferirTipoDocumento(cliente.documento),
       telefono: cliente.telefono,
       createdAt: cliente.createdAt.toISOString(),
     }));
@@ -74,12 +75,14 @@ export class ClientesService {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
+        tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
         id: true,
         nombre: true,
         documento: true,
+        tipoDocumento: true,
         telefono: true,
         createdAt: true,
       },
@@ -89,7 +92,7 @@ export class ClientesService {
       id: cliente.id,
       nombre: cliente.nombre,
       documento: cliente.documento,
-      tipoDocumento: this.inferirTipoDocumento(cliente.documento),
+      tipoDocumento: (cliente.tipoDocumento as TipoDocumento | null) ?? this.inferirTipoDocumento(cliente.documento),
       telefono: cliente.telefono,
       createdAt: cliente.createdAt.toISOString(),
     };
@@ -126,12 +129,14 @@ export class ClientesService {
       data: {
         nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
+        tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'cliente'),
       },
       select: {
         id: true,
         nombre: true,
         documento: true,
+        tipoDocumento: true,
         telefono: true,
         createdAt: true,
       },
@@ -141,7 +146,7 @@ export class ClientesService {
       id: cliente.id,
       nombre: cliente.nombre,
       documento: cliente.documento,
-      tipoDocumento: this.inferirTipoDocumento(cliente.documento),
+      tipoDocumento: (cliente.tipoDocumento as TipoDocumento | null) ?? this.inferirTipoDocumento(cliente.documento),
       telefono: cliente.telefono,
       createdAt: cliente.createdAt.toISOString(),
     };
@@ -241,8 +246,8 @@ export class ClientesService {
     if (existente) {
       throw new ConflictException(
         apiError(
-          'CLIENTE_DOCUMENTO_DUPLICADO',
-          'Ya hay un cliente registrado con este documento.',
+          'DOCUMENT_ALREADY_EXISTS',
+          'Este cliente ya está registrado con este documento.',
           { field: 'documento' },
         ),
       );

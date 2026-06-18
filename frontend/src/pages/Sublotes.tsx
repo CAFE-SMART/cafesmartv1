@@ -1355,7 +1355,7 @@ export default function Sublotes() {
                 onClick={() => setSubloteSelectorOpen(true)}
                 className={`${secondaryButtonClass} cs-chip mt-3 h-10 w-full rounded-[10px] text-[0.68rem] uppercase tracking-[0.04em]`}
               >
-                Ver más
+                Ver más sublotes
               </button>
             ) : null}
 
@@ -1437,7 +1437,7 @@ export default function Sublotes() {
                     onClick={() => setSubloteSelectorOpen(true)}
                     className={`${secondaryButtonClass} mt-3 min-h-[38px] w-full rounded-[10px] text-[0.68rem] uppercase tracking-[0.04em]`}
                   >
-                    Ver más
+                    Ver más sublotes
                   </button>
                 ) : null}
               </section>
@@ -1660,7 +1660,7 @@ export default function Sublotes() {
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-700">
               <div>
                 <h2 id="sublote-selector-title" className="text-base font-black text-slate-950 dark:text-slate-100">
-                  Seleccionar sublote
+                  Todos los sublotes
                 </h2>
                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
                   {detalle.sublotes.length} disponibles
@@ -1724,12 +1724,10 @@ export default function Sublotes() {
                           ) : null}
                         </div>
                         <p className="mt-0.5 text-[0.6rem] font-semibold text-[#8a8a8a] dark:text-slate-300">
-                          {originLine ??
-                            `${fullName} · ${formatKg(sublote.pesoActual)} · ${
-                              showHumidityWarning
-                                ? formatHumedad(sublote.humedad)
-                                : formatDays(getDaysForSublote(sublote))
-                            }`}
+                          {originLine ?? fullName}
+                        </p>
+                        <p className="mt-1 text-[0.56rem] font-black text-slate-500 dark:text-slate-400">
+                          {formatKg(sublote.pesoActual)} · {formatDays(getDaysForSublote(sublote))} en bodega
                         </p>
                       </div>
                       <span

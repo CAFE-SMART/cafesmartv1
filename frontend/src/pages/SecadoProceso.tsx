@@ -4,12 +4,11 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
-  CalendarDays,
   CheckCircle2,
   Play,
   Save,
   SunMedium,
+  X,
 } from 'lucide-react';
 import {
   createGuidedError,
@@ -25,7 +24,6 @@ import {
 } from '../utils/secadoFlow';
 import {
   BUSINESS_MIN_DATE_VALUE,
-  formatDateLabel,
   getTodayLocalDateValue,
   toIsoDateAtUtcNoon,
   validateBusinessDateRange,
@@ -34,6 +32,7 @@ import { crearGasto } from '../services/gastosService';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { CafeSmartErrorState } from '../components/CafeSmartErrorState';
+import { CafeSmartDatePicker } from '../components/common/CafeSmartDatePicker';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 function kg(value: number) {
@@ -63,38 +62,12 @@ function keyOf(value: string) {
   return value.trim().toUpperCase();
 }
 
-function titleCase(value: string) {
-  const clean = value.trim().toLowerCase();
-  if (!clean) return '';
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
-
 function QualityDot({ color }: { color: string }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
 function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-const MONTHS_ES = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre',
-];
-const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'];
-
-function ariaPressed(active: boolean) {
-  return { 'aria-pressed': active ? 'true' : 'false' } as const;
 }
 
 function parseLocalDateValue(value: string) {
@@ -123,255 +96,6 @@ function formatLongDateLabel(value: string) {
     month: 'long',
     year: 'numeric',
   });
-}
-
-function isDateValueInRange(value: string, min: string, max: string) {
-  return value >= min && value <= max;
-}
-
-function SecadoDatePicker({
-  value,
-  min,
-  max,
-  open,
-  onToggle,
-  onClose,
-  onChange,
-}: {
-  value: string;
-  min: string;
-  max: string;
-  open: boolean;
-  onToggle: () => void;
-  onClose: () => void;
-  onChange: (value: string) => void;
-}) {
-  const selectedDate = parseLocalDateValue(value);
-  const todayValue = getTodayLocalDateValue();
-  const todaySelectable = isDateValueInRange(todayValue, min, max) ? todayValue : max;
-  const maxDate = parseLocalDateValue(max) ?? new Date();
-  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate = selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
-  const [calendarView, setCalendarView] =
-    useState<'days' | 'months' | 'years'>('days');
-  const [visibleMonth, setVisibleMonth] = useState(
-    () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
-  );
-
-  React.useEffect(() => {
-    if (open) {
-      const nextDate = parseLocalDateValue(value) ?? parseLocalDateValue(todaySelectable) ?? maxDate;
-      setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
-      setCalendarView('days');
-    }
-  }, [max, open, todaySelectable, value]);
-
-  const calendarDays = useMemo(() => {
-    const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
-    const daysInMonth = new Date(
-      visibleMonth.getFullYear(),
-      visibleMonth.getMonth() + 1,
-      0,
-    ).getDate();
-    return [
-      ...Array.from({ length: firstDay.getDay() }, () => null),
-      ...Array.from({ length: daysInMonth }, (_, index) => {
-        const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1);
-        return { day: index + 1, value: formatLocalDateValue(date) };
-      }),
-    ];
-  }, [visibleMonth]);
-
-  const visibleYear = visibleMonth.getFullYear();
-  const previousMonth = new Date(visibleYear, visibleMonth.getMonth() - 1, 1);
-  const nextMonth = new Date(visibleYear, visibleMonth.getMonth() + 1, 1);
-  const canGoPrevious = previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-  const canGoNext = nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
-  const yearOptions = Array.from(
-    { length: maxDate.getFullYear() - minDate.getFullYear() + 1 },
-    (_, index) => minDate.getFullYear() + index,
-  );
-
-  return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        onClick={onToggle}
-        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 ${
-          open ? 'border-[#102d92] bg-white' : 'border-[#d8e0ee]'
-        }`}
-      >
-        <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d]">
-          {value ? formatDateLabel(value) : 'Selecciona una fecha'}
-        </span>
-        <CalendarDays size={20} className={open ? 'text-[#102d92]' : 'text-slate-500'} />
-      </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Calendario de fecha de finalización"
-          className="absolute left-1/2 right-auto z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)]"
-        >
-          <div className="flex items-center justify-between gap-2 px-1 pb-2">
-            <button
-              type="button"
-              disabled={!canGoPrevious}
-              onClick={() => setVisibleMonth(previousMonth)}
-              aria-label="Mes anterior"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
-            >
-              <ArrowLeft size={17} />
-            </button>
-            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1">
-              <button
-                type="button"
-                {...ariaPressed(calendarView === 'months')}
-                onClick={() => setCalendarView((current) => (current === 'months' ? 'days' : 'months'))}
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'months' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
-              >
-                {MONTHS_ES[visibleMonth.getMonth()]}
-              </button>
-              <button
-                type="button"
-                {...ariaPressed(calendarView === 'years')}
-                onClick={() => setCalendarView((current) => (current === 'years' ? 'days' : 'years'))}
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition ${calendarView === 'years' ? 'bg-[#102d92] text-white' : 'text-slate-900 hover:bg-[#eef4ff]'}`}
-              >
-                {visibleYear}
-              </button>
-            </div>
-            <button
-              type="button"
-              disabled={!canGoNext}
-              onClick={() => setVisibleMonth(nextMonth)}
-              aria-label="Mes siguiente"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300"
-            >
-              <ArrowRight size={17} />
-            </button>
-          </div>
-
-          {calendarView === 'months' ? (
-            <div className="grid grid-cols-3 gap-1.5 px-1 py-1">
-              {MONTHS_ES.map((month, monthIndex) => {
-                const candidate = new Date(visibleYear, monthIndex, 1);
-                const disabled =
-                  candidate < new Date(minDate.getFullYear(), minDate.getMonth(), 1) ||
-                  candidate > new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
-                const active = monthIndex === visibleMonth.getMonth();
-                return (
-                  <button
-                    key={month}
-                    type="button"
-                    disabled={disabled}
-                    {...ariaPressed(active)}
-                    onClick={() => {
-                      if (!disabled) {
-                        setVisibleMonth(new Date(visibleYear, monthIndex, 1));
-                        setCalendarView('days');
-                      }
-                    }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${active ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
-                  >
-                    {month}
-                  </button>
-                );
-              })}
-            </div>
-          ) : calendarView === 'years' ? (
-            <div className="grid max-h-44 grid-cols-3 gap-1.5 overflow-y-auto px-1 py-1">
-              {yearOptions.map((year) => {
-                const active = year === visibleYear;
-                return (
-                  <button
-                    key={year}
-                    type="button"
-                    {...ariaPressed(active)}
-                    onClick={() => {
-                      setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1));
-                      setCalendarView('months');
-                    }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition ${active ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]' : 'text-slate-800 hover:bg-[#f4f7ff]'}`}
-                  >
-                    {year}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-7 gap-1 px-1">
-              {WEEKDAYS_ES.map((day) => (
-                <span key={day} className="py-1 text-center text-[0.72rem] font-black text-slate-500">
-                  {day}
-                </span>
-              ))}
-              {calendarDays.map((day, index) =>
-                day ? (
-                  <button
-                    key={day.value}
-                    type="button"
-                    disabled={!isDateValueInRange(day.value, min, max)}
-                    {...ariaPressed(day.value === value)}
-                    onClick={() => {
-                      onChange(day.value);
-                      onClose();
-                    }}
-                    className={`h-8 rounded-full text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
-                      day.value === value
-                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
-                        : day.value === todaySelectable
-                          ? 'bg-[#eef4ff] text-[#102d92]'
-                          : 'text-slate-800 hover:bg-[#f4f7ff]'
-                    }`}
-                  >
-                    {day.day}
-                  </button>
-                ) : (
-                  <span key={`empty-${index}`} aria-hidden="true" />
-                ),
-              )}
-            </div>
-          )}
-
-          <div className="mt-3 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-3">
-            <button
-              type="button"
-              onClick={() => {
-                onChange('');
-                onClose();
-              }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100"
-            >
-              Limpiar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onChange(todaySelectable);
-                onClose();
-              }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff]"
-            >
-              Hoy
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function getSecadoGuidance(message: string): GuidedErrorMessage {
@@ -579,6 +303,9 @@ export default function SecadoProceso() {
   const [withExpense, setWithExpense] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseConcept, setExpenseConcept] = useState('Gasto de secado');
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseDate, setExpenseDate] = useState(getTodayLocalDateValue());
+  const [expenseDatePickerOpen, setExpenseDatePickerOpen] = useState(false);
   const [expenseAmount, setExpenseAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [outputNotice, setOutputNotice] = useState<string | null>(null);
@@ -599,11 +326,9 @@ export default function SecadoProceso() {
         : 0,
     [session],
   );
+  const fechaInicioReal = session ? dateInput(session.startedAt) : startDate;
   const maxSalidaPermitida = Math.min(totalEntrada, MAX_SECADO_OUTPUT_KG);
   const sourceQuality = keyOf(session?.calidad ?? '');
-  const outputQualities = (['BUENO', 'REGULAR', 'MALO'] as const).filter(
-    (quality) => quality === sourceQuality,
-  );
   const outputEntries = [buenoKg, regularKg, maloKg].map((raw) => {
     const clean = raw.trim();
     const value = clean === '' ? 0 : Number(clean);
@@ -613,18 +338,14 @@ export default function SecadoProceso() {
       invalid: clean !== '' && (!Number.isFinite(value) || value < 0),
     };
   });
-  const relevantOutputEntries = outputEntries.filter((_, index) =>
-    outputQualities.includes((['BUENO', 'REGULAR', 'MALO'] as const)[index]),
-  );
+  const relevantOutputEntries = outputEntries;
   const [buenoEntry, regularEntry, maloEntry] = outputEntries;
-  const bueno = outputQualities.includes('BUENO') ? buenoEntry.value : 0;
-  const regular = outputQualities.includes('REGULAR') ? regularEntry.value : 0;
-  const malo = outputQualities.includes('MALO') ? maloEntry.value : 0;
+  const bueno = buenoEntry.value;
+  const regular = regularEntry.value;
+  const malo = maloEntry.value;
   const totalSalida = bueno + regular + malo;
   const hasResultadoIngresado =
-    (sourceQuality === 'BUENO' && buenoKg.trim() !== '') ||
-    (sourceQuality === 'REGULAR' && regularKg.trim() !== '') ||
-    (sourceQuality === 'MALO' && maloKg.trim() !== '');
+    buenoKg.trim() !== '' || regularKg.trim() !== '' || maloKg.trim() !== '';
   const merma = hasResultadoIngresado ? Math.max(0, totalEntrada - totalSalida) : 0;
   const mermaPct =
     totalEntrada > 0 ? ((merma / totalEntrada) * 100).toFixed(1) : '0.0';
@@ -638,23 +359,23 @@ export default function SecadoProceso() {
   const outputFields = [
     {
       quality: 'BUENO' as const,
-      label: 'Bueno kg',
+      label: 'Bueno',
       value: buenoKg,
       setter: setBuenoKg,
     },
     {
       quality: 'REGULAR' as const,
-      label: 'Regular kg',
+      label: 'Regular',
       value: regularKg,
       setter: setRegularKg,
     },
     {
       quality: 'MALO' as const,
-      label: 'Malo kg',
+      label: 'Malo',
       value: maloKg,
       setter: setMaloKg,
     },
-  ].filter((field) => outputQualities.includes(field.quality));
+  ];
 
   const getOtherOutputsTotal = (quality: 'BUENO' | 'REGULAR' | 'MALO') => {
     if (quality === 'BUENO') return regular + malo;
@@ -733,7 +454,7 @@ export default function SecadoProceso() {
 
   const guardarGastoSecado = async () => {
     const monto = Number(expenseAmount.replace(/\D/g, ''));
-    const fechaIso = toIsoDateAtUtcNoon(endDate);
+    const fechaIso = toIsoDateAtUtcNoon(expenseDate || endDate);
 
     if (!expenseConcept.trim()) {
       setError('Falta el concepto del gasto de secado.');
@@ -758,6 +479,7 @@ export default function SecadoProceso() {
     try {
       await crearGasto({
         conceptoGasto: expenseConcept.trim(),
+        descripcion: expenseDescription.trim() || undefined,
         montoGasto: monto,
         fechaGasto: fechaIso,
         tipoGasto: 'SECADO',
@@ -777,7 +499,7 @@ export default function SecadoProceso() {
   const finalizar = () => {
     if (registrandoSecado) return;
     if (!sessionId || !session) return;
-    const fechaInicioValidacion = validateBusinessDateRange(startDate);
+    const fechaInicioValidacion = validateBusinessDateRange(fechaInicioReal);
     const fechaFinValidacion = validateBusinessDateRange(endDate);
 
     if (!fechaInicioValidacion.isValid) {
@@ -790,7 +512,7 @@ export default function SecadoProceso() {
       return;
     }
 
-    const fechaInicio = parseLocalDateValue(startDate);
+    const fechaInicio = parseLocalDateValue(fechaInicioReal);
     const fechaFin = parseLocalDateValue(endDate);
     if (!fechaInicio || !fechaFin) {
       setError('Selecciona fechas válidas para continuar.');
@@ -983,10 +705,12 @@ export default function SecadoProceso() {
               <label className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500">
                 Fecha de inicio de secado
               </label>
-              <SecadoDatePicker
+              <CafeSmartDatePicker
                 value={startDate}
-                min={BUSINESS_MIN_DATE_VALUE}
-                max={getTodayLocalDateValue()}
+                minDate={BUSINESS_MIN_DATE_VALUE}
+                maxDate={getTodayLocalDateValue()}
+                label="Fecha de inicio de secado"
+                dialogLabel="Calendario de fecha de inicio de secado"
                 open={startDatePickerOpen}
                 onToggle={() => setStartDatePickerOpen((open) => !open)}
                 onClose={() => setStartDatePickerOpen(false)}
@@ -1105,20 +829,26 @@ export default function SecadoProceso() {
                 Fecha de inicio
               </label>
               <div className="mt-2 h-11 rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-black">
-                {formatLongDateLabel(startDate)}
+                {formatLongDateLabel(fechaInicioReal)}
               </div>
               <label className="mt-4 block text-[0.62rem] font-black uppercase text-slate-500">
                 Fecha de finalización
               </label>
-              <SecadoDatePicker
+              <CafeSmartDatePicker
                 value={endDate}
-                min={BUSINESS_MIN_DATE_VALUE}
-                max={getTodayLocalDateValue()}
+                minDate={fechaInicioReal}
+                maxDate={getTodayLocalDateValue()}
+                label="Fecha de finalización"
+                dialogLabel="Calendario de fecha de finalización"
                 open={endDatePickerOpen}
                 onToggle={() => setEndDatePickerOpen((open) => !open)}
                 onClose={() => setEndDatePickerOpen(false)}
                 onChange={(value) => {
-                  setEndDate(value);
+                  if (value && value < fechaInicioReal) {
+                    setError('La fecha de finalización no puede ser anterior al inicio del secado.');
+                    return;
+                  }
+                  setEndDate(value || getTodayLocalDateValue());
                   setError(null);
                 }}
               />
@@ -1130,16 +860,16 @@ export default function SecadoProceso() {
               ) : null}
             </section>
 
-            <section className="rounded-[16px] bg-white p-4 shadow-sm">
-              <h2 className="text-base font-black">Resultado del secado</h2>
-              <p className="mt-1 text-[0.68rem] leading-5 text-slate-500">
-                Registra la salida en la calidad original: {titleCase(session.calidad)}.
+            <section className="rounded-[18px] border border-[#dbe7ff] bg-white p-4 shadow-[0_10px_24px_rgba(47,99,216,0.06)]">
+              <h2 className="text-base font-black text-[#0f235c]">Resultado del secado</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Ingresa el peso final en seco para cada calidad de café obtenido.
               </p>
               <div className="mt-4 grid grid-cols-3 gap-2 max-[360px]:grid-cols-2">
                 {outputFields.map((field) => (
                 <label key={field.quality} className="block min-w-0">
                   <span className="text-[0.62rem] font-black uppercase text-slate-500">
-                    {field.label}
+                    {field.label} (kg)
                   </span>
                   <input
                     type="number"
@@ -1160,12 +890,17 @@ export default function SecadoProceso() {
                         field.setter,
                       );
                     }}
-                    className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-3 text-center text-base font-black outline-none focus:ring-1 focus:ring-slate-400"
+                    className="mt-2 h-11 w-full rounded-[12px] border border-slate-200 bg-slate-50 px-3 text-center text-base font-black text-[#0f235c] outline-none transition focus:border-[#102d92] focus:bg-white focus:ring-4 focus:ring-[#102d92]/10"
                     placeholder="0"
                   />
                 </label>
                 ))}
               </div>
+              {!hasResultadoIngresado ? (
+                <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3 text-xs font-black leading-5 text-amber-800">
+                  Registra al menos una salida seca en bueno, regular o malo para calcular el resultado.
+                </div>
+              ) : null}
               {outputNotice ? (
                 <div className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
                   {outputNotice}
@@ -1179,10 +914,10 @@ export default function SecadoProceso() {
               ) : null}
             </section>
 
-            <section className="overflow-hidden rounded-[16px] bg-white shadow-sm">
-              <div className="flex items-center gap-2 bg-[#0647d6] px-4 py-3 text-xs font-black uppercase text-white">
+            <section className="overflow-hidden rounded-[18px] border border-[#dbe7ff] bg-white shadow-[0_10px_24px_rgba(47,99,216,0.06)]">
+              <div className="flex items-center gap-2 bg-[#102d92] px-4 py-3 text-xs font-black uppercase text-white">
                 <Save size={15} />
-                Resumen de totales
+                Resumen del secado
               </div>
               <div className="grid grid-cols-3 gap-2 p-4 text-center">
                 <div>
@@ -1195,17 +930,19 @@ export default function SecadoProceso() {
                   <p className="text-[0.6rem] font-black uppercase text-slate-400">
                     Salida
                   </p>
-                  <p className="mt-1 text-lg font-black">{kg(totalSalida)}</p>
+                  <p className="mt-1 text-lg font-black">
+                    {hasResultadoIngresado ? kg(totalSalida) : '--'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[0.6rem] font-black uppercase text-slate-400">
                     Merma
                   </p>
                   <p className="mt-1 text-lg font-black text-rose-600">
-                    {hasResultadoIngresado ? kg(merma) : '-'}
+                    {hasResultadoIngresado ? kg(merma) : '--'}
                   </p>
                   <p className="text-[0.65rem] font-black text-rose-400">
-                    {hasResultadoIngresado ? `${mermaPct}%` : ''}
+                    {hasResultadoIngresado ? `${mermaPct}%` : 'Ingresa la salida'}
                   </p>
                 </div>
               </div>
@@ -1235,7 +972,12 @@ export default function SecadoProceso() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowExpenseModal(true)}
+                  onClick={() => {
+                    setWithExpense(true);
+                    setExpenseConcept((current) => current || 'Gasto de secado');
+                    setExpenseDate(endDate || getTodayLocalDateValue());
+                    setShowExpenseModal(true);
+                  }}
                   className={`h-9 rounded-full border px-4 text-xs font-black transition ${withExpense ? 'border-slate-300 bg-slate-100 text-slate-900' : 'border-slate-200 bg-slate-100 text-slate-700'}`}
                 >
                   Sí
@@ -1297,12 +1039,27 @@ export default function SecadoProceso() {
 
       {showExpenseModal ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-6 backdrop-blur-sm">
-          <section className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
-            <h2 className="text-lg font-black text-slate-950">
-              Registrar gasto de secado
-            </h2>
+          <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[410px] overflow-y-auto rounded-[24px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">
+                  Registro de Gastos
+                </h2>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                  Registra el gasto asociado a este secado.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                aria-label="Cerrar registro de gastos"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                <X size={17} aria-hidden="true" />
+              </button>
+            </div>
             <label htmlFor="secado-expense-concept" className="mt-4 block text-xs font-black text-slate-700">
-              Concepto
+              Concepto del gasto
             </label>
             <input
               id="secado-expense-concept"
@@ -1313,8 +1070,19 @@ export default function SecadoProceso() {
               onChange={(event) => setExpenseConcept(event.target.value)}
               className="mt-2 h-11 w-full rounded-[12px] bg-slate-100 px-4 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
             />
+            <label htmlFor="secado-expense-description" className="mt-4 block text-xs font-black text-slate-700">
+              Descripción breve
+            </label>
+            <textarea
+              id="secado-expense-description"
+              value={expenseDescription}
+              onChange={(event) => setExpenseDescription(event.target.value)}
+              rows={2}
+              className="mt-2 w-full resize-none rounded-[12px] bg-slate-100 px-4 py-3 text-sm font-bold outline-none focus:ring-1 focus:ring-[#0647d6]"
+              placeholder="Ej: Mano de obra, combustible o transporte"
+            />
             <label className="mt-4 block text-xs font-black text-slate-700">
-              Monto
+              Monto ($)
             </label>
             <input
               type="text"
@@ -1342,6 +1110,30 @@ export default function SecadoProceso() {
                 {expenseAmountError}
               </p>
             ) : null}
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <CafeSmartDatePicker
+                  value={expenseDate}
+                  minDate={fechaInicioReal}
+                  maxDate={getTodayLocalDateValue()}
+                  label="Fecha"
+                  dialogLabel="Calendario de fecha del gasto de secado"
+                  open={expenseDatePickerOpen}
+                  onToggle={() => setExpenseDatePickerOpen((open) => !open)}
+                  onClose={() => setExpenseDatePickerOpen(false)}
+                  onChange={(value) => setExpenseDate(value || endDate)}
+                  clearable={false}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-700">
+                  Tipo de gasto
+                </label>
+                <div className="mt-2 flex min-h-[46px] items-center rounded-[14px] border border-[#dbe7ff] bg-[#eef4ff] px-4 text-sm font-black text-[#102d92]">
+                  Secado
+                </div>
+              </div>
+            </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"

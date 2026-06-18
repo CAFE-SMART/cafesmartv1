@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyHumidity } from './humidity';
+import { classifyHumidity, getHumidityAlertMessage } from './humidity';
 
 describe('classifyHumidity', () => {
   it('clasifica humedad buena entre 10% y 12% incluyendo limites', () => {
@@ -8,15 +8,21 @@ describe('classifyHumidity', () => {
     expect(classifyHumidity(12).quality).toBe('buena');
   });
 
-  it('clasifica humedad regular entre 9% y menor a 10%, y mayor a 12% hasta 12.5%', () => {
-    expect(classifyHumidity(9).quality).toBe('regular');
-    expect(classifyHumidity(9.9).quality).toBe('regular');
-    expect(classifyHumidity(12.1).quality).toBe('regular');
-    expect(classifyHumidity(12.5).quality).toBe('regular');
+  it('clasifica advertencias entre 8% y menor a 10%, y descuento sobre 12% hasta 14%', () => {
+    expect(classifyHumidity(8).quality).toBe('advertencia');
+    expect(classifyHumidity(9.9).quality).toBe('advertencia');
+    expect(classifyHumidity(12.1).quality).toBe('descuento');
+    expect(classifyHumidity(14).quality).toBe('descuento');
   });
 
-  it('clasifica como deficiente humedades menores a 9% o mayores a 12.5%', () => {
-    expect(classifyHumidity(8.9).quality).toBe('deficiente');
-    expect(classifyHumidity(12.6).quality).toBe('deficiente');
+  it('clasifica como rechazada humedades menores a 8% o mayores a 14%', () => {
+    expect(classifyHumidity(7.9).quality).toBe('rechazada');
+    expect(classifyHumidity(14.1).quality).toBe('rechazada');
+  });
+
+  it('expone mensajes reutilizables para compras, inventario y secado', () => {
+    expect(getHumidityAlertMessage(9)).toContain('Humedad baja');
+    expect(getHumidityAlertMessage(13)).toContain('Humedad alta');
+    expect(getHumidityAlertMessage(14.1)).toContain('supera 14%');
   });
 });

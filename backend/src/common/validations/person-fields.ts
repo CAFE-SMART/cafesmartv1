@@ -2,7 +2,14 @@ import { BadRequestException } from '@nestjs/common';
 import { apiError } from '../errors/api-error';
 
 type PersonaEntidad = 'cliente' | 'productor';
-export type TipoDocumento = 'CEDULA' | 'NIT' | 'CE' | 'PASAPORTE' | 'OTRO';
+export type TipoDocumento =
+  | 'CEDULA'
+  | 'NIT'
+  | 'TI'
+  | 'CE'
+  | 'PASAPORTE'
+  | 'PEP'
+  | 'OTRO';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]+$/;
 const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&()-]+$/;
@@ -157,9 +164,9 @@ export function normalizarDocumentoPersona(
     return nit;
   }
 
-  if (options.tipoDocumento === 'PASAPORTE' || options.tipoDocumento === 'OTRO') {
-    const normalized = documento.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
-    if (!/^[A-Za-z0-9-]{3,20}$/.test(normalized)) {
+  if (options.tipoDocumento === 'PASAPORTE') {
+    const normalized = documento.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (!/^[A-Za-z0-9]{5,20}$/.test(normalized)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',
@@ -171,7 +178,27 @@ export function normalizarDocumentoPersona(
     return normalized;
   }
 
-  if (/\D/.test(documento) || documento.length < 6 || documento.length > 10) {
+  if (
+    options.tipoDocumento === 'CE' ||
+    options.tipoDocumento === 'PEP' ||
+    options.tipoDocumento === 'OTRO'
+  ) {
+    const normalized = documento.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
+    if (!/^[A-Za-z0-9-]{3,25}$/.test(normalized)) {
+      throwPersonValidation(
+        entidad,
+        'DOCUMENTO_INVALIDO',
+        'Ingresa un número de documento válido.',
+        'documento',
+      );
+    }
+
+    return normalized;
+  }
+
+  const minLength = options.tipoDocumento === 'TI' ? 8 : 6;
+  const maxLength = options.tipoDocumento === 'TI' ? 11 : 10;
+  if (/\D/.test(documento) || documento.length < minLength || documento.length > maxLength) {
     throwPersonValidation(
       entidad,
       'DOCUMENTO_INVALIDO',
@@ -200,34 +227,35 @@ export function normalizarTelefonoPersona(
 
   if (!telefono) return null;
 
-  if (/\D/.test(telefono)) {
+  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(telefono) || /[^\d\s()+-]/.test(telefono)) {
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
-      'El teléfono debe tener solo números.',
+      'El teléfono debe tener solo números y prefijo internacional opcional.',
       'telefono',
     );
   }
 
-  if (telefono.length !== 10) {
+  if ((telefono.match(/\+/g) ?? []).length > 1 || (telefono.includes('+') && !telefono.startsWith('+'))) {
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
-      'Ingresa un número de celular de 10 dígitos.',
+      'El teléfono solo puede usar + al inicio.',
       'telefono',
     );
   }
 
-  if (!telefono.startsWith('3')) {
+  const digits = telefono.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) {
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
-      'El teléfono debe empezar por 3.',
+      'El teléfono debe tener entre 7 y 15 dígitos.',
       'telefono',
     );
   }
 
-  if (hasRepeatedDigits(telefono)) {
+  if (hasRepeatedDigits(digits)) {
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
@@ -236,5 +264,5 @@ export function normalizarTelefonoPersona(
     );
   }
 
-  return telefono;
+  return `${telefono.startsWith('+') ? '+' : ''}${digits}`;
 }

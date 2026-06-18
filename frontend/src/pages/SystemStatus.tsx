@@ -74,7 +74,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
                 '_self',
               )
             }
-            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/85 px-3 text-xs font-black text-[#536178] transition hover:bg-white hover:text-[#1e3a8a]"
+            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/90 px-3 text-xs font-black text-[#102d92] transition hover:bg-white hover:text-[#1e3a8a] dark:border-blue-300/35 dark:bg-blue-500/18 dark:text-blue-100 dark:hover:bg-blue-500/28"
           >
             <HelpCircle size={15} aria-hidden="true" />
             Ayuda
@@ -87,7 +87,7 @@ function WelcomeView({ onStart }: { onStart: () => void }) {
                 '_self',
               )
             }
-            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/85 px-3 text-xs font-black text-[#536178] transition hover:bg-white hover:text-[#1e3a8a]"
+            className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-[12px] border border-[#dfe5f1] bg-white/90 px-3 text-xs font-black text-[#102d92] transition hover:bg-white hover:text-[#1e3a8a] dark:border-blue-300/35 dark:bg-blue-500/18 dark:text-blue-100 dark:hover:bg-blue-500/28"
           >
             <MessageCircle size={15} aria-hidden="true" />
             Contacto

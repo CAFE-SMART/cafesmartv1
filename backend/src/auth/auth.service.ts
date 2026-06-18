@@ -64,13 +64,15 @@ export class AuthService {
    * Registra un administrador nuevo junto con su organizacion inicial.
    */
   async register(dto: RegisterDto) {
+    const descripcionOrganizacion =
+      dto.descripcionOrganizacion ?? dto.descripcion ?? undefined;
     console.log('[CafeSmart][register] etapa 1: payload recibido', {
       correo: dto.correo,
       nombrePresent: Boolean(dto.nombre?.trim()),
       telefonoPresent: Boolean(dto.telefono?.trim()),
       nombreOrganizacionPresent: Boolean(dto.nombreOrganizacion?.trim()),
       tipoOrganizacion: dto.tipoOrganizacion,
-      descripcionPresent: Boolean(dto.descripcionOrganizacion?.trim()),
+      descripcionPresent: Boolean(descripcionOrganizacion?.trim()),
       hasPassword: Boolean(dto.password),
     });
 
@@ -99,7 +101,7 @@ export class AuthService {
         nombreOrganizacion: dto.nombreOrganizacion,
         tipoOrganizacion: dto.tipoOrganizacion,
         otroTipoDetalle: dto.otroTipoDetalle,
-        descripcionOrganizacion: dto.descripcionOrganizacion,
+        descripcionOrganizacion,
         nombre: dto.nombre,
         correo: normalizedEmail,
         telefono: dto.telefono,
@@ -133,6 +135,8 @@ export class AuthService {
    * Registra o vincula una cuenta usando el token emitido por Google.
    */
   async registerGoogle(dto: RegisterGoogleDto) {
+    const descripcionOrganizacion =
+      dto.descripcionOrganizacion ?? dto.descripcion ?? undefined;
     const ticket = await this.verifyGoogleToken(dto.googleToken);
 
     const payload = ticket.getPayload();
@@ -176,7 +180,7 @@ export class AuthService {
         nombreOrganizacion: dto.nombreOrganizacion,
         tipoOrganizacion: dto.tipoOrganizacion,
         otroTipoDetalle: dto.otroTipoDetalle,
-        descripcionOrganizacion: dto.descripcionOrganizacion,
+        descripcionOrganizacion,
         nombre: dto.nombre,
         correo: googleEmail,
         telefono: dto.telefono,
@@ -763,6 +767,7 @@ export class AuthService {
       correo: string;
       nombre: string;
       organizacionId: string | null;
+      avatarUrl?: string | null;
     },
     message: string,
   ) {
@@ -805,6 +810,7 @@ export class AuthService {
         tipoOrganizacion: sessionData.organizacion?.tipo ?? null,
         otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,
         descripcionOrganizacion: sessionData.organizacion?.descripcion ?? null,
+        avatarUrl: user.avatarUrl ?? null,
       },
     };
   }

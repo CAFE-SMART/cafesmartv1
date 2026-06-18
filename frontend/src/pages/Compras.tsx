@@ -82,10 +82,11 @@ import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import {
   formatPhoneNumber,
   normalizeCompanyName,
+  normalizeDocumentForStorage,
   normalizeHumanName,
-  sanitizeDigits as sanitizePersonDigits,
   type DocumentType,
   validateCompanyName,
+  validateDocumentNumber,
   validatePhoneNumber,
 } from '../utils/personValidation';
 import { sanitizeSearchInput } from '../utils/inputLimits';
@@ -186,6 +187,11 @@ const PRODUCTOR_SORT_OPTIONS: Array<{
 const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
   { value: 'CEDULA', label: 'Cédula' },
   { value: 'NIT', label: 'NIT' },
+  { value: 'TI', label: 'Tarjeta de identidad' },
+  { value: 'CE', label: 'Cédula de extranjería' },
+  { value: 'PASAPORTE', label: 'Pasaporte' },
+  { value: 'PEP', label: 'PEP' },
+  { value: 'OTRO', label: 'Otro' },
 ];
 const PRODUCTOR_FORM_EMPTY: ProductorForm = {
   nombre: '',
@@ -231,7 +237,7 @@ function getProductorDocumentHelp(tipoDocumento: ProductorForm['tipoDocumento'])
     return 'Ingresa el NIT sin puntos ni guiones.';
   }
 
-  return 'Primero selecciona cédula o NIT.';
+  return 'Primero selecciona el tipo de documento.';
 }
 
 function getProductorDocumentPlaceholder(
@@ -243,6 +249,14 @@ function getProductorDocumentPlaceholder(
 
   if (tipoDocumento === 'NIT') {
     return 'Ej. 900123456';
+  }
+
+  if (tipoDocumento === 'PASAPORTE') {
+    return 'Ej. AB123456';
+  }
+
+  if (tipoDocumento === 'CE' || tipoDocumento === 'PEP' || tipoDocumento === 'OTRO') {
+    return 'Ej. DOC-123456';
   }
 
   return 'Ej. 1234567890';
@@ -293,39 +307,10 @@ function getProductorDocumentError(
     return 'Ingresa el número de documento.';
   }
 
-  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(documento)) {
-    return tipoDocumento === 'NIT'
-      ? 'El NIT solo puede contener números.'
-      : 'La cédula solo puede contener números.';
-  }
-
-  if (/[\s.\-]/.test(documento) || /[^\d]/.test(documento)) {
-    return 'El documento contiene caracteres no permitidos.';
-  }
-
-  if (tipoDocumento === 'CEDULA' && documento.length < 6) {
-    return 'La cédula tiene muy pocos números.';
-  }
-
-  if (tipoDocumento === 'CEDULA' && documento.length > 10) {
-    return 'La cédula supera la cantidad permitida de dígitos.';
-  }
-
-  if (tipoDocumento === 'NIT' && documento.length < 8) {
-    return 'El NIT tiene muy pocos números.';
-  }
-
-  if (tipoDocumento === 'NIT' && documento.length > 10) {
-    return 'El NIT supera la cantidad permitida de dígitos.';
-  }
-
-  if (/^(\d)\1+$/.test(documento)) {
-    return tipoDocumento === 'NIT'
-      ? 'El NIT no puede repetir el mismo número.'
-      : 'La cédula no puede repetir el mismo número.';
-  }
-
-  return null;
+  const validation = validateDocumentNumber(documento, 'El documento', {
+    type: tipoDocumento,
+  });
+  return validation.isValid ? null : validation.message ?? 'Revisa el documento.';
 }
 
 function getProductorPhoneError(value: string) {
@@ -479,7 +464,7 @@ function getProductorSaveError(error: unknown): ProductorModalError {
     ) {
       return {
         title: 'Este productor ya existe.',
-        description: 'Ya hay un productor registrado con este documento.',
+        description: 'Este productor ya está registrado con este documento.',
       };
     }
 
@@ -3102,8 +3087,8 @@ export default function Compras() {
         ? normalizeCompanyName(productorForm.nombre)
         : normalizeHumanName(productorForm.nombre);
     const tipoDocumento = productorForm.tipoDocumento || 'CEDULA';
-    const documento = sanitizePersonDigits(productorForm.documento, 10);
-    const telefono = sanitizePersonDigits(productorForm.telefono);
+    const documento = normalizeDocumentForStorage(productorForm.documento, tipoDocumento);
+    const telefono = productorForm.telefono.trim();
     const errores = validarProductorForm();
 
     setProductorFormTouched({
@@ -3799,8 +3784,24 @@ export default function Compras() {
               totalPagado: compraGuardada.totalCompra,
               fecha: compraGuardada.fecha,
               referencia: compraGuardada.sublotes[0]?.id,
+              items: compraGuardada.sublotes.map((sublote) => ({
+                tipoCafe: sublote.tipoCafe,
+                calidad: sublote.calidad,
+                cantidadKg: sublote.pesoInicial,
+                precioKg: sublote.precioKg,
+                subtotal: sublote.pesoInicial * sublote.precioKg,
+              })),
             },
           });
+        }}
+        history={{
+          title: 'Historial completo de la compra',
+          summary: `${compraGuardada.sublotes.length} registros · ${formatTotalKg(compraGuardada.totalKg)} · ${formatoMoneda(compraGuardada.totalCompra)}`,
+          items: compraGuardada.sublotes.map((sublote) => ({
+            title: [sublote.tipoCafe, sublote.calidad].filter(Boolean).join(' ') || 'Café',
+            detail: `${formatTotalKg(sublote.pesoInicial)} · ${formatoMoneda(sublote.pesoInicial * sublote.precioKg)}`,
+            meta: `${formatoMoneda(sublote.precioKg)}/kg`,
+          })),
         }}
         rows={[
           {
@@ -4286,7 +4287,7 @@ export default function Compras() {
                             className={`rounded-[18px] border px-2 py-3 text-sm font-semibold transition ${
                               activo
                                 ? `border-[#1f3fa7] bg-[#eef4ff] text-[#102d92] shadow-[0_8px_20px_rgba(16,45,146,0.18)] dark:border-blue-300 dark:bg-blue-500/20 dark:text-blue-100`
-                                : `${visual.borde} bg-white/95 text-slate-800 hover:bg-white hover:shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800`
+                                : 'border-slate-200 bg-white/95 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-700 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                             }`}
                           >
                             <span className="flex flex-col items-center gap-1.5">
@@ -4294,13 +4295,13 @@ export default function Compras() {
                                 className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
                                   activo
                                     ? `${visual.fondo} ring-2 ring-[#1f3fa7]/25 dark:ring-blue-300/40`
-                                    : visual.fondo
+                                    : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-400'
                                 }`}
                               >
                                 {visual.icono}
                               </span>
                               <span
-                                className={`text-[11px] font-black ${activo ? 'text-[#102d92] dark:text-blue-100' : 'text-slate-800 dark:text-slate-100'}`}
+                                className={`text-[11px] font-black ${activo ? 'text-[#102d92] dark:text-blue-100' : 'text-slate-500 dark:text-slate-300'}`}
                               >
                                 {calidad.nombre}
                               </span>
@@ -5882,7 +5883,7 @@ export default function Compras() {
                     Tipo de documento
                   </label>
                   <ProductorHint>
-                    Selecciona si el productor usa cédula o NIT.
+                    Selecciona el tipo de documento del productor.
                   </ProductorHint>
                   <div className="mt-2">
                     <CompactSelect
@@ -5939,7 +5940,15 @@ export default function Compras() {
                   <input
                     id="productor-documento"
                     type="text"
-                    inputMode="numeric"
+                    inputMode={
+                      productorForm.tipoDocumento === 'NIT' ||
+                      productorForm.tipoDocumento === 'CE' ||
+                      productorForm.tipoDocumento === 'PASAPORTE' ||
+                      productorForm.tipoDocumento === 'PEP' ||
+                      productorForm.tipoDocumento === 'OTRO'
+                        ? 'text'
+                        : 'numeric'
+                    }
                     disabled={!productorForm.tipoDocumento}
                     aria-invalid={
                       productorFormErrors.documento && productorFormTouched.documento
@@ -5956,7 +5965,7 @@ export default function Compras() {
                         event.preventDefault();
                       }
                     }}
-                    maxLength={14}
+                    maxLength={25}
                     value={productorForm.documento}
                     onBlur={() => {
                       const hasDocumentType = Boolean(productorForm.tipoDocumento);
@@ -6016,8 +6025,8 @@ export default function Compras() {
                   <input
                     id="productor-telefono"
                     type="text"
-                    inputMode="numeric"
-                    maxLength={12}
+                    inputMode="tel"
+                    maxLength={18}
                     value={productorForm.telefono}
                     aria-invalid={
                       productorFormErrors.telefono && productorFormTouched.telefono
@@ -6061,7 +6070,7 @@ export default function Compras() {
                         : 'border-[#dde4f1] bg-[#f7f9fd]'
                     }`}
                   />
-                  <ProductorHint>Número celular colombiano.</ProductorHint>
+                  <ProductorHint>Teléfono con prefijo internacional opcional.</ProductorHint>
                   {productorFormErrors.telefono &&
                   productorFormTouched.telefono ? (
                     <ProductorFieldError id="productor-telefono-error" message={productorFormErrors.telefono} />

@@ -3,7 +3,14 @@ export type PersonFieldValidation = {
   message?: string;
 };
 
-export type DocumentType = 'CEDULA' | 'NIT' | 'CE' | 'PASAPORTE' | 'OTRO';
+export type DocumentType =
+  | 'CEDULA'
+  | 'NIT'
+  | 'TI'
+  | 'CE'
+  | 'PASAPORTE'
+  | 'PEP'
+  | 'OTRO';
 
 const NAME_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/;
 const COMPANY_ALLOWED_CHARS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&(){}[\]-]+$/;
@@ -109,10 +116,16 @@ export function sanitizeDigits(value: string, maxLength = 10) {
 }
 
 export function formatPhoneNumber(value: string) {
-  const digits = sanitizeDigits(value, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  const raw = value.trim();
+  const hasPlus = raw.startsWith('+');
+  const digits = raw.replace(/\D/g, '').slice(0, 15);
+  const prefix = hasPlus ? '+' : '';
+  if (digits.length <= 3) return `${prefix}${digits}`;
+  if (digits.length <= 6) return `${prefix}${digits.slice(0, 3)} ${digits.slice(3)}`;
+  if (digits.length <= 10) {
+    return `${prefix}${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return `${prefix}${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`;
 }
 
 export function sanitizeDocumentInput(value: string, type: DocumentType) {
@@ -126,11 +139,15 @@ export function sanitizeDocumentInput(value: string, type: DocumentType) {
       : baseDigits;
   }
 
-  if (type === 'PASAPORTE' || type === 'OTRO') {
-    return value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 20).toUpperCase();
+  if (type === 'PASAPORTE') {
+    return value.replace(/[^A-Za-z0-9]/g, '').slice(0, 20).toUpperCase();
   }
 
-  return sanitizeDigits(value, 10);
+  if (type === 'CE' || type === 'PEP' || type === 'OTRO') {
+    return value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 25).toUpperCase();
+  }
+
+  return sanitizeDigits(value, type === 'TI' ? 11 : 10);
 }
 
 export function normalizeDocumentForStorage(value: string, type: DocumentType) {
@@ -142,11 +159,15 @@ export function normalizeDocumentForStorage(value: string, type: DocumentType) {
     return checkDigit ? `${baseDigits}-${checkDigit}` : baseDigits;
   }
 
-  if (type === 'PASAPORTE' || type === 'OTRO') {
-    return documento.replace(/[^A-Za-z0-9-]/g, '').slice(0, 20).toUpperCase();
+  if (type === 'PASAPORTE') {
+    return documento.replace(/[^A-Za-z0-9]/g, '').slice(0, 20).toUpperCase();
   }
 
-  return sanitizeDigits(documento, 10);
+  if (type === 'CE' || type === 'PEP' || type === 'OTRO') {
+    return documento.replace(/[^A-Za-z0-9-]/g, '').slice(0, 25).toUpperCase();
+  }
+
+  return sanitizeDigits(documento, type === 'TI' ? 11 : 10);
 }
 
 function isRepeatedDigits(value: string) {
@@ -211,7 +232,7 @@ export function validatePhoneNumber(
   options: { optional?: boolean } = {},
 ): PersonFieldValidation {
   const telefonoTexto = value.trim();
-  const telefono = sanitizeDigits(telefonoTexto, 10);
+  const telefono = telefonoTexto.replace(/\D/g, '');
 
   if (!telefonoTexto) {
     return options.optional
@@ -222,24 +243,24 @@ export function validatePhoneNumber(
         };
   }
 
-  if (/[^\d\s]/.test(telefonoTexto)) {
+  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(telefonoTexto) || /[^\d\s()+-]/.test(telefonoTexto)) {
     return {
       isValid: false,
-      message: `${label} debe tener solo números.`,
+      message: `${label} debe tener solo números y prefijo internacional opcional.`,
     };
   }
 
-  if (telefono.length !== 10) {
+  if ((telefonoTexto.match(/\+/g) ?? []).length > 1 || (telefonoTexto.includes('+') && !telefonoTexto.startsWith('+'))) {
     return {
       isValid: false,
-      message: 'Ingresa un número de celular de 10 dígitos.',
+      message: `${label} solo puede usar + al inicio.`,
     };
   }
 
-  if (!telefono.startsWith('3')) {
+  if (telefono.length < 7 || telefono.length > 15) {
     return {
       isValid: false,
-      message: `${label} debe empezar por 3.`,
+      message: `${label} debe tener entre 7 y 15 dígitos.`,
     };
   }
 
@@ -279,7 +300,8 @@ export function validateDocumentNumber(
   const tipoDocumento = options.type ?? 'CEDULA';
 
   if (tipoDocumento === 'NIT') {
-    if (!/^\d{8,9}-\d$/.test(documento)) {
+    const normalized = normalizeDocumentForStorage(documento, tipoDocumento);
+    if (!/^\d{8,9}-\d$/.test(normalized)) {
       return {
         isValid: false,
         message: 'Para NIT usa el formato 900123456-7.',
@@ -289,11 +311,40 @@ export function validateDocumentNumber(
     return { isValid: true };
   }
 
-  if (tipoDocumento === 'PASAPORTE' || tipoDocumento === 'OTRO') {
-    if (!/^[A-Za-z0-9-]{3,20}$/.test(documento)) {
+  if (tipoDocumento === 'PASAPORTE') {
+    if (!/^[A-Za-z0-9]{5,20}$/.test(documento)) {
       return {
         isValid: false,
-        message: `${label} debe tener entre 3 y 20 caracteres.`,
+        message: `${label} debe tener entre 5 y 20 caracteres alfanuméricos.`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  if (tipoDocumento === 'CE' || tipoDocumento === 'PEP' || tipoDocumento === 'OTRO') {
+    if (!/^[A-Za-z0-9-]{3,25}$/.test(documento)) {
+      return {
+        isValid: false,
+        message: `${label} debe tener entre 3 y 25 caracteres.`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  if (tipoDocumento === 'TI') {
+    if (/[^\d]/.test(documento) || documento.length < 8 || documento.length > 11) {
+      return {
+        isValid: false,
+        message: 'La tarjeta de identidad debe tener entre 8 y 11 dígitos.',
+      };
+    }
+
+    if (isRepeatedDigits(documento)) {
+      return {
+        isValid: false,
+        message: 'El documento no puede repetir el mismo número.',
       };
     }
 
@@ -331,7 +382,7 @@ export function validateDocumentNumber(
   if (isRepeatedDigits(documento)) {
     return {
       isValid: false,
-      message: 'La cédula no puede repetir el mismo número.',
+      message: 'El documento no puede repetir el mismo número.',
     };
   }
 

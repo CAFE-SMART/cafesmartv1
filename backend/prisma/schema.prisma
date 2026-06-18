@@ -46,6 +46,7 @@ model Organization {
   compras          Compra[]
   gastosOperativos GastoOperativo[]
   inventarios      Inventario[]
+  bodegas          Bodega[]
   movimientos      InventarioMovimiento[]
   lotes            Lote[]
   parametros       ParametroOrganizacion[]
@@ -105,6 +106,7 @@ model User {
   password       String?                @map("password")
   googleId       String?                @unique @map("google_id")
   telefono       String                 @map("telefono")
+  avatarUrl      String?                @map("avatar_url")
   rol            RolUsuario             @default(ADMIN) @map("id_rol")
   activo         Boolean                @default(true) @map("estado")
   creadoEn       DateTime               @default(now()) @map("fecha_creacion")
@@ -116,6 +118,24 @@ model User {
   ventas         Venta[]
 
   @@map("usuario")
+}
+
+model Bodega {
+  id              String       @id @default(uuid()) @map("id_bodega")
+  organizacionId  String       @map("id_organizacion")
+  nombre          String       @map("nombre")
+  ubicacion       String?      @map("ubicacion")
+  capacidadMaxKg  Decimal      @map("capacidad_max_kg") @db.Decimal(12, 2)
+  activa          Boolean      @default(true) @map("activa")
+  esPrincipal     Boolean      @default(false) @map("es_principal")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+  organizacion    Organization @relation(fields: [organizacionId], references: [id])
+
+  @@index([organizacionId, deletedAt])
+  @@index([organizacionId, esPrincipal])
+  @@map("bodega")
 }
 
 model PasswordResetToken {

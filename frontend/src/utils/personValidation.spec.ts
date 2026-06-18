@@ -8,8 +8,8 @@ import {
 } from './personValidation';
 
 describe('personValidation', () => {
-  it('remueve numeros de nombres', () => {
-    expect(sanitizeNameInput('Andres 123 Lopez')).toBe('Andres  Lopez');
+  it('normaliza espacios del nombre sin validar su contenido', () => {
+    expect(sanitizeNameInput('Andres  123 Lopez')).toBe('Andres 123 Lopez');
   });
 
   it('valida nombres sin numeros', () => {
@@ -23,7 +23,8 @@ describe('personValidation', () => {
 
   it('valida telefono colombiano movil', () => {
     expect(validatePhoneNumber('3001234567').isValid).toBe(true);
-    expect(validatePhoneNumber('2001234567').isValid).toBe(false);
+    expect(validatePhoneNumber('+57 300 123 4567').isValid).toBe(true);
+    expect(validatePhoneNumber('2001234567').isValid).toBe(true);
     expect(validatePhoneNumber('300123').isValid).toBe(false);
     expect(validatePhoneNumber('3333333333').isValid).toBe(false);
   });
@@ -33,5 +34,8 @@ describe('personValidation', () => {
     expect(validateDocumentNumber('0000000').isValid).toBe(false);
     expect(validateDocumentNumber('12345678901').isValid).toBe(false);
     expect(validateDocumentNumber('114059596').isValid).toBe(true);
+    expect(validateDocumentNumber('ABC12345', 'El pasaporte', { type: 'PASAPORTE' }).isValid).toBe(true);
+    expect(validateDocumentNumber('12345678', 'La TI', { type: 'TI' }).isValid).toBe(true);
+    expect(validateDocumentNumber('PEP-123456', 'El PEP', { type: 'PEP' }).isValid).toBe(true);
   });
 });

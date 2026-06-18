@@ -9,7 +9,18 @@
 //   GET /users        →  Listar usuarios de la organización (solo ADMIN)
 // ============================================================
 
-import { Body, Controller, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Patch,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto';
@@ -26,6 +37,7 @@ export class UsersController {
       nombreOrganizacion: string;
       tipoOrganizacion: string;
       descripcionOrganizacion?: string | null;
+      descripcion?: string | null;
     },
     @Req() req: { user: { sub: string } },
   ) {
@@ -39,6 +51,22 @@ export class UsersController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.usersService.updateProfile(req.user.sub, dto);
+  }
+
+  @Post('profile/avatar')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('avatar'))
+  uploadAvatar(
+    @UploadedFile() file: any,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.usersService.uploadAvatar(req.user.sub, file);
+  }
+
+  @Delete('profile/avatar')
+  @UseGuards(JwtAuthGuard)
+  removeAvatar(@Req() req: { user: { sub: string } }) {
+    return this.usersService.removeAvatar(req.user.sub);
   }
 }
 

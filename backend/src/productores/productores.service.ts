@@ -240,8 +240,8 @@ export class ProductoresService {
     if (existente) {
       throw new ConflictException(
         apiError(
-          'PRODUCTOR_DOCUMENTO_DUPLICADO',
-          'Ya hay un productor registrado con este documento.',
+          'DOCUMENT_ALREADY_EXISTS',
+          'Este productor ya está registrado con este documento.',
           { field: 'documento' },
         ),
       );

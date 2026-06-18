@@ -37,7 +37,13 @@ import {
   type GuidedErrorMessage,
 } from '../../components/forms/GuidedError';
 import { BUSINESS_MIN_DATE_VALUE, formatDateLabel, getTodayLocalDateValue } from '../../utils/date';
-import { formatPhoneNumber, sanitizeDocumentInput, sanitizeNameInput, type DocumentType } from '../../utils/personValidation';
+import {
+  formatPhoneNumber,
+  sanitizeDocumentInput,
+  sanitizeNameInput,
+  type DocumentType,
+  validatePhoneNumber,
+} from '../../utils/personValidation';
 import { sanitizeSearchInput } from '../../utils/inputLimits';
 import { getLimitesVenta, isValidCantidadInput, isValidPrecioInput } from './utils';
 import { useNavigate } from 'react-router-dom';
@@ -355,6 +361,11 @@ const CLIENTE_SORT_OPTIONS: Array<{ value: ClienteSortMode; label: string }> = [
 const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
   { value: 'CEDULA', label: 'Cédula de ciudadanía' },
   { value: 'NIT', label: 'NIT' },
+  { value: 'TI', label: 'Tarjeta de identidad' },
+  { value: 'CE', label: 'Cédula de extranjería' },
+  { value: 'PASAPORTE', label: 'Pasaporte' },
+  { value: 'PEP', label: 'PEP' },
+  { value: 'OTRO', label: 'Otro' },
 ];
 const VENTA_FILTRO_TODOS = 'TODOS';
 const VENTA_DRAFT_STORAGE_KEY = 'cafe-smart:venta-draft:v1';
@@ -1290,7 +1301,7 @@ if (
     return createGuidedError(
       message,
       'Teléfono inválido.',
-      'Número celular colombiano opcional.',
+      'Teléfono opcional con prefijo internacional si aplica.',
       'Ingresa un celular válido que empiece por 3 y tenga 10 dígitos.',
     );
   }
@@ -1302,7 +1313,7 @@ if (
     return createGuidedError(
       message,
       'Selecciona el tipo de documento.',
-      'Selecciona si el cliente usa cédula o NIT.',
+      'Selecciona el tipo de documento del cliente.',
       'Luego escribe el número de documento.',
     );
   }
@@ -1495,17 +1506,8 @@ function getClienteSeleccionGuidance(): GuidedErrorMessage {
 }
 
 function getClientePhoneError(value: string) {
-  const raw = value.trim();
-  if (!raw) return null;
-  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s]/.test(raw)) {
-    return 'No uses letras ni símbolos.';
-  }
-  const digits = sanitizePersonDigits(raw, 10);
-  if (digits.length !== 10) return 'El celular debe tener 10 números.';
-  if (!digits.startsWith('3')) {
-    return 'Ingresa un celular colombiano que empiece por 3.';
-  }
-  return null;
+  const result = validatePhoneNumber(value, 'El teléfono', { optional: true });
+  return result.isValid ? null : result.message ?? 'Revisa el teléfono.';
 }
 
 function getVentaSubmitMessage(error: unknown) {
@@ -1990,117 +1992,89 @@ export default function Ventas() {
 
   if (ventaGuardada) {
     return (
-      <div>
-        <TransactionSuccessScreen
-          title={ventaGuardada.pendienteOffline ? 'Venta guardada en este dispositivo' : 'Venta registrada con éxito'}
-          message={
-            ventaGuardada.pendienteOffline
-              ? 'Se validará y descontará del inventario cuando vuelva la conexión.'
-              : 'La venta fue guardada correctamente en el sistema.'
-          }
-          info={
-            ventaGuardada.pendienteOffline
-              ? 'No se descontó inventario real. El backend validará la venta al sincronizar.'
-              : 'El movimiento quedó disponible en tus registros de venta.'
-          }
-          totalLabel="Total vendido"
-          totalValue={money(ventaGuardada.totalVenta)}
-          primaryLabel="Registrar otra venta"
-          onPrimary={reiniciar}
-          onHome={() => navigate('/inicio')}
-          onShareSummary={(format) => {
-            const firstItem = ventaGuardada.items[0];
-            const uniqueTipos = Array.from(
-              new Set(ventaGuardada.items.map((item) => item.tipoCafe).filter(Boolean)),
-            );
-            const uniqueCalidades = Array.from(
-              new Set(ventaGuardada.items.map((item) => item.calidad).filter(Boolean)),
-            );
+      <TransactionSuccessScreen
+        title={ventaGuardada.pendienteOffline ? 'Venta guardada en este dispositivo' : 'Venta registrada con éxito'}
+        message={
+          ventaGuardada.pendienteOffline
+            ? 'Se validará y descontará del inventario cuando vuelva la conexión.'
+            : 'La venta fue guardada correctamente en el sistema.'
+        }
+        info={
+          ventaGuardada.pendienteOffline
+            ? 'No se descontó inventario real. El backend validará la venta al sincronizar.'
+            : 'El movimiento quedó disponible en tus registros de venta.'
+        }
+        totalLabel="Total vendido"
+        totalValue={money(ventaGuardada.totalVenta)}
+        primaryLabel="Registrar otra venta"
+        onPrimary={reiniciar}
+        onHome={() => navigate('/inicio')}
+        onShareSummary={(format) => {
+          const firstItem = ventaGuardada.items[0];
+          const uniqueTipos = Array.from(
+            new Set(ventaGuardada.items.map((item) => item.tipoCafe).filter(Boolean)),
+          );
+          const uniqueCalidades = Array.from(
+            new Set(ventaGuardada.items.map((item) => item.calidad).filter(Boolean)),
+          );
 
-            return shareMovementSummary({
-              type: 'venta',
-              format,
-              data: {
-                cliente: ventaGuardada.clienteNombre,
-                tipoCafe:
-                  uniqueTipos.length === 1
-                    ? uniqueTipos[0]
-                    : firstItem?.tipoCafe
-                      ? 'Varios'
-                      : undefined,
-                calidad:
-                  uniqueCalidades.length === 1
-                    ? uniqueCalidades[0]
-                    : firstItem?.calidad
-                      ? 'Varias'
-                      : undefined,
-                totalKg: ventaGuardada.totalKg,
-                precioKg:
-                  ventaGuardada.totalKg > 0
-                    ? ventaGuardada.totalVenta / ventaGuardada.totalKg
+          return shareMovementSummary({
+            type: 'venta',
+            format,
+            data: {
+              cliente: ventaGuardada.clienteNombre,
+              tipoCafe:
+                uniqueTipos.length === 1
+                  ? uniqueTipos[0]
+                  : firstItem?.tipoCafe
+                    ? 'Varios'
                     : undefined,
-                totalVenta: ventaGuardada.totalVenta,
-                fecha: ventaGuardada.fecha,
-                referencia: ventaGuardada.referenciaId,
-              },
-            });
-          }}
-          capacityNotice={
-            ventaGuardada.items.length > 0 ? (
-              <section className="rounded-[18px] border border-blue-100 bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-800">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-950 dark:text-slate-100">
-                      Historial completo de la venta
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">
-                      {ventaGuardada.items.length} registros · {kg(ventaGuardada.totalKg)} · {money(ventaGuardada.totalVenta)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowDetails((value) => !value)}
-                    className="inline-flex min-h-[34px] shrink-0 items-center justify-center rounded-[12px] border border-[#cdd8ef] bg-white px-3 text-xs font-black text-[#173ea6] transition hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-slate-700"
-                    {...ariaExpanded(showDetails)}
-                  >
-                    {showDetails ? 'Ocultar' : 'Ver detalles'}
-                  </button>
-                </div>
-
-                {showDetails ? (
-                  <div className="mt-3 space-y-2">
-                    {ventaGuardada.items.map((item, index) => (
-                      <article
-                        key={`${item.codigo}-${index}`}
-                        className="rounded-[14px] border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
-                      >
-                        <p className="text-sm font-black uppercase text-slate-950 dark:text-slate-100">
-                          {[item.tipoCafe, item.calidad].filter(Boolean).join(' ') || item.codigo}
-                        </p>
-                        <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-300">
-                          {kg(item.cantidadKg)} · {money(item.subtotal)}
-                        </p>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            ) : null
-          }
-          rows={[
-            {
-              icon: '1',
-              label: 'Cliente',
-              value: ventaGuardada.clienteNombre,
+              calidad:
+                uniqueCalidades.length === 1
+                  ? uniqueCalidades[0]
+                  : firstItem?.calidad
+                    ? 'Varias'
+                    : undefined,
+              totalKg: ventaGuardada.totalKg,
+              precioKg:
+                ventaGuardada.totalKg > 0
+                  ? ventaGuardada.totalVenta / ventaGuardada.totalKg
+                  : undefined,
+              totalVenta: ventaGuardada.totalVenta,
+              fecha: ventaGuardada.fecha,
+              referencia: ventaGuardada.referenciaId,
+              items: ventaGuardada.items.map((item) => ({
+                tipoCafe: item.tipoCafe,
+                calidad: item.calidad,
+                cantidadKg: item.cantidadKg,
+                precioKg: item.cantidadKg > 0 ? item.subtotal / item.cantidadKg : 0,
+                subtotal: item.subtotal,
+              })),
             },
-            {
-              icon: <ShoppingCart size={16} />,
-              label: 'Total kg',
-              value: kg(ventaGuardada.totalKg),
-            },
-          ]}
-        />
-      </div>
+          });
+        }}
+        history={{
+          title: 'Historial completo de la venta',
+          summary: `${ventaGuardada.items.length} registros · ${kg(ventaGuardada.totalKg)} · ${money(ventaGuardada.totalVenta)}`,
+          items: ventaGuardada.items.map((item) => ({
+            title: [item.tipoCafe, item.calidad].filter(Boolean).join(' ') || item.codigo,
+            detail: `${kg(item.cantidadKg)} · ${money(item.subtotal)}`,
+            meta: item.cantidadKg > 0 ? `${money(item.subtotal / item.cantidadKg)}/kg` : undefined,
+          })),
+        }}
+        rows={[
+          {
+            icon: '1',
+            label: 'Cliente',
+            value: ventaGuardada.clienteNombre,
+          },
+          {
+            icon: <ShoppingCart size={16} />,
+            label: 'Total kg',
+            value: kg(ventaGuardada.totalKg),
+          },
+        ]}
+      />
     );
   }
 
@@ -3966,7 +3940,7 @@ export default function Ventas() {
                     Tipo de documento
                   </label>
                   <p className={clienteModalHintClass}>
-                    Selecciona si el cliente usa cédula o NIT.
+                    Selecciona el tipo de documento del cliente.
                   </p>
                   <div className="mt-2">
                     <CompactSelect
@@ -4009,7 +3983,13 @@ export default function Ventas() {
                     id="cliente-documento"
                     type="text"
                     inputMode={
-                      clienteForm.tipoDocumento === 'NIT' ? 'text' : 'numeric'
+                      clienteForm.tipoDocumento === 'NIT' ||
+                      clienteForm.tipoDocumento === 'CE' ||
+                      clienteForm.tipoDocumento === 'PASAPORTE' ||
+                      clienteForm.tipoDocumento === 'PEP' ||
+                      clienteForm.tipoDocumento === 'OTRO'
+                        ? 'text'
+                        : 'numeric'
                     }
                     disabled={!clienteForm.tipoDocumento}
                     onPaste={(event) => {
@@ -4017,7 +3997,19 @@ export default function Ventas() {
                         event.preventDefault();
                       }
                     }}
-                    maxLength={clienteForm.tipoDocumento === 'NIT' ? 11 : 10}
+                    maxLength={
+                      clienteForm.tipoDocumento === 'NIT'
+                        ? 11
+                        : clienteForm.tipoDocumento === 'PASAPORTE'
+                          ? 20
+                          : clienteForm.tipoDocumento === 'CE' ||
+                              clienteForm.tipoDocumento === 'PEP' ||
+                              clienteForm.tipoDocumento === 'OTRO'
+                            ? 25
+                            : clienteForm.tipoDocumento === 'TI'
+                              ? 11
+                              : 10
+                    }
                     value={clienteForm.documento}
                     aria-invalid={clienteFormErrors.documento ? 'true' : 'false'}
                     aria-describedby={clienteFormErrors.documento ? 'cliente-documento-error' : undefined}
@@ -4061,14 +4053,14 @@ export default function Ventas() {
                   <input
                     id="cliente-telefono"
                     type="text"
-                    inputMode="numeric"
-                    maxLength={12}
+                    inputMode="tel"
+                    maxLength={18}
                     value={clienteForm.telefono}
                     aria-invalid={clienteFormErrors.telefono ? 'true' : 'false'}
                     aria-describedby={clienteFormErrors.telefono ? 'cliente-telefono-error' : undefined}
                     onChange={(event) => {
                       const raw = event.target.value;
-                      const hasInvalid = /[^\d\s]/.test(raw);
+                      const hasInvalid = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s()+-]/.test(raw);
                       const next = formatPhoneNumber(raw);
                       setClienteForm((actual) => ({
                         ...actual,
@@ -4085,7 +4077,7 @@ export default function Ventas() {
                     placeholder="Ej. 300 123 4567"
                     className={getClienteModalInputClass(Boolean(clienteFormErrors.telefono))}
                   />
-                  <p className={clienteModalHintClass}>Número celular colombiano.</p>
+                  <p className={clienteModalHintClass}>Teléfono con prefijo internacional opcional.</p>
                   {clienteFormErrors.telefono ? (
                     <ClienteModalFieldError id="cliente-telefono-error" message={clienteFormErrors.telefono} />
                   ) : null}

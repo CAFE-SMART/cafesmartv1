@@ -14,6 +14,11 @@ export const CLIENTE_SORT_OPTIONS: Array<{ value: ClienteSortMode; label: string
 export const DOCUMENT_TYPE_OPTIONS = [
   { value: 'CEDULA' as const, label: 'Cédula' },
   { value: 'NIT' as const, label: 'NIT' },
+  { value: 'TI' as const, label: 'Tarjeta de identidad' },
+  { value: 'CE' as const, label: 'Cédula de extranjería' },
+  { value: 'PASAPORTE' as const, label: 'Pasaporte' },
+  { value: 'PEP' as const, label: 'PEP' },
+  { value: 'OTRO' as const, label: 'Otro' },
 ];
 
 export const VENTA_FILTRO_TODOS = 'TODOS';

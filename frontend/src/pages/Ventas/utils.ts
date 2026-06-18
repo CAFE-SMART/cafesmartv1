@@ -288,8 +288,8 @@ export function getVentasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Teléfono inválido.',
-      'Número celular colombiano opcional.',
-      'Ingresa un celular válido que empiece por 3 y tenga 10 dígitos.',
+      'Teléfono opcional con prefijo internacional si aplica.',
+      'Ingresa entre 7 y 15 dígitos. Puedes usar + al inicio.',
     );
   }
 
@@ -300,7 +300,7 @@ export function getVentasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Selecciona el tipo de documento.',
-      'Selecciona si el cliente usa cédula o NIT.',
+      'Selecciona el tipo de documento del cliente.',
       'Luego escribe el número de documento.',
     );
   }

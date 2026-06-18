@@ -8,12 +8,13 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from '../../../styles/uiClasses';
+import type { DocumentType } from '../../../utils/personValidation';
 
 export interface ClienteFormData {
   nombre: string;
   telefono: string;
   documento: string;
-  tipoDocumento: 'CEDULA' | 'NIT' | '';
+  tipoDocumento: DocumentType | '';
 }
 
 export interface ClienteFormErrors {
@@ -34,9 +35,14 @@ interface FormularioClienteProps {
 }
 
 const MAX_NOMBRE_CARACTERES = 60;
-const DOCUMENT_TYPE_OPTIONS: Array<{ value: 'CEDULA' | 'NIT'; label: string }> = [
+const DOCUMENT_TYPE_OPTIONS: Array<{ value: DocumentType; label: string }> = [
   { value: 'CEDULA', label: 'Cédula' },
   { value: 'NIT', label: 'NIT' },
+  { value: 'TI', label: 'Tarjeta de identidad' },
+  { value: 'CE', label: 'Cédula de extranjería' },
+  { value: 'PASAPORTE', label: 'Pasaporte' },
+  { value: 'PEP', label: 'PEP' },
+  { value: 'OTRO', label: 'Otro' },
 ];
 
 export function FormularioCliente({
@@ -92,7 +98,7 @@ export function FormularioCliente({
               <label className={fieldLabelClass}>
                 Tipo de documento
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {DOCUMENT_TYPE_OPTIONS.map((option) => (
                   <button
                     key={option.value}

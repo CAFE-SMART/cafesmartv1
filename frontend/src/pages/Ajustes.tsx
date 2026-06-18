@@ -59,8 +59,12 @@ import {
 } from '../services/lotesService';
 import {
   obtenerConfiguracionBodega,
-  guardarConfiguracionBodega,
   guardarLimitesEntrada,
+  listarBodegas,
+  crearBodega,
+  editarBodega,
+  eliminarBodega,
+  type BodegaItem,
 } from '../services/bodegaApi';
 import {
   guardarLimitesEntradaLocales,
@@ -84,6 +88,8 @@ import {
 import {
   actualizarConfiguracionOrganizacion,
   actualizarPerfilUsuario,
+  quitarFotoPerfilRemota,
+  subirFotoPerfil,
 } from '../services/userSettingsService';
 import {
   fieldHelpTextClass,
@@ -210,12 +216,12 @@ type PeopleAdminForm = {
 
 const PROFILE_NAME_MAX_LENGTH = 60;
 const PROFILE_EMAIL_MAX_LENGTH = 60;
-const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const PROFILE_AVATAR_ALLOWED_TYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/jpg',
-  'image/gif',
+  'image/webp',
 ]);
 
 function validateProfileName(value: string) {
@@ -240,16 +246,8 @@ function validateProfileEmail(value: string) {
 }
 
 function validateColombianPhone(value: string) {
-  const raw = value.trim();
-  const digits = sanitizeDigits(raw, 10);
-  if (!raw) return null;
-  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw)) {
-    return 'No uses letras ni símbolos.';
-  }
-  if (/[^\d\s]/.test(raw)) return 'No uses letras ni símbolos.';
-  if (digits.length !== 10) return 'El celular debe tener 10 números.';
-  if (!digits.startsWith('3')) return 'El celular debe empezar por 3.';
-  return null;
+  const result = validatePhoneNumber(value, 'El teléfono', { optional: true });
+  return result.isValid ? null : result.message ?? 'Revisa el teléfono.';
 }
 
 function getInitials(value: string) {
@@ -546,6 +544,7 @@ export default function Ajustes() {
     () => user?.avatarUrl ?? '',
   );
   const [profileAvatarDraft, setProfileAvatarDraft] = useState<string | null>(null);
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
   const [profileAvatarRemove, setProfileAvatarRemove] = useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
@@ -561,6 +560,16 @@ export default function Ajustes() {
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
   const [capacidadKg, setCapacidadKg] = useState('');
+  const [ubicacionBodega, setUbicacionBodega] = useState('');
+  const [bodegas, setBodegas] = useState<BodegaItem[]>([]);
+  const [bodegasLoading, setBodegasLoading] = useState(false);
+  const [bodegaFormOpen, setBodegaFormOpen] = useState(false);
+  const [bodegaEditando, setBodegaEditando] = useState<BodegaItem | null>(null);
+  const [bodegaDeleteTarget, setBodegaDeleteTarget] = useState<BodegaItem | null>(null);
+  const [bodegaFeedback, setBodegaFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
   const [limitesTab, setLimitesTab] = useState<LimitesTab>('todos');
   const [limitMinPesoCompraKg, setLimitMinPesoCompraKg] = useState(
     String(initialLimites.minPesoCompraKg),
@@ -709,11 +718,16 @@ export default function Ajustes() {
 
   const abrirEditorBodega = () => {
     clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaFormOpen(false);
+    setBodegaEditando(null);
+    setBodegaDeleteTarget(null);
     setIsEditingBodega(true);
     setIsEditingCompany(false);
     setIsEditingProfile(false);
     setIsViewingPublicProfile(false);
     setIsEditingLimites(false);
+    void cargarBodegas();
   };
 
   const abrirEditorLimites = () => {
@@ -736,6 +750,7 @@ export default function Ajustes() {
     profileBaselineRef.current = profile;
     setProfileErrors({});
     setProfileAvatarDraft(null);
+    setProfileAvatarFile(null);
     setProfileAvatarRemove(false);
     setProfileFeedback(null);
     setIsEditingProfile(true);
@@ -752,6 +767,7 @@ export default function Ajustes() {
     }
     setProfileErrors({});
     setProfileAvatarDraft(null);
+    setProfileAvatarFile(null);
     setProfileAvatarRemove(false);
     setProfileFeedback(null);
     profileBaselineRef.current = null;
@@ -786,7 +802,32 @@ export default function Ajustes() {
 
   const cerrarEditorBodega = () => {
     clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaFormOpen(false);
+    setBodegaEditando(null);
+    setBodegaDeleteTarget(null);
     setIsEditingBodega(false);
+  };
+
+  const abrirCrearBodega = () => {
+    clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaEditando(null);
+    setNombreBodega('');
+    setUbicacionBodega('');
+    setCapacidadKg('');
+    setBodegaFormOpen(true);
+  };
+
+  const abrirEditarBodega = (bodega: BodegaItem) => {
+    clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaEditando(bodega);
+    setNombreBodega(bodega.nombre);
+    setUbicacionBodega(bodega.ubicacion ?? '');
+    setCapacidadKg(String(Math.round(bodega.capacidadMaxKg)));
+    setInventarioActualKg(bodega.cafeAlmacenadoKg);
+    setBodegaFormOpen(true);
   };
 
   const cerrarEditorLimites = () => {
@@ -1096,11 +1137,32 @@ export default function Ajustes() {
     void cargarConfiguracionBodega();
   }, []);
 
-  const capacidadRestante = useMemo(() => {
-    const numeric = Number(capacidadKg);
-    if (!capacidadKg.trim() || !Number.isFinite(numeric)) return null;
-    return Math.max(0, numeric - inventarioActualKg);
-  }, [capacidadKg, inventarioActualKg]);
+  const cargarBodegas = async () => {
+    setBodegasLoading(true);
+    try {
+      const items = await listarBodegas();
+      setBodegas(items);
+      const principal = items.find((item) => item.esPrincipal) ?? items[0];
+      if (principal) {
+        setNombreBodega(principal.nombre);
+        setCapacidadKg(String(Math.round(principal.capacidadMaxKg)));
+        setUbicacionBodega(principal.ubicacion ?? '');
+        setInventarioActualKg(principal.cafeAlmacenadoKg);
+        setUpdatedAt(principal.updatedAt);
+      }
+    } catch {
+      setBodegaFeedback({
+        variant: 'error',
+        message: 'No pudimos cargar las bodegas. Intenta nuevamente.',
+      });
+    } finally {
+      setBodegasLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void cargarBodegas();
+  }, []);
 
   const peopleItems =
     peopleMode === 'clientes'
@@ -1155,7 +1217,7 @@ export default function Ajustes() {
     if (!isAllowedAvatarType(file.type)) {
       setProfileFeedback({
         variant: 'error',
-        message: 'Formato no permitido. Usa PNG, JPG o GIF.',
+        message: 'Formato no permitido. Usa JPG, PNG o WEBP.',
       });
       return;
     }
@@ -1171,7 +1233,7 @@ export default function Ajustes() {
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
       setProfileFeedback({
         variant: 'error',
-        message: 'La imagen es demasiado pesada. Elige una imagen menor a 5 MB.',
+        message: 'La imagen es demasiado pesada. Elige una imagen menor a 2 MB.',
       });
       return;
     }
@@ -1179,12 +1241,11 @@ export default function Ajustes() {
     try {
       const dataUrl = await readFileAsDataUrl(file);
       setProfileAvatarDraft(dataUrl);
+      setProfileAvatarFile(file);
       setProfileAvatarRemove(false);
       setProfileFeedback({
-        variant: isOffline ? 'warning' : 'success',
-        message: isOffline
-          ? 'Foto guardada como borrador en este dispositivo.'
-          : 'Vista previa lista. Guarda cambios para conservarla.',
+        variant: 'success',
+        message: 'Vista previa lista. Guarda cambios para conservarla.',
       });
     } catch {
       setProfileFeedback({
@@ -1196,6 +1257,7 @@ export default function Ajustes() {
 
   const quitarFotoPerfil = () => {
     setProfileAvatarDraft(null);
+    setProfileAvatarFile(null);
     setProfileAvatarRemove(true);
     setProfileFeedback({
       variant: 'warning',
@@ -1234,18 +1296,24 @@ export default function Ajustes() {
       correo: profile.correo.trim().slice(0, PROFILE_EMAIL_MAX_LENGTH),
       telefono,
     };
-    const nextAvatarUrl = profileAvatarRemove
-      ? null
-      : profileAvatarDraft ?? profileAvatarUrl ?? null;
+
+    if (isOffline && (profileAvatarFile || profileAvatarRemove)) {
+      const message =
+        'Conéctate a internet para guardar la foto de perfil en la nube.';
+      setProfileFeedback({ variant: 'warning', message });
+      setError(message);
+      return;
+    }
 
     try {
       setGuardandoPerfil(true);
-      const perfilActualizado = isOffline
+      let perfilActualizado = isOffline
         ? {
             id: user?.id ?? '',
             nombre: normalizedProfile.nombre,
             correo: normalizedProfile.correo,
             telefono: normalizedProfile.telefono || null,
+            avatarUrl: profileAvatarUrl || null,
             organizacionId: user?.organizacionId ?? null,
           }
         : await actualizarPerfilUsuario({
@@ -1253,6 +1321,14 @@ export default function Ajustes() {
             correo: normalizedProfile.correo,
             telefono: normalizedProfile.telefono || null,
           });
+
+      if (!isOffline && profileAvatarRemove) {
+        perfilActualizado = await quitarFotoPerfilRemota();
+      } else if (!isOffline && profileAvatarFile) {
+        perfilActualizado = await subirFotoPerfil(profileAvatarFile);
+      }
+
+      const nextAvatarUrl = perfilActualizado.avatarUrl ?? null;
 
       const nextProfile = {
         nombre: perfilActualizado.nombre,
@@ -1266,6 +1342,7 @@ export default function Ajustes() {
       }));
       setProfileAvatarUrl(nextAvatarUrl ?? '');
       setProfileAvatarDraft(null);
+      setProfileAvatarFile(null);
       setProfileAvatarRemove(false);
       profileBaselineRef.current = nextProfile;
       setProfileErrors({});
@@ -1396,12 +1473,14 @@ export default function Ajustes() {
       optional: false,
       type: tipoDocumento,
     });
-    const telefono = sanitizeDigits(peopleForm.telefono, 10);
+    const telefono = peopleForm.telefono.trim();
     const telefonoError = validateColombianPhone(peopleForm.telefono);
     const duplicates = [...clientesAdmin, ...productoresAdmin].some(
       (item) =>
         !(item.id === peopleEditing.id && item.contactType === peopleEditing.contactType) &&
-        sanitizeDigits(item.documento, 10) === sanitizeDigits(documento, 10),
+        item.contactType === peopleEditing.contactType &&
+        item.tipoDocumento === tipoDocumento &&
+        normalizeDocumentForStorage(item.documento, item.tipoDocumento) === documento,
     );
     const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
 
@@ -1456,46 +1535,123 @@ export default function Ajustes() {
   const guardarBodega = async () => {
     const capacidad = Number(capacidadKg);
     clearFeedback();
+    setBodegaFeedback(null);
 
     if (isOffline) {
-      setError(OFFLINE_BLOCKED_ACTION_MESSAGE);
+      setBodegaFeedback({
+        variant: 'warning',
+        message: OFFLINE_BLOCKED_ACTION_MESSAGE,
+      });
       return;
     }
 
     if (!nombreBodega.trim()) {
-      const message = 'Escribe un nombre para la bodega.';
-      setError(message);
+      setBodegaFeedback({
+        variant: 'error',
+        message: 'Ingresa el nombre de la bodega.',
+      });
       return;
     }
 
     if (!Number.isFinite(capacidad) || capacidad <= 0) {
-      const message = 'La capacidad debe ser mayor que 0.';
-      setError(message);
+      setBodegaFeedback({
+        variant: 'error',
+        message: 'La capacidad debe ser mayor que 0 kg.',
+      });
       return;
     }
 
     if (capacidad < inventarioActualKg) {
-      const message =
-        'La capacidad no puede ser menor al inventario actual almacenado.';
-      setError(message);
+      setBodegaFeedback({
+        variant: 'error',
+        message: 'La capacidad no puede ser menor al café almacenado actualmente.',
+      });
       return;
     }
 
     try {
       setGuardandoBodega(true);
-      const result = await guardarConfiguracionBodega({
-        nombreBodega,
-        capacidadKg: capacidad,
-      });
+      const payload = {
+        nombre: nombreBodega.trim(),
+        ubicacion: ubicacionBodega.trim() || undefined,
+        capacidadMaxKg: capacidad,
+      };
 
-      setNombreBodega(result.nombreBodega);
-      setCapacidadKg(result.capacidadKg ? String(result.capacidadKg) : '');
-      setUpdatedAt(result.updatedAt);
-      setSuccess('Capacidad de bodega actualizada correctamente.');
+      if (bodegaEditando) {
+        await editarBodega(bodegaEditando.id, {
+          ...payload,
+          activa: bodegaEditando.activa,
+          esPrincipal: bodegaEditando.esPrincipal,
+        });
+        setBodegaFeedback({
+          variant: 'success',
+          message: 'Bodega actualizada correctamente.',
+        });
+      } else {
+        await crearBodega(payload);
+        setBodegaFeedback({
+          variant: 'success',
+          message: 'Bodega creada correctamente.',
+        });
+      }
+
+      setBodegaFormOpen(false);
+      setBodegaEditando(null);
+      await cargarBodegas();
     } catch (err) {
-      const message =
-        'No pudimos guardar la capacidad. Revisa tu conexión e intenta nuevamente.';
-      setError(message);
+      setBodegaFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos guardar la bodega. Intenta nuevamente.',
+      });
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
+
+  const confirmarEliminarBodega = async () => {
+    if (!bodegaDeleteTarget) return;
+
+    clearFeedback();
+    setBodegaFeedback(null);
+
+    if (bodegas.length <= 1) {
+      setBodegaFeedback({
+        variant: 'warning',
+        message: 'Debe existir al menos una bodega registrada.',
+      });
+      setBodegaDeleteTarget(null);
+      return;
+    }
+
+    if (bodegaDeleteTarget.cafeAlmacenadoKg > 0) {
+      setBodegaFeedback({
+        variant: 'warning',
+        message: 'No puedes eliminar esta bodega porque tiene inventario activo.',
+      });
+      setBodegaDeleteTarget(null);
+      return;
+    }
+
+    try {
+      setGuardandoBodega(true);
+      await eliminarBodega(bodegaDeleteTarget.id);
+      setBodegaDeleteTarget(null);
+      setBodegaFeedback({
+        variant: 'success',
+        message: 'Bodega eliminada correctamente.',
+      });
+      await cargarBodegas();
+    } catch (err) {
+      setBodegaFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos eliminar la bodega. Intenta nuevamente.',
+      });
     } finally {
       setGuardandoBodega(false);
     }
@@ -1729,7 +1885,7 @@ export default function Ajustes() {
       nextForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = sanitizeDigits(nextForm.telefono, 10);
+    const telefonoNormalizado = nextForm.telefono.replace(/\D/g, '');
     const contactos = [...clientesAdmin, ...productoresAdmin].filter(
       (item) =>
         !(
@@ -1742,6 +1898,7 @@ export default function Ajustes() {
     if (documentoNormalizado) {
       const documentoDuplicado = contactos.some(
         (item) =>
+          item.contactType === currentEditing?.contactType &&
           item.tipoDocumento === tipoDocumento &&
           normalizeDocumentForStorage(item.documento, item.tipoDocumento) ===
             documentoNormalizado,
@@ -1754,9 +1911,11 @@ export default function Ajustes() {
       }
     }
 
-    if (telefonoNormalizado.length === 10) {
+    if (telefonoNormalizado.length >= 7) {
       const telefonoDuplicado = contactos.some(
-        (item) => sanitizeDigits(item.telefono, 10) === telefonoNormalizado,
+        (item) =>
+          item.contactType === currentEditing?.contactType &&
+          item.telefono.replace(/\D/g, '') === telefonoNormalizado,
       );
       if (telefonoDuplicado) {
         nextErrors.telefono = 'Este número ya está registrado.';
@@ -1803,7 +1962,7 @@ export default function Ajustes() {
       peopleForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = sanitizeDigits(peopleForm.telefono, 10);
+    const telefonoNormalizado = peopleForm.telefono.trim();
     const nombreValidation =
       tipoDocumento === 'NIT'
         ? validateCompanyName(peopleForm.nombre)
@@ -1821,6 +1980,7 @@ export default function Ajustes() {
     const duplicated = [...clientesAdmin, ...productoresAdmin].find(
       (item) =>
         !(item.id === peopleEditing.id && item.contactType === peopleEditing.contactType) &&
+        item.contactType === peopleEditing.contactType &&
         item.tipoDocumento === tipoDocumento &&
         normalizeDocumentForStorage(item.documento, item.tipoDocumento) === documentoNormalizado,
     );
@@ -1882,6 +2042,24 @@ export default function Ajustes() {
           : 'Contacto registrado correctamente.',
       );
     } catch (err) {
+      const apiError = err as { status?: number; code?: string; message?: string };
+      if (
+        apiError.status === 409 ||
+        apiError.code === 'DOCUMENT_ALREADY_EXISTS' ||
+        /documento|registrad|duplicad/i.test(apiError.message ?? '')
+      ) {
+        const message =
+          peopleEditing.contactType === 'cliente'
+            ? 'Este cliente ya está registrado con este documento.'
+            : 'Este productor ya está registrado con este documento.';
+        setPeopleFormErrors((current) => ({
+          ...current,
+          documento: message,
+        }));
+        setPeopleFormError(message);
+        return;
+      }
+
       const message =
         err instanceof Error
           ? err.message
@@ -2715,7 +2893,7 @@ export default function Ajustes() {
                 <input
                   ref={avatarInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/gif"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
                   className="hidden"
                   onChange={(event) => void seleccionarFotoPerfil(event)}
                 />
@@ -2736,9 +2914,6 @@ export default function Ajustes() {
                     Quitar foto
                   </button>
                 </div>
-                <p className="mt-3 text-center text-xs font-semibold text-blue-100">
-                  Puedes usar imágenes PNG, JPG o GIF.
-                </p>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
@@ -2865,16 +3040,16 @@ export default function Ajustes() {
                 Número de teléfono
               </label>
               <p className={fieldHelpTextClass}>
-                Número celular colombiano.
+                Teléfono.
               </p>
               <input
                 type="tel"
                 value={profile.telefono}
-                inputMode="numeric"
-                maxLength={12}
+                inputMode="tel"
+                maxLength={18}
                 onChange={(event) => {
                   const raw = event.target.value;
-                  const hasInvalid = /[^\d\s]/.test(raw);
+                  const hasInvalid = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s()+-]/.test(raw);
                   const next = formatPhoneNumber(raw);
                   setProfile((prev) => ({
                     ...prev,
@@ -3906,149 +4081,349 @@ export default function Ajustes() {
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
           <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
             <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
-                Capacidad de bodega
-              </h3>
+            <div className="mt-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
+                  Bodegas
+                </h3>
+                <p className="mt-1 text-[0.78rem] font-semibold text-slate-500 dark:text-slate-300">
+                  Administra los puntos de almacenamiento de tu negocio.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={cerrarEditorBodega}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-transparent bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
-                aria-label="Cerrar"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+                aria-label="Cerrar bodegas"
               >
                 <X size={20} />
               </button>
             </div>
 
             <div className="mt-4 space-y-3">
-              {limitNotice ? (
-                <AppFeedbackMessage variant="warning" description={limitNotice} />
-              ) : null}
-              <div>
-                <p className={fieldLabelClass}>
-                  Nombre
-                </p>
-                <input
-                  type="text"
-                  maxLength={BODEGA_NAME_MAX_LENGTH}
-                  value={nombreBodega}
-                  onChange={(event) => {
-                    if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
-                      showLimitNotice();
-                    }
-                    setNombreBodega(sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH));
-                    clearFeedback();
-                  }}
-                  className={fieldInputClass}
-                  placeholder="Bodega principal"
-                />
-                <p className="mt-1 text-right text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
-                  {nombreBodega.length}/{BODEGA_NAME_MAX_LENGTH}
-                </p>
-              </div>
-
-              <div>
-                <p className={fieldLabelClass}>
-                  Capacidad max. (kg)
-                </p>
-                <input
-                  type="number"
-                  min="1"
-                  max={BODEGA_CAPACITY_MAX_KG}
-                  step="1"
-                  value={capacidadKg}
-                  onChange={(event) => {
-                    if (event.target.value.replace(/\D/g, '').length >= 6) {
-                      showLimitNotice();
-                    }
-                    setCapacidadKg(
-                      sanitizePositiveIntegerInput(
-                        event.target.value,
-                        BODEGA_CAPACITY_MAX_KG,
-                      ),
-                    );
-                    clearFeedback();
-                  }}
-                  className={fieldInputClass}
-                  placeholder="6000"
-                />
-                <p className="mt-1 text-[0.62rem] font-bold text-slate-500 dark:text-slate-400">
-                  Máximo recomendado: 100.000 kg
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-[10px] border border-slate-200 bg-[#f6f7fd] px-3 py-2.5 dark:border-slate-600 dark:bg-slate-950">
-                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500 dark:text-slate-300">
-                    En bodega
-                  </p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900 dark:text-slate-100">
-                    {loadingStock
-                      ? 'Cargando...'
-                      : `${formatKg(inventarioActualKg)} kg`}
-                  </p>
-                  <p className="mt-0.5 text-[0.58rem] text-slate-500 dark:text-slate-400">
-                    Almacenados
-                  </p>
-                </div>
-                <div className="rounded-[10px] border border-slate-200 bg-[#f6f7fd] px-3 py-2.5 dark:border-slate-600 dark:bg-slate-950">
-                  <p className="text-[0.58rem] font-black uppercase tracking-[0.06em] text-slate-500 dark:text-slate-300">
-                    Disponible
-                  </p>
-                  <p className="mt-1 text-[0.9rem] font-black leading-tight text-slate-900 dark:text-slate-100">
-                    {capacidadRestante !== null
-                      ? `${formatKg(capacidadRestante)} kg`
-                      : 'Sin dato'}
-                  </p>
-                  <p className="mt-0.5 text-[0.58rem] text-slate-500 dark:text-slate-400">Libres</p>
-                </div>
-              </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={guardarBodega}
-                  disabled={guardandoBodega}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-semibold text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600 dark:hover:bg-blue-500"
-                >
-                  {guardandoBodega ? (
-                    <LoaderCircle size={14} className="animate-spin" />
-                  ) : (
-                    <Save size={14} />
-                  )}
-                  {guardandoBodega ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-              </div>
-              {success === 'Capacidad de bodega actualizada correctamente.' ? (
+              {bodegaFeedback ? (
                 <AppFeedbackMessage
-                  variant="success"
-                  description="Capacidad de bodega actualizada correctamente."
+                  variant={bodegaFeedback.variant}
+                  description={bodegaFeedback.message}
                   action={
-                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <button
+                      type="button"
+                      onClick={() => setBodegaFeedback(null)}
+                      aria-label="Cerrar aviso de bodegas"
+                    >
                       <X size={14} />
                     </button>
                   }
                 />
               ) : null}
-              {error ? (
-                <div>
-                  <InlineGuidedError message={getAjustesGuidance(error)} />
-                  {error.includes('No pudimos guardar') ? (
-                    <button
-                      type="button"
-                      onClick={() => void guardarBodega()}
-                      className="mt-2 rounded-[12px] bg-[#102d92] px-4 py-2 text-xs font-black text-white"
-                    >
-                      Reintentar
-                    </button>
-                  ) : null}
+
+              <button
+                type="button"
+                onClick={abrirCrearBodega}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-black text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 disabled:opacity-70 dark:bg-blue-600 dark:hover:bg-blue-500"
+              >
+                <Warehouse size={16} />
+                Crear bodega
+              </button>
+
+              {bodegasLoading ? (
+                <div className="space-y-2">
+                  {[0, 1].map((item) => (
+                    <div
+                      key={item}
+                      className="h-[132px] animate-pulse rounded-[16px] bg-slate-100 dark:bg-slate-800"
+                    />
+                  ))}
                 </div>
-              ) : null}
+              ) : bodegas.length === 0 ? (
+                <CafeSmartEmptyState
+                  icon={<Warehouse size={22} />}
+                  title="Sin bodegas registradas"
+                  description="Crea la primera bodega para controlar tu capacidad."
+                />
+              ) : (
+                <div className="space-y-2.5">
+                  {bodegas.map((bodega) => (
+                    <article
+                      key={bodega.id}
+                      className="rounded-[16px] border border-[#e5eaf4] bg-[#fbfcff] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h4 className="truncate text-[0.95rem] font-black text-slate-950 dark:text-slate-100">
+                              {bodega.nombre}
+                            </h4>
+                            {bodega.esPrincipal ? (
+                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[0.55rem] font-black uppercase text-blue-700 dark:bg-blue-500/15 dark:text-blue-100">
+                                Principal
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                            {bodega.ubicacion?.trim() || 'Sin ubicación registrada'}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => abrirEditarBodega(bodega)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                            aria-label={`Editar ${bodega.nombre}`}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          {bodegas.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (bodega.cafeAlmacenadoKg > 0) {
+                                  setBodegaFeedback({
+                                    variant: 'warning',
+                                    message:
+                                      'No puedes eliminar esta bodega porque tiene inventario activo.',
+                                  });
+                                  return;
+                                }
+                                setBodegaDeleteTarget(bodega);
+                              }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-rose-200 bg-rose-50 text-rose-700"
+                              aria-label={`Eliminar ${bodega.nombre}`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="rounded-[12px] bg-white px-2.5 py-2 dark:bg-slate-900">
+                          <p className="text-[0.55rem] font-black uppercase text-slate-500 dark:text-slate-400">
+                            Capacidad
+                          </p>
+                          <p className="mt-1 text-[0.72rem] font-black text-slate-950 dark:text-slate-100">
+                            {formatKg(bodega.cafeAlmacenadoKg)} / {formatKg(bodega.capacidadMaxKg)} kg
+                          </p>
+                        </div>
+                        <div className="rounded-[12px] bg-white px-2.5 py-2 dark:bg-slate-900">
+                          <p className="text-[0.55rem] font-black uppercase text-slate-500 dark:text-slate-400">
+                            Disponible
+                          </p>
+                          <p className="mt-1 text-[0.72rem] font-black text-slate-950 dark:text-slate-100">
+                            {formatKg(bodega.disponibleKg)} kg
+                          </p>
+                        </div>
+                        <div className="rounded-[12px] bg-white px-2.5 py-2 dark:bg-slate-900">
+                          <p className="text-[0.55rem] font-black uppercase text-slate-500 dark:text-slate-400">
+                            Ocupación
+                          </p>
+                          <p className="mt-1 text-[0.72rem] font-black text-slate-950 dark:text-slate-100">
+                            {Math.round(bodega.ocupacionPct)}%
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-[#102d92] dark:bg-blue-500"
+                          style={{ width: `${Math.min(100, Math.max(0, bodega.ocupacionPct))}%` }}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
                 <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
             </div>
           </div>
+
+          {bodegaFormOpen ? (
+            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/50 px-5 py-6 backdrop-blur-sm">
+              <section className="max-h-[88vh] w-full max-w-[390px] overflow-y-auto rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
+                      {bodegaEditando ? 'Editar bodega' : 'Crear bodega'}
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                      Registra un punto de almacenamiento para tu café.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBodegaFormOpen(false);
+                      setBodegaEditando(null);
+                      setBodegaFeedback(null);
+                    }}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                    aria-label="Cerrar formulario de bodega"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {bodegaFeedback && bodegaFeedback.variant !== 'success' ? (
+                    <AppFeedbackMessage
+                      variant={bodegaFeedback.variant}
+                      description={bodegaFeedback.message}
+                    />
+                  ) : null}
+                  {limitNotice ? (
+                    <AppFeedbackMessage variant="warning" description={limitNotice} />
+                  ) : null}
+                  <label className="block">
+                    <span className={fieldLabelClass}>Nombre de bodega</span>
+                    <input
+                      type="text"
+                      maxLength={BODEGA_NAME_MAX_LENGTH}
+                      value={nombreBodega}
+                      onChange={(event) => {
+                        if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                          showLimitNotice();
+                        }
+                        setNombreBodega(
+                          sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
+                        );
+                        setBodegaFeedback(null);
+                      }}
+                      className={fieldInputClass}
+                      placeholder="Bodega principal"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className={fieldLabelClass}>Ubicación o descripción</span>
+                    <input
+                      type="text"
+                      maxLength={120}
+                      value={ubicacionBodega}
+                      onChange={(event) => {
+                        setUbicacionBodega(sanitizeLimitedText(event.target.value, 120));
+                        setBodegaFeedback(null);
+                      }}
+                      className={fieldInputClass}
+                      placeholder="Tuluá, zona centro"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className={fieldLabelClass}>Capacidad máxima (kg)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={BODEGA_CAPACITY_MAX_KG}
+                      step="1"
+                      value={capacidadKg}
+                      onChange={(event) => {
+                        if (event.target.value.replace(/\D/g, '').length >= 6) {
+                          showLimitNotice();
+                        }
+                        setCapacidadKg(
+                          sanitizePositiveIntegerInput(
+                            event.target.value,
+                            BODEGA_CAPACITY_MAX_KG,
+                          ),
+                        );
+                        setBodegaFeedback(null);
+                      }}
+                      className={fieldInputClass}
+                      placeholder="3000"
+                    />
+                  </label>
+
+                  {bodegaEditando ? (
+                    <div className="rounded-[12px] border border-slate-200 bg-[#f8fafc] px-3 py-2.5 dark:border-slate-700 dark:bg-slate-950">
+                      <p className="text-[0.58rem] font-black uppercase text-slate-500 dark:text-slate-400">
+                        Café almacenado
+                      </p>
+                      <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">
+                        {loadingStock ? 'Cargando...' : `${formatKg(bodegaEditando.cafeAlmacenadoKg)} kg`}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBodegaFormOpen(false);
+                        setBodegaEditando(null);
+                        setBodegaFeedback(null);
+                      }}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={guardarBodega}
+                      disabled={guardandoBodega}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                    >
+                      {guardandoBodega ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {bodegaEditando ? 'Guardar cambios' : 'Guardar bodega'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {bodegaDeleteTarget ? (
+            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/50 px-5 py-6 backdrop-blur-sm">
+              <section className="w-full max-w-[360px] rounded-[20px] border border-[#fee2e2] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-rose-500/30 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
+                      ¿Eliminar bodega?
+                    </h4>
+                    <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      ¿Estás seguro de eliminar esta bodega? Esta acción no se puede deshacer.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBodegaDeleteTarget(null)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                    aria-label="Cerrar confirmación"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBodegaDeleteTarget(null)}
+                    className="inline-flex min-h-[42px] items-center justify-center rounded-[13px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmarEliminarBodega}
+                    disabled={guardandoBodega}
+                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] bg-rose-600 px-3 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
+                  >
+                    {guardandoBodega ? (
+                      <LoaderCircle size={15} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={15} />
+                    )}
+                    Eliminar bodega
+                  </button>
+                </div>
+              </section>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -4624,8 +4999,10 @@ export default function Ajustes() {
                 <option value="">Selecciona el tipo de documento</option>
                 <option value="CEDULA">Cédula</option>
                 <option value="NIT">NIT</option>
+                <option value="TI">Tarjeta de identidad</option>
                 <option value="CE">Cédula de extranjería</option>
                 <option value="PASAPORTE">Pasaporte</option>
+                <option value="PEP">PEP</option>
                 <option value="OTRO">Otro</option>
               </SmartSelect>
               </label>
@@ -4690,7 +5067,7 @@ export default function Ajustes() {
               {peopleFormErrors.documento ? <p className={fieldErrorClass}>{peopleFormErrors.documento}</p> : null}
               <label className="block">
                 <span className={fieldLabelClass}>
-                  Número celular colombiano
+                  Teléfono
                 </span>
               <input
                 type="text"

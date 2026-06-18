@@ -54,6 +54,14 @@ export class RegisterGoogleDto {
   })
   descripcionOrganizacion?: string;
 
+  @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))
+  @IsOptional()
+  @IsString({ message: 'La descripcion del negocio debe ser texto.' })
+  @MaxLength(200, {
+    message: 'La descripcion no puede superar los 200 caracteres.',
+  })
+  descripcion?: string;
+
   @Transform(({ value }) => {
     const digits = String(value ?? '').replace(/\D/g, '');
     return digits.startsWith('57') ? digits.slice(2, 12) : digits.slice(0, 10);

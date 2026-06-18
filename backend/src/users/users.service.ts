@@ -29,6 +29,7 @@ type UpdateOrganizationSettingsInput = {
   nombreOrganizacion: string;
   tipoOrganizacion: string;
   descripcionOrganizacion?: string | null;
+  descripcion?: string | null;
 };
 
 @Injectable()
@@ -53,6 +54,7 @@ export class UsersService {
         correo: true,
         nombre: true,
         telefono: true,
+        avatarUrl: true,
         password: true,
         googleId: true,
         organizacionId: true,
@@ -68,6 +70,7 @@ export class UsersService {
         nombre: true,
         correo: true,
         telefono: true,
+        avatarUrl: true,
         organizacionId: true,
         organizacion: {
           select: {
@@ -131,6 +134,7 @@ export class UsersService {
         nombre: true,
         correo: true,
         telefono: true,
+        avatarUrl: true,
         rol: true,
         organizacionId: true,
         googleId: true,
@@ -178,6 +182,7 @@ export class UsersService {
           nombre: true,
           correo: true,
           telefono: true,
+          avatarUrl: true,
           rol: true,
           organizacionId: true,
           googleId: true,
@@ -263,6 +268,7 @@ export class UsersService {
           nombre: true,
           correo: true,
           telefono: true,
+          avatarUrl: true,
           organizacionId: true,
         },
       });
@@ -287,7 +293,7 @@ export class UsersService {
     const nombre = input.nombreOrganizacion.trim();
     const tipo = this.normalizeTipoOrganizacion(input.tipoOrganizacion);
     const descripcion = this.normalizeOptionalDescription(
-      input.descripcionOrganizacion,
+      input.descripcionOrganizacion ?? input.descripcion,
     );
 
     if (!nombre) {
@@ -328,6 +334,92 @@ export class UsersService {
     });
   }
 
+  async uploadAvatar(
+    userId: string,
+    file: {
+      buffer: Buffer;
+      mimetype: string;
+      size: number;
+      originalname?: string;
+    },
+  ) {
+    if (!file?.buffer || !file.size) {
+      throw new BadRequestException(
+        apiError('AVATAR_REQUERIDO', 'Selecciona una imagen para subir.'),
+      );
+    }
+
+    const allowedTypes = new Map([
+      ['image/jpeg', 'jpg'],
+      ['image/jpg', 'jpg'],
+      ['image/png', 'png'],
+      ['image/webp', 'webp'],
+    ]);
+    const extension = allowedTypes.get(file.mimetype);
+    if (!extension) {
+      throw new BadRequestException(
+        apiError(
+          'AVATAR_FORMATO_INVALIDO',
+          'Formato no permitido. Usa JPG, PNG o WEBP.',
+        ),
+      );
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      throw new BadRequestException(
+        apiError(
+          'AVATAR_TAMANO_INVALIDO',
+          'La imagen es demasiado pesada. Elige una imagen menor a 2 MB.',
+        ),
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new BadRequestException(
+        apiError('USUARIO_NO_ENCONTRADO', 'No encontramos tu usuario.'),
+      );
+    }
+
+    const objectPath = `${userId}/profile-${Date.now()}.${extension}`;
+    const avatarUrl = await this.uploadAvatarToSupabase(
+      objectPath,
+      file.buffer,
+      file.mimetype,
+    );
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        telefono: true,
+        avatarUrl: true,
+        organizacionId: true,
+      },
+    });
+  }
+
+  async removeAvatar(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        telefono: true,
+        avatarUrl: true,
+        organizacionId: true,
+      },
+    });
+  }
+
   private normalizeOptionalDescription(value?: string | null) {
     const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
     return normalized ? normalized.slice(0, 200) : null;
@@ -341,5 +433,81 @@ export class UsersService {
     if (normalized === 'OTRO') return TipoOrganizacion.OTRO;
 
     return TipoOrganizacion.OTRO;
+  }
+
+  private getSupabaseStorageConfig() {
+    const url = process.env.SUPABASE_URL?.trim().replace(/\/$/, '');
+    const serviceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+      process.env.SUPABASE_SERVICE_KEY?.trim();
+
+    if (!url || !serviceKey) {
+      throw new BadRequestException(
+        apiError(
+          'SUPABASE_STORAGE_CONFIG_FALTANTE',
+          'No pudimos subir la foto. Falta configurar Supabase Storage.',
+        ),
+      );
+    }
+
+    return { url, serviceKey };
+  }
+
+  private async ensureAvatarsBucket() {
+    const { url, serviceKey } = this.getSupabaseStorageConfig();
+    const response = await fetch(`${url}/storage/v1/bucket`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id: 'avatars', name: 'avatars', public: true }),
+    });
+
+    if (response.ok || response.status === 400 || response.status === 409) {
+      return;
+    }
+
+    throw new BadRequestException(
+      apiError(
+        'AVATAR_BUCKET_ERROR',
+        'No pudimos preparar el almacenamiento de fotos.',
+      ),
+    );
+  }
+
+  private async uploadAvatarToSupabase(
+    objectPath: string,
+    buffer: Buffer,
+    contentType: string,
+  ) {
+    await this.ensureAvatarsBucket();
+    const { url, serviceKey } = this.getSupabaseStorageConfig();
+    const encodedPath = objectPath
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const response = await fetch(
+      `${url}/storage/v1/object/avatars/${encodedPath}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': contentType,
+          'x-upsert': 'true',
+        },
+        body: buffer as unknown as BodyInit,
+      },
+    );
+
+    if (!response.ok) {
+      throw new BadRequestException(
+        apiError('AVATAR_UPLOAD_ERROR', 'No pudimos subir la foto de perfil.'),
+      );
+    }
+
+    return `${url}/storage/v1/object/public/avatars/${encodedPath}`;
   }
 }

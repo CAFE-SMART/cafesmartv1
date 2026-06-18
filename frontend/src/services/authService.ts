@@ -29,6 +29,7 @@ export type AuthResponse = {
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
     otroTipoDetalle?: string | null;
     descripcionOrganizacion?: string | null;
+    avatarUrl?: string | null;
   };
   hasCompany: boolean;
 };

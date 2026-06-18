@@ -55,6 +55,14 @@ export class RegisterDto {
   })
   descripcionOrganizacion?: string;
 
+  @Transform(({ value }) => String(value ?? '').trim().replace(/\s+/g, ' '))
+  @IsOptional()
+  @IsString({ message: 'La descripcion del negocio debe ser texto.' })
+  @MaxLength(200, {
+    message: 'La descripcion no puede superar los 200 caracteres.',
+  })
+  descripcion?: string;
+
   @IsString({ message: 'El nombre del usuario debe ser texto.' })
   @IsNotEmpty({ message: 'El nombre del usuario es obligatorio.' })
   nombre: string;

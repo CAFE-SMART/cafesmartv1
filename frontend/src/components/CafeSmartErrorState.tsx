@@ -22,6 +22,7 @@ type CafeSmartErrorStateProps = {
   fullScreen?: boolean;
   children?: React.ReactNode;
   extraAction?: React.ReactNode;
+  hideInfoPanel?: boolean;
 };
 
 function ErrorStateAnimations() {
@@ -197,6 +198,7 @@ export function CafeSmartErrorState({
   fullScreen = false,
   children,
   extraAction,
+  hideInfoPanel = false,
 }: CafeSmartErrorStateProps) {
   const isSuccess = variant === 'success';
   const resolvedInfo =
@@ -277,17 +279,19 @@ export function CafeSmartErrorState({
         </div>
       ) : null}
 
-      <div className="relative z-10 mt-6 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] dark:bg-slate-800 dark:ring-1 dark:ring-slate-700 animate-[cafesmartFadeUp_360ms_ease-out_290ms_both]">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)] dark:bg-slate-900 dark:text-sky-300">
-          <ShieldCheck size={25} strokeWidth={2.3} aria-hidden="true" />
+      {!hideInfoPanel ? (
+        <div className="relative z-10 mt-6 flex w-full max-w-[330px] items-center gap-3 rounded-[22px] bg-[#eef6ff] p-4 text-left shadow-[0_18px_38px_rgba(37,99,235,0.08)] dark:bg-slate-800 dark:ring-1 dark:ring-slate-700 animate-[cafesmartFadeUp_360ms_ease-out_290ms_both]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#1683f7] shadow-[0_10px_24px_rgba(37,99,235,0.08)] dark:bg-slate-900 dark:text-sky-300">
+            <ShieldCheck size={25} strokeWidth={2.3} aria-hidden="true" />
+          </div>
+          <p className="text-[0.8rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
+            <span className="block text-sm font-black text-[#07153b] dark:text-slate-100">
+              {isSuccess ? 'Todo quedó listo' : 'Tus datos siguen seguros'}
+            </span>
+            {resolvedInfo}
+          </p>
         </div>
-        <p className="text-[0.8rem] font-semibold leading-5 text-slate-500 dark:text-slate-300">
-          <span className="block text-sm font-black text-[#07153b] dark:text-slate-100">
-            {isSuccess ? 'Todo quedó listo' : 'Tus datos siguen seguros'}
-          </span>
-          {resolvedInfo}
-        </p>
-      </div>
+      ) : null}
       {!fullScreen ? <BottomDecoration /> : null}
     </section>
   );

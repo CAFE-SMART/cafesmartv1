@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   Clock,
   Edit2,
   Eye,
@@ -33,7 +34,7 @@ import {
   type DashboardMovimiento,
   type DashboardSummary,
 } from '../services/dashboardService';
-import { listarCompras } from '../services/comprasService';
+import { listarCompras, type CompraListadoItem } from '../services/comprasService';
 import {
   actualizarGasto,
   eliminarGasto,
@@ -150,7 +151,7 @@ async function cargarMovimientosHistoricos(): Promise<{
     comprasResult.status === 'fulfilled' && Array.isArray(comprasResult.value)
       ? comprasResult.value
       : [];
-  const comprasMovimientos = compras.map((compra): DashboardMovimiento => ({
+  const comprasMovimientos = compras.map((compra): MovimientoFinanciero => ({
     id: compra.id,
     tipo: 'COMPRA',
     nombre: compra.productorNombre ?? 'Productor sin registrar',
@@ -162,6 +163,7 @@ async function cargarMovimientosHistoricos(): Promise<{
       : 0,
     valor: Number(compra.totalCompra) || 0,
     fecha: compra.fecha,
+    compra,
   }));
   if (comprasResult.status === 'rejected') {
     sectionErrors.compras = HISTORIAL_SECTION_ERROR;
@@ -301,6 +303,8 @@ const FACTOR_BASE_MERCADO = 94;
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 type HistorialTipo = 'VENTA' | 'COMPRA' | 'GASTO';
 type MovimientoFinanciero = DashboardMovimiento & {
+  compra?: CompraListadoItem;
+  venta?: VentaListadoItem;
   gasto?: GastoItem;
 };
 type HistorialSection = 'compras' | 'ventas' | 'gastos';
@@ -354,13 +358,14 @@ function normalizarVentasResponse(response: VentaListadoResponse | VentaListadoI
 }
 
 function ventasToMovimientos(ventasRegistros: VentaListadoItem[]) {
-  return ventasRegistros.map((venta): DashboardMovimiento => ({
+  return ventasRegistros.map((venta): MovimientoFinanciero => ({
     id: venta.id,
     tipo: 'VENTA',
     nombre: venta.clienteNombre || 'Cliente general',
     kg: Number(venta.totalKg) || 0,
     valor: Number(venta.totalVenta) || 0,
     fecha: venta.fecha,
+    venta,
   }));
 }
 
@@ -727,6 +732,74 @@ function titleCase(value: string) {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function joinUniqueValues(values: Array<string | null | undefined>) {
+  const unique = Array.from(
+    new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]),
+  );
+  if (unique.length === 0) return 'Sin dato';
+  if (unique.length === 1) return titleCase(unique[0]);
+  return 'Varias';
+}
+
+function getMovimientoReferencia(item: MovimientoFinanciero) {
+  return item.id ? `REF-${item.id.slice(0, 8).toUpperCase()}` : 'Sin referencia';
+}
+
+function getMovimientoDetalleRows(item: MovimientoFinanciero) {
+  if (item.tipo === 'COMPRA') {
+    const compra = item.compra;
+    const sublotes = compra?.sublotes ?? [];
+    const totalKg =
+      item.kg ||
+      sublotes.reduce((total, sublote) => total + (Number(sublote.pesoInicial) || 0), 0);
+    return [
+      ['Productor', compra?.productorNombre ?? item.nombre ?? 'Productor sin registrar'],
+      ['Tipo de café', joinUniqueValues(sublotes.map((sublote) => sublote.tipoCafe))],
+      ['Calidad', joinUniqueValues(sublotes.map((sublote) => sublote.calidad))],
+      ['Cantidad', totalKg > 0 ? formatKg(totalKg) : 'Sin dato'],
+      ['Precio/kg', totalKg > 0 ? formatCurrency(item.valor / totalKg) : 'Sin dato'],
+      ['Total pagado', formatCurrency(item.valor)],
+      ['Referencia', getMovimientoReferencia(item)],
+    ];
+  }
+
+  if (item.tipo === 'VENTA') {
+    const venta = item.venta;
+    const detalles = venta?.detallesSublotes ?? venta?.detalles ?? [];
+    const tipoCafeValues = detalles.map((detalle) =>
+      'tipoCafe' in detalle ? detalle.tipoCafe : undefined,
+    );
+    const calidadValues = detalles.map((detalle) =>
+      'calidad' in detalle ? detalle.calidad : undefined,
+    );
+    const totalKg =
+      item.kg ||
+      detalles.reduce((total, detalle) => {
+        if ('kilosVendidos' in detalle) return total + (Number(detalle.kilosVendidos) || 0);
+        return total + (Number(detalle.pesoVendido) || 0);
+      }, 0);
+    return [
+      ['Cliente', venta?.clienteNombre ?? item.nombre ?? 'Cliente general'],
+      ['Tipo de café', joinUniqueValues(tipoCafeValues)],
+      ['Calidad', joinUniqueValues(calidadValues)],
+      ['Cantidad', totalKg > 0 ? formatKg(totalKg) : 'Sin dato'],
+      ['Precio/kg', totalKg > 0 ? formatCurrency(item.valor / totalKg) : 'Sin dato'],
+      ['Total vendido', formatCurrency(item.valor)],
+      ['Referencia', getMovimientoReferencia(item)],
+    ];
+  }
+
+  const gasto = item.gasto;
+  return [
+    ['Concepto', gasto?.conceptoGasto ?? item.nombre ?? 'Gasto registrado'],
+    ['Descripción', gasto?.descripcion?.trim() || 'Sin descripción'],
+    ['Monto', formatCurrency(item.valor)],
+    ['Fecha', formatDate(item.fecha)],
+    ['Tipo de gasto', titleCase(gasto?.tipoGasto ?? 'OTROS')],
+    ['Referencia', getMovimientoReferencia(item)],
+  ];
 }
 
 function sanitizeMoneyInput(value: string) {
@@ -1205,6 +1278,7 @@ export default function ResumenFinanciero() {
   const [historialVisibleCount, setHistorialVisibleCount] = useState(30);
   const [historialActionMessage, setHistorialActionMessage] = useState<string | null>(null);
   const [historialFilterFeedback, setHistorialFilterFeedback] = useState<string | null>(null);
+  const [historialDetalle, setHistorialDetalle] = useState<MovimientoFinanciero | null>(null);
   const [gastoEditando, setGastoEditando] = useState<GastoItem | null>(null);
   const [gastoEditForm, setGastoEditForm] = useState<GastoEditForm | null>(null);
   const [gastoEditError, setGastoEditError] = useState<string | null>(null);
@@ -1517,7 +1591,7 @@ export default function ResumenFinanciero() {
       } else if (historialActivo === 'COMPRA') {
         logHistorialDebug('compras', 'request', { url: HISTORIAL_ENDPOINTS.compras });
         const compras = await listarCompras();
-        nextMovimientos = compras.map((compra): DashboardMovimiento => ({
+        nextMovimientos = compras.map((compra): MovimientoFinanciero => ({
           id: compra.id,
           tipo: 'COMPRA',
           nombre: compra.productorNombre ?? 'Productor sin registrar',
@@ -1529,6 +1603,7 @@ export default function ResumenFinanciero() {
             : 0,
           valor: Number(compra.totalCompra) || 0,
           fecha: compra.fecha,
+          compra,
         }));
         logHistorialDebug('compras', 'recordsCount', {
           url: HISTORIAL_ENDPOINTS.compras,
@@ -2600,8 +2675,8 @@ export default function ResumenFinanciero() {
                           minDate={BUSINESS_MIN_DATE_VALUE}
                           maxDate={getTodayLocalDateValue()}
                           open={historialDateOpen}
-                          label="Fecha especifica"
-                          placeholder="Fecha"
+                          label="Selecciona una fecha"
+                          placeholder="Selecciona una fecha"
                           dialogLabel="Calendario de historial financiero"
                           onToggle={() => setHistorialDateOpen((open) => !open)}
                           onClose={() => setHistorialDateOpen(false)}
@@ -2675,7 +2750,16 @@ export default function ResumenFinanciero() {
                           return (
                             <article
                               key={`${item.tipo}-${item.id}-${item.fecha}`}
-                              className="flex items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-3 dark:border-slate-700 dark:bg-slate-900"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setHistorialDetalle(item)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  setHistorialDetalle(item);
+                                }
+                              }}
+                              className="flex cursor-pointer items-center gap-3 rounded-[14px] border border-[#eef2f7] bg-[#fbfcff] px-3 py-3 transition hover:border-[#cbd7ef] hover:bg-[#f5f8ff] focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                             >
                               <span
                                 className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${copy.tone}`}
@@ -2714,11 +2798,19 @@ export default function ResumenFinanciero() {
                               <p className={`shrink-0 text-sm font-black ${copy.amountTone}`}>
                                 {formatCurrency(item.valor)}
                               </p>
+                              <ChevronRight
+                                size={16}
+                                className="shrink-0 text-slate-400 dark:text-slate-500"
+                                aria-hidden="true"
+                              />
                               {gasto ? (
                                 <div className="flex shrink-0 items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => abrirEditarGastoHistorial(gasto)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      abrirEditarGastoHistorial(gasto);
+                                    }}
                                     className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
                                     aria-label="Editar gasto"
                                   >
@@ -2726,7 +2818,10 @@ export default function ResumenFinanciero() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setGastoAEliminar(gasto)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setGastoAEliminar(gasto);
+                                    }}
                                     className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-rose-200 bg-rose-50 text-rose-700"
                                     aria-label="Eliminar gasto"
                                   >
@@ -2748,6 +2843,63 @@ export default function ResumenFinanciero() {
                         ) : null}
                       </div>
                     )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {historialDetalle ? (
+              <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/55 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+                <section className="max-h-[calc(100dvh-1.5rem)] w-full max-w-[430px] overflow-y-auto rounded-[20px] border border-[#e5eaf4] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-200">
+                        {historialDetalle.tipo === 'COMPRA'
+                          ? 'Comprobante de compra'
+                          : historialDetalle.tipo === 'VENTA'
+                            ? 'Comprobante de venta'
+                            : 'Detalle de gasto'}
+                      </p>
+                      <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                        {historialDetalle.nombre || getMovimientoCopy(historialDetalle).title}
+                      </h2>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                        {formatDate(historialDetalle.fecha)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHistorialDetalle(null)}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                      aria-label="Cerrar comprobante"
+                    >
+                      <X size={17} />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-[18px] border border-[#dbe6ff] bg-[#f5f8ff] px-4 py-3 dark:border-blue-400/30 dark:bg-blue-500/10">
+                    <p className="text-[0.58rem] font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-200">
+                      Total
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-[#102d92] dark:text-blue-100">
+                      {formatCurrency(historialDetalle.valor)}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {getMovimientoDetalleRows(historialDetalle).map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-start justify-between gap-3 rounded-[12px] bg-[#f8fafc] px-3 py-2.5 dark:bg-slate-950"
+                      >
+                        <span className="text-[0.68rem] font-black uppercase tracking-[0.05em] text-slate-500 dark:text-slate-400">
+                          {label}
+                        </span>
+                        <span className="max-w-[58%] text-right text-sm font-black text-slate-950 dark:text-slate-100">
+                          {value}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </section>
               </div>

@@ -15,6 +15,28 @@ export type LimitesEntrada = {
   maxPrecioVentaKg: number;
 };
 
+export type BodegaItem = {
+  id: string;
+  nombre: string;
+  ubicacion: string | null;
+  capacidadMaxKg: number;
+  cafeAlmacenadoKg: number;
+  disponibleKg: number;
+  ocupacionPct: number;
+  activa: boolean;
+  esPrincipal: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GuardarBodegaPayload = {
+  nombre: string;
+  ubicacion?: string | null;
+  capacidadMaxKg: number;
+  activa?: boolean;
+  esPrincipal?: boolean;
+};
+
 /**
  * Obtiene la configuración de bodega del servidor.
  */
@@ -45,4 +67,32 @@ export async function guardarLimitesEntrada(
     method: 'POST',
     body: JSON.stringify(limites),
   }) as Promise<LimitesEntrada>;
+}
+
+export function listarBodegas() {
+  return apiFetch('/bodega') as Promise<BodegaItem[]>;
+}
+
+export function obtenerBodega(id: string) {
+  return apiFetch(`/bodega/detalle/${encodeURIComponent(id)}`) as Promise<BodegaItem>;
+}
+
+export function crearBodega(payload: GuardarBodegaPayload) {
+  return apiFetch('/bodega', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }) as Promise<BodegaItem>;
+}
+
+export function editarBodega(id: string, payload: Partial<GuardarBodegaPayload>) {
+  return apiFetch(`/bodega/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }) as Promise<BodegaItem>;
+}
+
+export function eliminarBodega(id: string) {
+  return apiFetch(`/bodega/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }) as Promise<{ ok: boolean }>;
 }

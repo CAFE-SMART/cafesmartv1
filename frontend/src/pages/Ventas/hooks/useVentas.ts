@@ -23,7 +23,7 @@ import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFl
 import { getSubloteCodeMap } from '../../../utils/coffeeCodes';
 import { sanitizeSearchInput } from '../../../utils/inputLimits';
 import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
-import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, sanitizeDigits as sanitizePersonDigits, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber } from '../../../utils/personValidation';
+import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber, validatePhoneNumber } from '../../../utils/personValidation';
 import { formatCoffeeFullName, getSubloteDisplayCode } from '../../../utils/coffeeCodes';
 
 const INVENTORY_SUBLOTES_CACHE_KEY = 'inventory_sublotes';
@@ -1235,8 +1235,8 @@ export function useVentas() {
     const errores: ClienteFormErrors = {};
     const nombre = clienteForm.tipoDocumento === 'NIT' ? validateCompanyName(clienteForm.nombre) : validatePersonName(clienteForm.nombre, 'El nombre');
     if (!nombre.isValid) errores.nombre = nombre.message;
-    const telefono = clienteForm.telefono && /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(clienteForm.telefono) ? 'No uses letras.' : null;
-    if (telefono) errores.telefono = telefono;
+    const telefono = validatePhoneNumber(clienteForm.telefono, 'El teléfono', { optional: true });
+    if (!telefono.isValid) errores.telefono = telefono.message;
     if (!clienteForm.tipoDocumento) errores.tipoDocumento = 'Selecciona el tipo de documento.';
     const tipoSeleccionado = clienteForm.tipoDocumento || null;
     const documento = validateDocumentNumber(clienteForm.documento, 'El documento', { optional: false, type: tipoSeleccionado });
@@ -1250,7 +1250,7 @@ export function useVentas() {
 
   const guardarCliente = async () => {
     const nombre = clienteForm.tipoDocumento === 'NIT' ? normalizeCompanyName(clienteForm.nombre) : normalizeHumanName(clienteForm.nombre);
-    const telefono = sanitizePersonDigits(clienteForm.telefono);
+    const telefono = clienteForm.telefono.trim();
     const tipoDocumento = clienteForm.tipoDocumento || undefined;
     const documento = tipoDocumento ? normalizeDocumentForStorage(clienteForm.documento, tipoDocumento as any) : '';
     const errores = validarClienteForm();
@@ -1259,8 +1259,8 @@ export function useVentas() {
     if (Object.keys(errores).length > 0) return;
     const clienteExistente = findClienteExistente(clientes, nombre, documento, clienteEditando?.id);
     if (clienteExistente) {
-      setClienteFormErrors((actual) => ({ ...actual, documento: 'Este documento ya está registrado.' }));
-      setClienteFormError('Este documento ya está registrado. Busca el registro existente o usa otro número.');
+      setClienteFormErrors((actual) => ({ ...actual, documento: 'Este cliente ya está registrado con este documento.' }));
+      setClienteFormError('Este cliente ya está registrado con este documento.');
       return;
     }
     try {

@@ -25,7 +25,7 @@ export function classifyHumidity(
   if (value < 8 || value > 14) {
     return {
       quality: 'rechazada',
-      label: value < 8 ? 'Muy seca' : 'Rechazada',
+      label: value < 8 ? 'Muy seca' : 'Humedad fuera de rango',
       toneClass: 'bg-rose-50 text-rose-700',
     };
   }
@@ -48,7 +48,7 @@ export function classifyHumidity(
 
   return {
     quality: 'descuento',
-    label: 'Advertencia con descuento',
+    label: 'Humedad alta',
     toneClass: 'bg-orange-50 text-orange-700',
   };
 }
@@ -61,6 +61,10 @@ export function getHumidityValidationMessage(value: number | null) {
   if (value < 10) return 'Humedad baja. Puedes continuar si confirmas el dato.';
   if (value > 12) return 'Humedad alta. Puede aplicar descuento.';
   return null;
+}
+
+export function getHumidityAlertMessage(value: number | null | undefined) {
+  return getHumidityValidationMessage(value ?? null);
 }
 
 export function getFactorValidationMessage(value: number | null) {
