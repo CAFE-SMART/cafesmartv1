@@ -176,6 +176,23 @@ export class BodegaService {
     const capacidadMaxKg = this.normalizeCapacidad(dto.capacidadMaxKg);
     let existingCount = 0;
     try {
+      const duplicated = await this.prisma.bodega.findFirst({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          nombre: { equals: nombre, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      if (duplicated) {
+        throw new ConflictException(
+          apiError(
+            'BODEGA_NOMBRE_DUPLICADO',
+            'Ya existe una bodega con este nombre.',
+            { field: 'nombre' },
+          ),
+        );
+      }
       existingCount = await this.prisma.bodega.count({
         where: { organizacionId, deletedAt: null },
       });
@@ -204,7 +221,7 @@ export class BodegaService {
           nombre,
           ubicacion,
           capacidadMaxKg,
-          activa: dto.activa ?? true,
+          activa: esPrincipal ? true : dto.activa ?? true,
           esPrincipal,
         },
       });
@@ -247,6 +264,28 @@ export class BodegaService {
       );
     }
 
+    if (typeof dto.nombre === 'string') {
+      const nextNombre = this.normalizeNombre(dto.nombre);
+      const duplicated = await this.prisma.bodega.findFirst({
+        where: {
+          organizacionId,
+          deletedAt: null,
+          id: { not: bodegaId },
+          nombre: { equals: nextNombre, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      if (duplicated) {
+        throw new ConflictException(
+          apiError(
+            'BODEGA_NOMBRE_DUPLICADO',
+            'Ya existe una bodega con este nombre.',
+            { field: 'nombre' },
+          ),
+        );
+      }
+    }
+
     const inventarioActual = actual.esPrincipal
       ? await this.obtenerInventarioActualKg(organizacionId)
       : 0;
@@ -256,8 +295,8 @@ export class BodegaService {
         : undefined;
 
     if (
-      typeof capacidadMaxKg === 'number' &&
-      capacidadMaxKg < inventarioActual
+      capacidadMaxKg !== undefined &&
+      Number(capacidadMaxKg) < inventarioActual
     ) {
       throw new BadRequestException(
         apiError(
@@ -269,6 +308,38 @@ export class BodegaService {
     }
 
     const nextPrincipal = dto.esPrincipal === true;
+    if (dto.activa === false) {
+      if (actual.esPrincipal) {
+        throw new ConflictException(
+          apiError(
+            'BODEGA_PRINCIPAL_ACTIVA_REQUERIDA',
+            'La bodega principal debe estar activa. Marca otra bodega como principal antes de desactivarla.',
+          ),
+        );
+      }
+
+      const activeCount = await this.prisma.bodega.count({
+        where: { organizacionId, deletedAt: null, activa: true },
+      });
+      if (actual.activa && activeCount <= 1) {
+        throw new ConflictException(
+          apiError(
+            'BODEGA_UNICA_ACTIVA_REQUERIDA',
+            'Debe existir al menos una bodega activa.',
+          ),
+        );
+      }
+
+      if (inventarioActual > 0) {
+        throw new ConflictException(
+          apiError(
+            'BODEGA_CON_INVENTARIO_ACTIVO',
+            'No puedes desactivar esta bodega porque tiene inventario activo.',
+          ),
+        );
+      }
+    }
+
     const bodega = await this.prisma.$transaction(async (tx) => {
       if (nextPrincipal) {
         await tx.bodega.updateMany({
@@ -286,9 +357,11 @@ export class BodegaService {
           ...(typeof dto.ubicacion !== 'undefined'
             ? { ubicacion: this.normalizeUbicacion(dto.ubicacion) }
             : {}),
-          ...(typeof capacidadMaxKg === 'number' ? { capacidadMaxKg } : {}),
-          ...(typeof dto.activa === 'boolean' ? { activa: dto.activa } : {}),
-          ...(nextPrincipal ? { esPrincipal: true } : {}),
+          ...(capacidadMaxKg !== undefined ? { capacidadMaxKg } : {}),
+          ...(!nextPrincipal && typeof dto.activa === 'boolean'
+            ? { activa: dto.activa }
+            : {}),
+          ...(nextPrincipal ? { esPrincipal: true, activa: true } : {}),
         },
       });
     });

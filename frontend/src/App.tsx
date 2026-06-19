@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { X } from 'lucide-react';
 import AppRoutes from './routes/AppRoutes';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
@@ -7,7 +9,7 @@ import { CafeSmartErrorState } from './components/CafeSmartErrorState';
 import { AppFeedbackMessage } from './components/AppFeedbackMessage';
 import { InternalLoadingScreen } from './components/InternalLoadingScreen';
 import { useCloudStatus } from './context/CloudStatusContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getStoredAuthToken } from './storage/authStorage';
 import { themeClasses } from './theme/themeClasses';
 
@@ -23,6 +25,14 @@ const BOOT_SPLASH_VISIBLE_MS = 2200;
 const PRIVATE_ROUTE_CURRENT_KEY = 'cafeSmart:currentPrivateRoute';
 const PRIVATE_ROUTE_PREVIOUS_KEY = 'cafeSmart:previousPrivateRoute';
 const DISMISSED_CONNECTION_ALERT_KEY = 'cafesmart:dismissed-connection-alert';
+const NATIVE_BACK_EVENT = 'cafesmart:native-back';
+const MAIN_PRIVATE_ROUTES = new Set([
+  '/ajustes',
+  '/compras',
+  '/inventario',
+  '/ventas',
+  '/resumen-financiero',
+]);
 
 const isPublicRoute = (path: string) =>
   path === '/' ||
@@ -296,9 +306,76 @@ function GlobalAiAssistant() {
   );
 }
 
+function NativeBackButtonHandler({
+  onExitAttempt,
+}: {
+  onExitAttempt: () => void;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const lastExitAttemptRef = useRef(0);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+      return undefined;
+    }
+
+    let removeListener: (() => void) | undefined;
+
+    const registerBackButton = async () => {
+      const handle = await CapacitorApp.addListener('backButton', () => {
+        const closeEvent = new CustomEvent(NATIVE_BACK_EVENT, {
+          cancelable: true,
+          detail: { pathname: window.location.pathname },
+        });
+
+        if (!window.dispatchEvent(closeEvent)) {
+          return;
+        }
+
+        const pathname = window.location.pathname;
+        if (pathname === '/inicio') {
+          const now = Date.now();
+          if (now - lastExitAttemptRef.current <= 2000) {
+            void CapacitorApp.exitApp();
+            return;
+          }
+          lastExitAttemptRef.current = now;
+          onExitAttempt();
+          return;
+        }
+
+        if (MAIN_PRIVATE_ROUTES.has(pathname)) {
+          navigate('/inicio');
+          return;
+        }
+
+        if (window.history.length > 1) {
+          navigate(-1);
+          return;
+        }
+
+        navigate('/inicio');
+      });
+      removeListener = () => {
+        void handle.remove();
+      };
+    };
+
+    void registerBackButton();
+
+    return () => {
+      removeListener?.();
+    };
+  }, [location.pathname, navigate, onExitAttempt]);
+
+  return null;
+}
+
 function AppContent() {
   const location = useLocation();
   const [showBootSplash, setShowBootSplash] = useState(true);
+  const [exitWarningVisible, setExitWarningVisible] = useState(false);
   const bootSplashShownRef = useRef(false);
   const isAuthFlow = isPublicRoute(location.pathname);
 
@@ -324,6 +401,12 @@ function AppContent() {
     };
   }, [isAuthFlow, location.pathname]);
 
+  useEffect(() => {
+    if (!exitWarningVisible) return undefined;
+    const timeout = window.setTimeout(() => setExitWarningVisible(false), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [exitWarningVisible]);
+
   if (showBootSplash && !isAuthFlow) {
     return <AppLoadingScreen />;
   }
@@ -333,6 +416,16 @@ function AppContent() {
       {!isAuthFlow ? (
         <>
           <GlobalOfflineNotice />
+          <NativeBackButtonHandler
+            onExitAttempt={() => setExitWarningVisible(true)}
+          />
+          {exitWarningVisible ? (
+            <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+88px)] z-[95] px-4">
+              <div className="mx-auto max-w-[430px] rounded-[14px] bg-slate-950 px-4 py-3 text-center text-sm font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.22)]">
+                Presiona nuevamente para salir.
+              </div>
+            </div>
+          ) : null}
           <Suspense fallback={null}>
             <SyncQueueRunner />
           </Suspense>

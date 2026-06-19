@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -24,7 +25,6 @@ import {
   Save,
   Settings,
   Shield,
-  Scale,
   Sun,
   Trash2,
   UserCircle2,
@@ -178,6 +178,7 @@ type LimitesTab = 'todos' | 'compra' | 'venta';
 const OFFLINE_BLOCKED_ACTION_MESSAGE =
   'Esta acción necesita conexión. Puedes guardar un borrador y finalizarlo cuando vuelvas a tener internet.';
 const LIMITS_ONBOARDING_KEY_PREFIX = 'cafesmart:limits-onboarding:v1';
+const SCREEN_READER_SETUP_KEY = 'cafesmart:screen-reader-setup-opened:v1';
 
 type CompanySettings = {
   nombreEmpresa: string;
@@ -686,6 +687,9 @@ export default function Ajustes() {
   const [accessibilityModal, setAccessibilityModal] = useState<
     'screen-reader' | 'high-contrast' | 'font-scale' | null
   >(null);
+  const [screenReaderSetupPromptOpen, setScreenReaderSetupPromptOpen] =
+    useState(false);
+
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
   const currentAvatarUrl = profileAvatarRemove
     ? ''
@@ -739,11 +743,13 @@ export default function Ajustes() {
     void cargarBodegas();
   };
 
-  const abrirEditorLimites = () => {
+  const abrirEditorLimites = (options?: { keepBodega?: boolean }) => {
     clearFeedback();
     setLimitesTab('todos');
     setIsEditingLimites(true);
-    setIsEditingBodega(false);
+    if (!options?.keepBodega) {
+      setIsEditingBodega(false);
+    }
     setIsEditingCompany(false);
     setIsEditingProfile(false);
     setIsViewingPublicProfile(false);
@@ -756,8 +762,44 @@ export default function Ajustes() {
 
   const abrirAjustesAccesibilidadSistema = () => {
     if (typeof window === 'undefined') return;
-    window.location.href =
-      'intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end';
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      window.location.href =
+        'intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end';
+      window.setTimeout(() => {
+        window.location.href =
+          'intent:#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;scheme=package;package=com.cafesmart.app;end';
+      }, 800);
+      return;
+    }
+  };
+
+  const activarModoLectorPantalla = async (enabled: boolean) => {
+    setScreenReaderMode(enabled);
+    if (!enabled) {
+      setScreenReaderSetupPromptOpen(false);
+      await Preferences.remove({ key: SCREEN_READER_SETUP_KEY });
+      return;
+    }
+
+    if (!(Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android')) {
+      return;
+    }
+
+    const { value } = await Preferences.get({ key: SCREEN_READER_SETUP_KEY });
+    if (value === 'shown') return;
+
+    setScreenReaderSetupPromptOpen(true);
+  };
+
+  const cerrarSugerenciaLectorPantalla = async () => {
+    await Preferences.set({ key: SCREEN_READER_SETUP_KEY, value: 'shown' });
+    setScreenReaderSetupPromptOpen(false);
+  };
+
+  const abrirAccesibilidadDesdeSugerencia = async () => {
+    await Preferences.set({ key: SCREEN_READER_SETUP_KEY, value: 'shown' });
+    setScreenReaderSetupPromptOpen(false);
+    abrirAjustesAccesibilidadSistema();
   };
 
   const mostrarOpcionPendiente = () => {
@@ -1382,7 +1424,8 @@ export default function Ajustes() {
         message: 'Foto actualizada correctamente.',
       });
     } catch {
-      const message = 'No pudimos guardar la foto. Intenta nuevamente.';
+      const message =
+        'No pudimos guardar la foto. Revisa tu conexión e inténtalo nuevamente.';
       setError(message);
       setProfileFeedback({ variant: 'error', message });
       setFloatingError(getAjustesGuidance(message));
@@ -1683,7 +1726,7 @@ export default function Ajustes() {
       setGuardandoBodega(true);
       const payload = {
         nombre: nombreBodega.trim(),
-        ubicacion: ubicacionBodega.trim() || undefined,
+        ubicacion: ubicacionBodega.trim() || null,
         capacidadMaxKg: capacidad,
       };
 
@@ -1715,6 +1758,102 @@ export default function Ajustes() {
           err instanceof Error && err.message
             ? err.message
             : 'No pudimos guardar la bodega. Intenta nuevamente.',
+      });
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
+
+  const marcarBodegaPrincipal = async (bodega: BodegaItem) => {
+    clearFeedback();
+    setBodegaFeedback(null);
+
+    if (isOffline) {
+      setBodegaFeedback({
+        variant: 'warning',
+        message: OFFLINE_BLOCKED_ACTION_MESSAGE,
+      });
+      return;
+    }
+
+    try {
+      setGuardandoBodega(true);
+      await editarBodega(bodega.id, { esPrincipal: true, activa: true });
+      setBodegaFeedback({
+        variant: 'success',
+        message: 'Bodega principal actualizada correctamente.',
+      });
+      await cargarBodegas();
+    } catch (err) {
+      setBodegaFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos actualizar la bodega principal.',
+      });
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
+
+  const alternarBodegaActiva = async (bodega: BodegaItem) => {
+    const nextActiva = !bodega.activa;
+    clearFeedback();
+    setBodegaFeedback(null);
+
+    if (isOffline) {
+      setBodegaFeedback({
+        variant: 'warning',
+        message: OFFLINE_BLOCKED_ACTION_MESSAGE,
+      });
+      return;
+    }
+
+    if (!nextActiva) {
+      const activeCount = bodegas.filter((item) => item.activa).length;
+      if (bodega.esPrincipal) {
+        setBodegaFeedback({
+          variant: 'warning',
+          message:
+            'La bodega principal debe estar activa. Marca otra bodega como principal antes de desactivarla.',
+        });
+        return;
+      }
+      if (activeCount <= 1) {
+        setBodegaFeedback({
+          variant: 'warning',
+          message: 'Debe existir al menos una bodega activa.',
+        });
+        return;
+      }
+      if (bodega.cafeAlmacenadoKg > 0) {
+        setBodegaFeedback({
+          variant: 'warning',
+          message:
+            'No puedes desactivar esta bodega porque tiene inventario activo.',
+        });
+        return;
+      }
+    }
+
+    try {
+      setGuardandoBodega(true);
+      await editarBodega(bodega.id, { activa: nextActiva });
+      setBodegaFeedback({
+        variant: 'success',
+        message: nextActiva
+          ? 'Bodega activada correctamente.'
+          : 'Bodega desactivada correctamente.',
+      });
+      await cargarBodegas();
+    } catch (err) {
+      setBodegaFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos actualizar la bodega.',
       });
     } finally {
       setGuardandoBodega(false);
@@ -1914,6 +2053,138 @@ export default function Ajustes() {
     setPeopleFormError(null);
     setPeopleError(null);
   };
+
+  const confirmarSalidaSinGuardar = () =>
+    window.confirm(
+      '¿Salir sin guardar?\n\nLos cambios que realizaste se perderán.',
+    );
+
+  useEffect(() => {
+    const handleNativeBack = (event: Event) => {
+      const backEvent = event as CustomEvent<{ pathname?: string }>;
+      if (mostrarConfirmacionCerrarSesion) {
+        setMostrarConfirmacionCerrarSesion(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (profilePhotoOpen) {
+        if ((profileAvatarFile || profileAvatarRemove) && !confirmarSalidaSinGuardar()) {
+          backEvent.preventDefault();
+          return;
+        }
+        cancelarEdicionFotoPerfil();
+        backEvent.preventDefault();
+        return;
+      }
+      if (profileInfoOpen) {
+        const baseline = profileBaselineRef.current;
+        const hasProfileChanges = Boolean(
+          baseline &&
+            (baseline.nombre !== profile.nombre ||
+              baseline.correo !== profile.correo ||
+              baseline.telefono !== profile.telefono),
+        );
+        if (hasProfileChanges && !confirmarSalidaSinGuardar()) {
+          backEvent.preventDefault();
+          return;
+        }
+        setProfileInfoOpen(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (isViewingPublicProfile) {
+        setIsViewingPublicProfile(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (isEditingProfile) {
+        cerrarEditorPerfil();
+        backEvent.preventDefault();
+        return;
+      }
+      if (bodegaDeleteTarget) {
+        setBodegaDeleteTarget(null);
+        backEvent.preventDefault();
+        return;
+      }
+      if (bodegaFormOpen) {
+        const original = bodegaEditando;
+        const hasBodegaChanges = original
+          ? original.nombre !== nombreBodega.trim() ||
+            (original.ubicacion ?? '') !== ubicacionBodega.trim() ||
+            Math.round(original.capacidadMaxKg) !== Number(capacidadKg)
+          : Boolean(
+              nombreBodega.trim() ||
+                ubicacionBodega.trim() ||
+                capacidadKg.trim(),
+            );
+        if (hasBodegaChanges && !confirmarSalidaSinGuardar()) {
+          backEvent.preventDefault();
+          return;
+        }
+        setBodegaFormOpen(false);
+        setBodegaEditando(null);
+        setBodegaFeedback(null);
+        backEvent.preventDefault();
+        return;
+      }
+      if (isEditingBodega) {
+        cerrarEditorBodega();
+        backEvent.preventDefault();
+        return;
+      }
+      if (isEditingCompany) {
+        cerrarEditorEmpresa();
+        backEvent.preventDefault();
+        return;
+      }
+      if (isEditingLimites) {
+        cerrarEditorLimites();
+        backEvent.preventDefault();
+        return;
+      }
+      if (screenReaderSetupPromptOpen) {
+        setScreenReaderSetupPromptOpen(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (accessibilityModal) {
+        setAccessibilityModal(null);
+        backEvent.preventDefault();
+        return;
+      }
+      if (peopleMode) {
+        cerrarModuloPersonas();
+        backEvent.preventDefault();
+      }
+    };
+
+    window.addEventListener('cafesmart:native-back', handleNativeBack);
+    return () => {
+      window.removeEventListener('cafesmart:native-back', handleNativeBack);
+    };
+  }, [
+    accessibilityModal,
+    bodegaDeleteTarget,
+    bodegaFormOpen,
+    isEditingBodega,
+    isEditingCompany,
+    isEditingLimites,
+    isEditingProfile,
+    isViewingPublicProfile,
+    mostrarConfirmacionCerrarSesion,
+    peopleMode,
+    profileInfoOpen,
+    profile,
+    profileAvatarFile,
+    profileAvatarRemove,
+    profilePhotoOpen,
+    bodegaEditando,
+    nombreBodega,
+    ubicacionBodega,
+    capacidadKg,
+    screenReaderSetupPromptOpen,
+  ]);
 
   const iniciarEdicionPersona = (item: PeopleAdminItem) => {
     setPeopleDetail(null);
@@ -2365,15 +2636,6 @@ export default function Ajustes() {
       onClick: abrirEditorBodega,
     },
     {
-      id: 'limites-entrada',
-      title: 'Límites de entrada',
-      description: 'Peso y precio máximo',
-      icon: Scale,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: false,
-      onClick: abrirEditorLimites,
-    },
-    {
       id: 'gestion-usuarios',
       title: 'Usuarios',
       description: 'Roles y permisos',
@@ -2588,65 +2850,100 @@ export default function Ajustes() {
           onClose={() => setAccessibilityModal(null)}
           labelledById="screen-reader-modal-title"
           title="Modo compatible con lector de pantalla"
-          description="Mejora la forma en que CaféSmart se comunica con lectores de pantalla y navegación por teclado."
+          description="Optimiza la navegación y los avisos de Café Smart para lectores de pantalla."
         >
-          <div className="mb-4 rounded-[16px] border border-blue-100 bg-blue-50/80 p-4 text-sm font-semibold leading-5 text-slate-700 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-slate-100">
-            <p>
-              CaféSmart prepara etiquetas, foco y avisos para TalkBack o el lector de pantalla del celular.
-            </p>
-            <p className="mt-2">
-              Si aún no escuchas la app, activa el lector desde los ajustes de accesibilidad del dispositivo.
-            </p>
-            <button
-              type="button"
-              onClick={abrirAjustesAccesibilidadSistema}
-              className="mt-3 inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white dark:bg-blue-600"
-            >
-              Abrir ajustes de accesibilidad
-            </button>
-          </div>
-          <div
-            className="space-y-3"
-            role="radiogroup"
-            aria-label="Modo compatible con lector de pantalla"
+          <button
+            type="button"
+            role="switch"
+            aria-checked={accessibilityPreferences.screenReaderMode}
+            aria-describedby="screen-reader-mode-description"
+            onClick={() =>
+              void activarModoLectorPantalla(
+                !accessibilityPreferences.screenReaderMode,
+              )
+            }
+            className="flex min-h-[64px] w-full items-center gap-3 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
-            {binaryAccessibilityOptions.map((option) => {
-              const active = accessibilityPreferences.screenReaderMode === option.value;
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  role="radio"
-                  {...ariaChecked(active)}
-                  onClick={() => setScreenReaderMode(option.value)}
-                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
-                    active
-                      ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <span
-                    className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
-                      active ? 'bg-[#102d92] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    <span
-                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${
-                        active ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
-                      {option.label}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+            <span
+              className={`inline-flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition ${
+                accessibilityPreferences.screenReaderMode
+                  ? 'bg-[#102d92] dark:bg-blue-500'
+                  : 'bg-slate-200 dark:bg-slate-700'
+              }`}
+              aria-hidden="true"
+            >
+              <span
+                className={`h-6 w-6 rounded-full bg-white shadow-sm transition ${
+                  accessibilityPreferences.screenReaderMode
+                    ? 'translate-x-6'
+                    : 'translate-x-0'
+                }`}
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                {accessibilityPreferences.screenReaderMode
+                  ? 'Activado'
+                  : 'Desactivado'}
+              </span>
+              <span
+                id="screen-reader-mode-description"
+                className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300"
+              >
+                Optimiza foco, etiquetas y avisos para el lector del celular.
+              </span>
+            </span>
+          </button>
         </CafeSmartModal>
+
+        {screenReaderSetupPromptOpen ? (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="activar-lector-pantalla-title"
+              className="w-full max-w-[380px] rounded-[22px] border border-[#dbe5f7] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3
+                    id="activar-lector-pantalla-title"
+                    className="text-lg font-black text-slate-950 dark:text-slate-50"
+                  >
+                    Activar lector de pantalla
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
+                    Para escuchar Café Smart, activa TalkBack desde los ajustes de accesibilidad del celular.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void cerrarSugerenciaLectorPantalla()}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                  aria-label="Cerrar ayuda de lector de pantalla"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void cerrarSugerenciaLectorPantalla()}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  Ahora no
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void abrirAccesibilidadDesdeSugerencia()}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+                >
+                  Abrir accesibilidad
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         <CafeSmartModal
           open={accessibilityModal === 'high-contrast'}
@@ -2751,19 +3048,22 @@ export default function Ajustes() {
           </div>
         </CafeSmartModal>
 
-        <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
+        <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
+          PERFIL
+        </p>
+        <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div
             role="button"
             tabIndex={0}
-            onClick={abrirEditorPerfil}
+            onClick={abrirPerfilPublico}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                abrirEditorPerfil();
+                abrirPerfilPublico();
               }
             }}
             className="flex cursor-pointer items-center gap-3 rounded-[16px] outline-none transition focus-visible:ring-4 focus-visible:ring-[#102d92]/15"
-            aria-label="Abrir edición de perfil"
+            aria-label="Abrir perfil"
           >
             <div className="relative shrink-0">
               <div className="h-14 w-14 overflow-hidden rounded-full bg-[#eef2ff] p-1 shadow-inner">
@@ -2781,14 +3081,15 @@ export default function Ajustes() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[1.1rem] font-semibold text-[#121826]">
+              <h2 className="truncate text-[1.1rem] font-semibold text-[#121826] dark:text-slate-50">
                 {profile.nombre || 'Administrador'}
               </h2>
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-300">
                 {getBusinessTypeLabel(company.tipoEmpresa) || 'Administrador'}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <ChevronRight size={17} className="text-slate-400" aria-hidden="true" />
               <button
                 type="button"
                 onClick={(event) => {
@@ -3355,35 +3656,6 @@ export default function Ajustes() {
             </section>
             </div>
           ) : null}
-        </section>
-
-        <section className="space-y-3">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
-            Perfil
-          </p>
-          <button
-            type="button"
-            onClick={abrirPerfilPublico}
-            aria-label="Perfil. Consulta y edita tu información personal y la foto de perfil."
-            className="flex w-full items-start gap-3 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-          >
-            <span className="inline-flex shrink-0 rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
-              <UserCircle2 size={16} aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900 dark:text-slate-50">
-                Perfil
-              </span>
-              <span className="block text-[11px] leading-4 text-slate-500 dark:text-slate-200">
-                Consulta y edita tu información personal y la foto de perfil.
-              </span>
-            </span>
-            <ChevronRight
-              size={15}
-              className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
-              aria-hidden="true"
-            />
-          </button>
         </section>
 
         <section className="space-y-3">
@@ -4361,29 +4633,35 @@ export default function Ajustes() {
       </div>
 
       {isEditingBodega ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900">
-            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6] dark:bg-slate-700" />
-            <div className="mt-4 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
+        <div className="fixed inset-0 z-[80] bg-[#f4f7fb] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+          <section
+            aria-labelledby="bodegas-title"
+            className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb] dark:bg-slate-950"
+          >
+            <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={cerrarEditorBodega}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100"
+                    aria-label="Volver a ajustes"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <div className="min-w-0">
+                <h3 id="bodegas-title" className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
                   Bodegas
                 </h3>
                 <p className="mt-1 text-[0.78rem] font-semibold text-slate-500 dark:text-slate-300">
                   Administra los puntos de almacenamiento de tu negocio.
                 </p>
+                  </div>
               </div>
-              <button
-                type="button"
-                onClick={cerrarEditorBodega}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-transparent bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-400/25 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
-                aria-label="Cerrar bodegas"
-              >
-                <X size={20} />
-              </button>
             </div>
+            </header>
 
-            <div className="mt-4 space-y-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 pb-[calc(env(safe-area-inset-bottom)+92px)]">
               {bodegaFeedback ? (
                 <AppFeedbackMessage
                   variant={bodegaFeedback.variant}
@@ -4442,6 +4720,15 @@ export default function Ajustes() {
                                 Principal
                               </span>
                             ) : null}
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[0.55rem] font-black uppercase ${
+                                bodega.activa
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-100'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {bodega.activa ? 'Activa' : 'Inactiva'}
+                            </span>
                           </div>
                           <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-300">
                             {bodega.ubicacion?.trim() || 'Sin ubicación registrada'}
@@ -4511,23 +4798,85 @@ export default function Ajustes() {
                           style={{ width: `${Math.min(100, Math.max(0, bodega.ocupacionPct))}%` }}
                         />
                       </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {!bodega.esPrincipal ? (
+                          <button
+                            type="button"
+                            onClick={() => void marcarBodegaPrincipal(bodega)}
+                            disabled={guardandoBodega}
+                            className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#d5deee] bg-white px-3 text-[0.7rem] font-black text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100"
+                          >
+                            Marcar principal
+                          </button>
+                        ) : (
+                          <span className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-blue-100 bg-blue-50 px-3 text-[0.7rem] font-black text-blue-700 dark:border-blue-300/20 dark:bg-blue-500/15 dark:text-blue-100">
+                            Selección por defecto
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void alternarBodegaActiva(bodega)}
+                          disabled={guardandoBodega}
+                          className={`inline-flex min-h-[36px] items-center justify-center rounded-[12px] px-3 text-[0.7rem] font-black disabled:cursor-wait disabled:opacity-60 ${
+                            bodega.activa
+                              ? 'border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-100'
+                              : 'bg-emerald-600 text-white dark:bg-emerald-500'
+                          }`}
+                        >
+                          {bodega.activa ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
               )}
+
+              <section className="rounded-[16px] border border-[#dbe5ff] bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-black text-slate-950 dark:text-slate-100">
+                      Límites y alertas de almacenamiento
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                      Define topes de peso y alertas para evitar movimientos fuera de capacidad.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => abrirEditorLimites({ keepBodega: true })}
+                    className="inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-[0.72rem] font-black text-white dark:bg-blue-600"
+                  >
+                    Configurar
+                  </button>
+                </div>
+              </section>
 
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
                 <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
                 Última actualización: {formatDate(updatedAt)}
               </p>
             </div>
-          </div>
+            <AppBottomNav />
+          </section>
 
           {bodegaFormOpen ? (
-            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/50 px-5 py-6 backdrop-blur-sm">
-              <section className="max-h-[88vh] w-full max-w-[390px] overflow-y-auto rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+            <div className="fixed inset-0 z-[90] bg-[#f4f7fb] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+              <section className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb] dark:bg-slate-950">
+                <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBodegaFormOpen(false);
+                        setBodegaEditando(null);
+                        setBodegaFeedback(null);
+                      }}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100"
+                      aria-label="Volver a bodegas"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                    <div className="min-w-0">
                     <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
                       {bodegaEditando ? 'Editar bodega' : 'Crear bodega'}
                     </h4>
@@ -4535,21 +4884,10 @@ export default function Ajustes() {
                       Registra un punto de almacenamiento para tu café.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBodegaFormOpen(false);
-                      setBodegaEditando(null);
-                      setBodegaFeedback(null);
-                    }}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
-                    aria-label="Cerrar formulario de bodega"
-                  >
-                    <X size={17} />
-                  </button>
                 </div>
+                </header>
 
-                <div className="mt-4 space-y-3">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 pb-[calc(env(safe-area-inset-bottom)+92px)]">
                   {bodegaFeedback && bodegaFeedback.variant !== 'success' ? (
                     <AppFeedbackMessage
                       variant={bodegaFeedback.variant}
@@ -4580,7 +4918,7 @@ export default function Ajustes() {
                   </label>
 
                   <label className="block">
-                    <span className={fieldLabelClass}>Ubicación o descripción</span>
+                    <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
                     <input
                       type="text"
                       maxLength={120}
@@ -4657,6 +4995,7 @@ export default function Ajustes() {
                     </button>
                   </div>
                 </div>
+                <AppBottomNav />
               </section>
             </div>
           ) : null}

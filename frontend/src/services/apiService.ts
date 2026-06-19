@@ -90,8 +90,21 @@ const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
   SECADO_MONTO_INVALIDO: 'Ingresa un valor válido.',
   SECADO_MONTO_MAXIMO: 'El monto supera el máximo permitido.',
   BODEGA_CAPACIDAD_INVALIDA: 'La capacidad debe ser mayor que 0.',
+  BODEGA_CAPACIDAD_REQUERIDA: 'Ingresa la capacidad máxima de la bodega.',
+  BODEGA_NOMBRE_DUPLICADO: 'Ya existe una bodega con este nombre.',
+  BODEGA_NOMBRE_REQUERIDO: 'Ingresa el nombre de la bodega.',
   BODEGA_CAPACIDAD_MENOR_INVENTARIO:
     'La capacidad no puede ser menor al inventario actual.',
+  BODEGA_CAPACIDAD_MENOR_A_INVENTARIO:
+    'La capacidad no puede ser menor al inventario actual.',
+  BODEGA_CON_INVENTARIO_ACTIVO:
+    'No puedes eliminar esta bodega porque tiene inventario activo.',
+  BODEGA_PRINCIPAL_ACTIVA_REQUERIDA:
+    'La bodega principal debe estar activa. Marca otra bodega como principal antes de desactivarla.',
+  BODEGA_UNICA_ACTIVA_REQUERIDA:
+    'Debe existir al menos una bodega activa.',
+  BODEGA_UNICA_NO_ELIMINABLE:
+    'Debe existir al menos una bodega registrada.',
 };
 
 const SPECIFIC_FIELD_MESSAGES: Record<string, string> = {

@@ -71,3 +71,6 @@ Thumbs.db
 /frontend/android/.gradle/
 /frontend/android/local.properties
 /frontend/android/captures/
+
+/.gradle-codex/
+/.gradle-codex-backup/

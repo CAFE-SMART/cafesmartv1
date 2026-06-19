@@ -37,6 +37,14 @@ export type GuardarBodegaPayload = {
   esPrincipal?: boolean;
 };
 
+function logBodegaDebug(
+  message: string,
+  data: Record<string, unknown>,
+) {
+  if (!import.meta.env.DEV) return;
+  console.debug(`[CafeSmart][bodegas] ${message}`, data);
+}
+
 /**
  * Obtiene la configuración de bodega del servidor.
  */
@@ -78,21 +86,92 @@ export function obtenerBodega(id: string) {
 }
 
 export function crearBodega(payload: GuardarBodegaPayload) {
+  logBodegaDebug('request', {
+    method: 'POST',
+    endpoint: '/bodega',
+    payload,
+  });
   return apiFetch('/bodega', {
     method: 'POST',
     body: JSON.stringify(payload),
-  }) as Promise<BodegaItem>;
+  })
+    .then((response) => {
+      logBodegaDebug('response', {
+        method: 'POST',
+        endpoint: '/bodega',
+        status: 'ok',
+        response,
+      });
+      return response as BodegaItem;
+    })
+    .catch((error) => {
+      logBodegaDebug('error', {
+        method: 'POST',
+        endpoint: '/bodega',
+        status: error?.status ?? 'unknown',
+        response: error?.message ?? error,
+      });
+      throw error;
+    });
 }
 
 export function editarBodega(id: string, payload: Partial<GuardarBodegaPayload>) {
-  return apiFetch(`/bodega/${encodeURIComponent(id)}`, {
+  const endpoint = `/bodega/${encodeURIComponent(id)}`;
+  logBodegaDebug('request', {
+    method: 'PATCH',
+    endpoint,
+    payload,
+  });
+  return apiFetch(endpoint, {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  }) as Promise<BodegaItem>;
+  })
+    .then((response) => {
+      logBodegaDebug('response', {
+        method: 'PATCH',
+        endpoint,
+        status: 'ok',
+        response,
+      });
+      return response as BodegaItem;
+    })
+    .catch((error) => {
+      logBodegaDebug('error', {
+        method: 'PATCH',
+        endpoint,
+        status: error?.status ?? 'unknown',
+        response: error?.message ?? error,
+      });
+      throw error;
+    });
 }
 
 export function eliminarBodega(id: string) {
-  return apiFetch(`/bodega/${encodeURIComponent(id)}`, {
+  const endpoint = `/bodega/${encodeURIComponent(id)}`;
+  logBodegaDebug('request', {
     method: 'DELETE',
-  }) as Promise<{ ok: boolean }>;
+    endpoint,
+    payload: { id },
+  });
+  return apiFetch(endpoint, {
+    method: 'DELETE',
+  })
+    .then((response) => {
+      logBodegaDebug('response', {
+        method: 'DELETE',
+        endpoint,
+        status: 'ok',
+        response,
+      });
+      return response as { ok: boolean };
+    })
+    .catch((error) => {
+      logBodegaDebug('error', {
+        method: 'DELETE',
+        endpoint,
+        status: error?.status ?? 'unknown',
+        response: error?.message ?? error,
+      });
+      throw error;
+    });
 }

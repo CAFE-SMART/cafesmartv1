@@ -47,12 +47,12 @@ export async function subirFotoPerfil(file: File) {
     throw new Error('No hay sesión activa. Inicia sesión nuevamente.');
   }
 
-  const formData = new FormData();
-  formData.append('avatar', file);
   let lastError: unknown = null;
 
   for (const apiBaseUrl of getApiBaseUrlCandidates()) {
     try {
+      const formData = new FormData();
+      formData.append('avatar', file, file.name || 'avatar');
       const response = await fetch(`${apiBaseUrl}/users/profile/avatar`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -70,7 +70,14 @@ export async function subirFotoPerfil(file: File) {
         );
       }
 
-      return data as UserProfileResponse;
+      const profile = data as UserProfileResponse;
+      if (!profile.avatarUrl) {
+        throw new Error(
+          'No pudimos guardar la foto. Revisa tu conexión e inténtalo nuevamente.',
+        );
+      }
+
+      return profile;
     } catch (error) {
       lastError = error;
     }
