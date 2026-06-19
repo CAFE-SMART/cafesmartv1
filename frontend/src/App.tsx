@@ -207,10 +207,10 @@ function GlobalOfflineNotice() {
     : backendUnavailable
       ? {
           key: 'server-unavailable',
-          variant: 'error' as const,
-          title: 'No pudimos conectar con la nube',
+          variant: 'warning' as const,
+          title: 'Conexión inestable',
           description:
-            'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+            'Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.',
         }
       : isSyncing
         ? {

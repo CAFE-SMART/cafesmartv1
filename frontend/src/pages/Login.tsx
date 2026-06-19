@@ -468,7 +468,7 @@ export default function Login() {
     if (message === AUTH_MESSAGES.cloudUnavailable) {
       return createGuidedError(
         message,
-        'No pudimos conectar con la nube.',
+        'Conexión inestable.',
         'Puede ser internet, CORS o que Render todavía no responda.',
         'Revisa tu conexión e intenta de nuevo.',
       );
@@ -879,7 +879,7 @@ export default function Login() {
             >
               <p className="font-bold">Nube no disponible</p>
               <p className="font-medium">
-                No pudimos conectar con la nube. Puedes intentar iniciar sesión de todas formas.
+                Conexión inestable. Puedes intentar iniciar sesión de todas formas.
               </p>
             </div>
           ) : null}

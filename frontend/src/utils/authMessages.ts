@@ -18,11 +18,11 @@ export const AUTH_MESSAGES = {
   cloudWaking:
     'Estamos conectando con la nube. Esto puede tardar unos segundos.',
   cloudUnavailable:
-    'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+    'Conexión inestable. Puedes seguir usando los datos guardados.',
   cloudTimeout:
-    'No pudimos conectar con la nube. Intenta nuevamente.',
+    'Conexión inestable. Intenta nuevamente.',
   cloudTryAgain:
-    'No pudimos conectar con la nube. Intenta nuevamente en unos segundos.',
+    'Conexión inestable. Intenta nuevamente en unos segundos.',
   invalidCredentials: 'Correo o contraseña incorrectos.',
 } as const;
 

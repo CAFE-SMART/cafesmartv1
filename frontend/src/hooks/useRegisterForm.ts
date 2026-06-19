@@ -6,7 +6,6 @@ import {
   PASSWORD_MAX_LENGTH,
   getPasswordChecks,
   hasAtLeastOneSurname,
-  isValidPhone,
   normalizeBusinessNameInput,
   normalizeBusinessDescriptionInput,
   validatePersonLastName,
@@ -19,7 +18,10 @@ import {
   validateBusinessName,
   validateBusinessDescription,
 } from '../utils/registerValidators';
-import { getPhoneDigits } from '../utils/formatPhone';
+import {
+  normalizePhoneNumberForStorage,
+  validatePhoneNumber,
+} from '../utils/personValidation';
 import { normalizePossiblyMojibake } from '../utils/jwt';
 
 type UseRegisterFormParams = {
@@ -254,15 +256,13 @@ export function useRegisterForm({
       nextErrors.apellidos = 'Ingresa al menos un apellido para continuar.';
     }
 
-    const telefonoDigits = getPhoneDigits(telefono);
+    const telefonoValidation = validatePhoneNumber(telefono, 'El teléfono');
+    const telefonoNormalizado = normalizePhoneNumberForStorage(telefono);
     if (!telefono.trim()) {
-      nextErrors.telefono = 'Ingresa un número de celular.';
-    } else if (/[^\d\s+]/.test(telefono)) {
-      nextErrors.telefono = 'Solo se permiten números.';
-    } else if (telefonoDigits.length < 10) {
-      nextErrors.telefono = 'El número debe tener 10 dígitos.';
-    } else if (!isValidPhone(telefonoDigits)) {
-      nextErrors.telefono = 'Ingresa un número de celular válido.';
+      nextErrors.telefono = 'Ingresa un número de teléfono.';
+    } else if (!telefonoValidation.isValid || !telefonoNormalizado) {
+      nextErrors.telefono =
+        telefonoValidation.message ?? 'Ingresa un número de teléfono válido.';
     }
 
     if (!correo.trim()) {
@@ -334,7 +334,7 @@ export function useRegisterForm({
             ? otroTipoDetalle.trim()
             : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono: telefonoDigits,
+        telefono: telefonoNormalizado,
         correo,
         password,
       },

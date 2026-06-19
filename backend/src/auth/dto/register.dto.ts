@@ -26,6 +26,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
+import { normalizarTelefonoInternacional } from '../../common/validations/person-fields';
 
 export class RegisterDto {
   @Transform(({ value }) => String(value).trim().replace(/\s+/g, ' '))
@@ -67,14 +68,11 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'El nombre del usuario es obligatorio.' })
   nombre: string;
 
-  @Transform(({ value }) => {
-    const digits = String(value ?? '').replace(/\D/g, '');
-    return digits.startsWith('57') ? digits.slice(2, 12) : digits.slice(0, 10);
-  })
+  @Transform(({ value }) => normalizarTelefonoInternacional(String(value ?? '')) ?? String(value ?? '').trim())
   @IsString({ message: 'El telefono debe ser texto.' })
   @IsNotEmpty({ message: 'El telefono es obligatorio.' })
-  @Matches(/^3\d{9}$/, {
-    message: 'El teléfono debe tener 10 dígitos y empezar por 3.',
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: 'Ingresa un número de teléfono válido.',
   })
   telefono: string;
 

@@ -2,6 +2,7 @@ import {
   createGuidedError,
   type GuidedErrorMessage,
 } from '../../components/forms/GuidedError';
+import { validatePhoneNumber } from '../../utils/personValidation';
 import { ApiRequestError } from '../../services/apiService';
 import { getLimitesEntradaSnapshot } from '../../services/limitesEntradaService';
 import type { LoteVenta, VentaParcialCardAlert } from './types';
@@ -465,19 +466,8 @@ export function getClienteSeleccionGuidance(): GuidedErrorMessage {
 export function getClientePhoneError(value: string) {
   const raw = value.trim();
   if (!raw) return null;
-  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s]/.test(raw)) {
-    return 'No uses letras ni símbolos.';
-  }
-
-  // Import sanitizePersonDigits from validation utils
-  const sanitizePersonDigits = (v: string) => v.replace(/\D/g, '');
-  const digits = sanitizePersonDigits(raw);
-
-  if (digits.length !== 10) return 'El celular debe tener 10 números.';
-  if (!digits.startsWith('3')) {
-    return 'Ingresa un celular colombiano que empiece por 3.';
-  }
-  return null;
+  const result = validatePhoneNumber(raw, 'El teléfono', { optional: true });
+  return result.isValid ? null : result.message ?? 'Ingresa un número de teléfono válido.';
 }
 
 export function getVentaSubmitMessage(error: unknown) {

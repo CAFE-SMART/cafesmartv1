@@ -239,8 +239,8 @@ export function hasAtLeastOneSurname(value: string) {
 export const hasAtLeastTwoSurnames = hasAtLeastOneSurname;
 
 export function isValidPhone(value: string) {
-  const digits = value.replace(/\D/g, '');
-  return /^3\d{9}$/.test(digits);
+  const parsed = parsePhoneNumberFromString(value, 'CO');
+  return parsed?.isValid() ?? false;
 }
 
 export function getPasswordChecks(value: string) {
@@ -281,3 +281,4 @@ export function getPasswordStrength(value: string) {
 
   return { score, label: 'Fuerte' };
 }
+import { parsePhoneNumberFromString } from 'libphonenumber-js';

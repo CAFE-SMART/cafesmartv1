@@ -81,6 +81,7 @@ import {
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import {
   formatPhoneNumber,
+  normalizePhoneNumberForStorage,
   normalizeCompanyName,
   normalizeDocumentForStorage,
   normalizeHumanName,
@@ -2000,7 +2001,7 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
     return createGuidedError(
       message,
       'Revisa el teléfono.',
-      'Debe ser un celular colombiano de 10 dígitos que empieza por 3.',
+      'Puede ser fijo o móvil. Usa indicativo internacional si aplica.',
       'Corrige el número o deja el campo vacío.',
     );
   }
@@ -3088,7 +3089,7 @@ export default function Compras() {
         : normalizeHumanName(productorForm.nombre);
     const tipoDocumento = productorForm.tipoDocumento || 'CEDULA';
     const documento = normalizeDocumentForStorage(productorForm.documento, tipoDocumento);
-    const telefono = productorForm.telefono.trim();
+    const telefono = normalizePhoneNumberForStorage(productorForm.telefono);
     const errores = validarProductorForm();
 
     setProductorFormTouched({
@@ -5374,24 +5375,24 @@ export default function Compras() {
                   </p>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black text-slate-700">Productor</span>
+                  <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">Tipo de productor</span>
                     <SmartSelect
                       value={historialCompraProductor}
                       onChange={(event) => setHistorialCompraProductor(event.target.value)}
-                      className="h-[42px]"
+                      className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
                     >
                       {historialCompraProductores.map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </SmartSelect>
                   </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black text-slate-700">Ordenar por</span>
+                  <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">Ordenar por</span>
                     <SmartSelect
                       value={historialCompraOrden}
                       onChange={(event) => setHistorialCompraOrden(event.target.value as 'recent' | 'oldest')}
-                      className="h-[42px]"
+                      className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
                     >
                       <option value="recent">Más recientes</option>
                       <option value="oldest">Más antiguos</option>

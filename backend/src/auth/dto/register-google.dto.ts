@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TipoOrganizacion } from '@prisma/client';
+import { normalizarTelefonoInternacional } from '../../common/validations/person-fields';
 
 export class RegisterGoogleDto {
   @IsString({ message: 'El token de Google es obligatorio.' })
@@ -62,14 +63,11 @@ export class RegisterGoogleDto {
   })
   descripcion?: string;
 
-  @Transform(({ value }) => {
-    const digits = String(value ?? '').replace(/\D/g, '');
-    return digits.startsWith('57') ? digits.slice(2, 12) : digits.slice(0, 10);
-  })
+  @Transform(({ value }) => normalizarTelefonoInternacional(String(value ?? '')) ?? String(value ?? '').trim())
   @IsString({ message: 'El telefono es obligatorio.' })
   @IsNotEmpty()
-  @Matches(/^3\d{9}$/, {
-    message: 'El teléfono debe tener 10 dígitos y empezar por 3.',
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: 'Ingresa un número de teléfono válido.',
   })
   telefono: string;
 

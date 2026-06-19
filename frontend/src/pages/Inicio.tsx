@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Preferences } from '@capacitor/preferences';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   PackageCheck,
+  Scale,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
@@ -15,6 +17,7 @@ import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { useUser } from '../context/UserContext';
 import {
   obtenerDashboardInicio,
   obtenerDashboardSummary,
@@ -40,6 +43,7 @@ const sectionTitleClass =
 const cardClass =
   'cs-card rounded-[18px] border border-[#dbe2ee] bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-slate-600 dark:bg-slate-900';
 const DASHBOARD_HOME_CACHE_KEY = 'cached_dashboard_home';
+const LIMITS_ONBOARDING_KEY_PREFIX = 'cafesmart:limits-onboarding:v1';
 
 type CachedDashboardHome = {
   summary: DashboardSummary;
@@ -405,6 +409,7 @@ function DashboardErrorState({
 
 export default function Inicio() {
   const navigate = useNavigate();
+  const { user } = useUser();
   const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [lotesBodega, setLotesBodega] = useState<LoteResumen[]>([]);
@@ -435,6 +440,36 @@ export default function Inicio() {
     title: string;
     description: string;
   } | null>(null);
+  const [showLimitsOnboarding, setShowLimitsOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const key = `${LIMITS_ONBOARDING_KEY_PREFIX}:${user?.id ?? 'anon'}`;
+
+    const loadLimitsOnboarding = async () => {
+      const { value } = await Preferences.get({ key });
+      if (active) {
+        setShowLimitsOnboarding(value !== 'dismissed' && value !== 'configured');
+      }
+    };
+
+    void loadLimitsOnboarding();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const markLimitsOnboarding = async (status: 'dismissed' | 'configured') => {
+    const key = `${LIMITS_ONBOARDING_KEY_PREFIX}:${user?.id ?? 'anon'}`;
+    setShowLimitsOnboarding(false);
+    await Preferences.set({ key, value: status });
+  };
+
+  const abrirLimitesDesdeInicio = () => {
+    void markLimitsOnboarding('configured');
+    navigate('/ajustes', { state: { openLimits: true } });
+  };
 
   const cargarDashboardDesdeCache = useCallback(async () => {
     const cachedHome = await getOfflineCache<CachedDashboardHome>(
@@ -938,14 +973,14 @@ export default function Inicio() {
               offlineCacheMissing
                 ? 'No hay información guardada'
                 : error === 'No pudimos conectar con la nube'
-                  ? 'No pudimos conectar con la nube'
+                  ? 'Conexión inestable'
                   : 'No pudimos cargar el inicio'
             }
             message={
               offlineCacheMissing
                 ? 'Conéctate a internet una vez para cargar tus datos y poder consultarlos sin conexión.'
                 : error === 'No pudimos conectar con la nube'
-                  ? 'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.'
+                  ? 'Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.'
                   : 'Revisa tu conexión e intenta nuevamente.'
             }
           />
@@ -953,13 +988,49 @@ export default function Inicio() {
 
         {dashboardState === 'valid' && error ? (
           <section className="px-5 pb-3">
-            <div className="rounded-[16px] border border-[#dbe2ee] bg-white px-4 py-3">
-              <p className="text-[0.76rem] font-black text-[#1f2937]">
-                No se pudo cargar el resumen
+            <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-400/30 dark:bg-amber-500/10">
+              <p className="text-[0.76rem] font-black text-amber-900 dark:text-amber-100">
+                Conexión inestable
               </p>
-              <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-[#65758f]">
-                Presiona Recargar para intentarlo de nuevo.
+              <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-amber-800 dark:text-amber-200">
+                Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.
               </p>
+            </div>
+          </section>
+        ) : null}
+
+        {dashboardState === 'valid' && showLimitsOnboarding ? (
+          <section className="px-5 pb-3">
+            <div className="rounded-[18px] border border-blue-100 bg-blue-50/80 px-4 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-blue-400/20 dark:bg-blue-500/10">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-200">
+                  <Scale size={17} aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.82rem] font-black text-slate-950 dark:text-slate-50">
+                    Configura tus límites de transacción
+                  </p>
+                  <p className="mt-1 text-[0.68rem] font-semibold leading-5 text-slate-600 dark:text-slate-200">
+                    Define valores mínimos y máximos para compras y ventas. Esto ayuda a evitar errores al registrar movimientos.
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={abrirLimitesDesdeInicio}
+                      className="inline-flex min-h-[38px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-[0.68rem] font-black text-white dark:bg-blue-600"
+                    >
+                      Configurar límites
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void markLimitsOnboarding('dismissed')}
+                      className="inline-flex min-h-[38px] items-center justify-center rounded-[12px] border border-blue-200 bg-white px-3 text-[0.68rem] font-black text-[#102d92] dark:border-blue-400/30 dark:bg-slate-900 dark:text-blue-100"
+                    >
+                      Ahora no
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         ) : null}

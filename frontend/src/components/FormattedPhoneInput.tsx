@@ -9,10 +9,10 @@ import { AppFeedbackMessage } from './AppFeedbackMessage';
 /**
  * Archivo: FormattedPhoneInput.tsx
  * Proposito:
- * Renderiza un campo telefonico reutilizable para numeros celulares colombianos.
+ * Renderiza un campo telefonico reutilizable para numeros nacionales e internacionales.
  *
  * Responsabilidad:
- * Normaliza la entrada del usuario, muestra el telefono con formato +57 y expone
+ * Normaliza la entrada del usuario, respeta el prefijo internacional y expone
  * mensajes accesibles de ayuda o error para formularios de Cafe Smart.
  *
  * Uso:
@@ -35,7 +35,7 @@ type FormattedPhoneInputProps = {
 export { formatPhone, getPhoneDigits, isValidPhone as isValidColombianPhone };
 
 /**
- * Campo controlado para capturar y validar un telefono colombiano.
+ * Campo controlado para capturar y validar un telefono compatible con E.164.
  *
  * @param id Identificador opcional para asociar label, input y mensaje.
  * @param label Texto visible del campo.
@@ -55,7 +55,7 @@ export function FormattedPhoneInput({
   onChange,
   optional = false,
   error,
-  hint = 'Escribe solo el numero celular. Nosotros agregamos +57 y los espacios.',
+  hint = 'Puedes escribir el indicativo internacional, por ejemplo +57, +1 o +52.',
   className = '',
   inputClassName = '',
 }: FormattedPhoneInputProps) {
@@ -63,30 +63,27 @@ export function FormattedPhoneInput({
   const inputId = id ?? generatedId;
   const messageId = `${inputId}-message`;
   const digits = getPhoneDigits(value);
-  const displayValue = digits || !optional ? formatPhone(value) : '';
+  const displayValue = value.trim() ? formatPhone(value) : '';
   const hasValue = digits.length > 0;
   const liveError =
     hasValue && !isValidPhone(value, optional)
-      ? 'Revisa el celular: debe tener 10 digitos y empezar por 3.'
+      ? 'Ingresa un número de teléfono válido.'
       : null;
   const message = error ?? liveError;
 
   /**
-   * Extrae solo digitos de lo escrito por el usuario y emite el valor que debe
-   * persistir el formulario. Mantiene el prefijo visual +57 cuando el campo es requerido.
+   * Limpia caracteres no telefonicos sin eliminar el prefijo internacional.
    *
    * @param event Evento de cambio del input telefonico.
    * @returns No retorna valor; informa el cambio mediante onChange.
    */
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextDigits = getPhoneDigits(event.target.value);
-    onChange(
-      nextDigits || optional
-        ? nextDigits
-          ? formatPhone(nextDigits)
-          : ''
-        : '+57',
-    );
+    const raw = event.target.value;
+    const clean = raw
+      .replace(/[^\d\s()+-]/g, '')
+      .replace(/(?!^)\+/g, '')
+      .slice(0, 28);
+    onChange(clean);
   };
   const inputClass = `w-full bg-transparent px-4 py-4 text-base text-slate-900 outline-none placeholder:text-slate-400 ${inputClassName}`;
 

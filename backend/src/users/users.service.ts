@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, RolUsuario, TipoOrganizacion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
+import { normalizarTelefonoInternacional } from '../common/validations/person-fields';
 
 type CrearUsuarioData = {
   nombre: string;
@@ -42,47 +43,93 @@ export class UsersService {
   async findByEmail(correo: string) {
     const normalizedEmail = correo.trim().toLowerCase();
 
-    return this.prisma.user.findFirst({
-      where: {
-        correo: {
-          equals: normalizedEmail,
-          mode: 'insensitive',
+    try {
+      return await this.prisma.user.findFirst({
+        where: {
+          correo: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
         },
-      },
-      select: {
-        id: true,
-        correo: true,
-        nombre: true,
-        telefono: true,
-        avatarUrl: true,
-        password: true,
-        googleId: true,
-        organizacionId: true,
-      },
-    });
+        select: {
+          id: true,
+          correo: true,
+          nombre: true,
+          telefono: true,
+          avatarUrl: true,
+          password: true,
+          googleId: true,
+          organizacionId: true,
+        },
+      });
+    } catch (error) {
+      if (!this.isMissingAvatarColumn(error)) throw error;
+      const user = await this.prisma.user.findFirst({
+        where: {
+          correo: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
+        select: {
+          id: true,
+          correo: true,
+          nombre: true,
+          telefono: true,
+          password: true,
+          googleId: true,
+          organizacionId: true,
+        },
+      });
+      return user ? { ...user, avatarUrl: null } : null;
+    }
   }
 
   async findSessionById(userId: string) {
-    return this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        nombre: true,
-        correo: true,
-        telefono: true,
-        avatarUrl: true,
-        organizacionId: true,
-        organizacion: {
-          select: {
-            id: true,
-            nombre: true,
-            tipo: true,
-            otroTipoDetalle: true,
-            descripcion: true,
+    try {
+      return await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          avatarUrl: true,
+          organizacionId: true,
+          organizacion: {
+            select: {
+              id: true,
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (!this.isMissingAvatarColumn(error)) throw error;
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          organizacionId: true,
+          organizacion: {
+            select: {
+              id: true,
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
+        },
+      });
+      return user ? { ...user, avatarUrl: null } : null;
+    }
   }
 
   async findPasswordById(userId: string) {
@@ -119,7 +166,7 @@ export class UsersService {
    */
   async create(data: CrearUsuarioData, tx?: Prisma.TransactionClient) {
     const prismaClient = tx ? tx : this.prisma;
-    return prismaClient.user.create({
+    const user = await prismaClient.user.create({
       data: {
         nombre: data.nombre,
         correo: data.correo.trim().toLowerCase(),
@@ -134,12 +181,12 @@ export class UsersService {
         nombre: true,
         correo: true,
         telefono: true,
-        avatarUrl: true,
         rol: true,
         organizacionId: true,
         googleId: true,
       },
     });
+    return { ...user, avatarUrl: null };
   }
 
   /**
@@ -167,7 +214,7 @@ export class UsersService {
         },
       });
 
-      return tx.user.create({
+      const user = await tx.user.create({
         data: {
           nombre: input.nombre,
           correo: input.correo.trim().toLowerCase(),
@@ -182,12 +229,12 @@ export class UsersService {
           nombre: true,
           correo: true,
           telefono: true,
-          avatarUrl: true,
           rol: true,
           organizacionId: true,
           googleId: true,
         },
       });
+      return { ...user, avatarUrl: null };
     });
   }
 
@@ -241,7 +288,17 @@ export class UsersService {
   ) {
     const nombre = input.nombre.trim();
     const correo = input.correo.trim().toLowerCase();
-    const telefono = input.telefono?.trim() ?? '';
+    const telefonoRaw = input.telefono?.trim() ?? '';
+    const telefono = telefonoRaw ? normalizarTelefonoInternacional(telefonoRaw) : '';
+    if (telefonoRaw && !telefono) {
+      throw new BadRequestException(
+        apiError(
+          'USUARIO_TELEFONO_INVALIDO',
+          'Ingresa un número de teléfono válido.',
+          { field: 'telefono' },
+        ),
+      );
+    }
 
     if (!nombre) {
       throw new BadRequestException(
@@ -256,7 +313,7 @@ export class UsersService {
     }
 
     try {
-      return this.prisma.user.update({
+      return await this.prisma.user.update({
         where: { id: userId },
         data: {
           nombre,
@@ -280,6 +337,25 @@ export class UsersService {
         throw new BadRequestException(
           apiError('USUARIO_CORREO_DUPLICADO', 'El correo ya está en uso.'),
         );
+      }
+
+      if (this.isMissingAvatarColumn(error)) {
+        const updated = await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            nombre,
+            correo,
+            telefono,
+          },
+          select: {
+            id: true,
+            nombre: true,
+            correo: true,
+            telefono: true,
+            organizacionId: true,
+          },
+        });
+        return { ...updated, avatarUrl: null };
       }
 
       throw error;
@@ -391,33 +467,53 @@ export class UsersService {
       file.mimetype,
     );
 
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { avatarUrl },
-      select: {
-        id: true,
-        nombre: true,
-        correo: true,
-        telefono: true,
-        avatarUrl: true,
-        organizacionId: true,
-      },
-    });
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          avatarUrl: true,
+          organizacionId: true,
+        },
+      });
+    } catch (error) {
+      if (!this.isMissingAvatarColumn(error)) throw error;
+      throw new BadRequestException(
+        apiError(
+          'AVATAR_URL_COLUMN_MISSING',
+          'No pudimos guardar la foto. Falta aplicar la migración de perfil en la base de datos.',
+        ),
+      );
+    }
   }
 
   async removeAvatar(userId: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { avatarUrl: null },
-      select: {
-        id: true,
-        nombre: true,
-        correo: true,
-        telefono: true,
-        avatarUrl: true,
-        organizacionId: true,
-      },
-    });
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl: null },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          avatarUrl: true,
+          organizacionId: true,
+        },
+      });
+    } catch (error) {
+      if (!this.isMissingAvatarColumn(error)) throw error;
+      throw new BadRequestException(
+        apiError(
+          'AVATAR_URL_COLUMN_MISSING',
+          'No pudimos actualizar la foto. Falta aplicar la migración de perfil en la base de datos.',
+        ),
+      );
+    }
   }
 
   private normalizeOptionalDescription(value?: string | null) {
@@ -433,6 +529,14 @@ export class UsersService {
     if (normalized === 'OTRO') return TipoOrganizacion.OTRO;
 
     return TipoOrganizacion.OTRO;
+  }
+
+  private isMissingAvatarColumn(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2022' &&
+      String(error.meta?.column ?? '').includes('avatar_url')
+    );
   }
 
   private getSupabaseStorageConfig() {

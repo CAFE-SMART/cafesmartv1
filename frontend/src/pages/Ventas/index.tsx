@@ -1302,7 +1302,7 @@ if (
       message,
       'Teléfono inválido.',
       'Teléfono opcional con prefijo internacional si aplica.',
-      'Ingresa un celular válido que empiece por 3 y tenga 10 dígitos.',
+      'Puede ser fijo o móvil. Usa indicativo internacional si aplica.',
     );
   }
 

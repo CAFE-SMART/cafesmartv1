@@ -2656,7 +2656,11 @@ export default function ResumenFinanciero() {
                         {historialFilterFeedback}
                       </p>
                     ) : null}
-                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className={`mt-3 grid gap-2 ${
+                      historialActivo === 'GASTO'
+                        ? 'grid-cols-3'
+                        : 'grid-cols-2'
+                    }`}>
                       {historialActivo === 'GASTO' ? (
                         <div className="min-w-0">
                           <label className={fieldLabelClass}>

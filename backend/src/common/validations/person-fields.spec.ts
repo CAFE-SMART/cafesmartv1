@@ -18,18 +18,30 @@ describe('person-fields validation', () => {
     );
   });
 
-  it('rechaza telefonos que no empiezan por 3 o no tienen 10 digitos', () => {
-    expect(() => normalizarTelefonoPersona('2001234567', 'cliente')).toThrow(
+  it('acepta teléfonos nacionales e internacionales válidos', () => {
+    expect(normalizarTelefonoPersona('3001234567', 'cliente')).toBe(
+      '+573001234567',
+    );
+    expect(normalizarTelefonoPersona('6011234567', 'cliente')).toBe(
+      '+576011234567',
+    );
+    expect(normalizarTelefonoPersona('+12025550123', 'cliente')).toBe(
+      '+12025550123',
+    );
+  });
+
+  it('rechaza teléfonos incompletos o con letras', () => {
+    expect(() => normalizarTelefonoPersona('300123', 'cliente')).toThrow(
       BadRequestException,
     );
-    expect(() => normalizarTelefonoPersona('300123', 'cliente')).toThrow(
+    expect(() => normalizarTelefonoPersona('abc123', 'cliente')).toThrow(
       BadRequestException,
     );
   });
 
-  it('normaliza telefono valido', () => {
+  it('guarda teléfono válido en formato E.164', () => {
     expect(normalizarTelefonoPersona('3001234567', 'productor')).toBe(
-      '3001234567',
+      '+573001234567',
     );
   });
 

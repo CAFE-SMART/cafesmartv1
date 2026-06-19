@@ -920,9 +920,9 @@ export default function Inventario() {
       setError(
         backendReachable === false
           ? {
-              titulo: 'No pudimos conectar con la nube',
+              titulo: 'Conexión inestable',
               mensaje:
-                'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+                'Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.',
               detalle: 'Intenta nuevamente en unos segundos.',
             }
           : traducirErrorInventario(err),

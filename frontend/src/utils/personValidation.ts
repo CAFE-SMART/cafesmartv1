@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
+
 export type PersonFieldValidation = {
   isValid: boolean;
   message?: string;
@@ -115,8 +117,22 @@ export function sanitizeDigits(value: string, maxLength = 10) {
   return value.replace(/\D/g, '').slice(0, maxLength);
 }
 
-export function formatPhoneNumber(value: string) {
+export function normalizePhoneNumberForStorage(
+  value: string,
+  defaultCountry: CountryCode = 'CO',
+) {
+  const phone = value.trim();
+  if (!phone) return '';
+  const parsed = parsePhoneNumberFromString(phone, defaultCountry);
+  return parsed?.isValid() ? parsed.number : '';
+}
+
+export function formatPhoneNumber(value: string, defaultCountry: CountryCode = 'CO') {
   const raw = value.trim();
+  const parsed = parsePhoneNumberFromString(raw, defaultCountry);
+  if (parsed?.isValid()) {
+    return parsed.formatInternational();
+  }
   const hasPlus = raw.startsWith('+');
   const digits = raw.replace(/\D/g, '').slice(0, 15);
   const prefix = hasPlus ? '+' : '';
@@ -229,7 +245,7 @@ export function validatePersonName(
 export function validatePhoneNumber(
   value: string,
   label = 'El teléfono',
-  options: { optional?: boolean } = {},
+  options: { optional?: boolean; defaultCountry?: CountryCode } = {},
 ): PersonFieldValidation {
   const telefonoTexto = value.trim();
   const telefono = telefonoTexto.replace(/\D/g, '');
@@ -246,28 +262,39 @@ export function validatePhoneNumber(
   if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(telefonoTexto) || /[^\d\s()+-]/.test(telefonoTexto)) {
     return {
       isValid: false,
-      message: `${label} debe tener solo números y prefijo internacional opcional.`,
+      message: 'Ingresa un número de teléfono válido.',
     };
   }
 
   if ((telefonoTexto.match(/\+/g) ?? []).length > 1 || (telefonoTexto.includes('+') && !telefonoTexto.startsWith('+'))) {
     return {
       isValid: false,
-      message: `${label} solo puede usar + al inicio.`,
+      message: 'Revisa el indicativo del país y el número.',
     };
   }
 
   if (telefono.length < 7 || telefono.length > 15) {
     return {
       isValid: false,
-      message: `${label} debe tener entre 7 y 15 dígitos.`,
+      message: 'Este número no parece válido para el país seleccionado.',
     };
   }
 
   if (isRepeatedDigits(telefono)) {
     return {
       isValid: false,
-      message: `${label} no parece válido.`,
+      message: 'Ingresa un número de teléfono válido.',
+    };
+  }
+
+  const parsed = parsePhoneNumberFromString(
+    telefonoTexto,
+    options.defaultCountry ?? 'CO',
+  );
+  if (!parsed?.isValid()) {
+    return {
+      isValid: false,
+      message: 'Este número no parece válido para el país seleccionado.',
     };
   }
 

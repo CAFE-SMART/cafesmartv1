@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Preferences } from '@capacitor/preferences';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -135,6 +136,7 @@ import {
 } from '../utils/inputLimits';
 import {
   formatPhoneNumber,
+  normalizePhoneNumberForStorage,
   normalizeCompanyName,
   normalizeHumanName,
   normalizeDocumentForStorage,
@@ -175,6 +177,7 @@ type LimitesTab = 'todos' | 'compra' | 'venta';
 
 const OFFLINE_BLOCKED_ACTION_MESSAGE =
   'Esta acción necesita conexión. Puedes guardar un borrador y finalizarlo cuando vuelvas a tener internet.';
+const LIMITS_ONBOARDING_KEY_PREFIX = 'cafesmart:limits-onboarding:v1';
 
 type CompanySettings = {
   nombreEmpresa: string;
@@ -194,7 +197,7 @@ function getBusinessTypeLabel(value: string) {
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
 type ProfileErrors = Partial<Record<keyof ProfileSettings, string>>;
 type PeopleAdminMode = 'todos' | 'clientes' | 'productores' | null;
-type PeopleSortMode = 'recent' | 'oldest' | 'az' | 'za' | 'doc-asc' | 'doc-desc';
+type PeopleSortMode = 'recent' | 'oldest' | 'az' | 'za';
 type SecadoPanelMode = 'home' | 'start' | 'active' | null;
 type SecadoSortMode = 'recent' | 'oldest';
 type SecadoQualityFilter = 'TODOS' | 'BUENO' | 'REGULAR' | 'MALO';
@@ -247,7 +250,7 @@ function validateProfileEmail(value: string) {
 
 function validateColombianPhone(value: string) {
   const result = validatePhoneNumber(value, 'El teléfono', { optional: true });
-  return result.isValid ? null : result.message ?? 'Revisa el teléfono.';
+  return result.isValid ? null : result.message ?? 'Ingresa un número de teléfono válido.';
 }
 
 function getInitials(value: string) {
@@ -336,9 +339,9 @@ function getAjustesErrorSection(message: string): AjustesErrorSection | null {
     message === 'El nombre no puede pasar de 40 caracteres.' ||
     message === 'El correo no puede pasar de 60 caracteres.' ||
     message === 'Escribe un correo válido.' ||
-    message === 'Ingresa un celular colombiano válido.' ||
-    message === 'El celular debe tener 10 números.' ||
-    message === 'El celular debe empezar por 3.' ||
+    message === 'Ingresa un número de teléfono válido.' ||
+    message === 'Revisa el indicativo del país y el número.' ||
+    message === 'Este número no parece válido para el país seleccionado.' ||
     message === 'No uses letras ni símbolos.'
   ) {
     return 'profile';
@@ -426,15 +429,15 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
   }
 
   if (
-    message === 'Ingresa un celular colombiano válido.' ||
-    message === 'El celular debe tener 10 números.' ||
-    message === 'El celular debe empezar por 3.' ||
+    message === 'Ingresa un número de teléfono válido.' ||
+    message === 'Revisa el indicativo del país y el número.' ||
+    message === 'Este número no parece válido para el país seleccionado.' ||
     message === 'No uses letras ni símbolos.'
   ) {
     return createGuidedError(
       message,
       'Revisa el celular.',
-      'Debe ser un celular colombiano.',
+      'Revisa el indicativo y el número.',
       message,
     );
   }
@@ -546,6 +549,7 @@ export default function Ajustes() {
   const [profileAvatarDraft, setProfileAvatarDraft] = useState<string | null>(null);
   const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
   const [profileAvatarRemove, setProfileAvatarRemove] = useState(false);
+  const [profilePhotoOpen, setProfilePhotoOpen] = useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
     message: string;
@@ -619,7 +623,6 @@ export default function Ajustes() {
   const [productoresAdmin, setProductoresAdmin] = useState<PeopleAdminItem[]>([]);
   const [peopleSearch, setPeopleSearch] = useState('');
   const [peopleSortMode, setPeopleSortMode] = useState<PeopleSortMode>('recent');
-  const [peopleSortOpen, setPeopleSortOpen] = useState(false);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleError, setPeopleError] = useState<string | null>(null);
   const [peopleDetail, setPeopleDetail] = useState<PeopleAdminItem | null>(null);
@@ -641,9 +644,14 @@ export default function Ajustes() {
   });
 
   useEffect(() => {
-    const state = location.state as { openBodega?: boolean } | null;
+    const state = location.state as { openBodega?: boolean; openLimits?: boolean } | null;
     if (state?.openBodega) {
       setIsEditingBodega(true);
+      navigate(location.pathname, { replace: true });
+      return;
+    }
+    if (state?.openLimits) {
+      setIsEditingLimites(true);
       navigate(location.pathname, { replace: true });
     }
   }, [location.pathname, location.state, navigate]);
@@ -741,6 +749,17 @@ export default function Ajustes() {
     setIsViewingPublicProfile(false);
   };
 
+  const markLimitsOnboarding = async (status: 'dismissed' | 'configured') => {
+    const key = `${LIMITS_ONBOARDING_KEY_PREFIX}:${user?.id ?? 'anon'}`;
+    await Preferences.set({ key, value: status });
+  };
+
+  const abrirAjustesAccesibilidadSistema = () => {
+    if (typeof window === 'undefined') return;
+    window.location.href =
+      'intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end';
+  };
+
   const mostrarOpcionPendiente = () => {
     clearFeedback();
     setSuccess('Esta opción estará disponible más adelante.');
@@ -771,6 +790,7 @@ export default function Ajustes() {
     setProfileAvatarFile(null);
     setProfileAvatarRemove(false);
     setProfileFeedback(null);
+    setProfilePhotoOpen(false);
     setProfileInfoOpen(false);
     profileBaselineRef.current = null;
     setIsEditingProfile(false);
@@ -869,13 +889,30 @@ export default function Ajustes() {
     setPeopleError(null);
     setPeopleLoading(true);
     try {
-      const [clientesData, productoresData] = await Promise.all([
-        mode === 'productores' ? Promise.resolve(null) : listarClientes(),
-        mode === 'clientes' ? Promise.resolve(null) : listarProductores(),
+      const shouldLoadClientes = mode !== 'productores';
+      const shouldLoadProductores = mode !== 'clientes';
+      const [clientesResult, productoresResult] = await Promise.allSettled([
+        shouldLoadClientes ? listarClientes() : Promise.resolve(null),
+        shouldLoadProductores ? listarProductores() : Promise.resolve(null),
       ]);
-      if (clientesData) setClientesAdmin(clientesData.map(mapClienteAdmin));
-      if (productoresData) {
-        setProductoresAdmin(productoresData.map(mapProductorAdmin));
+      const requestedResults = [
+        shouldLoadClientes ? clientesResult : null,
+        shouldLoadProductores ? productoresResult : null,
+      ].filter(Boolean);
+      const allRequestedFailed = requestedResults.every(
+        (result) => result?.status === 'rejected',
+      );
+
+      if (allRequestedFailed) {
+        setPeopleError('No pudimos cargar los contactos');
+        return;
+      }
+
+      if (clientesResult.status === 'fulfilled' && clientesResult.value) {
+        setClientesAdmin(clientesResult.value.map(mapClienteAdmin));
+      }
+      if (productoresResult.status === 'fulfilled' && productoresResult.value) {
+        setProductoresAdmin(productoresResult.value.map(mapProductorAdmin));
       }
     } catch {
       setPeopleError('No pudimos cargar los contactos');
@@ -1148,6 +1185,7 @@ export default function Ajustes() {
     setBodegasLoading(true);
     try {
       const items = await listarBodegas();
+      setBodegaFeedback(null);
       setBodegas(items);
       const principal = items.find((item) => item.esPrincipal) ?? items[0];
       if (principal) {
@@ -1194,10 +1232,22 @@ export default function Ajustes() {
       }
       if (peopleSortMode === 'az') return a.nombre.localeCompare(b.nombre, 'es');
       if (peopleSortMode === 'za') return b.nombre.localeCompare(a.nombre, 'es');
-      if (peopleSortMode === 'doc-asc') return a.documento.localeCompare(b.documento);
-      if (peopleSortMode === 'doc-desc') return b.documento.localeCompare(a.documento);
       return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
     });
+  const peopleEmptyTitle = peopleSearch.trim()
+    ? 'No encontramos contactos con esa búsqueda'
+    : peopleMode === 'clientes'
+      ? 'Sin clientes registrados'
+      : peopleMode === 'productores'
+        ? 'Sin productores registrados'
+        : 'Sin contactos registrados';
+  const peopleEmptyDescription = peopleSearch.trim()
+    ? 'Prueba con otro nombre, documento o teléfono.'
+    : peopleMode === 'clientes'
+      ? 'Agrega clientes para usarlos en ventas.'
+      : peopleMode === 'productores'
+        ? 'Agrega productores para usarlos en compras.'
+        : 'Agrega clientes o productores para usarlos en compras y ventas.';
 
   const abrirEdicionPersona = (item: PeopleAdminItem) => {
     setPeopleEditing(item);
@@ -1272,10 +1322,79 @@ export default function Ajustes() {
     });
   };
 
+  const cancelarEdicionFotoPerfil = () => {
+    setProfilePhotoOpen(false);
+    setProfileAvatarDraft(null);
+    setProfileAvatarFile(null);
+    setProfileAvatarRemove(false);
+    setProfileFeedback(null);
+  };
+
+  const guardarFotoPerfil = async () => {
+    clearFeedback();
+
+    if (!profileAvatarFile && !profileAvatarRemove) {
+      setProfilePhotoOpen(false);
+      return;
+    }
+
+    if (isOffline) {
+      const message =
+        'Conéctate a internet para guardar la foto de perfil en la nube.';
+      setProfileFeedback({ variant: 'warning', message });
+      setError(message);
+      return;
+    }
+
+    try {
+      setGuardandoPerfil(true);
+      const perfilActualizado = profileAvatarRemove
+        ? await quitarFotoPerfilRemota()
+        : await subirFotoPerfil(profileAvatarFile as File);
+      const nextAvatarUrl = perfilActualizado.avatarUrl ?? '';
+
+      setProfileAvatarUrl(nextAvatarUrl);
+      setProfileAvatarDraft(null);
+      setProfileAvatarFile(null);
+      setProfileAvatarRemove(false);
+      setProfilePhotoOpen(false);
+
+      if (user && token) {
+        await setSession({
+          token,
+          hasCompany,
+          user: {
+            ...user,
+            id: perfilActualizado.id,
+            name: perfilActualizado.nombre,
+            email: perfilActualizado.correo,
+            telefono: perfilActualizado.telefono ?? user.telefono,
+            organizacionId:
+              perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+            avatarUrl: nextAvatarUrl || null,
+          },
+        });
+      }
+
+      setSuccess('Foto actualizada correctamente.');
+      setProfileFeedback({
+        variant: 'success',
+        message: 'Foto actualizada correctamente.',
+      });
+    } catch {
+      const message = 'No pudimos guardar la foto. Intenta nuevamente.';
+      setError(message);
+      setProfileFeedback({ variant: 'error', message });
+      setFloatingError(getAjustesGuidance(message));
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  };
+
   const guardarPerfil = async () => {
     clearFeedback();
 
-    const telefono = sanitizeDigits(profile.telefono, 10);
+    const telefono = normalizePhoneNumberForStorage(profile.telefono);
     const nextErrors: ProfileErrors = {};
     const nombreError = validateProfileName(profile.nombre);
     const correoError = validateProfileEmail(profile.correo);
@@ -1290,7 +1409,7 @@ export default function Ajustes() {
         nextErrors.nombre ??
         nextErrors.correo ??
         nextErrors.telefono ??
-        'Ingresa un celular colombiano válido.';
+        'Ingresa un número de teléfono válido.';
       setProfileErrors(nextErrors);
       setError(message);
       setFloatingError(getAjustesGuidance(message));
@@ -1304,17 +1423,9 @@ export default function Ajustes() {
       telefono,
     };
 
-    if (isOffline && (profileAvatarFile || profileAvatarRemove)) {
-      const message =
-        'Conéctate a internet para guardar la foto de perfil en la nube.';
-      setProfileFeedback({ variant: 'warning', message });
-      setError(message);
-      return;
-    }
-
     try {
       setGuardandoPerfil(true);
-      let perfilActualizado = isOffline
+      const perfilActualizado = isOffline
         ? {
             id: user?.id ?? '',
             nombre: normalizedProfile.nombre,
@@ -1329,13 +1440,7 @@ export default function Ajustes() {
             telefono: normalizedProfile.telefono || null,
           });
 
-      if (!isOffline && profileAvatarRemove) {
-        perfilActualizado = await quitarFotoPerfilRemota();
-      } else if (!isOffline && profileAvatarFile) {
-        perfilActualizado = await subirFotoPerfil(profileAvatarFile);
-      }
-
-      const nextAvatarUrl = perfilActualizado.avatarUrl ?? null;
+      const nextAvatarUrl = perfilActualizado.avatarUrl ?? profileAvatarUrl ?? null;
 
       const nextProfile = {
         nombre: perfilActualizado.nombre,
@@ -1348,9 +1453,6 @@ export default function Ajustes() {
         ...nextProfile,
       }));
       setProfileAvatarUrl(nextAvatarUrl ?? '');
-      setProfileAvatarDraft(null);
-      setProfileAvatarFile(null);
-      setProfileAvatarRemove(false);
       profileBaselineRef.current = nextProfile;
       setProfileErrors({});
 
@@ -1381,7 +1483,7 @@ export default function Ajustes() {
       setProfileFeedback({
         variant: isOffline ? 'warning' : 'success',
         message: isOffline
-          ? 'Foto guardada en este dispositivo. Se sincronizará cuando tengas conexión.'
+          ? 'Datos guardados en este dispositivo. Se sincronizarán cuando tengas conexión.'
           : 'Perfil actualizado correctamente.',
       });
     } catch (error) {
@@ -1481,7 +1583,7 @@ export default function Ajustes() {
       optional: false,
       type: tipoDocumento,
     });
-    const telefono = peopleForm.telefono.trim();
+    const telefono = normalizePhoneNumberForStorage(peopleForm.telefono);
     const telefonoError = validateColombianPhone(peopleForm.telefono);
     const duplicates = [...clientesAdmin, ...productoresAdmin].some(
       (item) =>
@@ -1741,6 +1843,7 @@ export default function Ajustes() {
       setLimitMaxPrecioKg(String(limitesGuardados.maxPrecioCompraKg));
       setLimitMinPrecioVentaKg(String(limitesGuardados.minPrecioVentaKg));
       setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
+      await markLimitsOnboarding('configured');
       setSuccess('Límites actualizados.');
     } catch {
       setError('No pudimos guardar los límites. Revisa tu conexión e intenta nuevamente.');
@@ -1840,7 +1943,8 @@ export default function Ajustes() {
       form.tipoDocumento !== item.tipoDocumento ||
       normalizeDocumentForStorage(form.documento, item.tipoDocumento) !==
         normalizeDocumentForStorage(item.documento, item.tipoDocumento) ||
-      sanitizeDigits(form.telefono, 10) !== sanitizeDigits(item.telefono, 10)
+      normalizePhoneNumberForStorage(form.telefono) !==
+        normalizePhoneNumberForStorage(item.telefono)
     );
   };
 
@@ -1893,7 +1997,7 @@ export default function Ajustes() {
       nextForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = nextForm.telefono.replace(/\D/g, '');
+    const telefonoNormalizado = normalizePhoneNumberForStorage(nextForm.telefono);
     const contactos = [...clientesAdmin, ...productoresAdmin].filter(
       (item) =>
         !(
@@ -1919,17 +2023,17 @@ export default function Ajustes() {
       }
     }
 
-    if (telefonoNormalizado.length >= 7) {
+    if (telefonoNormalizado) {
       const telefonoDuplicado = contactos.some(
         (item) =>
           item.contactType === currentEditing?.contactType &&
-          item.telefono.replace(/\D/g, '') === telefonoNormalizado,
+          normalizePhoneNumberForStorage(item.telefono) === telefonoNormalizado,
       );
       if (telefonoDuplicado) {
         nextErrors.telefono = 'Este número ya está registrado.';
       }
     } else if (nextForm.telefono.trim()) {
-      const telefonoValidation = validatePhoneNumber(nextForm.telefono, 'El celular', {
+      const telefonoValidation = validatePhoneNumber(nextForm.telefono, 'El teléfono', {
         optional: true,
       });
       if (!telefonoValidation.isValid) {
@@ -1970,7 +2074,7 @@ export default function Ajustes() {
       peopleForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = peopleForm.telefono.trim();
+    const telefonoNormalizado = normalizePhoneNumberForStorage(peopleForm.telefono);
     const nombreValidation =
       tipoDocumento === 'NIT'
         ? validateCompanyName(peopleForm.nombre)
@@ -1978,7 +2082,7 @@ export default function Ajustes() {
     const documentoValidation = validateDocumentNumber(peopleForm.documento, 'El documento', {
       type: tipoDocumento,
     });
-    const telefonoValidation = validatePhoneNumber(peopleForm.telefono, 'El celular', {
+    const telefonoValidation = validatePhoneNumber(peopleForm.telefono, 'El teléfono', {
       optional: true,
     });
     if (!nombreValidation.isValid) nextErrors.nombre = nombreValidation.message;
@@ -2196,8 +2300,8 @@ export default function Ajustes() {
   const procesosOperativos = [
     {
       id: 'secado',
-      title: 'Proceso de secado',
-      description: 'Revisa secados activos',
+      title: 'Secado',
+      description: 'Revisa procesos de secado.',
       icon: Droplets,
       iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => {
@@ -2207,15 +2311,15 @@ export default function Ajustes() {
     },
     {
       id: 'gastos',
-      title: 'Gastos operativos',
-      description: 'Listado y registro',
+      title: 'Gastos',
+      description: 'Consulta y registra gastos.',
       icon: Wallet,
       iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => navigate('/gastos'),
     },
     {
       id: 'sincronizacion',
-      title: 'Sincronización offline',
+      title: 'Sincronización',
       description: `${syncSummary.pendientes} pendientes · ${syncSummary.errores} con error`,
       icon: CloudCog,
       iconStyle: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200',
@@ -2486,6 +2590,21 @@ export default function Ajustes() {
           title="Modo compatible con lector de pantalla"
           description="Mejora la forma en que CaféSmart se comunica con lectores de pantalla y navegación por teclado."
         >
+          <div className="mb-4 rounded-[16px] border border-blue-100 bg-blue-50/80 p-4 text-sm font-semibold leading-5 text-slate-700 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-slate-100">
+            <p>
+              CaféSmart prepara etiquetas, foco y avisos para TalkBack o el lector de pantalla del celular.
+            </p>
+            <p className="mt-2">
+              Si aún no escuchas la app, activa el lector desde los ajustes de accesibilidad del dispositivo.
+            </p>
+            <button
+              type="button"
+              onClick={abrirAjustesAccesibilidadSistema}
+              className="mt-3 inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white dark:bg-blue-600"
+            >
+              Abrir ajustes de accesibilidad
+            </button>
+          </div>
           <div
             className="space-y-3"
             role="radiogroup"
@@ -2913,23 +3032,6 @@ export default function Ajustes() {
                   className="hidden"
                   onChange={(event) => void seleccionarFotoPerfil(event)}
                 />
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white"
-                  >
-                    Cambiar foto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={quitarFotoPerfil}
-                    disabled={!currentAvatarUrl}
-                    className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    Quitar foto
-                  </button>
-                </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
@@ -2947,6 +3049,16 @@ export default function Ajustes() {
                   <Pencil size={15} /> Editar información
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfilePhotoOpen(true);
+                  setProfileFeedback(null);
+                }}
+                className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
+              >
+                <Pencil size={15} /> Editar foto
+              </button>
               {profileFeedback ? (
                 <AppFeedbackMessage
                   variant={profileFeedback.variant}
@@ -2972,6 +3084,96 @@ export default function Ajustes() {
                     </button>
                   }
                 />
+              ) : null}
+              {profilePhotoOpen ? (
+                <div className="fixed inset-0 z-[112] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+                  <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="editar-foto-perfil-title"
+                    className="w-full max-w-[380px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <h4
+                          id="editar-foto-perfil-title"
+                          className="text-lg font-black text-slate-950 dark:text-slate-100"
+                        >
+                          Editar foto
+                        </h4>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Revisa la vista previa antes de guardar.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={cancelarEdicionFotoPerfil}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                        aria-label="Cerrar edición de foto"
+                      >
+                        <X size={17} />
+                      </button>
+                    </div>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="h-28 w-28 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
+                        {currentAvatarUrl ? (
+                          <img
+                            src={currentAvatarUrl}
+                            alt=""
+                            className="h-full w-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center rounded-full bg-[#eaf0ff] text-2xl font-black text-[#102d92]">
+                            {getInitials(profile.nombre || company.nombreEmpresa)}
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">
+                        La foto se guardará solo cuando pulses Guardar cambios.
+                      </p>
+                    </div>
+                    <div className="mt-5 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white dark:bg-blue-600"
+                      >
+                        Cambiar foto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={quitarFotoPerfil}
+                        disabled={!currentAvatarUrl}
+                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      >
+                        Quitar foto
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void guardarFotoPerfil()}
+                        disabled={guardandoPerfil || (!profileAvatarFile && !profileAvatarRemove)}
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
+                      >
+                        {guardandoPerfil ? (
+                          <LoaderCircle size={15} className="animate-spin" />
+                        ) : (
+                          <Save size={15} />
+                        )}
+                        Guardar cambios
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelarEdicionFotoPerfil}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </section>
+                </div>
               ) : null}
               {profileInfoOpen ? (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
@@ -3085,10 +3287,10 @@ export default function Ajustes() {
               </div>
               <div className="mt-5">
               <label className={fieldLabelClass}>
-                Número de teléfono
+                Número de teléfono (Opcional)
               </label>
               <p className={fieldHelpTextClass}>
-                Teléfono.
+                Puedes dejarlo vacío o escribir un número internacional válido.
               </p>
               <input
                 type="tel"
@@ -3156,6 +3358,35 @@ export default function Ajustes() {
         </section>
 
         <section className="space-y-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
+            Perfil
+          </p>
+          <button
+            type="button"
+            onClick={abrirPerfilPublico}
+            aria-label="Perfil. Consulta y edita tu información personal y la foto de perfil."
+            className="flex w-full items-start gap-3 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+          >
+            <span className="inline-flex shrink-0 rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
+              <UserCircle2 size={16} aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-900 dark:text-slate-50">
+                Perfil
+              </span>
+              <span className="block text-[11px] leading-4 text-slate-500 dark:text-slate-200">
+                Consulta y edita tu información personal y la foto de perfil.
+              </span>
+            </span>
+            <ChevronRight
+              size={15}
+              className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+              aria-hidden="true"
+            />
+          </button>
+        </section>
+
+        <section className="space-y-3">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Procesos operativos
           </p>
@@ -3175,10 +3406,10 @@ export default function Ajustes() {
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    <span className="block text-sm font-semibold leading-4 text-slate-900 dark:text-slate-50">
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
+                    <span className="block text-[11px] leading-4 text-slate-500 dark:text-slate-200">
                       {item.description}
                     </span>
                   </span>
@@ -4756,66 +4987,45 @@ export default function Ajustes() {
                 className={`${fieldInputClass} mt-3 h-11`}
               />
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {[
-                  { value: 'todos', label: 'Todos' },
-                  { value: 'clientes', label: 'Clientes' },
-                  { value: 'productores', label: 'Productores' },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      void cargarPersonasAdmin(option.value as Exclude<PeopleAdminMode, null>, {
-                        resetSearch: false,
-                      })
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                    Tipo de contacto
+                  </span>
+                  <SmartSelect
+                    value={peopleMode ?? 'todos'}
+                    onChange={(event) =>
+                      void cargarPersonasAdmin(
+                        event.target.value as Exclude<PeopleAdminMode, null>,
+                        { resetSearch: false },
+                      )
                     }
-                    className={`min-h-[34px] rounded-full px-3 text-xs font-black ${
-                      peopleMode === option.value
-                        ? 'bg-[#102d92] text-white dark:bg-blue-600'
-                        : 'border border-[#dbe2f0] bg-white text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
-                    }`}
+                    className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
+                    aria-label="Tipo de contacto"
                   >
-                    {option.label}
-                  </button>
-                ))}
-                <div className="relative ml-auto">
-                  <button
-                    type="button"
-                    onClick={() => setPeopleSortOpen((open) => !open)}
-                    className="min-h-[34px] rounded-full border border-[#dbe2f0] bg-white px-3 text-xs font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  >
+                    <option value="todos">Todos</option>
+                    <option value="clientes">Clientes</option>
+                    <option value="productores">Productores</option>
+                  </SmartSelect>
+                </label>
+                <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                     Ordenar por
-                  </button>
-                  {peopleSortOpen ? (
-                    <div className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-[14px] border border-[#dbe2f0] bg-white p-1.5 shadow-[0_18px_42px_rgba(15,23,42,0.16)] dark:border-slate-700 dark:bg-slate-900">
-                      {[
-                        ['recent', 'Más recientes'],
-                        ['oldest', 'Más antiguos'],
-                        ['az', 'A-Z'],
-                        ['za', 'Z-A'],
-                        ['doc-asc', 'Número menor a mayor'],
-                        ['doc-desc', 'Número mayor a menor'],
-                      ].map(([value, label]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => {
-                            setPeopleSortMode(value as PeopleSortMode);
-                            setPeopleSortOpen(false);
-                          }}
-                          className={`block w-full rounded-[10px] px-3 py-2 text-left text-xs font-black ${
-                            peopleSortMode === value
-                              ? 'bg-[#102d92] text-white dark:bg-blue-600'
-                              : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                  </span>
+                  <SmartSelect
+                    value={peopleSortMode}
+                    onChange={(event) =>
+                      setPeopleSortMode(event.target.value as PeopleSortMode)
+                    }
+                    className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
+                    aria-label="Ordenar contactos"
+                  >
+                    <option value="recent">Más reciente</option>
+                    <option value="oldest">Más antiguo</option>
+                    <option value="az">Nombre A-Z</option>
+                    <option value="za">Nombre Z-A</option>
+                  </SmartSelect>
+                </label>
               </div>
               <p className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">
                 {peopleError
@@ -4869,14 +5079,10 @@ export default function Ajustes() {
               ) : peopleFiltered.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   <p className="font-bold text-slate-800 dark:text-slate-100">
-                    {peopleSearch.trim()
-                      ? 'No encontramos contactos con esa búsqueda'
-                      : 'Sin contactos registrados'}
+                    {peopleEmptyTitle}
                   </p>
                   <p className="mt-1 font-semibold text-slate-500 dark:text-slate-300">
-                    {peopleSearch.trim()
-                      ? 'Prueba con otro nombre, documento o teléfono.'
-                      : 'Agrega clientes o productores para usarlos en compras y ventas.'}
+                    {peopleEmptyDescription}
                   </p>
                   <button
                     type="button"

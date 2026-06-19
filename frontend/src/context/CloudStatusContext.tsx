@@ -465,9 +465,9 @@ export function CloudStatusProvider({
     if (lastEvent?.status === 'error') {
       return {
         tone: 'degraded',
-        title: 'No pudimos conectar con la nube',
+        title: 'Conexión inestable',
         detail:
-          'No pudimos conectar con la nube. Revisa tu conexión o intenta de nuevo.',
+          'Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.',
         isOnline,
         backendReachable,
         backendIssue,

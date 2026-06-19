@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import { apiError } from '../errors/api-error';
 
 type PersonaEntidad = 'cliente' | 'productor';
@@ -226,43 +227,44 @@ export function normalizarTelefonoPersona(
   const telefono = valor?.trim() ?? '';
 
   if (!telefono) return null;
-
-  if (/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(telefono) || /[^\d\s()+-]/.test(telefono)) {
+  const normalized = normalizarTelefonoInternacional(telefono);
+  if (!normalized) {
     throwPersonValidation(
       entidad,
       'TELEFONO_INVALIDO',
-      'El teléfono debe tener solo números y prefijo internacional opcional.',
+      'Ingresa un número de teléfono válido.',
       'telefono',
     );
   }
 
-  if ((telefono.match(/\+/g) ?? []).length > 1 || (telefono.includes('+') && !telefono.startsWith('+'))) {
-    throwPersonValidation(
-      entidad,
-      'TELEFONO_INVALIDO',
-      'El teléfono solo puede usar + al inicio.',
-      'telefono',
-    );
+  return normalized;
+}
+
+export function normalizarTelefonoInternacional(
+  valor: string | undefined | null,
+  defaultCountry: CountryCode = 'CO',
+) {
+  const telefono = valor?.trim() ?? '';
+  if (!telefono) return null;
+
+  if (
+    /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(telefono) ||
+    /[^\d\s()+-]/.test(telefono) ||
+    (telefono.match(/\+/g) ?? []).length > 1 ||
+    (telefono.includes('+') && !telefono.startsWith('+'))
+  ) {
+    return null;
   }
 
   const digits = telefono.replace(/\D/g, '');
-  if (digits.length < 7 || digits.length > 15) {
-    throwPersonValidation(
-      entidad,
-      'TELEFONO_INVALIDO',
-      'El teléfono debe tener entre 7 y 15 dígitos.',
-      'telefono',
-    );
+  if (digits.length < 7 || digits.length > 15 || hasRepeatedDigits(digits)) {
+    return null;
   }
 
-  if (hasRepeatedDigits(digits)) {
-    throwPersonValidation(
-      entidad,
-      'TELEFONO_INVALIDO',
-      'El teléfono no parece válido.',
-      'telefono',
-    );
+  const parsed = parsePhoneNumberFromString(telefono, defaultCountry);
+  if (!parsed?.isValid()) {
+    return null;
   }
 
-  return `${telefono.startsWith('+') ? '+' : ''}${digits}`;
+  return parsed.number;
 }

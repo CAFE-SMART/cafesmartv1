@@ -5,6 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GuardarProductorDto } from './dto/guardar-productor.dto';
 import { apiError } from '../common/errors/api-error';
@@ -31,27 +32,15 @@ export class ProductoresService {
 
   async listar(userId: string): Promise<ProductorListadoItem[]> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
-    const productores = await this.prisma.productor.findMany({
-      where: {
-        organizacionId,
-        deletedAt: null,
-      },
-      orderBy: [{ createdAt: 'desc' }, { nombre: 'asc' }],
-      select: {
-        id: true,
-        nombre: true,
-        documento: true,
-        tipoDocumento: true,
-        telefono: true,
-        createdAt: true,
-      },
-    });
+    const productores = await this.findManyCompat(organizacionId);
 
     return productores.map((productor) => ({
       id: productor.id,
       nombre: productor.nombre,
       documento: productor.documento,
-      tipoDocumento: productor.tipoDocumento as 'CEDULA' | 'NIT' | null,
+      tipoDocumento:
+        (productor.tipoDocumento as TipoDocumento | null) ??
+        this.inferirTipoDocumento(productor.documento),
       telefono: productor.telefono,
       createdAt: productor.createdAt.toISOString(),
     }));
@@ -70,14 +59,37 @@ export class ProductoresService {
 
     await this.validarDocumentoDisponible(organizacionId, documento);
 
-    const productor = await this.prisma.productor.create({
-      data: {
+    const data = {
         organizacionId,
         nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
         tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
-      },
+    };
+    const productor = await this.createCompat(data);
+
+    return {
+      id: productor.id,
+      nombre: productor.nombre,
+      documento: productor.documento,
+      tipoDocumento:
+        (productor.tipoDocumento as TipoDocumento | null) ??
+        this.inferirTipoDocumento(productor.documento),
+      telefono: productor.telefono,
+      createdAt: productor.createdAt.toISOString(),
+    };
+  }
+
+  private async createCompat(data: {
+    organizacionId: string;
+    nombre: string;
+    documento: string;
+    tipoDocumento: TipoDocumento;
+    telefono: string | null;
+  }) {
+    try {
+      return await this.prisma.productor.create({
+        data,
       select: {
         id: true,
         nombre: true,
@@ -86,16 +98,22 @@ export class ProductoresService {
         telefono: true,
         createdAt: true,
       },
-    });
-
-    return {
-      id: productor.id,
-      nombre: productor.nombre,
-      documento: productor.documento,
-      tipoDocumento: productor.tipoDocumento as 'CEDULA' | 'NIT' | null,
-      telefono: productor.telefono,
-      createdAt: productor.createdAt.toISOString(),
-    };
+      });
+    } catch (error) {
+      if (!this.isMissingTipoDocumentoColumn(error)) throw error;
+      return this.prisma.productor.create({
+        data: {
+          organizacionId: data.organizacionId,
+          nombre: data.nombre,
+          documento: data.documento,
+          telefono: data.telefono,
+        },
+        select: this.baseSelect(),
+      }).then((productor) => ({
+        ...productor,
+        tipoDocumento: this.inferirTipoDocumento(productor.documento),
+      }));
+    }
   }
 
   async actualizar(
@@ -128,14 +146,39 @@ export class ProductoresService {
       productorId,
     );
 
-    const productor = await this.prisma.productor.update({
-      where: { id: productorId },
-      data: {
+    const data = {
         nombre: this.normalizarNombre(dto.nombre, tipoDocumento),
         documento,
         tipoDocumento,
         telefono: normalizarTelefonoPersona(dto.telefono, 'productor'),
-      },
+    };
+    const productor = await this.updateCompat(productorId, data);
+
+    return {
+      id: productor.id,
+      nombre: productor.nombre,
+      documento: productor.documento,
+      tipoDocumento:
+        (productor.tipoDocumento as TipoDocumento | null) ??
+        this.inferirTipoDocumento(productor.documento),
+      telefono: productor.telefono,
+      createdAt: productor.createdAt.toISOString(),
+    };
+  }
+
+  private async updateCompat(
+    productorId: string,
+    data: {
+      nombre: string;
+      documento: string;
+      tipoDocumento: TipoDocumento;
+      telefono: string | null;
+    },
+  ) {
+    try {
+      return await this.prisma.productor.update({
+        where: { id: productorId },
+        data,
       select: {
         id: true,
         nombre: true,
@@ -144,16 +187,22 @@ export class ProductoresService {
         telefono: true,
         createdAt: true,
       },
-    });
-
-    return {
-      id: productor.id,
-      nombre: productor.nombre,
-      documento: productor.documento,
-      tipoDocumento: productor.tipoDocumento as 'CEDULA' | 'NIT' | null,
-      telefono: productor.telefono,
-      createdAt: productor.createdAt.toISOString(),
-    };
+      });
+    } catch (error) {
+      if (!this.isMissingTipoDocumentoColumn(error)) throw error;
+      return this.prisma.productor.update({
+        where: { id: productorId },
+        data: {
+          nombre: data.nombre,
+          documento: data.documento,
+          telefono: data.telefono,
+        },
+        select: this.baseSelect(),
+      }).then((productor) => ({
+        ...productor,
+        tipoDocumento: this.inferirTipoDocumento(productor.documento),
+      }));
+    }
   }
 
   async eliminar(userId: string, productorId: string): Promise<void> {
@@ -220,6 +269,63 @@ export class ProductoresService {
     tipoDocumento: GuardarProductorDto['tipoDocumento'],
   ): TipoDocumento {
     return tipoDocumento ?? (valor.includes('-') ? 'NIT' : 'CEDULA');
+  }
+
+  private inferirTipoDocumento(documento: string | null): TipoDocumento | null {
+    if (!documento) return null;
+    return documento.includes('-') ? 'NIT' : 'CEDULA';
+  }
+
+  private baseSelect() {
+    return {
+      id: true,
+      nombre: true,
+      documento: true,
+      telefono: true,
+      createdAt: true,
+    } as const;
+  }
+
+  private async findManyCompat(organizacionId: string) {
+    try {
+      return await this.prisma.productor.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { nombre: 'asc' }],
+        select: {
+          id: true,
+          nombre: true,
+          documento: true,
+          tipoDocumento: true,
+          telefono: true,
+          createdAt: true,
+        },
+      });
+    } catch (error) {
+      if (!this.isMissingTipoDocumentoColumn(error)) throw error;
+      const productores = await this.prisma.productor.findMany({
+        where: {
+          organizacionId,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'desc' }, { nombre: 'asc' }],
+        select: this.baseSelect(),
+      });
+      return productores.map((productor) => ({
+        ...productor,
+        tipoDocumento: this.inferirTipoDocumento(productor.documento),
+      }));
+    }
+  }
+
+  private isMissingTipoDocumentoColumn(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2022' &&
+      String(error.meta?.column ?? '').includes('tipo_documento')
+    );
   }
 
   private async validarDocumentoDisponible(

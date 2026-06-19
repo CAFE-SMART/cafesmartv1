@@ -117,40 +117,54 @@ export class BodegaService {
   }
 
   async listarBodegas(organizacionId: string): Promise<BodegaItem[]> {
-    await this.ensureBodegaPrincipal(organizacionId);
-    const bodegas = await this.prisma.bodega.findMany({
-      where: { organizacionId, deletedAt: null },
-      orderBy: [{ esPrincipal: 'desc' }, { createdAt: 'asc' }],
-    });
-    const inventarioPrincipal = await this.obtenerInventarioActualKg(
-      organizacionId,
-    );
+    try {
+      await this.ensureBodegaPrincipal(organizacionId);
+      const bodegas = await this.prisma.bodega.findMany({
+        where: { organizacionId, deletedAt: null },
+        orderBy: [{ esPrincipal: 'desc' }, { createdAt: 'asc' }],
+      });
+      const inventarioPrincipal = await this.obtenerInventarioActualKg(
+        organizacionId,
+      );
 
-    return bodegas.map((bodega) =>
-      this.mapBodega(
-        bodega,
-        bodega.esPrincipal ? inventarioPrincipal : 0,
-      ),
-    );
+      return bodegas.map((bodega) =>
+        this.mapBodega(
+          bodega,
+          bodega.esPrincipal ? inventarioPrincipal : 0,
+        ),
+      );
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+      return [await this.buildLegacyPrincipalBodega(organizacionId)];
+    }
   }
 
   async obtenerBodega(
     organizacionId: string,
     bodegaId: string,
   ): Promise<BodegaItem> {
-    await this.ensureBodegaPrincipal(organizacionId);
-    const bodega = await this.prisma.bodega.findFirst({
-      where: { id: bodegaId, organizacionId, deletedAt: null },
-    });
-    if (!bodega) {
+    try {
+      await this.ensureBodegaPrincipal(organizacionId);
+      const bodega = await this.prisma.bodega.findFirst({
+        where: { id: bodegaId, organizacionId, deletedAt: null },
+      });
+      if (!bodega) {
+        throw new NotFoundException(
+          apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
+        );
+      }
+      const inventarioPrincipal = bodega.esPrincipal
+        ? await this.obtenerInventarioActualKg(organizacionId)
+        : 0;
+      return this.mapBodega(bodega, inventarioPrincipal);
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+      const legacy = await this.buildLegacyPrincipalBodega(organizacionId);
+      if (bodegaId === legacy.id || bodegaId === 'principal') return legacy;
       throw new NotFoundException(
         apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
       );
     }
-    const inventarioPrincipal = bodega.esPrincipal
-      ? await this.obtenerInventarioActualKg(organizacionId)
-      : 0;
-    return this.mapBodega(bodega, inventarioPrincipal);
   }
 
   async crearBodega(
@@ -160,9 +174,20 @@ export class BodegaService {
     const nombre = this.normalizeNombre(dto.nombre);
     const ubicacion = this.normalizeUbicacion(dto.ubicacion);
     const capacidadMaxKg = this.normalizeCapacidad(dto.capacidadMaxKg);
-    const existingCount = await this.prisma.bodega.count({
-      where: { organizacionId, deletedAt: null },
-    });
+    let existingCount = 0;
+    try {
+      existingCount = await this.prisma.bodega.count({
+        where: { organizacionId, deletedAt: null },
+      });
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_MIGRACION_REQUERIDA',
+          'No pudimos crear otra bodega. Falta aplicar la migración de bodegas en la base de datos.',
+        ),
+      );
+    }
     const esPrincipal = dto.esPrincipal === true || existingCount === 0;
 
     const bodega = await this.prisma.$transaction(async (tx) => {
@@ -193,9 +218,29 @@ export class BodegaService {
     bodegaId: string,
     dto: EditarBodegaDto,
   ): Promise<BodegaItem> {
-    const actual = await this.prisma.bodega.findFirst({
-      where: { id: bodegaId, organizacionId, deletedAt: null },
-    });
+    let actual;
+    try {
+      actual = await this.prisma.bodega.findFirst({
+        where: { id: bodegaId, organizacionId, deletedAt: null },
+      });
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+      if (bodegaId !== 'legacy-principal' && bodegaId !== 'principal') {
+        throw new NotFoundException(
+          apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
+        );
+      }
+      const config = await this.obtenerConfiguracion(organizacionId);
+      const capacidadMaxKg =
+        typeof dto.capacidadMaxKg === 'number'
+          ? Number(this.normalizeCapacidad(dto.capacidadMaxKg))
+          : config.capacidadKg ?? 3000;
+      await this.actualizarConfiguracion(organizacionId, {
+        nombreBodega: typeof dto.nombre === 'string' ? dto.nombre : config.nombreBodega,
+        capacidadKg: capacidadMaxKg,
+      });
+      return this.buildLegacyPrincipalBodega(organizacionId);
+    }
     if (!actual) {
       throw new NotFoundException(
         apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
@@ -259,10 +304,21 @@ export class BodegaService {
   }
 
   async eliminarBodega(organizacionId: string, bodegaId: string) {
-    const bodegas = await this.prisma.bodega.findMany({
-      where: { organizacionId, deletedAt: null },
-      orderBy: [{ esPrincipal: 'desc' }, { createdAt: 'asc' }],
-    });
+    let bodegas;
+    try {
+      bodegas = await this.prisma.bodega.findMany({
+        where: { organizacionId, deletedAt: null },
+        orderBy: [{ esPrincipal: 'desc' }, { createdAt: 'asc' }],
+      });
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+      throw new ConflictException(
+        apiError(
+          'BODEGA_UNICA_NO_ELIMINABLE',
+          'No puedes eliminar la única bodega registrada.',
+        ),
+      );
+    }
     if (bodegas.length <= 1) {
       throw new ConflictException(
         apiError(
@@ -340,6 +396,16 @@ export class BodegaService {
         organizacionId,
       ),
     ]);
+
+    try {
+      await this.sincronizarBodegaPrincipalDesdeConfiguracion(
+        organizacionId,
+        dto.nombreBodega.trim(),
+        dto.capacidadKg,
+      );
+    } catch (error) {
+      if (!this.isMissingBodegaStorage(error)) throw error;
+    }
 
     return {
       nombreBodega: dto.nombreBodega.trim(),
@@ -422,6 +488,93 @@ export class BodegaService {
         esPrincipal: true,
       },
     });
+  }
+
+  private async sincronizarBodegaPrincipalDesdeConfiguracion(
+    organizacionId: string,
+    nombre: string,
+    capacidadMaxKg: number,
+  ) {
+    const principal = await this.prisma.bodega.findFirst({
+      where: { organizacionId, deletedAt: null, esPrincipal: true },
+    });
+    if (principal) {
+      await this.prisma.bodega.update({
+        where: { id: principal.id },
+        data: {
+          nombre,
+          capacidadMaxKg,
+          activa: true,
+        },
+      });
+      return;
+    }
+
+    const existing = await this.prisma.bodega.findFirst({
+      where: { organizacionId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing) {
+      await this.prisma.bodega.update({
+        where: { id: existing.id },
+        data: {
+          nombre,
+          capacidadMaxKg,
+          activa: true,
+          esPrincipal: true,
+        },
+      });
+      return;
+    }
+
+    await this.prisma.bodega.create({
+      data: {
+        organizacionId,
+        nombre,
+        capacidadMaxKg,
+        ubicacion: null,
+        activa: true,
+        esPrincipal: true,
+      },
+    });
+  }
+
+  private async buildLegacyPrincipalBodega(
+    organizacionId: string,
+  ): Promise<BodegaItem> {
+    const [config, cafeAlmacenadoKg] = await Promise.all([
+      this.obtenerConfiguracion(organizacionId),
+      this.obtenerInventarioActualKg(organizacionId),
+    ]);
+    const capacidadMaxKg = config.capacidadKg ?? 3000;
+    const disponibleKg = Math.max(0, capacidadMaxKg - cafeAlmacenadoKg);
+    const ocupacionPct =
+      capacidadMaxKg > 0
+        ? Math.min(100, Math.round((cafeAlmacenadoKg / capacidadMaxKg) * 100))
+        : 0;
+
+    return {
+      id: 'legacy-principal',
+      nombre: config.nombreBodega || 'Bodega principal',
+      ubicacion: null,
+      capacidadMaxKg,
+      cafeAlmacenadoKg,
+      disponibleKg,
+      ocupacionPct,
+      activa: true,
+      esPrincipal: true,
+      createdAt: config.updatedAt,
+      updatedAt: config.updatedAt,
+    };
+  }
+
+  private isMissingBodegaStorage(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2021' ||
+        (error.code === 'P2022' &&
+          String(error.meta?.column ?? '').includes('bodega')))
+    );
   }
 
   private normalizeNombre(value: string) {

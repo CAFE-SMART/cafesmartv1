@@ -23,7 +23,7 @@ import { applySecadoToLots, applySecadoToDetalle } from '../../../utils/secadoFl
 import { getSubloteCodeMap } from '../../../utils/coffeeCodes';
 import { sanitizeSearchInput } from '../../../utils/inputLimits';
 import { fuzzySearch, useDebouncedValue } from '../../../utils/fuzzySearch';
-import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, validateCompanyName, validatePersonName, validateDocumentNumber, validatePhoneNumber } from '../../../utils/personValidation';
+import { sanitizeNameInput, sanitizeDocumentInput, formatPhoneNumber, normalizeCompanyName, normalizeHumanName, normalizeDocumentForStorage, normalizePhoneNumberForStorage, validateCompanyName, validatePersonName, validateDocumentNumber, validatePhoneNumber } from '../../../utils/personValidation';
 import { formatCoffeeFullName, getSubloteDisplayCode } from '../../../utils/coffeeCodes';
 
 const INVENTORY_SUBLOTES_CACHE_KEY = 'inventory_sublotes';
@@ -1250,7 +1250,7 @@ export function useVentas() {
 
   const guardarCliente = async () => {
     const nombre = clienteForm.tipoDocumento === 'NIT' ? normalizeCompanyName(clienteForm.nombre) : normalizeHumanName(clienteForm.nombre);
-    const telefono = clienteForm.telefono.trim();
+    const telefono = normalizePhoneNumberForStorage(clienteForm.telefono);
     const tipoDocumento = clienteForm.tipoDocumento || undefined;
     const documento = tipoDocumento ? normalizeDocumentForStorage(clienteForm.documento, tipoDocumento as any) : '';
     const errores = validarClienteForm();

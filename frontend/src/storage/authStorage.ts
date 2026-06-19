@@ -6,7 +6,12 @@ type StoredSessionUser = {
   correo?: string;
   name?: string;
   nombre?: string;
+  telefono?: string | null;
   organizacionId?: string | null;
+  nombreOrganizacion?: string | null;
+  tipoOrganizacion?: string | null;
+  otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
   avatarUrl?: string | null;
 };
 
