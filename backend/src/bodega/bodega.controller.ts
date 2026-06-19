@@ -23,6 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BodegaService } from './bodega.service';
 import {
   ActualizarBodegaDto,
+  ActualizarLimitesBodegaDto,
   CrearBodegaDto,
   EditarBodegaDto,
 } from './dto/actualizar-bodega.dto';
@@ -59,6 +60,27 @@ export class BodegaController {
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
     return this.bodegaService.obtenerBodega(organizacionId, id);
+  }
+
+  @Get(':id/limites')
+  @UseGuards(JwtAuthGuard)
+  async obtenerLimitesBodega(
+    @Param('id') id: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.obtenerLimitesBodega(organizacionId, id);
+  }
+
+  @Patch(':id/limites')
+  @UseGuards(JwtAuthGuard)
+  async actualizarLimitesBodega(
+    @Param('id') id: string,
+    @Body() dto: ActualizarLimitesBodegaDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.actualizarLimitesBodega(organizacionId, id, dto);
   }
 
   @Patch(':id')
@@ -99,6 +121,17 @@ export class BodegaController {
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
     return this.bodegaService.actualizarConfiguracion(organizacionId, dto);
+  }
+
+  @Post('limites/general')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async aplicarLimitesGeneral(
+    @Body() dto: ActualizarLimitesBodegaDto & { scope?: string },
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    return this.bodegaService.aplicarLimitesBodegaGeneral(organizacionId, dto);
   }
 
   @Post('limites')

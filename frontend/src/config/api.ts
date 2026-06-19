@@ -5,6 +5,10 @@ const isAndroid = Capacitor.getPlatform() === 'android';
 export const SHOULD_LOG_API_DEBUG = import.meta.env.DEV || isAndroid;
 const PRODUCTION_API_URL = 'https://cafesmart-v1.onrender.com';
 const IS_DEV_BUILD = import.meta.env.DEV;
+const useAndroidEmulatorApi =
+  (
+    import.meta.env.VITE_ANDROID_USE_EMULATOR_API as string | undefined
+  )?.trim() === 'true';
 const ANDROID_EMULATOR_API_URL = IS_DEV_BUILD
   ? 'http://10.0.2.2:3000'
   : PRODUCTION_API_URL;
@@ -64,7 +68,9 @@ function getConfiguredApiUrl() {
     !keepAndroidLocalhost &&
     (!configuredApiUrl || isLocalhostUrl(configuredApiUrl))
   ) {
-    return IS_DEV_BUILD ? ANDROID_EMULATOR_API_URL : PRODUCTION_API_URL;
+    return IS_DEV_BUILD && useAndroidEmulatorApi
+      ? ANDROID_EMULATOR_API_URL
+      : PRODUCTION_API_URL;
   }
 
   if (configuredApiUrl) {
@@ -94,6 +100,7 @@ if (SHOULD_LOG_API_DEBUG) {
     platform: Capacitor.getPlatform(),
     configuredApiUrl: configuredApiUrl || '(empty)',
     keepAndroidLocalhost,
+    useAndroidEmulatorApi,
     candidates: getApiBaseUrlCandidates(),
     selectedApiUrl: API_URL,
   });

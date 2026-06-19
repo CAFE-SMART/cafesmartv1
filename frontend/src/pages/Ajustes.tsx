@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Preferences } from '@capacitor/preferences';
-import { Capacitor } from '@capacitor/core';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  BellRing,
   Building2,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronRight,
   CircleDashed,
@@ -13,6 +14,7 @@ import {
   Droplets,
   Eye,
   FlaskConical,
+  ImageIcon,
   LifeBuoy,
   LoaderCircle,
   Lock,
@@ -21,10 +23,12 @@ import {
   Moon,
   Package2,
   Pencil,
+  RefreshCcw,
   ScanSearch,
   Save,
   Settings,
   Shield,
+  SlidersHorizontal,
   Sun,
   Trash2,
   UserCircle2,
@@ -65,7 +69,11 @@ import {
   crearBodega,
   editarBodega,
   eliminarBodega,
+  obtenerLimitesBodega,
+  guardarLimitesBodega,
+  aplicarLimitesBodegaGeneral,
   type BodegaItem,
+  type LimitesBodega,
 } from '../services/bodegaApi';
 import {
   guardarLimitesEntradaLocales,
@@ -92,6 +100,17 @@ import {
   quitarFotoPerfilRemota,
   subirFotoPerfil,
 } from '../services/userSettingsService';
+import {
+  getAppPermissionStatuses,
+  getScreenReaderStatus,
+  isNativeAndroid,
+  isScreenReaderActive,
+  openAccessibilitySettings,
+  openAppSettings,
+  subscribeToScreenReaderChanges,
+  type AppPermissionStatuses,
+  type SystemScreenReaderStatus,
+} from '../services/screenReaderService';
 import {
   fieldHelpTextClass,
   fieldInputClass,
@@ -220,7 +239,7 @@ type PeopleAdminForm = {
 
 const PROFILE_NAME_MAX_LENGTH = 60;
 const PROFILE_EMAIL_MAX_LENGTH = 60;
-const PROFILE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_AVATAR_ALLOWED_TYPES = new Set([
   'image/png',
   'image/jpeg',
@@ -516,7 +535,6 @@ export default function Ajustes() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const {
     preferences: accessibilityPreferences,
-    setScreenReaderMode,
     setHighContrast,
     setFontScale,
   } = useAccessibility();
@@ -575,6 +593,19 @@ export default function Ajustes() {
     variant: 'success' | 'error' | 'warning';
     message: string;
   } | null>(null);
+  const [bodegaLimitesTarget, setBodegaLimitesTarget] =
+    useState<BodegaItem | null>(null);
+  const [bodegaLimitesGeneralOpen, setBodegaLimitesGeneralOpen] =
+    useState(false);
+  const [bodegaLimitesLoading, setBodegaLimitesLoading] = useState(false);
+  const [bodegaLimitesForm, setBodegaLimitesForm] = useState<LimitesBodega>({
+    alertaPreventivaPct: 80,
+    alertaCriticaPct: 95,
+    bloquearAlSuperarCapacidad: true,
+    alertasActivas: true,
+  });
+  const [bodegaLimitesScope, setBodegaLimitesScope] =
+    useState<'todas' | 'activas'>('todas');
   const [limitesTab, setLimitesTab] = useState<LimitesTab>('todos');
   const [limitMinPesoCompraKg, setLimitMinPesoCompraKg] = useState(
     String(initialLimites.minPesoCompraKg),
@@ -685,9 +716,26 @@ export default function Ajustes() {
     useState<SyncOperation | null>(null);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [accessibilityModal, setAccessibilityModal] = useState<
-    'screen-reader' | 'high-contrast' | 'font-scale' | null
+    'screen-reader' | 'high-contrast' | 'font-scale' | 'permissions' | null
   >(null);
   const [screenReaderSetupPromptOpen, setScreenReaderSetupPromptOpen] =
+    useState(false);
+  const [systemScreenReaderStatus, setSystemScreenReaderStatus] =
+    useState<SystemScreenReaderStatus | null>(null);
+  const [screenReaderStatusLoading, setScreenReaderStatusLoading] =
+    useState(false);
+  const [permissionStatuses, setPermissionStatuses] =
+    useState<AppPermissionStatuses | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsFeedback, setPermissionsFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const [bodegaLimitesFeedback, setBodegaLimitesFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const [bodegaLimitesConfirmOpen, setBodegaLimitesConfirmOpen] =
     useState(false);
 
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
@@ -707,6 +755,32 @@ export default function Ajustes() {
     const timeout = window.setTimeout(() => setSuccess(null), 3000);
     return () => window.clearTimeout(timeout);
   }, [success]);
+
+  useEffect(() => {
+    if (profileFeedback?.variant !== 'success') return undefined;
+    const timeout = window.setTimeout(() => setProfileFeedback(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [profileFeedback]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToScreenReaderChanges((status) => {
+      setSystemScreenReaderStatus(status);
+      if (isScreenReaderActive(status)) {
+        setScreenReaderSetupPromptOpen(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (accessibilityModal === 'screen-reader') {
+      void consultarLectorPantallaSistema();
+    }
+    if (accessibilityModal === 'permissions') {
+      void cargarEstadosPermisos();
+    }
+  }, [accessibilityModal]);
 
   useEffect(() => {
     const refreshSyncQueue = () => {
@@ -760,35 +834,64 @@ export default function Ajustes() {
     await Preferences.set({ key, value: status });
   };
 
-  const abrirAjustesAccesibilidadSistema = () => {
-    if (typeof window === 'undefined') return;
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-      window.location.href =
-        'intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end';
-      window.setTimeout(() => {
-        window.location.href =
-          'intent:#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;scheme=package;package=com.cafesmart.app;end';
-      }, 800);
-      return;
+  const abrirAjustesAccesibilidadSistema = async () => {
+    const opened = await openAccessibilitySettings();
+    if (!opened) {
+      setPermissionsFeedback({
+        variant: 'warning',
+        message:
+          'No pudimos abrir los ajustes de accesibilidad. Puedes activarlo desde Configuración > Accesibilidad > TalkBack.',
+      });
     }
   };
 
-  const activarModoLectorPantalla = async (enabled: boolean) => {
-    setScreenReaderMode(enabled);
-    if (!enabled) {
-      setScreenReaderSetupPromptOpen(false);
-      await Preferences.remove({ key: SCREEN_READER_SETUP_KEY });
-      return;
+  const consultarLectorPantallaSistema = async () => {
+    if (!isNativeAndroid()) {
+      setSystemScreenReaderStatus(null);
+      return null;
     }
 
-    if (!(Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android')) {
-      return;
+    try {
+      setScreenReaderStatusLoading(true);
+      const status = await getScreenReaderStatus();
+      setSystemScreenReaderStatus(status);
+      return status;
+    } catch {
+      setSystemScreenReaderStatus(null);
+      return null;
+    } finally {
+      setScreenReaderStatusLoading(false);
     }
+  };
 
-    const { value } = await Preferences.get({ key: SCREEN_READER_SETUP_KEY });
-    if (value === 'shown') return;
+  const isSystemScreenReaderActive = (status: SystemScreenReaderStatus | null) =>
+    isScreenReaderActive(status);
 
-    setScreenReaderSetupPromptOpen(true);
+  const cargarEstadosPermisos = async () => {
+    setPermissionsLoading(true);
+    try {
+      const statuses = await getAppPermissionStatuses();
+      setPermissionStatuses(statuses);
+      setPermissionsFeedback(null);
+      return statuses;
+    } catch {
+      const message = 'No pudimos consultar los permisos de la aplicación.';
+      setPermissionsFeedback({ variant: 'error', message });
+      return null;
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  const abrirAjustesAplicacion = async () => {
+    const opened = await openAppSettings();
+    if (!opened) {
+      setPermissionsFeedback({
+        variant: 'warning',
+        message:
+          'No pudimos abrir los ajustes de Café Smart. Puedes hacerlo desde la configuración del celular.',
+      });
+    }
   };
 
   const cerrarSugerenciaLectorPantalla = async () => {
@@ -799,7 +902,7 @@ export default function Ajustes() {
   const abrirAccesibilidadDesdeSugerencia = async () => {
     await Preferences.set({ key: SCREEN_READER_SETUP_KEY, value: 'shown' });
     setScreenReaderSetupPromptOpen(false);
-    abrirAjustesAccesibilidadSistema();
+    await abrirAjustesAccesibilidadSistema();
   };
 
   const mostrarOpcionPendiente = () => {
@@ -892,6 +995,48 @@ export default function Ajustes() {
     setCapacidadKg(String(Math.round(bodega.capacidadMaxKg)));
     setInventarioActualKg(bodega.cafeAlmacenadoKg);
     setBodegaFormOpen(true);
+  };
+
+  const abrirLimitesBodega = async (bodega: BodegaItem) => {
+    clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaLimitesFeedback(null);
+    setBodegaLimitesTarget(bodega);
+    setBodegaLimitesLoading(true);
+    try {
+      const limites = await obtenerLimitesBodega(bodega.id);
+      setBodegaLimitesForm(limites);
+    } catch (err) {
+      setBodegaLimitesForm({
+        alertaPreventivaPct: 80,
+        alertaCriticaPct: 95,
+        bloquearAlSuperarCapacidad: true,
+        alertasActivas: true,
+      });
+      setBodegaLimitesFeedback({
+        variant: 'warning',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'Esta bodega aún no tiene límites configurados. Puedes crearlos ahora.',
+      });
+    } finally {
+      setBodegaLimitesLoading(false);
+    }
+  };
+
+  const abrirLimiteGeneral = () => {
+    clearFeedback();
+    setBodegaFeedback(null);
+    setBodegaLimitesFeedback(null);
+    setBodegaLimitesScope('todas');
+    setBodegaLimitesForm({
+      alertaPreventivaPct: 80,
+      alertaCriticaPct: 95,
+      bloquearAlSuperarCapacidad: true,
+      alertasActivas: true,
+    });
+    setBodegaLimitesGeneralOpen(true);
   };
 
   const cerrarEditorLimites = () => {
@@ -1332,7 +1477,7 @@ export default function Ajustes() {
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
       setProfileFeedback({
         variant: 'error',
-        message: 'La imagen es demasiado pesada. Elige una imagen menor a 2 MB.',
+        message: 'La imagen es demasiado grande. Selecciona una foto de máximo 5 MB.',
       });
       return;
     }
@@ -1355,6 +1500,12 @@ export default function Ajustes() {
   };
 
   const quitarFotoPerfil = () => {
+    if (
+      (profileAvatarUrl || profileAvatarDraft) &&
+      !window.confirm('¿Quitar foto de perfil? Se mostrará la inicial de tu nombre.')
+    ) {
+      return;
+    }
     setProfileAvatarDraft(null);
     setProfileAvatarFile(null);
     setProfileAvatarRemove(true);
@@ -1390,6 +1541,7 @@ export default function Ajustes() {
 
     try {
       setGuardandoPerfil(true);
+      const wasRemovingAvatar = profileAvatarRemove;
       const perfilActualizado = profileAvatarRemove
         ? await quitarFotoPerfilRemota()
         : await subirFotoPerfil(profileAvatarFile as File);
@@ -1418,10 +1570,11 @@ export default function Ajustes() {
         });
       }
 
-      setSuccess('Foto actualizada correctamente.');
       setProfileFeedback({
         variant: 'success',
-        message: 'Foto actualizada correctamente.',
+        message: wasRemovingAvatar
+          ? 'Foto eliminada. Ahora se mostrará la inicial de tu nombre.'
+          : 'Foto de perfil actualizada.',
       });
     } catch {
       const message =
@@ -1522,13 +1675,18 @@ export default function Ajustes() {
       }
 
       setProfileInfoOpen(false);
-      setSuccess('Perfil actualizado correctamente.');
-      setProfileFeedback({
-        variant: isOffline ? 'warning' : 'success',
-        message: isOffline
-          ? 'Datos guardados en este dispositivo. Se sincronizarán cuando tengas conexión.'
-          : 'Perfil actualizado correctamente.',
-      });
+      setProfileFeedback(
+        isOffline
+          ? {
+              variant: 'warning',
+              message:
+                'Datos guardados en este dispositivo. Se sincronizarán cuando tengas conexión.',
+            }
+          : {
+              variant: 'success',
+              message: 'Perfil actualizado correctamente.',
+            },
+      );
     } catch (error) {
       const message = 'No pudimos actualizar tu perfil. Intenta de nuevo.';
       setError(message);
@@ -1860,6 +2018,94 @@ export default function Ajustes() {
     }
   };
 
+  const validarLimitesBodega = () => {
+    if (
+      !Number.isInteger(bodegaLimitesForm.alertaPreventivaPct) ||
+      bodegaLimitesForm.alertaPreventivaPct <= 0 ||
+      bodegaLimitesForm.alertaPreventivaPct > 100
+    ) {
+      return 'Ingresa una alerta preventiva válida.';
+    }
+    if (
+      !Number.isInteger(bodegaLimitesForm.alertaCriticaPct) ||
+      bodegaLimitesForm.alertaCriticaPct <= 0 ||
+      bodegaLimitesForm.alertaCriticaPct > 100
+    ) {
+      return 'Ingresa un estado crítico válido.';
+    }
+    if (bodegaLimitesForm.alertaCriticaPct <= bodegaLimitesForm.alertaPreventivaPct) {
+      return 'El nivel preventivo debe ser menor que el nivel crítico.';
+    }
+    return null;
+  };
+
+  const guardarLimitesBodegaActual = async () => {
+    if (!bodegaLimitesTarget) return;
+    const validationError = validarLimitesBodega();
+    if (validationError) {
+      setBodegaLimitesFeedback({ variant: 'error', message: validationError });
+      return;
+    }
+    try {
+      setGuardandoBodega(true);
+      await guardarLimitesBodega(bodegaLimitesTarget.id, bodegaLimitesForm);
+      setBodegaLimitesTarget(null);
+      setBodegaLimitesFeedback(null);
+      setBodegaFeedback({
+        variant: 'success',
+        message: `Límites actualizados. Las alertas de ${bodegaLimitesTarget.nombre} se guardaron correctamente.`,
+      });
+    } catch (err) {
+      setBodegaLimitesFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos guardar los límites de esta bodega.',
+      });
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
+
+  const aplicarLimitesGenerales = async () => {
+    const validationError = validarLimitesBodega();
+    if (validationError) {
+      setBodegaLimitesFeedback({ variant: 'error', message: validationError });
+      return;
+    }
+    setBodegaLimitesConfirmOpen(true);
+  };
+
+  const confirmarAplicarLimitesGenerales = async () => {
+    try {
+      setGuardandoBodega(true);
+      const result = await aplicarLimitesBodegaGeneral({
+        ...bodegaLimitesForm,
+        scope: bodegaLimitesScope,
+      });
+      setBodegaLimitesGeneralOpen(false);
+      setBodegaLimitesConfirmOpen(false);
+      setBodegaLimitesFeedback(null);
+      setBodegaFeedback({
+        variant: 'success',
+        message: `Límites aplicados a ${result.bodegasAfectadas} bodega${
+          result.bodegasAfectadas === 1 ? '' : 's'
+        }.`,
+      });
+    } catch (err) {
+      setBodegaLimitesFeedback({
+        variant: 'error',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'No pudimos aplicar el límite general.',
+      });
+    } finally {
+      setGuardandoBodega(false);
+    }
+  };
+
   const confirmarEliminarBodega = async () => {
     if (!bodegaDeleteTarget) return;
 
@@ -2107,6 +2353,34 @@ export default function Ajustes() {
         backEvent.preventDefault();
         return;
       }
+      if (bodegaLimitesConfirmOpen) {
+        setBodegaLimitesConfirmOpen(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (bodegaLimitesTarget) {
+        setBodegaLimitesTarget(null);
+        setBodegaLimitesFeedback(null);
+        backEvent.preventDefault();
+        return;
+      }
+      if (bodegaLimitesGeneralOpen) {
+        setBodegaLimitesGeneralOpen(false);
+        setBodegaLimitesFeedback(null);
+        setBodegaLimitesConfirmOpen(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (screenReaderSetupPromptOpen) {
+        setScreenReaderSetupPromptOpen(false);
+        backEvent.preventDefault();
+        return;
+      }
+      if (accessibilityModal) {
+        setAccessibilityModal(null);
+        backEvent.preventDefault();
+        return;
+      }
       if (bodegaFormOpen) {
         const original = bodegaEditando;
         const hasBodegaChanges = original
@@ -2143,16 +2417,6 @@ export default function Ajustes() {
         backEvent.preventDefault();
         return;
       }
-      if (screenReaderSetupPromptOpen) {
-        setScreenReaderSetupPromptOpen(false);
-        backEvent.preventDefault();
-        return;
-      }
-      if (accessibilityModal) {
-        setAccessibilityModal(null);
-        backEvent.preventDefault();
-        return;
-      }
       if (peopleMode) {
         cerrarModuloPersonas();
         backEvent.preventDefault();
@@ -2166,6 +2430,10 @@ export default function Ajustes() {
   }, [
     accessibilityModal,
     bodegaDeleteTarget,
+    bodegaLimitesTarget,
+    bodegaLimitesGeneralOpen,
+    bodegaLimitesConfirmOpen,
+    screenReaderSetupPromptOpen,
     bodegaFormOpen,
     isEditingBodega,
     isEditingCompany,
@@ -2183,7 +2451,6 @@ export default function Ajustes() {
     nombreBodega,
     ubicacionBodega,
     capacidadKg,
-    screenReaderSetupPromptOpen,
   ]);
 
   const iniciarEdicionPersona = (item: PeopleAdminItem) => {
@@ -2709,14 +2976,23 @@ export default function Ajustes() {
     },
   ];
 
+  const systemScreenReaderActive =
+    isSystemScreenReaderActive(systemScreenReaderStatus);
+  const screenReaderStatusTitle = screenReaderStatusLoading
+    ? 'Comprobando lector de pantalla'
+    : systemScreenReaderActive
+      ? 'Lector de pantalla activo'
+      : 'TalkBack no está activo';
+  const screenReaderStatusDescription = systemScreenReaderActive
+    ? 'Café Smart está preparado para funcionar con el lector de tu dispositivo.'
+    : 'Abre los ajustes de accesibilidad para activarlo.';
+
   const accessibilityCards = [
     {
       id: 'screen-reader',
       title: 'Lector de pantalla',
       description: 'Mejora la navegación con asistencia',
-      status: accessibilityPreferences.screenReaderMode
-        ? 'Activado'
-        : 'Desactivado',
+      status: screenReaderStatusTitle,
       icon: ScanSearch,
       iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('screen-reader' as const),
@@ -2746,6 +3022,15 @@ export default function Ajustes() {
       iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('font-scale' as const),
     },
+    {
+      id: 'permissions',
+      title: 'Permisos',
+      description: 'Cámara, fotos y notificaciones',
+      status: permissionsLoading ? 'Consultando' : 'Configurar',
+      icon: Shield,
+      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      onClick: () => setAccessibilityModal('permissions' as const),
+    },
   ] as const;
 
   const binaryAccessibilityOptions = [
@@ -2774,6 +3059,37 @@ export default function Ajustes() {
       description: 'Aumenta el texto aproximadamente 25%.',
     },
   ];
+
+  const permissionRows = [
+    {
+      id: 'camera' as const,
+      title: 'Cámara',
+      description: 'Se usa para tomar fotos de perfil y adjuntar comprobantes.',
+      icon: Camera,
+      status: permissionStatuses?.camera,
+    },
+    {
+      id: 'photos' as const,
+      title: 'Fotos',
+      description: 'Se usa para seleccionar imágenes desde el dispositivo.',
+      icon: ImageIcon,
+      status: permissionStatuses?.photos,
+    },
+    {
+      id: 'notifications' as const,
+      title: 'Notificaciones',
+      description: 'Se usa para avisos de inventario, secado y movimientos.',
+      icon: BellRing,
+      status: permissionStatuses?.notifications,
+    },
+  ];
+
+  const formatPermissionState = (state?: string) => {
+    if (state === 'granted') return 'Permitido';
+    if (state === 'limited') return 'Limitado';
+    if (state === 'denied') return 'No permitido';
+    return isNativeAndroid() ? 'No disponible' : 'Solo Android';
+  };
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
@@ -2849,51 +3165,108 @@ export default function Ajustes() {
           open={accessibilityModal === 'screen-reader'}
           onClose={() => setAccessibilityModal(null)}
           labelledById="screen-reader-modal-title"
-          title="Modo compatible con lector de pantalla"
-          description="Optimiza la navegación y los avisos de Café Smart para lectores de pantalla."
+          title="Lector de pantalla"
+          description="Usa TalkBack para escuchar y controlar Café Smart."
         >
-          <button
-            type="button"
-            role="switch"
-            aria-checked={accessibilityPreferences.screenReaderMode}
-            aria-describedby="screen-reader-mode-description"
-            onClick={() =>
-              void activarModoLectorPantalla(
-                !accessibilityPreferences.screenReaderMode,
-              )
-            }
-            className="flex min-h-[64px] w-full items-center gap-3 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800"
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-3 rounded-[16px] border px-4 py-3 ${
+              systemScreenReaderActive
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100'
+            }`}
           >
-            <span
-              className={`inline-flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition ${
-                accessibilityPreferences.screenReaderMode
-                  ? 'bg-[#102d92] dark:bg-blue-500'
-                  : 'bg-slate-200 dark:bg-slate-700'
-              }`}
-              aria-hidden="true"
+            <p className="text-sm font-black">{screenReaderStatusTitle}</p>
+            <p className="mt-1 text-xs font-semibold leading-5">
+              {screenReaderStatusDescription}
+            </p>
+          </div>
+          {systemScreenReaderActive ? (
+            <p className="rounded-[14px] bg-[#f8faff] px-4 py-3 text-sm font-bold text-slate-600 dark:bg-slate-950 dark:text-slate-200">
+              TalkBack está activo. Café Smart está listo para usarse con lector de pantalla.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setScreenReaderSetupPromptOpen(true)}
+              className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
             >
-              <span
-                className={`h-6 w-6 rounded-full bg-white shadow-sm transition ${
-                  accessibilityPreferences.screenReaderMode
-                    ? 'translate-x-6'
-                    : 'translate-x-0'
-                }`}
+              Configurar TalkBack
+            </button>
+          )}
+        </CafeSmartModal>
+
+        <CafeSmartModal
+          open={accessibilityModal === 'permissions'}
+          onClose={() => setAccessibilityModal(null)}
+          labelledById="permissions-modal-title"
+          title="Permisos de la aplicación"
+          description="Controla qué funciones del dispositivo puede utilizar Café Smart."
+        >
+          <div className="space-y-3">
+            {permissionsFeedback ? (
+              <AppFeedbackMessage
+                variant={permissionsFeedback.variant}
+                description={permissionsFeedback.message}
               />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
-                {accessibilityPreferences.screenReaderMode
-                  ? 'Activado'
-                  : 'Desactivado'}
-              </span>
-              <span
-                id="screen-reader-mode-description"
-                className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300"
+            ) : null}
+            {permissionRows.map((permission) => {
+              const Icon = permission.icon;
+              return (
+                <article
+                  key={permission.id}
+                  className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
+                      <Icon size={18} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-black text-slate-950 dark:text-slate-50">
+                        {permission.title}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                        {permission.description}
+                      </p>
+                      <p className="mt-2 text-xs font-black text-[#102d92] dark:text-blue-200">
+                        Estado: {permissionsLoading ? 'Consultando...' : formatPermissionState(permission.status?.state)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void abrirAjustesAplicacion()}
+                      className="shrink-0 rounded-full border border-[#d5deee] bg-white px-3 py-1.5 text-xs font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      Configurar
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => void cargarEstadosPermisos()}
+                disabled={permissionsLoading}
+                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               >
-                Optimiza foco, etiquetas y avisos para el lector del celular.
-              </span>
-            </span>
-          </button>
+                {permissionsLoading ? (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <RefreshCcw size={15} aria-hidden="true" />
+                )}
+                Recargar
+              </button>
+              <button
+                type="button"
+                onClick={() => void abrirAjustesAplicacion()}
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+              >
+                Abrir ajustes
+              </button>
+            </div>
+          </div>
         </CafeSmartModal>
 
         {screenReaderSetupPromptOpen ? (
@@ -2910,10 +3283,10 @@ export default function Ajustes() {
                     id="activar-lector-pantalla-title"
                     className="text-lg font-black text-slate-950 dark:text-slate-50"
                   >
-                    Activar lector de pantalla
+                    Activa el lector de pantalla del celular
                   </h3>
                   <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
-                    Para escuchar Café Smart, activa TalkBack desde los ajustes de accesibilidad del celular.
+                    El modo compatible de Café Smart está listo, pero debes activar TalkBack desde los ajustes de accesibilidad de tu dispositivo.
                   </p>
                 </div>
                 <button
@@ -3055,15 +3428,15 @@ export default function Ajustes() {
           <div
             role="button"
             tabIndex={0}
-            onClick={abrirPerfilPublico}
+            onClick={abrirEditorPerfil}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                abrirPerfilPublico();
+                abrirEditorPerfil();
               }
             }}
             className="flex cursor-pointer items-center gap-3 rounded-[16px] outline-none transition focus-visible:ring-4 focus-visible:ring-[#102d92]/15"
-            aria-label="Abrir perfil"
+            aria-label="Abrir editar perfil"
           >
             <div className="relative shrink-0">
               <div className="h-14 w-14 overflow-hidden rounded-full bg-[#eef2ff] p-1 shadow-inner">
@@ -3312,7 +3685,7 @@ export default function Ajustes() {
                     {currentAvatarUrl ? (
                       <img
                         src={currentAvatarUrl}
-                        alt=""
+                        alt="Foto de perfil"
                         className="h-full w-full rounded-full object-cover"
                       />
                     ) : (
@@ -3374,18 +3747,6 @@ export default function Ajustes() {
                   className="mt-4"
                 />
               ) : null}
-              {success === 'Perfil actualizado correctamente.' ? (
-                <AppFeedbackMessage
-                  variant="success"
-                  description="Perfil actualizado correctamente."
-                  className="mt-4"
-                  action={
-                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                      <X size={14} />
-                    </button>
-                  }
-                />
-              ) : null}
               {profilePhotoOpen ? (
                 <div className="fixed inset-0 z-[112] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
                   <section
@@ -3421,7 +3782,7 @@ export default function Ajustes() {
                         {currentAvatarUrl ? (
                           <img
                             src={currentAvatarUrl}
-                            alt=""
+                            alt="Foto de perfil"
                             className="h-full w-full rounded-full object-cover"
                           />
                         ) : (
@@ -3463,7 +3824,7 @@ export default function Ajustes() {
                         ) : (
                           <Save size={15} />
                         )}
-                        Guardar cambios
+                        {guardandoPerfil ? 'Guardando foto...' : 'Guardar cambios'}
                       </button>
                       <button
                         type="button"
@@ -4658,6 +5019,29 @@ export default function Ajustes() {
                 </p>
                   </div>
               </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void cargarBodegas()}
+                  disabled={bodegasLoading}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d5deee] bg-white text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                  aria-label="Recargar bodegas"
+                  title="Recargar bodegas"
+                >
+                  <RefreshCcw
+                    size={16}
+                    className={bodegasLoading ? 'animate-spin' : ''}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={abrirLimiteGeneral}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[13px] border border-[#d5deee] bg-white px-3 text-[0.72rem] font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                >
+                  <SlidersHorizontal size={14} />
+                  Límite general
+                </button>
+              </div>
             </div>
             </header>
 
@@ -4799,6 +5183,15 @@ export default function Ajustes() {
                         />
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void abrirLimitesBodega(bodega)}
+                          disabled={guardandoBodega}
+                          className="col-span-2 inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-[12px] border border-[#d5deee] bg-white px-3 text-[0.7rem] font-black text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100"
+                        >
+                          <SlidersHorizontal size={13} />
+                          Límites y alertas
+                        </button>
                         {!bodega.esPrincipal ? (
                           <button
                             type="button"
@@ -4830,27 +5223,6 @@ export default function Ajustes() {
                   ))}
                 </div>
               )}
-
-              <section className="rounded-[16px] border border-[#dbe5ff] bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-black text-slate-950 dark:text-slate-100">
-                      Límites y alertas de almacenamiento
-                    </h4>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
-                      Define topes de peso y alertas para evitar movimientos fuera de capacidad.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => abrirEditorLimites({ keepBodega: true })}
-                    className="inline-flex min-h-[36px] shrink-0 items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-[0.72rem] font-black text-white dark:bg-blue-600"
-                  >
-                    Configurar
-                  </button>
-                </div>
-              </section>
-
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
                 <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
                 Última actualización: {formatDate(updatedAt)}
@@ -4996,6 +5368,217 @@ export default function Ajustes() {
                   </div>
                 </div>
                 <AppBottomNav />
+              </section>
+            </div>
+          ) : null}
+
+          {bodegaLimitesTarget || bodegaLimitesGeneralOpen ? (
+            <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#0f172a]/50 px-5 py-6 backdrop-blur-sm">
+              <section className="max-h-[88vh] w-full max-w-[390px] overflow-y-auto rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
+                      {bodegaLimitesGeneralOpen
+                        ? 'Límite general'
+                        : 'Límites y alertas'}
+                    </h4>
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                      {bodegaLimitesGeneralOpen
+                        ? 'Aplica una configuración a varias bodegas.'
+                        : bodegaLimitesTarget?.nombre ?? 'Configura esta bodega.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBodegaLimitesTarget(null);
+                      setBodegaLimitesGeneralOpen(false);
+                      setBodegaLimitesConfirmOpen(false);
+                      setBodegaLimitesFeedback(null);
+                    }}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                    aria-label="Cerrar límites y alertas"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {bodegaLimitesLoading ? (
+                    <p className="rounded-[14px] bg-[#f8faff] px-3 py-4 text-center text-sm font-bold text-slate-500 dark:bg-slate-950 dark:text-slate-300">
+                      Cargando límites...
+                    </p>
+                  ) : null}
+                  {bodegaLimitesFeedback ? (
+                    <AppFeedbackMessage
+                      variant={bodegaLimitesFeedback.variant}
+                      description={bodegaLimitesFeedback.message}
+                    />
+                  ) : null}
+                  {bodegaLimitesGeneralOpen ? (
+                    <label className="block">
+                      <span className={fieldLabelClass}>Aplicar a</span>
+                      <SmartSelect
+                        value={bodegaLimitesScope}
+                        onChange={(event) =>
+                          setBodegaLimitesScope(
+                            event.target.value as 'todas' | 'activas',
+                          )
+                        }
+                        className={fieldInputClass}
+                      >
+                        <option value="todas">Todas las bodegas</option>
+                        <option value="activas">Solo bodegas activas</option>
+                      </SmartSelect>
+                    </label>
+                  ) : null}
+                  <label className="block">
+                    <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={bodegaLimitesForm.alertaPreventivaPct}
+                      onChange={(event) =>
+                        setBodegaLimitesForm((current) => ({
+                          ...current,
+                          alertaPreventivaPct: Number(event.target.value),
+                        }))
+                      }
+                      className={fieldInputClass}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={fieldLabelClass}>Estado crítico (%)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={bodegaLimitesForm.alertaCriticaPct}
+                      onChange={(event) =>
+                        setBodegaLimitesForm((current) => ({
+                          ...current,
+                          alertaCriticaPct: Number(event.target.value),
+                        }))
+                      }
+                      className={fieldInputClass}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
+                    onClick={() =>
+                      setBodegaLimitesForm((current) => ({
+                        ...current,
+                        bloquearAlSuperarCapacidad:
+                          !current.bloquearAlSuperarCapacidad,
+                      }))
+                    }
+                    className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    Bloquear movimientos al 100%
+                    <span className="text-xs text-slate-500 dark:text-slate-300">
+                      {bodegaLimitesForm.bloquearAlSuperarCapacidad
+                        ? 'Activado'
+                        : 'Desactivado'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={bodegaLimitesForm.alertasActivas}
+                    onClick={() =>
+                      setBodegaLimitesForm((current) => ({
+                        ...current,
+                        alertasActivas: !current.alertasActivas,
+                      }))
+                    }
+                    className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    Alertas de espacio
+                    <span className="text-xs text-slate-500 dark:text-slate-300">
+                      {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
+                    </span>
+                  </button>
+                  {bodegaLimitesGeneralOpen ? (
+                    <p className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+                      Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBodegaLimitesTarget(null);
+                        setBodegaLimitesGeneralOpen(false);
+                        setBodegaLimitesConfirmOpen(false);
+                        setBodegaLimitesFeedback(null);
+                      }}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        bodegaLimitesGeneralOpen
+                          ? void aplicarLimitesGenerales()
+                          : void guardarLimitesBodegaActual()
+                      }
+                      disabled={guardandoBodega || bodegaLimitesLoading}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                    >
+                      {guardandoBodega ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {bodegaLimitesGeneralOpen ? 'Aplicar a todas' : 'Guardar límites'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {bodegaLimitesConfirmOpen ? (
+            <div className="fixed inset-0 z-[105] flex items-center justify-center bg-[#0f172a]/55 px-5 py-6 backdrop-blur-sm">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="confirmar-limites-generales-title"
+                className="w-full max-w-[360px] rounded-[20px] border border-[#dbe5f7] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900"
+              >
+                <h4
+                  id="confirmar-limites-generales-title"
+                  className="text-lg font-black text-slate-950 dark:text-slate-100"
+                >
+                  Aplicar límites a todas las bodegas
+                </h4>
+                <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                  Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBodegaLimitesConfirmOpen(false)}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void confirmarAplicarLimitesGenerales()}
+                    disabled={guardandoBodega}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                  >
+                    {guardandoBodega ? (
+                      <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                    ) : null}
+                    Aplicar límites
+                  </button>
+                </div>
               </section>
             </div>
           ) : null}

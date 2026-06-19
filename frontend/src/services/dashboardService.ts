@@ -34,14 +34,16 @@ export type DashboardSummary = {
 };
 
 export type DashboardInicioBodegaItem = {
-  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
-  tipo: 'Verde' | 'Seco';
-  calidad: 'Bueno' | 'Regular';
+  id: string;
+  codigo: string;
+  tipo: string;
+  calidad: string;
   tipoCafeId: string;
   calidadId: string;
-  totalKg: number;
-  lots: number;
-  averageDays: number;
+  pesoDisponibleKg: number;
+  diasEnBodega: number;
+  fechaIngreso: string;
+  creadoEn: string;
 };
 
 export type DashboardInicio = DashboardSummary & {

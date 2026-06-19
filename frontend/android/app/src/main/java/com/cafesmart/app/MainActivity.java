@@ -17,6 +17,7 @@ import com.getcapacitor.BridgeWebChromeClient;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(CafeSmartAccessibilityPlugin.class);
         super.onCreate(savedInstanceState);
 
         if (getBridge() == null || getBridge().getWebView() == null) {

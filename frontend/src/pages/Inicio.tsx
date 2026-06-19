@@ -99,10 +99,6 @@ function resolveCloudLabel(tone: string) {
   return 'CONECTADO';
 }
 
-function keyOf(value: string) {
-  return value.trim().toUpperCase();
-}
-
 function resolveDashboardErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : '';
 
@@ -220,18 +216,18 @@ function lotDays(lot: LoteResumen) {
 }
 
 type BodegaCoffeeItem = {
-  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
-  tipo: 'Verde' | 'Seco';
-  calidad: 'Bueno' | 'Regular';
-  totalKg: number;
-  lots: number;
-  averageDays: number;
-  dayWeight: number;
+  key: string;
+  codigo: string;
+  tipo: string;
+  calidad: string;
+  pesoDisponibleKg: number;
+  diasEnBodega: number;
+  fechaIngreso: string;
 };
 
 function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
-  const isGood = item.calidad === 'Bueno';
-  const isDry = item.tipo === 'Seco';
+  const isGood = item.calidad.toLowerCase() === 'bueno';
+  const isDry = item.tipo.toLowerCase() === 'seco';
   const Icon = isDry ? SunMedium : isGood ? ShieldCheck : Sparkles;
   const iconClass = isDry
     ? 'bg-[#fff1da] text-[#c4670e] dark:bg-amber-500/20 dark:text-amber-100'
@@ -252,17 +248,17 @@ function BodegaCoffeeRow({ item }: { item: BodegaCoffeeItem }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-[0.78rem] font-black leading-tight text-[#1f2937] dark:text-slate-100">
-            {item.tipo}
+            {item.codigo || item.tipo}
           </p>
           <p className="mt-1 flex items-center gap-1 text-[0.58rem] font-bold uppercase tracking-[0.04em] text-[#8a98ad] dark:text-slate-300">
             <CalendarDays size={10} strokeWidth={2.2} />
-            Prom. {item.averageDays} dias
+            {item.tipo} · {item.diasEnBodega} días en bodega
           </p>
         </div>
       </div>
       <div className="shrink-0 text-right">
         <p className="text-[0.78rem] font-black text-[#18479d] dark:text-blue-200">
-          {formatKgUpper(item.totalKg)}
+          {formatKgUpper(item.pesoDisponibleKg)}
         </p>
         <span
           className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[0.46rem] font-black uppercase ${qualityClass}`}
@@ -842,65 +838,52 @@ export default function Inicio() {
 
   const cafeEnBodega = useMemo(() => {
     if (inventarioBodegaInicio.length > 0) {
-      return inventarioBodegaInicio.map((item) => ({
-        ...item,
-        dayWeight: item.averageDays * Math.max(1, item.lots),
-      }));
+      return inventarioBodegaInicio
+        .map((item) => {
+          const legacyItem = item as DashboardInicioBodegaItem & {
+            key?: string;
+            totalKg?: number;
+            averageDays?: number;
+          };
+          return {
+            key: item.id ?? legacyItem.key ?? `${item.tipoCafeId}-${item.calidadId}`,
+            codigo: item.codigo ?? legacyItem.key ?? item.tipo,
+            tipo: item.tipo,
+            calidad: item.calidad,
+            pesoDisponibleKg: item.pesoDisponibleKg ?? legacyItem.totalKg ?? 0,
+            diasEnBodega: item.diasEnBodega ?? legacyItem.averageDays ?? 0,
+            fechaIngreso:
+              item.fechaIngreso ?? item.creadoEn ?? new Date(0).toISOString(),
+          };
+        })
+        .filter((item) => item.pesoDisponibleKg > 0)
+        .sort((a, b) => {
+          const dateA = new Date(a.fechaIngreso).getTime();
+          const dateB = new Date(b.fechaIngreso).getTime();
+          if (dateA !== dateB) return dateA - dateB;
+          return a.key.localeCompare(b.key);
+        })
+        .slice(0, 3);
     }
 
-    const sections: BodegaCoffeeItem[] = [
-      {
-        key: 'VERDE_BUENO',
-        tipo: 'Verde',
-        calidad: 'Bueno',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'VERDE_REGULAR',
-        tipo: 'Verde',
-        calidad: 'Regular',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-      {
-        key: 'SECO_BUENO',
-        tipo: 'Seco',
-        calidad: 'Bueno',
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      },
-    ];
-
-    lotesBodega.forEach((lot) => {
-      const typeKey = keyOf(lot.tipoCafe);
-      const qualityKey = keyOf(lot.calidad);
-      const section = sections.find(
-        (item) => item.key === `${typeKey}_${qualityKey}`,
-      );
-      if (!section) return;
-
-      const weight = Math.max(1, lot.sublotes);
-      section.totalKg += lot.pesoActual;
-      section.lots += lot.sublotes;
-      section.dayWeight += lotDays(lot) * weight;
-    });
-
-    return sections
-      .map((section) => ({
-        ...section,
-        averageDays:
-          section.totalKg > 0
-            ? Math.round(section.dayWeight / Math.max(1, section.lots))
-            : 0,
+    return lotesBodega
+      .filter((lot) => lot.pesoActual > 0)
+      .map((lot) => ({
+        key: lot.id,
+        codigo: lot.codigo,
+        tipo: lot.tipoCafe,
+        calidad: lot.calidad,
+        pesoDisponibleKg: lot.pesoActual,
+        diasEnBodega: lotDays(lot),
+        fechaIngreso: lot.fechaPrimerIngreso || lot.fecha || lot.creadoEn,
       }))
-      .filter((section) => section.totalKg > 0);
+      .sort((a, b) => {
+        const dateA = new Date(a.fechaIngreso).getTime();
+        const dateB = new Date(b.fechaIngreso).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return a.key.localeCompare(b.key);
+      })
+      .slice(0, 3);
   }, [inventarioBodegaInicio, lotesBodega]);
 
   const isEmptyDashboard =
@@ -1397,7 +1380,7 @@ export default function Inicio() {
                   </div>
                 ) : cafeEnBodega.length === 0 ? (
                   <div className="px-5 py-6 text-sm font-medium text-[#7f8ca1]">
-                    Aún no hay café disponible en bodega.
+                    Aún no hay café disponible en esta bodega.
                   </div>
                 ) : (
                   <div>

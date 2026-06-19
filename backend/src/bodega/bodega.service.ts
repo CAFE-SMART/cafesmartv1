@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ParametrosService } from '../parametros/parametros.service';
 import {
   ActualizarBodegaDto,
+  ActualizarLimitesBodegaDto,
   CrearBodegaDto,
   EditarBodegaDto,
 } from './dto/actualizar-bodega.dto';
@@ -40,6 +41,13 @@ export type BodegaItem = {
   esPrincipal: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type LimitesBodega = {
+  alertaPreventivaPct: number;
+  alertaCriticaPct: number;
+  bloquearAlSuperarCapacidad: boolean;
+  alertasActivas: boolean;
 };
 
 @Injectable()
@@ -440,6 +448,66 @@ export class BodegaService {
     return { ok: true };
   }
 
+  async obtenerLimitesBodega(
+    organizacionId: string,
+    bodegaId: string,
+  ): Promise<LimitesBodega> {
+    await this.ensureBodegaExists(organizacionId, bodegaId);
+    return this.getLimitesBodega(organizacionId, bodegaId);
+  }
+
+  async actualizarLimitesBodega(
+    organizacionId: string,
+    bodegaId: string,
+    dto: ActualizarLimitesBodegaDto,
+  ): Promise<LimitesBodega> {
+    await this.ensureBodegaExists(organizacionId, bodegaId);
+    const limites = this.normalizeLimitesBodega(dto);
+    await this.parametrosService.setParametro(
+      this.limitesBodegaKey(bodegaId),
+      JSON.stringify(limites),
+      organizacionId,
+    );
+    return limites;
+  }
+
+  async aplicarLimitesBodegaGeneral(
+    organizacionId: string,
+    dto: ActualizarLimitesBodegaDto & { scope?: string },
+  ) {
+    const limites = this.normalizeLimitesBodega(dto);
+    const where =
+      dto.scope === 'activas'
+        ? { organizacionId, deletedAt: null, activa: true }
+        : { organizacionId, deletedAt: null };
+    const bodegas = await this.prisma.bodega.findMany({
+      where,
+      select: { id: true },
+    });
+
+    const valor = JSON.stringify(limites);
+    await this.prisma.$transaction(
+      bodegas.map((bodega) =>
+        this.prisma.parametroOrganizacion.upsert({
+          where: {
+            organizacionId_nombre: {
+              organizacionId,
+              nombre: this.limitesBodegaKey(bodega.id),
+            },
+          },
+          update: { valor },
+          create: {
+            organizacionId,
+            nombre: this.limitesBodegaKey(bodega.id),
+            valor,
+          },
+        }),
+      ),
+    );
+
+    return { ...limites, bodegasAfectadas: bodegas.length };
+  }
+
   /**
    * Actualiza la configuración de bodega de una organización.
    */
@@ -639,6 +707,89 @@ export class BodegaService {
       createdAt: config.updatedAt,
       updatedAt: config.updatedAt,
     };
+  }
+
+  private limitesBodegaKey(bodegaId: string) {
+    return `bodega_limites:${bodegaId}`;
+  }
+
+  private defaultLimitesBodega(): LimitesBodega {
+    return {
+      alertaPreventivaPct: 80,
+      alertaCriticaPct: 95,
+      bloquearAlSuperarCapacidad: true,
+      alertasActivas: true,
+    };
+  }
+
+  private normalizeLimitesBodega(
+    input: Partial<LimitesBodega>,
+  ): LimitesBodega {
+    const preventiva = Number(input.alertaPreventivaPct);
+    const critica = Number(input.alertaCriticaPct);
+    if (
+      !Number.isInteger(preventiva) ||
+      preventiva <= 0 ||
+      preventiva > 100
+    ) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_ALERTA_PREVENTIVA_INVALIDA',
+          'Ingresa una alerta preventiva válida.',
+        ),
+      );
+    }
+    if (!Number.isInteger(critica) || critica <= 0 || critica > 100) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_ALERTA_CRITICA_INVALIDA',
+          'Ingresa un estado crítico válido.',
+        ),
+      );
+    }
+    if (critica <= preventiva) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_ALERTA_CRITICA_MENOR',
+          'El nivel preventivo debe ser menor que el nivel crítico.',
+        ),
+      );
+    }
+    return {
+      alertaPreventivaPct: preventiva,
+      alertaCriticaPct: critica,
+      bloquearAlSuperarCapacidad:
+        input.bloquearAlSuperarCapacidad !== false,
+      alertasActivas: input.alertasActivas !== false,
+    };
+  }
+
+  private async getLimitesBodega(
+    organizacionId: string,
+    bodegaId: string,
+  ): Promise<LimitesBodega> {
+    const raw = await this.parametrosService.getParametroString(
+      this.limitesBodegaKey(bodegaId),
+      organizacionId,
+    );
+    if (!raw) return this.defaultLimitesBodega();
+    try {
+      return this.normalizeLimitesBodega(JSON.parse(raw));
+    } catch {
+      return this.defaultLimitesBodega();
+    }
+  }
+
+  private async ensureBodegaExists(organizacionId: string, bodegaId: string) {
+    const bodega = await this.prisma.bodega.findFirst({
+      where: { id: bodegaId, organizacionId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!bodega) {
+      throw new NotFoundException(
+        apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
+      );
+    }
   }
 
   private isMissingBodegaStorage(error: unknown) {

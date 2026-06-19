@@ -441,11 +441,11 @@ export class UsersService {
       );
     }
 
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       throw new BadRequestException(
         apiError(
           'AVATAR_TAMANO_INVALIDO',
-          'La imagen es demasiado pesada. Elige una imagen menor a 2 MB.',
+          'La imagen es demasiado grande. Selecciona una foto de máximo 5 MB.',
         ),
       );
     }

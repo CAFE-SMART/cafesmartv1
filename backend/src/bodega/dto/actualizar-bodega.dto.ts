@@ -1,11 +1,13 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   Min,
 } from 'class-validator';
 
@@ -69,4 +71,24 @@ export class EditarBodegaDto {
   @IsOptional()
   @IsBoolean({ message: 'La bodega principal debe ser verdadero o falso.' })
   esPrincipal?: boolean;
+}
+
+export class ActualizarLimitesBodegaDto {
+  @Type(() => Number)
+  @IsInt({ message: 'El porcentaje preventivo debe ser un número entero.' })
+  @Min(1, { message: 'La alerta preventiva debe ser mayor que 0%.' })
+  @Max(100, { message: 'La alerta preventiva no debe superar 100%.' })
+  alertaPreventivaPct: number;
+
+  @Type(() => Number)
+  @IsInt({ message: 'El porcentaje crítico debe ser un número entero.' })
+  @Min(1, { message: 'El estado crítico debe ser mayor que 0%.' })
+  @Max(100, { message: 'El estado crítico no debe superar 100%.' })
+  alertaCriticaPct: number;
+
+  @IsBoolean({ message: 'El bloqueo por capacidad debe ser verdadero o falso.' })
+  bloquearAlSuperarCapacidad: boolean;
+
+  @IsBoolean({ message: 'El estado de alertas debe ser verdadero o falso.' })
+  alertasActivas: boolean;
 }

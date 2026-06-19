@@ -37,6 +37,17 @@ export type GuardarBodegaPayload = {
   esPrincipal?: boolean;
 };
 
+export type LimitesBodega = {
+  alertaPreventivaPct: number;
+  alertaCriticaPct: number;
+  bloquearAlSuperarCapacidad: boolean;
+  alertasActivas: boolean;
+};
+
+export type LimitesBodegaGeneralResponse = LimitesBodega & {
+  bodegasAfectadas: number;
+};
+
 function logBodegaDebug(
   message: string,
   data: Record<string, unknown>,
@@ -174,4 +185,24 @@ export function eliminarBodega(id: string) {
       });
       throw error;
     });
+}
+
+export function obtenerLimitesBodega(id: string) {
+  return apiFetch(`/bodega/${encodeURIComponent(id)}/limites`) as Promise<LimitesBodega>;
+}
+
+export function guardarLimitesBodega(id: string, payload: LimitesBodega) {
+  return apiFetch(`/bodega/${encodeURIComponent(id)}/limites`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }) as Promise<LimitesBodega>;
+}
+
+export function aplicarLimitesBodegaGeneral(
+  payload: LimitesBodega & { scope?: 'todas' | 'activas' },
+) {
+  return apiFetch('/bodega/limites/general', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }) as Promise<LimitesBodegaGeneralResponse>;
 }

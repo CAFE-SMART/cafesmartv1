@@ -5,13 +5,14 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { getCache, setCache } from '../common/dashboard-cache';
+import { getCache } from '../common/dashboard-cache';
 import { Logger } from '@nestjs/common';
 import { ParametrosService } from '../parametros/parametros.service';
 import {
   getCachedOrganizationId,
   setCachedOrganizationId,
 } from '../common/request-context';
+import { generarCodigoLote } from '../common/codigo-lote.util';
 
 type DashboardMovimiento = {
   id: string;
@@ -47,14 +48,16 @@ type DashboardSummaryResponse = {
 };
 
 type DashboardInicioBodegaItem = {
-  key: 'VERDE_BUENO' | 'VERDE_REGULAR' | 'SECO_BUENO';
-  tipo: 'Verde' | 'Seco';
-  calidad: 'Bueno' | 'Regular';
+  id: string;
+  codigo: string;
+  tipo: string;
+  calidad: string;
   tipoCafeId: string;
   calidadId: string;
-  totalKg: number;
-  lots: number;
-  averageDays: number;
+  pesoDisponibleKg: number;
+  diasEnBodega: number;
+  fechaIngreso: string;
+  creadoEn: string;
 };
 
 type DashboardInicioResponse = DashboardSummaryResponse & {
@@ -362,7 +365,10 @@ export class DashboardService {
           deletedAt: null,
         },
       },
+      orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
+      take: 3,
       select: {
+        id: true,
         pesoActual: true,
         tipoCafeId: true,
         calidadId: true,
@@ -373,55 +379,27 @@ export class DashboardService {
       },
     });
 
-    const map = new Map<
-      DashboardInicioBodegaItem['key'],
-      DashboardInicioBodegaItem & { dayWeight: number }
-    >();
+    return sublotes.map((sublote, index) => ({
+      id: sublote.id,
+      codigo: generarCodigoLote(
+        sublote.tipoCafe.nombre,
+        sublote.calidad.nombre,
+        index + 1,
+      ),
+      tipo: this.toTitleCase(sublote.tipoCafe.nombre),
+      calidad: this.toTitleCase(sublote.calidad.nombre),
+      tipoCafeId: sublote.tipoCafeId,
+      calidadId: sublote.calidadId,
+      pesoDisponibleKg: Number(sublote.pesoActual),
+      diasEnBodega: this.daysSinceBogota(sublote.compra.fecha),
+      fechaIngreso: sublote.compra.fecha.toISOString(),
+      creadoEn: sublote.creadoEn.toISOString(),
+    }));
+  }
 
-    for (const sublote of sublotes) {
-      const tipoKey = sublote.tipoCafe.nombre.trim().toUpperCase();
-      const calidadKey = sublote.calidad.nombre.trim().toUpperCase();
-      const key = `${tipoKey}_${calidadKey}` as DashboardInicioBodegaItem['key'];
-
-      if (
-        key !== 'VERDE_BUENO' &&
-        key !== 'VERDE_REGULAR' &&
-        key !== 'SECO_BUENO'
-      ) {
-        continue;
-      }
-
-      const totalKg = Number(sublote.pesoActual);
-      const days = this.daysSinceBogota(
-        sublote.compra.fecha ?? sublote.creadoEn,
-      );
-      const current = map.get(key) ?? {
-        key,
-        tipo: tipoKey === 'SECO' ? 'Seco' : 'Verde',
-        calidad: calidadKey === 'REGULAR' ? 'Regular' : 'Bueno',
-        tipoCafeId: sublote.tipoCafeId,
-        calidadId: sublote.calidadId,
-        totalKg: 0,
-        lots: 0,
-        averageDays: 0,
-        dayWeight: 0,
-      };
-
-      current.totalKg += totalKg;
-      current.lots += 1;
-      current.dayWeight += days;
-      map.set(key, current);
-    }
-
-    return [...map.values()]
-      .map(({ dayWeight, ...item }) => ({
-        ...item,
-        averageDays: item.lots > 0 ? Math.round(dayWeight / item.lots) : 0,
-      }))
-      .sort((a, b) => {
-        if (b.averageDays !== a.averageDays) return b.averageDays - a.averageDays;
-        return b.totalKg - a.totalKg;
-      });
+  private toTitleCase(value: string) {
+    const normalized = value.trim().toLowerCase();
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
   private async obtenerResumenFinanciero(organizacionId: string) {
