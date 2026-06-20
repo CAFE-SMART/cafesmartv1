@@ -1,4 +1,5 @@
 import { apiFetch } from './apiService';
+import { listarContactos } from './contactosService';
 import type { DocumentType } from '../utils/personValidation';
 
 export type ClienteItem = {
@@ -18,7 +19,17 @@ export type GuardarClientePayload = {
 };
 
 export async function listarClientes() {
-  return apiFetch('/clientes') as Promise<ClienteItem[]>;
+  const contactos = await listarContactos('CLIENTE');
+  return contactos
+    .filter((contacto) => contacto.clienteId)
+    .map((contacto) => ({
+      id: contacto.clienteId as string,
+      nombre: contacto.nombre,
+      documento: contacto.documento,
+      tipoDocumento: contacto.tipoDocumento,
+      telefono: contacto.telefono,
+      createdAt: contacto.createdAt,
+    })) as ClienteItem[];
 }
 
 export async function crearCliente(payload: GuardarClientePayload) {

@@ -39,6 +39,7 @@ import {
 import { BUSINESS_MIN_DATE_VALUE, formatDateLabel, getTodayLocalDateValue } from '../../utils/date';
 import {
   formatPhoneNumber,
+  normalizePhoneNumberForStorage,
   sanitizeDocumentInput,
   sanitizeNameInput,
   type DocumentType,
@@ -56,6 +57,13 @@ import { CafeSmartProcessingScreen } from '../../components/CafeSmartProcessingS
 import { TransactionSuccessScreen } from '../../components/TransactionSuccessScreen';
 import { CafeSmartDatePicker } from '../../components/common/CafeSmartDatePicker';
 import { shareMovementSummary } from '../../services/shareMovementSummary';
+import {
+  canImportDeviceContacts,
+  normalizeImportedContactPhone,
+  pickDeviceContact,
+  type DeviceContact,
+  type DeviceContactPhone,
+} from '../../services/deviceContactsService';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { formatCoffeeFullName, getCoffeeCodePrefix, getSubloteCodeMap } from '../../utils/coffeeCodes';
 import {
@@ -1814,12 +1822,97 @@ export default function Ventas() {
   );
   const [ventasTecnicasAbiertas, setVentasTecnicasAbiertas] = React.useState<Record<string, boolean>>({});
   const [showDetails, setShowDetails] = React.useState(false);
+  const [clienteImportedPendingDocument, setClienteImportedPendingDocument] =
+    React.useState(false);
+  const [clienteImportMessage, setClienteImportMessage] = React.useState<string | null>(
+    null,
+  );
+  const [clientePhoneChoice, setClientePhoneChoice] = React.useState<{
+    contact: DeviceContact;
+    phones: DeviceContactPhone[];
+  } | null>(null);
 
   React.useEffect(() => {
     if (!ventaGuardada) {
       setShowDetails(false);
     }
   }, [ventaGuardada]);
+
+  const aplicarContactoImportadoCliente = React.useCallback(
+    (contact: DeviceContact, phone?: DeviceContactPhone) => {
+      const phoneResult = phone?.number
+        ? normalizeImportedContactPhone(phone.number)
+        : null;
+      const telefonoDuplicado =
+        phoneResult?.formatted
+          ? clientes.some(
+              (item: ClienteOption) =>
+                normalizePhoneNumberForStorage(item.telefono ?? '') ===
+                normalizePhoneNumberForStorage(phoneResult.formatted),
+            )
+          : false;
+      const telefonoWarning = phoneResult
+        ? telefonoDuplicado
+          ? 'Este celular ya está registrado. Revisa el cliente existente antes de crear uno nuevo.'
+          : phoneResult.isColombianMobile
+            ? undefined
+            : 'Revisa el número importado. Este contacto no tiene un número celular colombiano válido; puedes corregirlo antes de guardar.'
+        : 'Este contacto no tiene un número guardado. Puedes ingresarlo manualmente.';
+
+      setClienteForm({
+        nombre: contact.name?.trim() || clienteForm.nombre,
+        telefono: phoneResult?.formatted ?? clienteForm.telefono,
+        documento: '',
+        tipoDocumento: '',
+      });
+      setClienteFormErrors({
+        tipoDocumento: 'Selecciona el tipo de documento.',
+        documento: 'Ingresa el número de documento.',
+        telefono: telefonoWarning,
+      });
+      setClienteFormError('Falta completar el documento del contacto.');
+      setClienteImportedPendingDocument(true);
+      setClienteImportMessage(
+        'Contacto importado. Completa el tipo y número de documento antes de registrar el cliente.',
+      );
+      setClientePhoneChoice(null);
+      window.setTimeout(() => {
+        document.getElementById('cliente-document-type')?.focus();
+      }, 50);
+    },
+    [
+      clienteForm.nombre,
+      clienteForm.telefono,
+      clientes,
+      setClienteForm,
+      setClienteFormError,
+      setClienteFormErrors,
+    ],
+  );
+
+  const importarClienteDesdeContactos = React.useCallback(async () => {
+    if (!canImportDeviceContacts()) {
+      setClienteFormError(
+        'La importación de contactos está disponible en la aplicación Android. Puedes registrar los datos manualmente.',
+      );
+      return;
+    }
+
+    try {
+      const contact = await pickDeviceContact();
+      if (contact.cancelled) return;
+      const phones = (contact.phones ?? []).filter((phone) => phone.number?.trim());
+      if (phones.length > 1) {
+        setClientePhoneChoice({ contact, phones });
+        return;
+      }
+      aplicarContactoImportadoCliente(contact, phones[0]);
+    } catch {
+      setClienteFormError(
+        'No pudimos importar el contacto seleccionado. Intenta nuevamente o ingresa los datos manualmente.',
+      );
+    }
+  }, [aplicarContactoImportadoCliente, setClienteFormError]);
 
   const volverDesdeEncabezado = React.useCallback(() => {
     if (paso > 1) {
@@ -3506,6 +3599,66 @@ export default function Ventas() {
         </div>
       ) : null}
 
+      {clientePhoneChoice ? (
+        <div className="fixed inset-0 z-[60] flex h-[100dvh] items-end justify-center bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cliente-phone-choice-title"
+            className="w-full max-w-[430px] rounded-[24px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)] dark:border dark:border-slate-700 dark:bg-slate-950"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
+                  Selecciona un número
+                </p>
+                <h2 id="cliente-phone-choice-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                  {clientePhoneChoice.contact.name || 'Contacto'}
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
+                  Este contacto tiene varios números guardados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClientePhoneChoice(null)}
+                aria-label="Cerrar selección de número"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {clientePhoneChoice.phones.map((phone, index) => (
+                <button
+                  key={`${phone.number}-${index}`}
+                  type="button"
+                  onClick={() => aplicarContactoImportadoCliente(clientePhoneChoice.contact, phone)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <span>
+                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                      {phone.label || 'Número'}
+                    </span>
+                    <span className="mt-1 block text-sm font-black text-slate-950 dark:text-slate-100">
+                      {phone.number}
+                    </span>
+                  </span>
+                  <ArrowRight size={18} className="text-[#102d92] dark:text-slate-100" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setClientePhoneChoice(null)}
+              className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 py-3 text-[0.95rem] font-semibold text-[#334b85] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            >
+              Cancelar
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       {mostrarModalClientes ? (
         <div
           className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center overflow-y-auto bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-5 sm:py-6"
@@ -3847,6 +4000,9 @@ export default function Ventas() {
                     setClienteEditando(null);
                     setClienteFormErrors({});
                     setClienteFormError(null);
+                    setClienteImportedPendingDocument(false);
+                    setClienteImportMessage(null);
+                    setClientePhoneChoice(null);
                   }}
                   aria-label="Cerrar registro de cliente"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
@@ -3858,6 +4014,37 @@ export default function Ventas() {
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
+                <div className="order-0 rounded-[18px] border border-[#dbe5f4] bg-[#f8fbff] p-3 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
+                        Datos del cliente
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                        Importa nombre y celular desde la agenda del celular.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void importarClienteDesdeContactos()}
+                      aria-label="Importar cliente desde los contactos del dispositivo"
+                      className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                    >
+                      Importar desde contactos
+                    </button>
+                  </div>
+                  {clienteImportMessage ? (
+                    <p role="status" aria-live="polite" className="mt-2 text-xs font-bold text-[#102d92] dark:text-slate-100">
+                      {clienteImportMessage}
+                    </p>
+                  ) : null}
+                  {clienteImportedPendingDocument ? (
+                    <div role="alert" className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100">
+                      <p className="font-black">Documento pendiente</p>
+                      <p className="mt-1">Completa el tipo y número de documento antes de guardar este cliente.</p>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="order-2">
                   <label htmlFor="cliente-nombre" className={clienteModalLabelClass}>
                     {clienteForm.tipoDocumento === 'NIT'
@@ -3877,7 +4064,7 @@ export default function Ventas() {
                     id="cliente-nombre"
                     type="text"
                     value={clienteForm.nombre}
-                    disabled={!clienteForm.tipoDocumento}
+                    disabled={!clienteForm.tipoDocumento && !clienteImportedPendingDocument}
                     aria-invalid={clienteFormErrors.nombre ? 'true' : 'false'}
                     aria-describedby={clienteFormErrors.nombre ? 'cliente-nombre-error' : undefined}
                     placeholder={
@@ -3956,6 +4143,8 @@ export default function Ventas() {
                       }
                       onClose={() => setClienteDocumentoDropdownOpen(false)}
                       onChange={(value) => {
+                        setClienteImportedPendingDocument(false);
+                        setClienteImportMessage(null);
                         setClienteForm((actual) => ({
                           ...actual,
                           tipoDocumento: value,
@@ -4014,6 +4203,7 @@ export default function Ventas() {
                     aria-invalid={clienteFormErrors.documento ? 'true' : 'false'}
                     aria-describedby={clienteFormErrors.documento ? 'cliente-documento-error' : undefined}
                     onChange={(event) => {
+                      setClienteImportedPendingDocument(false);
                       setClienteForm((actual) => ({
                         ...actual,
                         documento: sanitizeDocumentInput(

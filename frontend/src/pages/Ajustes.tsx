@@ -95,6 +95,14 @@ import {
   type ProductorItem,
 } from '../services/productoresService';
 import {
+  actualizarContacto,
+  agregarRolContacto,
+  crearContacto,
+  listarContactos,
+  type ContactoItem,
+  type ContactoRol,
+} from '../services/contactosService';
+import {
   actualizarConfiguracionOrganizacion,
   actualizarPerfilUsuario,
   quitarFotoPerfilRemota,
@@ -175,6 +183,13 @@ import {
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
   PRECIO_MAXIMO_KG,
 } from '../utils/businessRules';
+import {
+  canImportDeviceContacts,
+  normalizeImportedContactPhone,
+  pickDeviceContact,
+  type DeviceContact,
+  type DeviceContactPhone,
+} from '../services/deviceContactsService';
 
 const PESO_MAXIMO_OPERATIVO_DEFAULT_LABEL = '99.999';
 
@@ -216,7 +231,7 @@ function getBusinessTypeLabel(value: string) {
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
 type ProfileErrors = Partial<Record<keyof ProfileSettings, string>>;
-type PeopleAdminMode = 'todos' | 'clientes' | 'productores' | null;
+type PeopleAdminMode = 'todos' | 'clientes' | 'productores' | 'multirol' | null;
 type PeopleSortMode = 'recent' | 'oldest' | 'az' | 'za';
 type SecadoPanelMode = 'home' | 'start' | 'active' | null;
 type SecadoSortMode = 'recent' | 'oldest';
@@ -228,6 +243,9 @@ type PeopleAdminItem = {
   documento: string;
   tipoDocumento: DocumentType;
   telefono: string;
+  roles: ContactoRol[];
+  clienteId?: string | null;
+  productorId?: string | null;
   createdAt?: string;
 };
 type PeopleAdminForm = {
@@ -235,6 +253,7 @@ type PeopleAdminForm = {
   tipoDocumento: DocumentType | '';
   documento: string;
   telefono: string;
+  roles: ContactoRol[];
 };
 
 const PROFILE_NAME_MAX_LENGTH = 60;
@@ -333,6 +352,7 @@ function mapClienteAdmin(cliente: ClienteItem): PeopleAdminItem {
     documento: cliente.documento ?? '',
     tipoDocumento,
     telefono: cliente.telefono ?? '',
+    roles: ['CLIENTE'],
     createdAt: cliente.createdAt,
   };
 }
@@ -347,6 +367,7 @@ function mapProductorAdmin(productor: ProductorItem): PeopleAdminItem {
     documento: productor.documento ?? '',
     tipoDocumento,
     telefono: productor.telefono ?? '',
+    roles: ['PRODUCTOR'],
     createdAt: productor.createdAt,
   };
 }
@@ -653,6 +674,7 @@ export default function Ajustes() {
   const [peopleMode, setPeopleMode] = useState<PeopleAdminMode>(null);
   const [clientesAdmin, setClientesAdmin] = useState<PeopleAdminItem[]>([]);
   const [productoresAdmin, setProductoresAdmin] = useState<PeopleAdminItem[]>([]);
+  const [contactosAdmin, setContactosAdmin] = useState<PeopleAdminItem[]>([]);
   const [peopleSearch, setPeopleSearch] = useState('');
   const [peopleSortMode, setPeopleSortMode] = useState<PeopleSortMode>('recent');
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -673,7 +695,17 @@ export default function Ajustes() {
     tipoDocumento: '',
     documento: '',
     telefono: '',
+    roles: ['CLIENTE'],
   });
+  const [peopleImportedPendingDocument, setPeopleImportedPendingDocument] =
+    useState(false);
+  const [peopleImportMessage, setPeopleImportMessage] = useState<string | null>(
+    null,
+  );
+  const [peoplePhoneChoice, setPeoplePhoneChoice] = useState<{
+    contact: DeviceContact;
+    phones: DeviceContactPhone[];
+  } | null>(null);
 
   useEffect(() => {
     const state = location.state as { openBodega?: boolean; openLimits?: boolean } | null;
@@ -1052,6 +1084,7 @@ export default function Ajustes() {
     tipoDocumento:
       cliente.tipoDocumento ?? (cliente.documento?.includes('-') ? 'NIT' : 'CEDULA'),
     telefono: cliente.telefono ?? '',
+    roles: ['CLIENTE'],
     createdAt: cliente.createdAt,
   });
 
@@ -1062,7 +1095,21 @@ export default function Ajustes() {
     documento: productor.documento ?? '',
     tipoDocumento: productor.tipoDocumento ?? 'CEDULA',
     telefono: productor.telefono ?? '',
+    roles: ['PRODUCTOR'],
     createdAt: productor.createdAt,
+  });
+
+  const mapContactoAdmin = (contacto: ContactoItem): PeopleAdminItem => ({
+    id: contacto.id,
+    contactType: contacto.roles.includes('PRODUCTOR') ? 'productor' : 'cliente',
+    nombre: contacto.nombre,
+    documento: contacto.documento,
+    tipoDocumento: contacto.tipoDocumento,
+    telefono: contacto.telefono ?? '',
+    roles: contacto.roles,
+    clienteId: contacto.clienteId,
+    productorId: contacto.productorId,
+    createdAt: contacto.createdAt,
   });
 
   const cargarPersonasAdmin = async (
@@ -1076,31 +1123,16 @@ export default function Ajustes() {
     setPeopleError(null);
     setPeopleLoading(true);
     try {
-      const shouldLoadClientes = mode !== 'productores';
-      const shouldLoadProductores = mode !== 'clientes';
-      const [clientesResult, productoresResult] = await Promise.allSettled([
-        shouldLoadClientes ? listarClientes() : Promise.resolve(null),
-        shouldLoadProductores ? listarProductores() : Promise.resolve(null),
-      ]);
-      const requestedResults = [
-        shouldLoadClientes ? clientesResult : null,
-        shouldLoadProductores ? productoresResult : null,
-      ].filter(Boolean);
-      const allRequestedFailed = requestedResults.every(
-        (result) => result?.status === 'rejected',
-      );
-
-      if (allRequestedFailed) {
-        setPeopleError('No pudimos cargar los contactos');
-        return;
-      }
-
-      if (clientesResult.status === 'fulfilled' && clientesResult.value) {
-        setClientesAdmin(clientesResult.value.map(mapClienteAdmin));
-      }
-      if (productoresResult.status === 'fulfilled' && productoresResult.value) {
-        setProductoresAdmin(productoresResult.value.map(mapProductorAdmin));
-      }
+      const rol =
+        mode === 'clientes'
+          ? 'CLIENTE'
+          : mode === 'productores'
+            ? 'PRODUCTOR'
+            : mode === 'multirol'
+              ? 'MULTIROL'
+              : undefined;
+      const contactos = await listarContactos(rol);
+      setContactosAdmin(contactos.map(mapContactoAdmin));
     } catch {
       setPeopleError('No pudimos cargar los contactos');
     } finally {
@@ -1396,12 +1428,14 @@ export default function Ajustes() {
     void cargarBodegas();
   }, []);
 
-  const peopleItems =
-    peopleMode === 'clientes'
-      ? clientesAdmin
-      : peopleMode === 'productores'
-        ? productoresAdmin
-        : [...clientesAdmin, ...productoresAdmin];
+  const peopleItems = contactosAdmin.filter((item) => {
+    if (peopleMode === 'clientes') return item.roles.includes('CLIENTE');
+    if (peopleMode === 'productores') return item.roles.includes('PRODUCTOR');
+    if (peopleMode === 'multirol') {
+      return item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR');
+    }
+    return true;
+  });
   const debouncedPeopleSearch = useDebouncedValue(peopleSearch);
   const peopleSearchResult = useMemo(
     () =>
@@ -1427,14 +1461,18 @@ export default function Ajustes() {
       ? 'Sin clientes registrados'
       : peopleMode === 'productores'
         ? 'Sin productores registrados'
-        : 'Sin contactos registrados';
+        : peopleMode === 'multirol'
+          ? 'Sin contactos Multirol registrados'
+          : 'Sin contactos registrados';
   const peopleEmptyDescription = peopleSearch.trim()
     ? 'Prueba con otro nombre, documento o teléfono.'
     : peopleMode === 'clientes'
       ? 'Agrega clientes para usarlos en ventas.'
       : peopleMode === 'productores'
         ? 'Agrega productores para usarlos en compras.'
-        : 'Agrega clientes o productores para usarlos en compras y ventas.';
+        : peopleMode === 'multirol'
+          ? 'Los contactos Multirol pueden participar en compras y ventas.'
+          : 'Agrega clientes o productores para usarlos en compras y ventas.';
 
   const abrirEdicionPersona = (item: PeopleAdminItem) => {
     setPeopleEditing(item);
@@ -1444,6 +1482,7 @@ export default function Ajustes() {
       tipoDocumento: item.tipoDocumento,
       documento: item.documento,
       telefono: item.telefono ? formatPhoneNumber(item.telefono) : '',
+      roles: item.roles,
     });
     setPeopleFormErrors({});
   };
@@ -2237,20 +2276,26 @@ export default function Ajustes() {
     }
   };
 
-  const activePeopleItems =
-    peopleMode === 'clientes'
-      ? clientesAdmin
-      : peopleMode === 'productores'
-        ? productoresAdmin
-        : [...clientesAdmin, ...productoresAdmin];
+  const activePeopleItems = contactosAdmin.filter((item) => {
+    if (peopleMode === 'clientes') return item.roles.includes('CLIENTE');
+    if (peopleMode === 'productores') return item.roles.includes('PRODUCTOR');
+    if (peopleMode === 'multirol') {
+      return item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR');
+    }
+    return true;
+  });
   const activePeopleLabel =
     peopleMode === 'clientes'
       ? 'Clientes registrados'
       : peopleMode === 'productores'
         ? 'Productores registrados'
-        : 'Gestión de contactos';
+        : peopleMode === 'multirol'
+          ? 'Contactos Multirol'
+          : 'Gestión de contactos';
   const activePeopleSingular =
-    peopleEditing?.contactType === 'productor' ? 'productor' : 'cliente';
+    peopleEditing?.roles.includes('PRODUCTOR') && !peopleEditing?.roles.includes('CLIENTE')
+      ? 'productor'
+      : 'contacto';
   const activePeopleSearchResult = useMemo(
     () =>
       fuzzySearch(activePeopleItems, debouncedPeopleSearch, (item) => [
@@ -2267,14 +2312,18 @@ export default function Ajustes() {
     setPeopleLoading(true);
     setPeopleError(null);
     try {
-      const [clientes, productores] = await Promise.all([
-        mode === 'productores' ? Promise.resolve(null) : listarClientes(),
-        mode === 'clientes' ? Promise.resolve(null) : listarProductores(),
-      ]);
-      if (clientes) setClientesAdmin(clientes.map(mapClienteAdmin));
-      if (productores) setProductoresAdmin(productores.map(mapProductorAdmin));
+      const rol =
+        mode === 'clientes'
+          ? 'CLIENTE'
+          : mode === 'productores'
+            ? 'PRODUCTOR'
+            : mode === 'multirol'
+              ? 'MULTIROL'
+              : undefined;
+      const contactos = await listarContactos(rol);
+      setContactosAdmin(contactos.map(mapContactoAdmin));
     } catch {
-      setPeopleError(`No pudimos cargar los ${mode}. Intenta nuevamente.`);
+      setPeopleError('No pudimos cargar los contactos. Intenta nuevamente.');
     } finally {
       setPeopleLoading(false);
     }
@@ -2461,9 +2510,12 @@ export default function Ajustes() {
       tipoDocumento: item.tipoDocumento,
       documento: item.documento,
       telefono: formatPhoneNumber(item.telefono),
+      roles: item.roles,
     });
     setPeopleFormErrors({});
     setPeopleFormError(null);
+    setPeopleImportedPendingDocument(false);
+    setPeopleImportMessage(null);
   };
 
   const hasPeopleDraftChanges = (item: PeopleAdminItem | null, form: PeopleAdminForm) => {
@@ -2476,13 +2528,16 @@ export default function Ajustes() {
           form.telefono.trim(),
       );
     }
+    const itemRoles = [...item.roles].sort().join(',');
+    const formRoles = [...form.roles].sort().join(',');
     return (
       form.nombre.trim() !== item.nombre ||
       form.tipoDocumento !== item.tipoDocumento ||
       normalizeDocumentForStorage(form.documento, item.tipoDocumento) !==
         normalizeDocumentForStorage(item.documento, item.tipoDocumento) ||
       normalizePhoneNumberForStorage(form.telefono) !==
-        normalizePhoneNumberForStorage(item.telefono)
+        normalizePhoneNumberForStorage(item.telefono) ||
+      itemRoles !== formRoles
     );
   };
 
@@ -2494,6 +2549,8 @@ export default function Ajustes() {
     setPeopleEditing(null);
     setPeopleFormError(null);
     setPeopleFormErrors({});
+    setPeopleImportedPendingDocument(false);
+    setPeopleImportMessage(null);
   };
 
   const iniciarRegistroPersona = () => {
@@ -2509,15 +2566,105 @@ export default function Ajustes() {
       tipoDocumento: 'CEDULA',
       documento: '',
       telefono: '',
+      roles:
+        peopleMode === 'productores'
+          ? ['PRODUCTOR']
+          : peopleMode === 'multirol'
+            ? ['CLIENTE', 'PRODUCTOR']
+            : ['CLIENTE'],
     });
     setPeopleForm({
       nombre: '',
       tipoDocumento: '',
       documento: '',
       telefono: '',
+      roles:
+        peopleMode === 'productores'
+          ? ['PRODUCTOR']
+          : peopleMode === 'multirol'
+            ? ['CLIENTE', 'PRODUCTOR']
+            : ['CLIENTE'],
     });
     setPeopleFormErrors({});
     setPeopleFormError(null);
+    setPeopleImportedPendingDocument(false);
+    setPeopleImportMessage(null);
+  };
+
+  const aplicarContactoImportadoPersona = (
+    contact: DeviceContact,
+    phone?: DeviceContactPhone,
+  ) => {
+    const phoneResult = phone?.number
+      ? normalizeImportedContactPhone(phone.number)
+      : null;
+    const nextForm: PeopleAdminForm = {
+      nombre: contact.name?.trim() || peopleForm.nombre,
+      tipoDocumento: '',
+      documento: '',
+      telefono: phoneResult?.formatted ?? peopleForm.telefono,
+      roles: peopleForm.roles.length ? peopleForm.roles : ['CLIENTE'],
+    };
+    const telefonoDuplicado =
+      phoneResult?.normalized
+        ? contactosAdmin.some(
+            (item) =>
+              item.roles.some((rol) => nextForm.roles.includes(rol)) &&
+              normalizePhoneNumberForStorage(item.telefono) ===
+                normalizePhoneNumberForStorage(phoneResult.formatted),
+          )
+        : false;
+    const telefonoWarning = phoneResult
+      ? telefonoDuplicado
+        ? 'Este celular ya está registrado. Revisa el contacto existente antes de crear uno nuevo.'
+        : phoneResult.isColombianMobile
+          ? undefined
+          : 'Revisa el número importado. Este contacto no tiene un número celular colombiano válido; puedes corregirlo antes de guardar.'
+      : 'Este contacto no tiene un número guardado. Puedes ingresarlo manualmente.';
+
+    setPeopleForm(nextForm);
+    setPeopleFormErrors({
+      tipoDocumento: 'Selecciona el tipo de documento.',
+      documento: 'Ingresa el número de documento.',
+      telefono: telefonoWarning,
+    });
+    setPeopleImportedPendingDocument(true);
+    setPeopleImportMessage(
+      'Contacto importado. Completa el tipo y número de documento antes de guardar este contacto.',
+    );
+    setPeopleFormError('Falta completar el documento del contacto.');
+    setPeoplePhoneChoice(null);
+    window.setTimeout(() => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Tipo de documento"]')?.focus();
+    }, 50);
+  };
+
+  const importarPersonaDesdeContactos = async () => {
+    if (!canImportDeviceContacts()) {
+      setPeopleFormError(
+        'La importación de contactos está disponible en la aplicación Android. Puedes registrar los datos manualmente.',
+      );
+      return;
+    }
+
+    try {
+      const contact = await pickDeviceContact();
+      if (contact.cancelled) return;
+
+      const phones = (contact.phones ?? []).filter((phone) => phone.number?.trim());
+      if (phones.length > 1) {
+        setPeoplePhoneChoice({ contact, phones });
+        return;
+      }
+
+      aplicarContactoImportadoPersona(contact, phones[0]);
+    } catch (importError) {
+      const message =
+        importError instanceof Error && importError.message.includes('CONTACTS_PERMISSION_REQUIRED')
+          ? 'No pudimos leer el contacto seleccionado. Puedes registrar los datos manualmente o revisar los permisos de contactos en Android.'
+          : 'No pudimos importar el contacto seleccionado. Intenta nuevamente o ingresa los datos manualmente.';
+      setPeopleFormError(message);
+    }
   };
 
   const validarPersonaEnTiempoReal = (
@@ -2536,19 +2683,18 @@ export default function Ajustes() {
       tipoDocumento,
     );
     const telefonoNormalizado = normalizePhoneNumberForStorage(nextForm.telefono);
-    const contactos = [...clientesAdmin, ...productoresAdmin].filter(
+    const contactos = contactosAdmin.filter(
       (item) =>
         !(
           currentEditing &&
-          item.id === currentEditing.id &&
-          item.contactType === currentEditing.contactType
+          item.id === currentEditing.id
         ),
     );
 
     if (documentoNormalizado) {
       const documentoDuplicado = contactos.some(
         (item) =>
-          item.contactType === currentEditing?.contactType &&
+          item.roles.some((rol) => nextForm.roles.includes(rol)) &&
           item.tipoDocumento === tipoDocumento &&
           normalizeDocumentForStorage(item.documento, item.tipoDocumento) ===
             documentoNormalizado,
@@ -2564,7 +2710,7 @@ export default function Ajustes() {
     if (telefonoNormalizado) {
       const telefonoDuplicado = contactos.some(
         (item) =>
-          item.contactType === currentEditing?.contactType &&
+          item.roles.some((rol) => nextForm.roles.includes(rol)) &&
           normalizePhoneNumberForStorage(item.telefono) === telefonoNormalizado,
       );
       if (telefonoDuplicado) {
@@ -2626,11 +2772,14 @@ export default function Ajustes() {
     if (!nombreValidation.isValid) nextErrors.nombre = nombreValidation.message;
     if (!documentoValidation.isValid) nextErrors.documento = documentoValidation.message;
     if (!telefonoValidation.isValid) nextErrors.telefono = telefonoValidation.message;
+    if (peopleForm.roles.length === 0) {
+      nextErrors.roles = 'Selecciona al menos un rol para el contacto.';
+    }
 
-    const duplicated = [...clientesAdmin, ...productoresAdmin].find(
+    const duplicated = contactosAdmin.find(
       (item) =>
-        !(item.id === peopleEditing.id && item.contactType === peopleEditing.contactType) &&
-        item.contactType === peopleEditing.contactType &&
+        item.id !== peopleEditing.id &&
+        item.roles.some((rol) => peopleForm.roles.includes(rol)) &&
         item.tipoDocumento === tipoDocumento &&
         normalizeDocumentForStorage(item.documento, item.tipoDocumento) === documentoNormalizado,
     );
@@ -2654,33 +2803,24 @@ export default function Ajustes() {
       return;
     }
 
+    setPeopleLoading(true);
     try {
       const payload = {
         nombre: nombreNormalizado,
         tipoDocumento,
         documento: documentoNormalizado,
         telefono: telefonoNormalizado || undefined,
+        roles: peopleForm.roles,
       };
-      const saved =
-        peopleEditing.contactType === 'cliente'
-          ? peopleEditing.id
-            ? mapClienteAdmin(await actualizarCliente(peopleEditing.id, payload))
-            : mapClienteAdmin(await crearCliente(payload))
-          : peopleEditing.id
-            ? mapProductorAdmin(await actualizarProductor(peopleEditing.id, payload))
-            : mapProductorAdmin(await crearProductor(payload));
-
-      if (peopleEditing.contactType === 'cliente') {
-        setClientesAdmin((items) => [
-          saved,
-          ...items.filter((item) => item.id !== saved.id),
-        ]);
-      } else {
-        setProductoresAdmin((items) => [
-          saved,
-          ...items.filter((item) => item.id !== saved.id),
-        ]);
-      }
+      const saved = mapContactoAdmin(
+        peopleEditing.id
+          ? await actualizarContacto(peopleEditing.id, payload)
+          : await crearContacto(payload),
+      );
+      setContactosAdmin((items) => [
+        saved,
+        ...items.filter((item) => item.id !== saved.id),
+      ]);
       setPeopleEditing(null);
       setPeopleDraft(null);
       setShowPeopleDraftModal(false);
@@ -2692,16 +2832,75 @@ export default function Ajustes() {
           : 'Contacto registrado correctamente.',
       );
     } catch (err) {
-      const apiError = err as { status?: number; code?: string; message?: string };
+      const apiError = err as {
+        status?: number;
+        code?: string;
+        message?: string;
+        details?: Record<string, unknown> | null;
+      };
+      if (apiError.code === 'CONTACT_ROLE_CAN_BE_ADDED') {
+        const contactId =
+          typeof apiError.details?.contactId === 'string'
+            ? apiError.details.contactId
+            : null;
+        const missingRoles = Array.isArray(apiError.details?.missingRoles)
+          ? (apiError.details.missingRoles.filter(
+              (rol): rol is ContactoRol => rol === 'CLIENTE' || rol === 'PRODUCTOR',
+            ))
+          : peopleForm.roles;
+        const roleLabel = missingRoles.includes('CLIENTE')
+          ? 'cliente'
+          : 'productor';
+        const shouldAddRole = window.confirm(
+          `Este contacto ya está registrado. ¿Deseas agregarle también el rol de ${roleLabel}?`,
+        );
+
+        if (shouldAddRole && contactId) {
+          const saved = mapContactoAdmin(
+            await missingRoles.reduce(
+              async (previous, rol) => agregarRolContacto((await previous).id, rol),
+              Promise.resolve({ id: contactId } as ContactoItem),
+            ),
+          );
+          setContactosAdmin((items) => [
+            saved,
+            ...items.filter((item) => item.id !== saved.id),
+          ]);
+          setPeopleEditing(null);
+          setPeopleDraft(null);
+          setShowPeopleDraftModal(false);
+          setPeopleFormErrors({});
+          setPeopleFormError(null);
+          setSuccess(
+            missingRoles.length > 1
+              ? 'Contacto Multirol actualizado.'
+              : `Rol de ${roleLabel} agregado correctamente.`,
+          );
+          return;
+        }
+
+        const message =
+          missingRoles.includes('CLIENTE')
+            ? 'Este contacto ya está registrado como productor. Puedes agregarle el rol de cliente sin duplicar sus datos.'
+            : 'Este contacto ya está registrado como cliente. Puedes agregarle el rol de productor sin duplicar sus datos.';
+        setPeopleFormErrors((current) => ({
+          ...current,
+          documento: message,
+        }));
+        setPeopleFormError(message);
+        return;
+      }
       if (
         apiError.status === 409 ||
         apiError.code === 'DOCUMENT_ALREADY_EXISTS' ||
         /documento|registrad|duplicad/i.test(apiError.message ?? '')
       ) {
         const message =
-          peopleEditing.contactType === 'cliente'
-            ? 'Este cliente ya está registrado con este documento.'
-            : 'Este productor ya está registrado con este documento.';
+          apiError.code === 'CONTACT_ROLE_CAN_BE_ADDED'
+            ? 'Este contacto ya está registrado. Puedes agregarle otro rol sin duplicar su información.'
+            : apiError.code === 'CONTACT_ALREADY_HAS_ROLES'
+              ? 'Este contacto ya tiene los roles seleccionados.'
+              : 'Ya existe un contacto con este tipo y número de documento.';
         setPeopleFormErrors((current) => ({
           ...current,
           documento: message,
@@ -2715,6 +2914,8 @@ export default function Ajustes() {
           ? err.message
           : `No pudimos guardar el ${activePeopleSingular}.`;
       setPeopleFormError(message);
+    } finally {
+      setPeopleLoading(false);
     }
   };
 
@@ -2727,15 +2928,13 @@ export default function Ajustes() {
 
     setPeopleLoading(true);
     try {
-      if (item.contactType === 'cliente') {
-        await eliminarCliente(item.id);
-        setClientesAdmin((items) => items.filter((current) => current.id !== item.id));
-      } else {
-        await eliminarProductor(item.id);
-        setProductoresAdmin((items) => items.filter((current) => current.id !== item.id));
-      }
+      await Promise.all([
+        item.clienteId ? eliminarCliente(item.clienteId) : Promise.resolve(),
+        item.productorId ? eliminarProductor(item.productorId) : Promise.resolve(),
+      ]);
+      setContactosAdmin((items) => items.filter((current) => current.id !== item.id));
       setPeopleDetail(null);
-      setSuccess('Contacto eliminado correctamente.');
+      setSuccess('Contacto desactivado correctamente.');
     } catch {
       setPeopleError(
         'No pudimos eliminar el contacto. Revisa tu conexión e intenta nuevamente.',
@@ -5928,6 +6127,7 @@ export default function Ajustes() {
                     <option value="todos">Todos</option>
                     <option value="clientes">Clientes</option>
                     <option value="productores">Productores</option>
+                    <option value="multirol">Multirol</option>
                   </SmartSelect>
                 </label>
                 <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -6026,9 +6226,27 @@ export default function Ajustes() {
                           <p className="truncate text-sm font-black text-slate-950 dark:text-slate-100">
                             {item.nombre}
                           </p>
-                          <span className="mt-1 inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[0.62rem] font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100">
-                            {item.contactType === 'cliente' ? 'Cliente' : 'Productor'}
+                          <span
+                            className="mt-1 inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[0.62rem] font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100"
+                            aria-label={
+                              item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR')
+                                ? 'Contacto Multirol: cliente y productor'
+                                : item.roles.includes('CLIENTE')
+                                  ? 'Contacto cliente'
+                                  : 'Contacto productor'
+                            }
+                          >
+                            {item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR')
+                              ? 'Multirol'
+                              : item.roles.includes('CLIENTE')
+                                ? 'Cliente'
+                                : 'Productor'}
                           </span>
+                          {item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR') ? (
+                            <p className="mt-1 text-xs font-bold text-[#334b85] dark:text-blue-100">
+                              Cliente y productor
+                            </p>
+                          ) : null}
                           <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">
                             {item.tipoDocumento === 'NIT' ? 'NIT' : 'Cédula'}: {item.documento || 'Pendiente'}
                           </p>
@@ -6090,7 +6308,11 @@ export default function Ajustes() {
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">Detalle</p>
                 <h3 className="mt-1 text-lg font-black text-slate-950">{peopleDetail.nombre}</h3>
                 <p className="mt-1 text-xs font-black text-slate-500">
-                  {peopleDetail.contactType === 'cliente' ? 'Cliente' : 'Productor'}
+                  {peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR')
+                    ? 'Multirol · Cliente y productor'
+                    : peopleDetail.roles.includes('CLIENTE')
+                      ? 'Cliente'
+                      : 'Productor'}
                 </p>
               </div>
               <button
@@ -6104,7 +6326,10 @@ export default function Ajustes() {
             </div>
             <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
               <p>Nombre: <span className="font-black text-slate-900">{peopleDetail.nombre}</span></p>
-              <p>Tipo: <span className="font-black text-slate-900">{peopleDetail.contactType === 'cliente' ? 'Cliente' : 'Productor'}</span></p>
+              <p>Rol: <span className="font-black text-slate-900">{peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR') ? 'Multirol' : peopleDetail.roles.includes('CLIENTE') ? 'Cliente' : 'Productor'}</span></p>
+              {peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR') ? (
+                <p>Descripción: <span className="font-black text-slate-900">Cliente y productor</span></p>
+              ) : null}
               <p>Documento: <span className="font-black text-slate-900">{peopleDetail.documento || 'Pendiente'}</span></p>
               <p>Teléfono: <span className="font-black text-slate-900">{peopleDetail.telefono ? formatPhoneNumber(peopleDetail.telefono) : 'No registrado'}</span></p>
               <p>Fecha: <span className="font-black text-slate-900">{peopleDetail.createdAt ? formatDate(peopleDetail.createdAt) : 'No disponible'}</span></p>
@@ -6149,30 +6374,69 @@ export default function Ajustes() {
               {peopleFormError ? (
                 <AppFeedbackMessage variant="error" description={peopleFormError} />
               ) : null}
+              <div className="rounded-[18px] border border-[#dbe5f4] bg-[#f8fbff] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85]">
+                      Datos del contacto
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Importa nombre y celular desde la agenda del celular.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void importarPersonaDesdeContactos()}
+                    aria-label="Importar cliente o productor desde los contactos del dispositivo"
+                    className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92]"
+                  >
+                    Importar desde contactos
+                  </button>
+                </div>
+                {peopleImportMessage ? (
+                  <p role="status" aria-live="polite" className="mt-2 text-xs font-bold text-[#102d92]">
+                    {peopleImportMessage}
+                  </p>
+                ) : null}
+                {peopleImportedPendingDocument ? (
+                  <div role="alert" className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                    <p className="font-black">Documento pendiente</p>
+                    <p className="mt-1">Completa el tipo y número de documento antes de guardar este contacto.</p>
+                  </div>
+                ) : null}
+              </div>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
-                  Tipo de registro
+                  Rol en el negocio
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    ['cliente', 'Cliente'],
-                    ['productor', 'Productor'],
+                    ['CLIENTE', 'Cliente'],
+                    ['PRODUCTOR', 'Productor'],
                   ].map(([value, label]) => (
                     <button
                       key={value}
                       type="button"
-                      onClick={() =>
-                        setPeopleEditing((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                contactType: value as 'cliente' | 'productor',
-                              }
-                            : prev,
-                        )
-                      }
+                      onClick={() => {
+                        const rol = value as ContactoRol;
+                        setPeopleForm((prev) => {
+                          const selected = prev.roles.includes(rol);
+                          const roles = selected
+                            ? prev.roles.filter((item) => item !== rol)
+                            : [...prev.roles, rol];
+                          setPeopleFormErrors((current) => ({
+                            ...current,
+                            roles:
+                              roles.length === 0
+                                ? 'Selecciona al menos un rol para el contacto.'
+                                : undefined,
+                          }));
+                          return { ...prev, roles };
+                        });
+                      }}
+                      aria-pressed={peopleForm.roles.includes(value as ContactoRol)}
                       className={`min-h-[40px] rounded-[13px] text-xs font-black ${
-                        peopleEditing.contactType === value
+                        peopleForm.roles.includes(value as ContactoRol)
                           ? 'bg-[#102d92] text-white'
                           : 'border border-[#d5deee] bg-white text-[#334b85]'
                       }`}
@@ -6181,7 +6445,13 @@ export default function Ajustes() {
                     </button>
                   ))}
                 </div>
+                {peopleForm.roles.includes('CLIENTE') && peopleForm.roles.includes('PRODUCTOR') ? (
+                  <p className="mt-2 rounded-[12px] bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#102d92]">
+                    Este contacto será Multirol y podrá participar en compras y ventas.
+                  </p>
+                ) : null}
               </label>
+              {peopleFormErrors.roles ? <p className={fieldErrorClass}>{peopleFormErrors.roles}</p> : null}
               <label className="block">
                 <span className={fieldLabelClass}>
                   Tipo de documento
@@ -6189,11 +6459,15 @@ export default function Ajustes() {
               <SmartSelect
                 value={peopleForm.tipoDocumento}
                 onChange={(event) =>
-                  setPeopleForm((prev) => ({
-                    ...prev,
-                    tipoDocumento: event.target.value as DocumentType,
-                    documento: '',
-                  }))
+                  setPeopleForm((prev) => {
+                    setPeopleImportedPendingDocument(false);
+                    setPeopleFormError(null);
+                    return {
+                      ...prev,
+                      tipoDocumento: event.target.value as DocumentType,
+                      documento: '',
+                    };
+                  })
                 }
                 className="text-sm"
                 aria-label="Tipo de documento"
@@ -6224,7 +6498,7 @@ export default function Ajustes() {
                     nombre: event.target.value.replace(/\s{2,}/g, ' '),
                   }))
                 }
-                disabled={!peopleForm.tipoDocumento}
+                disabled={!peopleForm.tipoDocumento && !peopleImportedPendingDocument}
                 className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
                 placeholder={
                   peopleForm.tipoDocumento
@@ -6245,6 +6519,7 @@ export default function Ajustes() {
                 value={peopleForm.documento}
                 onChange={(event) => {
                   setPeopleForm((prev) => {
+                    setPeopleImportedPendingDocument(false);
                     const next = {
                       ...prev,
                       documento: prev.tipoDocumento
@@ -6284,7 +6559,7 @@ export default function Ajustes() {
                     return next;
                   });
                 }}
-                disabled={!peopleForm.tipoDocumento}
+                disabled={!peopleForm.tipoDocumento && !peopleImportedPendingDocument}
                 className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
                 placeholder={peopleForm.tipoDocumento ? '300 123 4567' : 'Opcional después del documento'}
               />
@@ -6308,6 +6583,66 @@ export default function Ajustes() {
                 </button>
               </div>
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {peoplePhoneChoice ? (
+        <div className="fixed inset-0 z-[96] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="people-phone-choice-title"
+            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85]">
+                  Selecciona un número
+                </p>
+                <h3 id="people-phone-choice-title" className="mt-1 text-lg font-black text-slate-950">
+                  {peoplePhoneChoice.contact.name || 'Contacto'}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Este contacto tiene varios números guardados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPeoplePhoneChoice(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar selección de número"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {peoplePhoneChoice.phones.map((phone, index) => (
+                <button
+                  key={`${phone.number}-${index}`}
+                  type="button"
+                  onClick={() => aplicarContactoImportadoPersona(peoplePhoneChoice.contact, phone)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left"
+                >
+                  <span>
+                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                      {phone.label || 'Número'}
+                    </span>
+                    <span className="mt-1 block text-sm font-black text-slate-950">
+                      {phone.number}
+                    </span>
+                  </span>
+                  <ChevronRight size={18} className="text-[#102d92]" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPeoplePhoneChoice(null)}
+              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+            >
+              Cancelar
+            </button>
           </section>
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import { apiFetch } from './apiService';
+import { listarContactos } from './contactosService';
 import type { DocumentType } from '../utils/personValidation';
 
 export type ProductorItem = {
@@ -18,7 +19,17 @@ export type GuardarProductorPayload = {
 };
 
 export async function listarProductores() {
-  return apiFetch('/productores') as Promise<ProductorItem[]>;
+  const contactos = await listarContactos('PRODUCTOR');
+  return contactos
+    .filter((contacto) => contacto.productorId)
+    .map((contacto) => ({
+      id: contacto.productorId as string,
+      nombre: contacto.nombre,
+      documento: contacto.documento,
+      tipoDocumento: contacto.tipoDocumento,
+      telefono: contacto.telefono,
+      createdAt: contacto.createdAt,
+    })) as ProductorItem[];
 }
 
 export async function crearProductor(payload: GuardarProductorPayload) {

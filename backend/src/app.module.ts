@@ -20,6 +20,7 @@ import { CreditoModule } from './compras/credito.module';
 import { RequestContextMiddleware } from './common/request-context.middleware';
 import { AiModule } from './ai/ai.module';
 import { FinancialAccessModule } from './financial-access/financial-access.module';
+import { ContactosModule } from './contactos/contactos.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { FinancialAccessModule } from './financial-access/financial-access.modul
     SecadoModule,
     AiModule,
     FinancialAccessModule,
+    ContactosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
