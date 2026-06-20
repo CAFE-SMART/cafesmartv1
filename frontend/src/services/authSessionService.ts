@@ -21,6 +21,7 @@ type CachedUser = {
   tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
   otroTipoDetalle?: string | null;
   descripcionOrganizacion?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type CachedAuthSession = {

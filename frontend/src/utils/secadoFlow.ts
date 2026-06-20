@@ -297,6 +297,43 @@ function writeStorage(sessions: SecadoSession[]) {
   }
 }
 
+function sessionTime(session: SecadoSession) {
+  const updated = new Date(session.updatedAt).getTime();
+  const started = new Date(session.startedAt).getTime();
+  return Number.isFinite(updated) ? updated : Number.isFinite(started) ? started : 0;
+}
+
+export function upsertSecadoSession(session: SecadoSession) {
+  const sessions = readStorage();
+  writeStorage([
+    session,
+    ...sessions.filter((item) => item.id !== session.id),
+  ]);
+  return session;
+}
+
+export function mergeSecadoSessions(remoteSessions: SecadoSession[]) {
+  const byId = new Map<string, SecadoSession>();
+
+  for (const session of readStorage()) {
+    byId.set(session.id, normalizeStoredSession(session));
+  }
+
+  for (const session of remoteSessions) {
+    const normalized = normalizeStoredSession(session);
+    const current = byId.get(normalized.id);
+    if (!current || sessionTime(normalized) >= sessionTime(current)) {
+      byId.set(normalized.id, normalized);
+    }
+  }
+
+  const merged = [...byId.values()].sort(
+    (a, b) => sessionTime(b) - sessionTime(a),
+  );
+  writeStorage(merged);
+  return merged;
+}
+
 function daysSince(value: string) {
   const now = new Date();
   const date = parseDateForBusinessDay(value);

@@ -181,6 +181,7 @@ export class UsersService {
         nombre: true,
         correo: true,
         telefono: true,
+        avatarUrl: true,
         rol: true,
         organizacionId: true,
         googleId: true,
@@ -421,7 +422,10 @@ export class UsersService {
   ) {
     if (!file?.buffer || !file.size) {
       throw new BadRequestException(
-        apiError('AVATAR_REQUERIDO', 'Selecciona una imagen para subir.'),
+        apiError(
+          'AVATAR_REQUERIDO',
+          'No pudimos leer la imagen. Selecciona otro archivo e intenta nuevamente.',
+        ),
       );
     }
 
@@ -436,7 +440,7 @@ export class UsersService {
       throw new BadRequestException(
         apiError(
           'AVATAR_FORMATO_INVALIDO',
-          'Formato no permitido. Usa JPG, PNG o WEBP.',
+          'Formato no compatible. Selecciona una imagen JPG, PNG o WebP.',
         ),
       );
     }

@@ -33,6 +33,9 @@ describe('SecadoService', () => {
       inventarioMovimiento: {
         create: jest.fn(),
       },
+      secadoSesion: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
     };
 
     const prisma = {

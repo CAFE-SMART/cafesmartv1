@@ -51,6 +51,7 @@ model Organization {
   lotes            Lote[]
   parametros       ParametroOrganizacion[]
   productores      Productor[]
+  secados          SecadoSesion[]
   usuarios         User[]
   ventas           Venta[]
 
@@ -115,9 +116,31 @@ model User {
   movimientos    InventarioMovimiento[]
   organizacion   Organization           @relation(fields: [organizacionId], references: [id])
   passwordResetTokens PasswordResetToken[]
+  secados        SecadoSesion[]
   ventas         Venta[]
 
   @@map("usuario")
+}
+
+model SecadoSesion {
+  id             String              @id @map("id_secado_sesion")
+  organizacionId String              @map("id_organizacion")
+  usuarioId      String              @map("id_usuario")
+  estado         EstadoSecadoProceso @default(EN_PROCESO) @map("estado")
+  loteId         String?             @map("id_lote")
+  tipoCafeId     String              @map("id_tipo_cafe")
+  calidadId      String              @map("id_calidad")
+  payload        Json                @map("payload")
+  startedAt      DateTime            @map("fecha_inicio")
+  completedAt    DateTime?           @map("fecha_finalizacion")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  organizacion   Organization        @relation(fields: [organizacionId], references: [id])
+  usuario        User                @relation(fields: [usuarioId], references: [id])
+
+  @@index([organizacionId, estado, startedAt])
+  @@index([organizacionId, loteId, estado])
+  @@map("secado_sesion")
 }
 
 model Bodega {
@@ -421,4 +444,14 @@ enum TipoGasto {
 enum EstadoPago {
   PAGADO
   PENDIENTE
+}
+
+enum EstadoSecadoProceso {
+  PENDIENTE
+  EN_ESPERA
+  EN_PROCESO
+  RESULTADO_REGISTRADO
+  FINALIZADO
+  CANCELADO
+  ANULADO
 }

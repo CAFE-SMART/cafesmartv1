@@ -5,10 +5,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import {
+  EstadoSecadoProceso,
   Prisma,
   TipoMovimientoInventario,
   TipoReferenciaInventario,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { apiError } from '../common/errors/api-error';
 import {
@@ -18,6 +20,7 @@ import {
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
 import { CrearSecadoDto } from './dto/crear-secado.dto';
+import { StartSecadoDto } from './dto/start-secado.dto';
 
 type FuenteSecado = {
   id: string;
@@ -41,6 +44,13 @@ type TransformarSecadoInput = TransformarSecadoDto & {
 };
 
 type SecadoDbClient = Prisma.TransactionClient | PrismaService;
+
+const ACTIVE_SECADO_STATES = [
+  EstadoSecadoProceso.PENDIENTE,
+  EstadoSecadoProceso.EN_ESPERA,
+  EstadoSecadoProceso.EN_PROCESO,
+  EstadoSecadoProceso.RESULTADO_REGISTRADO,
+];
 
 @Injectable()
 export class SecadoService {
@@ -494,6 +504,18 @@ export class SecadoService {
       });
     }
 
+    await tx.secadoSesion.updateMany({
+      where: {
+        id: dto.sessionId,
+        organizacionId,
+        estado: { in: ACTIVE_SECADO_STATES },
+      },
+      data: {
+        estado: EstadoSecadoProceso.FINALIZADO,
+        completedAt: new Date(),
+      },
+    });
+
     return {
       sessionId: dto.sessionId,
       totalEntradaKg: totalEntrada,
@@ -505,52 +527,249 @@ export class SecadoService {
   }
 
   async startSecado(
-    _userId: string,
-    _tipoCafeId: string,
-    _calidadId: string,
-    _subloteIds: string[],
-    _loteId?: string,
+    userId: string,
+    tipoCafeId: string,
+    calidadId: string,
+    dto: StartSecadoDto,
   ) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
-    );
+    const organizacionId = await this.getOrganizacionId(userId);
+    const subloteIds = dto.subloteIds;
+
+    const fuentes = await this.prisma.sublote.findMany({
+      where: {
+        id: { in: subloteIds },
+        deletedAt: null,
+        tipoCafeId,
+        calidadId,
+        compra: {
+          organizacionId,
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        pesoActual: true,
+        tipoCafe: { select: { nombre: true } },
+        calidad: { select: { nombre: true } },
+        lote: { select: { id: true, codigo: true } },
+      },
+    });
+
+    if (fuentes.length !== subloteIds.length) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+          'Uno o varios sublotes origen no estan disponibles para secado.',
+        ),
+      );
+    }
+
+    if (
+      fuentes.some(
+        (fuente) => fuente.tipoCafe.nombre.trim().toUpperCase() !== 'VERDE',
+      )
+    ) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+          'Solo puedes secar sublotes de cafe verde disponible.',
+        ),
+      );
+    }
+
+    const now = new Date();
+    const startedAt = this.parseOptionalDate(dto.startedAt) ?? now;
+    const sessionId = dto.sessionId ?? randomUUID();
+    const sublotesPayload =
+      dto.sublotes?.length === subloteIds.length
+        ? dto.sublotes
+        : fuentes.map((fuente) => ({
+            id: fuente.id,
+            etiqueta: fuente.id,
+            sourceLoteId: fuente.lote?.id ?? dto.loteId,
+            pesoActual: this.redondear(Number(fuente.pesoActual)),
+            pesoSeleccionadoKg: this.redondear(Number(fuente.pesoActual)),
+            pesoDisponible: this.redondear(Number(fuente.pesoActual)),
+            modoSecado: dto.modoSecado ?? 'TOTAL',
+            humedad: null,
+            fechaIngreso: startedAt.toISOString(),
+            diasEnBodega: 0,
+          }));
+
+    const payload = {
+      id: sessionId,
+      estado: 'IN_PROCESS',
+      loteId: dto.loteId ?? fuentes[0]?.lote?.id ?? '',
+      loteCodigo: dto.loteCodigo ?? fuentes[0]?.lote?.codigo ?? 'Secado',
+      tipoCafeId,
+      tipoCafe: dto.tipoCafe ?? fuentes[0]?.tipoCafe.nombre ?? 'VERDE',
+      calidadId,
+      calidad: dto.calidad ?? fuentes[0]?.calidad.nombre ?? '',
+      modoSecado: dto.modoSecado ?? 'TOTAL',
+      fechaLote: dto.fechaLote ?? startedAt.toISOString(),
+      sublotes: sublotesPayload,
+      startedAt: startedAt.toISOString(),
+      updatedAt: now.toISOString(),
+      completedAt: null,
+      outputBuenoKg: 0,
+      outputBuenoHumedad: null,
+      outputRegularKg: 0,
+      outputRegularHumedad: null,
+      outputMaloKg: 0,
+      outputMaloHumedad: null,
+      mermaKg: 0,
+      rendimientoPct: 0,
+    };
+
+    const persisted = await this.prisma.secadoSesion.upsert({
+      where: { id: sessionId },
+      create: {
+        id: sessionId,
+        organizacionId,
+        usuarioId: userId,
+        estado: EstadoSecadoProceso.EN_PROCESO,
+        loteId: payload.loteId || null,
+        tipoCafeId,
+        calidadId,
+        payload: payload as Prisma.InputJsonObject,
+        startedAt,
+      },
+      update: {
+        estado: EstadoSecadoProceso.EN_PROCESO,
+        loteId: payload.loteId || null,
+        tipoCafeId,
+        calidadId,
+        payload: payload as Prisma.InputJsonObject,
+        startedAt,
+        completedAt: null,
+      },
+      select: { payload: true },
+    });
+
+    return persisted.payload;
   }
 
   async saveSecadoResults(
-    _userId: string,
-    _sessionId: string,
-    _dto: SecadoResultsDto,
+    userId: string,
+    sessionId: string,
+    dto: SecadoResultsDto,
   ) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
+    const organizacionId = await this.getOrganizacionId(userId);
+    const current = await this.findSessionForOrganization(
+      organizacionId,
+      sessionId,
     );
+    const payload = this.mergeSessionPayload(current.payload, {
+      estado: 'READY',
+      outputBuenoKg: dto.outputBuenoKg,
+      outputBuenoHumedad: dto.outputBuenoHumedad ?? null,
+      outputRegularKg: dto.outputRegularKg,
+      outputRegularHumedad: dto.outputRegularHumedad ?? null,
+      outputMaloKg: dto.outputMaloKg ?? 0,
+      outputMaloHumedad: dto.outputMaloHumedad ?? null,
+      completedAt: dto.completedAt ?? null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const updated = await this.prisma.secadoSesion.update({
+      where: { id: sessionId },
+      data: {
+        estado: EstadoSecadoProceso.RESULTADO_REGISTRADO,
+        completedAt: this.parseOptionalDate(dto.completedAt),
+        payload,
+      },
+      select: { payload: true },
+    });
+
+    return updated.payload;
   }
 
-  async finalizeSecado(_userId: string, _sessionId: string) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
+  async finalizeSecado(userId: string, sessionId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const current = await this.findSessionForOrganization(
+      organizacionId,
+      sessionId,
     );
+    const completedAt = new Date();
+    const payload = this.mergeSessionPayload(current.payload, {
+      estado: 'COMPLETED',
+      completedAt: completedAt.toISOString(),
+      updatedAt: completedAt.toISOString(),
+    });
+
+    const updated = await this.prisma.secadoSesion.update({
+      where: { id: sessionId },
+      data: {
+        estado: EstadoSecadoProceso.FINALIZADO,
+        completedAt,
+        payload,
+      },
+      select: { payload: true },
+    });
+
+    return updated.payload;
   }
 
-  async getActiveSecado(_organizacionId: string) {
-    return null;
+  async cancelSecado(userId: string, sessionId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const current = await this.findSessionForOrganization(
+      organizacionId,
+      sessionId,
+    );
+    const now = new Date();
+    const payload = this.mergeSessionPayload(current.payload, {
+      estado: 'CANCELLED',
+      updatedAt: now.toISOString(),
+    });
+
+    const updated = await this.prisma.secadoSesion.update({
+      where: { id: sessionId },
+      data: {
+        estado: EstadoSecadoProceso.CANCELADO,
+        payload,
+      },
+      select: { payload: true },
+    });
+
+    return updated.payload;
   }
 
-  async getActiveSecadoForLote(_userId: string, _loteId: string) {
-    return null;
+  async getActiveSecado(userId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const sessions = await this.prisma.secadoSesion.findMany({
+      where: {
+        organizacionId,
+        estado: { in: ACTIVE_SECADO_STATES },
+      },
+      orderBy: { startedAt: 'asc' },
+      select: { payload: true },
+    });
+
+    return sessions.map((session) => session.payload);
   }
 
-  async getSecadoSession(_organizacionId: string, _sessionId: string) {
-    return null;
+  async getActiveSecadoForLote(userId: string, loteId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const sessions = await this.prisma.secadoSesion.findMany({
+      where: {
+        organizacionId,
+        loteId,
+        estado: { in: ACTIVE_SECADO_STATES },
+      },
+      orderBy: { startedAt: 'asc' },
+      select: { payload: true },
+    });
+
+    return sessions.map((session) => session.payload);
+  }
+
+  async getSecadoSession(userId: string, sessionId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+    const session = await this.findSessionForOrganization(
+      organizacionId,
+      sessionId,
+    );
+    return session.payload;
   }
 
   private async getOrganizacionId(
@@ -573,6 +792,54 @@ export class SecadoService {
 
     setCachedOrganizationId(userId, user.organizacionId);
     return user.organizacionId;
+  }
+
+  private async findSessionForOrganization(
+    organizacionId: string,
+    sessionId: string,
+  ) {
+    const session = await this.prisma.secadoSesion.findFirst({
+      where: {
+        id: sessionId,
+        organizacionId,
+      },
+      select: {
+        id: true,
+        payload: true,
+      },
+    });
+
+    if (!session) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SESION_NO_ENCONTRADA',
+          'No encontramos este secado en proceso.',
+        ),
+      );
+    }
+
+    return session;
+  }
+
+  private mergeSessionPayload(
+    current: Prisma.JsonValue,
+    updates: Record<string, unknown>,
+  ) {
+    const base =
+      current && typeof current === 'object' && !Array.isArray(current)
+        ? (current as Record<string, unknown>)
+        : {};
+
+    return {
+      ...base,
+      ...updates,
+    } as Prisma.InputJsonObject;
+  }
+
+  private parseOptionalDate(value?: string | null) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   private getSalidaLocalId(sessionId: string, calidad: string): string {

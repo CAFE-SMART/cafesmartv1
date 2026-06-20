@@ -31,9 +31,14 @@ import {
   createSecadoDraftWithWeights,
   getSecadoSelectedKg,
   loadSecadoSessions,
+  mergeSecadoSessions,
   SecadoValidationError,
   type SecadoSession,
 } from '../utils/secadoFlow';
+import {
+  cancelSecado as cancelSecadoRemoto,
+  getActiveSecado,
+} from '../services/secadoService';
 import {
   formatCoffeeFullName,
   formatSubloteVisualCode,
@@ -319,6 +324,13 @@ export default function SecadoInicio() {
   const cargar = async () => {
     setLoading(true);
     setError(null);
+    if (!isOffline) {
+      try {
+        mergeSecadoSessions(await getActiveSecado());
+      } catch {
+        // Si falla la consulta remota, la vista conserva los secados locales.
+      }
+    }
     const sessions = loadSecadoSessions();
     const pendientes = sessions
       .filter((session) => session.estado === 'IN_PROCESS' || session.estado === 'READY')
@@ -632,12 +644,19 @@ export default function SecadoInicio() {
     setError(null);
   };
 
-  const confirmarCancelarSecado = () => {
+  const confirmarCancelarSecado = async () => {
     if (!cancelTarget) return;
-    cancelSecadoSession(cancelTarget.id);
-    setCancelTarget(null);
-    cargarPendientes();
-    void cargar();
+    try {
+      if (!isOffline) {
+        await cancelSecadoRemoto(cancelTarget.id);
+      }
+      cancelSecadoSession(cancelTarget.id);
+      setCancelTarget(null);
+      cargarPendientes();
+      void cargar();
+    } catch {
+      setError('No pudimos cancelar el secado. Revisa tu conexión e intenta nuevamente.');
+    }
   };
 
   const toggleSublote = (sublote: SubloteDetalle) => {

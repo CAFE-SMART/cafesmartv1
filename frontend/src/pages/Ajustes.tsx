@@ -304,6 +304,11 @@ function isAllowedAvatarType(type: string) {
   return PROFILE_AVATAR_ALLOWED_TYPES.has(type.toLowerCase());
 }
 
+function isAllowedAvatarFile(file: File) {
+  if (isAllowedAvatarType(file.type)) return true;
+  return /\.(jpe?g|png|webp)$/i.test(file.name);
+}
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -551,7 +556,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 export default function Ajustes() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, token, hasCompany, setSession, logout } = useUser();
+  const { user, token, hasCompany, hydrated, setSession, logout } = useUser();
   const { isOffline } = useNetworkStatus();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const {
@@ -590,6 +595,14 @@ export default function Ajustes() {
   const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
   const [profileAvatarRemove, setProfileAvatarRemove] = useState(false);
   const [profilePhotoOpen, setProfilePhotoOpen] = useState(false);
+  const [profileAvatarVersion, setProfileAvatarVersion] = useState(() =>
+    user?.avatarUrl ? Date.now() : 0,
+  );
+  const [profileAvatarLoadFailed, setProfileAvatarLoadFailed] = useState(false);
+  const [profileAvatarUploading, setProfileAvatarUploading] = useState(false);
+  const [profileAvatarSaving, setProfileAvatarSaving] = useState(false);
+  const [profileAvatarRemoveConfirmOpen, setProfileAvatarRemoveConfirmOpen] =
+    useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
     message: string;
@@ -771,9 +784,27 @@ export default function Ajustes() {
     useState(false);
 
   const activeErrorSection = error ? getAjustesErrorSection(error) : null;
+  const savedAvatarUrl = profileAvatarUrl || user?.avatarUrl || '';
+  const versionedSavedAvatarUrl =
+    savedAvatarUrl && profileAvatarVersion
+      ? `${savedAvatarUrl}${savedAvatarUrl.includes('?') ? '&' : '?'}v=${profileAvatarVersion}`
+      : savedAvatarUrl;
   const currentAvatarUrl = profileAvatarRemove
     ? ''
-    : profileAvatarDraft ?? profileAvatarUrl ?? user?.avatarUrl ?? '';
+    : profileAvatarDraft ?? (profileAvatarLoadFailed ? '' : versionedSavedAvatarUrl);
+  const hasSavedAvatar = Boolean(savedAvatarUrl) && !profileAvatarRemove;
+  const profileAvatarBusy = profileAvatarUploading || profileAvatarSaving;
+  const handleAvatarImageLoad = () => {
+    if (!profileAvatarDraft) {
+      setProfileAvatarLoadFailed(false);
+    }
+  };
+  const handleAvatarImageError = () => {
+    if (!profileAvatarDraft && savedAvatarUrl) {
+      console.warn('[CafeSmart][profile-avatar] no se pudo cargar la foto guardada');
+    }
+    setProfileAvatarLoadFailed(true);
+  };
 
   const clearFeedback = () => {
     setError(null);
@@ -1183,7 +1214,7 @@ export default function Ajustes() {
           !prev.nombreEmpresa ||
           prev.nombreEmpresa === 'Mi negocio cafetero' ||
           prev.nombreEmpresa === 'Negocio sin nombre'
-            ? nombreOrganizacionReal || 'Negocio sin nombre'
+            ? nombreOrganizacionReal
             : prev.nombreEmpresa,
         tipoEmpresa: nextTipo,
         descripcion: nextDescripcion,
@@ -1192,6 +1223,8 @@ export default function Ajustes() {
 
     if (!profileAvatarDraft && !profileAvatarRemove && user?.avatarUrl !== profileAvatarUrl) {
       setProfileAvatarUrl(user?.avatarUrl ?? '');
+      setProfileAvatarLoadFailed(false);
+      setProfileAvatarVersion(user?.avatarUrl ? Date.now() : 0);
     }
   }, [
     company.nombreEmpresa,
@@ -1497,10 +1530,10 @@ export default function Ajustes() {
 
     if (!file) return;
 
-    if (!isAllowedAvatarType(file.type)) {
+    if (!isAllowedAvatarFile(file)) {
       setProfileFeedback({
         variant: 'error',
-        message: 'Formato no permitido. Usa JPG, PNG o WEBP.',
+        message: 'Formato no compatible. Selecciona una imagen JPG, PNG o WebP.',
       });
       return;
     }
@@ -1508,7 +1541,7 @@ export default function Ajustes() {
     if (file.size <= 0) {
       setProfileFeedback({
         variant: 'error',
-        message: 'El archivo está vacío. Elige otra imagen.',
+        message: 'No pudimos leer la imagen. Selecciona otro archivo e intenta nuevamente.',
       });
       return;
     }
@@ -1526,6 +1559,7 @@ export default function Ajustes() {
       setProfileAvatarDraft(dataUrl);
       setProfileAvatarFile(file);
       setProfileAvatarRemove(false);
+      setProfileAvatarLoadFailed(false);
       setProfileFeedback({
         variant: 'success',
         message: 'Vista previa lista. Guarda cambios para conservarla.',
@@ -1533,21 +1567,26 @@ export default function Ajustes() {
     } catch {
       setProfileFeedback({
         variant: 'error',
-        message: 'No pudimos leer la imagen. Intenta con otro archivo.',
+        message: 'No pudimos leer la imagen. Selecciona otro archivo e intenta nuevamente.',
       });
     }
   };
 
   const quitarFotoPerfil = () => {
-    if (
-      (profileAvatarUrl || profileAvatarDraft) &&
-      !window.confirm('¿Quitar foto de perfil? Se mostrará la inicial de tu nombre.')
-    ) {
+    if (profileAvatarBusy) return;
+    if (hasSavedAvatar || profileAvatarDraft) {
+      setProfileAvatarRemoveConfirmOpen(true);
       return;
     }
+    confirmarQuitarFotoPerfil();
+  };
+
+  const confirmarQuitarFotoPerfil = () => {
     setProfileAvatarDraft(null);
     setProfileAvatarFile(null);
     setProfileAvatarRemove(true);
+    setProfileAvatarLoadFailed(false);
+    setProfileAvatarRemoveConfirmOpen(false);
     setProfileFeedback({
       variant: 'warning',
       message: 'La foto se quitará cuando guardes los cambios.',
@@ -1555,10 +1594,13 @@ export default function Ajustes() {
   };
 
   const cancelarEdicionFotoPerfil = () => {
+    if (profileAvatarBusy) return;
     setProfilePhotoOpen(false);
     setProfileAvatarDraft(null);
     setProfileAvatarFile(null);
     setProfileAvatarRemove(false);
+    setProfileAvatarLoadFailed(false);
+    setProfileAvatarRemoveConfirmOpen(false);
     setProfileFeedback(null);
   };
 
@@ -1580,17 +1622,21 @@ export default function Ajustes() {
 
     try {
       setGuardandoPerfil(true);
+      setProfileAvatarUploading(!profileAvatarRemove);
       const wasRemovingAvatar = profileAvatarRemove;
       const perfilActualizado = profileAvatarRemove
         ? await quitarFotoPerfilRemota()
         : await subirFotoPerfil(profileAvatarFile as File);
       const nextAvatarUrl = perfilActualizado.avatarUrl ?? '';
 
+      setProfileAvatarUploading(false);
+      setProfileAvatarSaving(true);
       setProfileAvatarUrl(nextAvatarUrl);
+      setProfileAvatarVersion(nextAvatarUrl ? Date.now() : 0);
+      setProfileAvatarLoadFailed(false);
       setProfileAvatarDraft(null);
       setProfileAvatarFile(null);
       setProfileAvatarRemove(false);
-      setProfilePhotoOpen(false);
 
       if (user && token) {
         await setSession({
@@ -1609,19 +1655,28 @@ export default function Ajustes() {
         });
       }
 
+      setProfilePhotoOpen(false);
+      setProfileAvatarSaving(false);
       setProfileFeedback({
         variant: 'success',
         message: wasRemovingAvatar
           ? 'Foto eliminada. Ahora se mostrará la inicial de tu nombre.'
-          : 'Foto de perfil actualizada.',
+          : 'Foto actualizada. Tu foto de perfil se guardó correctamente.',
       });
-    } catch {
-      const message =
-        'No pudimos guardar la foto. Revisa tu conexión e inténtalo nuevamente.';
+    } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : '';
+      const message = rawMessage.includes('subió, pero no pudimos actualizar')
+        ? 'La foto se subió, pero no pudimos actualizar tu perfil. Intenta nuevamente.'
+        : rawMessage.includes('Formato') ||
+            rawMessage.includes('imagen es demasiado grande')
+          ? rawMessage
+          : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.';
       setError(message);
       setProfileFeedback({ variant: 'error', message });
       setFloatingError(getAjustesGuidance(message));
     } finally {
+      setProfileAvatarUploading(false);
+      setProfileAvatarSaving(false);
       setGuardandoPerfil(false);
     }
   };
@@ -1723,7 +1778,7 @@ export default function Ajustes() {
             }
           : {
               variant: 'success',
-              message: 'Perfil actualizado correctamente.',
+              message: 'Perfil actualizado. Tus datos se guardaron correctamente.',
             },
       );
     } catch (error) {
@@ -1796,9 +1851,9 @@ export default function Ajustes() {
           },
         });
       }
-      setSuccess('Negocio actualizado correctamente.');
+      setSuccess('Negocio actualizado. Los datos de tu negocio se guardaron correctamente.');
     } catch {
-      const message = 'No pudimos guardar los cambios. Intenta nuevamente.';
+      const message = 'No pudimos actualizar el negocio. Revisa tu conexión e intenta nuevamente.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
     } finally {
@@ -2363,6 +2418,10 @@ export default function Ajustes() {
         return;
       }
       if (profilePhotoOpen) {
+        if (profileAvatarBusy) {
+          backEvent.preventDefault();
+          return;
+        }
         if ((profileAvatarFile || profileAvatarRemove) && !confirmarSalidaSinGuardar()) {
           backEvent.preventDefault();
           return;
@@ -2495,6 +2554,7 @@ export default function Ajustes() {
     profile,
     profileAvatarFile,
     profileAvatarRemove,
+    profileAvatarBusy,
     profilePhotoOpen,
     bodegaEditando,
     nombreBodega,
@@ -3643,6 +3703,8 @@ export default function Ajustes() {
                   <img
                     src={currentAvatarUrl}
                     alt=""
+                    onLoad={handleAvatarImageLoad}
+                    onError={handleAvatarImageError}
                     className="h-full w-full rounded-full object-cover"
                   />
                 ) : (
@@ -3767,11 +3829,13 @@ export default function Ajustes() {
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#102d92] text-base font-black text-white">
                   {currentAvatarUrl ? (
-                    <img
-                      src={currentAvatarUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
+                      <img
+                        src={currentAvatarUrl}
+                        alt=""
+                        onLoad={handleAvatarImageLoad}
+                        onError={handleAvatarImageError}
+                        className="h-full w-full object-cover"
+                      />
                   ) : (
                     getInitials(profile.nombre || company.nombreEmpresa)
                   )}
@@ -3885,6 +3949,8 @@ export default function Ajustes() {
                       <img
                         src={currentAvatarUrl}
                         alt="Foto de perfil"
+                        onLoad={handleAvatarImageLoad}
+                        onError={handleAvatarImageError}
                         className="h-full w-full rounded-full object-cover"
                       />
                     ) : (
@@ -3895,7 +3961,7 @@ export default function Ajustes() {
                   </div>
                   <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
-                    {company.nombreEmpresa || 'Negocio sin nombre'}
+                    {company.nombreEmpresa || (!hydrated ? 'Cargando perfil...' : 'Negocio sin nombre')}
                   </p>
                 </div>
                 <input
@@ -3970,6 +4036,7 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={cancelarEdicionFotoPerfil}
+                        disabled={profileAvatarBusy}
                         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                         aria-label="Cerrar edición de foto"
                       >
@@ -3982,6 +4049,8 @@ export default function Ajustes() {
                           <img
                             src={currentAvatarUrl}
                             alt="Foto de perfil"
+                            onLoad={handleAvatarImageLoad}
+                            onError={handleAvatarImageError}
                             className="h-full w-full rounded-full object-cover"
                           />
                         ) : (
@@ -3998,14 +4067,15 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={() => avatarInputRef.current?.click()}
-                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white dark:bg-blue-600"
+                        disabled={profileAvatarBusy}
+                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55 dark:bg-blue-600"
                       >
                         Cambiar foto
                       </button>
                       <button
                         type="button"
                         onClick={quitarFotoPerfil}
-                        disabled={!currentAvatarUrl}
+                        disabled={profileAvatarBusy || (!hasSavedAvatar && !profileAvatarDraft)}
                         className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
                         Quitar foto
@@ -4015,7 +4085,7 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={() => void guardarFotoPerfil()}
-                        disabled={guardandoPerfil || (!profileAvatarFile && !profileAvatarRemove)}
+                        disabled={profileAvatarBusy || (!profileAvatarFile && !profileAvatarRemove)}
                         className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
                       >
                         {guardandoPerfil ? (
@@ -4028,12 +4098,49 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={cancelarEdicionFotoPerfil}
+                        disabled={profileAvatarBusy}
                         className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
                         Cancelar
                       </button>
                     </div>
                   </section>
+                  {profileAvatarRemoveConfirmOpen ? (
+                    <div className="fixed inset-0 z-[113] flex items-center justify-center bg-slate-950/50 px-5 py-6">
+                      <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="quitar-foto-perfil-title"
+                        className="w-full max-w-[340px] rounded-[20px] bg-white p-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.28)] dark:bg-slate-900"
+                      >
+                        <h5
+                          id="quitar-foto-perfil-title"
+                          className="text-lg font-black text-slate-950 dark:text-slate-100"
+                        >
+                          Quitar foto de perfil
+                        </h5>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                          Se volverá a mostrar la inicial de tu nombre.
+                        </p>
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setProfileAvatarRemoveConfirmOpen(false)}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={confirmarQuitarFotoPerfil}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+                          >
+                            Quitar foto
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {profileInfoOpen ? (
@@ -5148,10 +5255,11 @@ export default function Ajustes() {
               {error && activeErrorSection === 'company' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
-              {success === 'Negocio actualizado correctamente.' ? (
+              {success?.startsWith('Negocio actualizado.') ? (
                 <AppFeedbackMessage
                   variant="success"
-                  description="Negocio actualizado correctamente."
+                  title="Negocio actualizado"
+                  description="Los datos de tu negocio se guardaron correctamente."
                   action={
                     <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
                       <X size={14} />

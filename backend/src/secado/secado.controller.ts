@@ -48,7 +48,7 @@ export class SecadoController {
       req.user.sub,
       tipoCafeId,
       calidadId,
-      dto.subloteIds,
+      dto,
     );
   }
 
@@ -67,6 +67,14 @@ export class SecadoController {
     @Req() req: { user: { sub: string } },
   ) {
     return this.secadoService.finalizeSecado(req.user.sub, sessionId);
+  }
+
+  @Patch(':sessionId/cancel')
+  cancel(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.secadoService.cancelSecado(req.user.sub, sessionId);
   }
 
   @Get('active')

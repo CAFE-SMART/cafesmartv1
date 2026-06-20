@@ -21,7 +21,12 @@ import {
   saveSecadoResults,
   SecadoValidationError,
   startSecadoProcess,
+  upsertSecadoSession,
 } from '../utils/secadoFlow';
+import {
+  saveSecadoResults as saveSecadoResultsRemoto,
+  startSecado as startSecadoRemoto,
+} from '../services/secadoService';
 import {
   BUSINESS_MIN_DATE_VALUE,
   getTodayLocalDateValue,
@@ -423,13 +428,13 @@ export default function SecadoProceso() {
     setExpenseAmount(formatMoneyInput(digits));
   };
 
-  const guardarResultadoSecado = () => {
+  const guardarResultadoSecado = async () => {
     if (!sessionId || !session || registrandoSecado) return;
 
     try {
       setRegistrandoSecado(true);
       setMostrarConfirmacionMermaCero(false);
-      saveSecadoResults(sessionId, {
+      const updated = saveSecadoResults(sessionId, {
         outputBuenoKg: bueno,
         outputBuenoHumedad: null,
         outputRegularKg: regular,
@@ -438,6 +443,18 @@ export default function SecadoProceso() {
         outputMaloHumedad: null,
         completedAt: endDate,
       });
+      if (!isOffline && updated) {
+        const remote = await saveSecadoResultsRemoto(sessionId, {
+          outputBuenoKg: bueno,
+          outputBuenoHumedad: undefined,
+          outputRegularKg: regular,
+          outputRegularHumedad: undefined,
+          outputMaloKg: malo,
+          outputMaloHumedad: null,
+          completedAt: endDate,
+        });
+        upsertSecadoSession(remote);
+      }
       window.setTimeout(() => {
         navigate(`/inventario/secado/${sessionId}/resumen`);
       }, 650);
@@ -560,7 +577,7 @@ export default function SecadoProceso() {
     });
   };
 
-  const iniciarProceso = () => {
+  const iniciarProceso = async () => {
     if (!sessionId || registrandoSecado) return;
 
     const fechaInicioValidacion = validateBusinessDateRange(startDate);
@@ -571,7 +588,25 @@ export default function SecadoProceso() {
 
     try {
       const startedAt = toIsoDateAtUtcNoon(startDate) ?? new Date().toISOString();
-      startSecadoProcess(sessionId, startedAt);
+      const started = startSecadoProcess(sessionId, startedAt);
+      if (!started) {
+        throw new Error('Secado no encontrado.');
+      }
+      if (!isOffline) {
+        const remote = await startSecadoRemoto(started.tipoCafeId, started.calidadId, {
+          subloteIds: started.sublotes.map((sublote) => sublote.id),
+          sessionId: started.id,
+          loteId: started.loteId,
+          loteCodigo: started.loteCodigo,
+          tipoCafe: started.tipoCafe,
+          calidad: started.calidad,
+          modoSecado: started.modoSecado,
+          fechaLote: started.fechaLote,
+          startedAt,
+          sublotes: started.sublotes,
+        });
+        upsertSecadoSession(remote);
+      }
       clearSecadoDrafts();
       setError(null);
       setStep('active');

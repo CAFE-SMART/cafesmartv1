@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CircleDashed, Package2, X } from 'lucide-react';
 import { AppFeedbackMessage, type AppFeedbackVariant } from '../components/AppFeedbackMessage';
@@ -7,7 +7,12 @@ import {
   cancelSecadoSession,
   getActiveSecadoSessions,
   getSecadoSelectedKg,
+  mergeSecadoSessions,
 } from '../utils/secadoFlow';
+import {
+  cancelSecado as cancelSecadoRemoto,
+  getActiveSecado,
+} from '../services/secadoService';
 import {
   formatCoffeeFullName,
   getCoffeeCodePrefix,
@@ -97,6 +102,8 @@ export default function SecadosActivos() {
     title: string;
     description: string;
   } | null>(null);
+  const [loadingActiveDryings, setLoadingActiveDryings] = useState(true);
+  const [errorActiveDryings, setErrorActiveDryings] = useState<string | null>(null);
   const handleBack = () => {
     navigate('/inventario/secado/inicio', {
       state: {
@@ -123,6 +130,36 @@ export default function SecadosActivos() {
     },
     [interruptedVersion, qualityFilter, sort],
   );
+
+  useEffect(() => {
+    let active = true;
+
+    const cargarActivos = async () => {
+      setLoadingActiveDryings(true);
+      setErrorActiveDryings(null);
+      try {
+        const remote = await getActiveSecado();
+        if (!active) return;
+        mergeSecadoSessions(remote);
+        setInterruptedVersion((version) => version + 1);
+      } catch {
+        if (!active) return;
+        setErrorActiveDryings(
+          getActiveSecadoSessions().length > 0
+            ? 'Sin conexión. Mostramos los últimos secados guardados.'
+            : 'No pudimos cargar los secados activos.',
+        );
+      } finally {
+        if (active) setLoadingActiveDryings(false);
+      }
+    };
+
+    void cargarActivos();
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const visibleSessions = showAll ? sessions : sessions.slice(0, 3);
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
 
@@ -159,6 +196,16 @@ export default function SecadosActivos() {
               description={feedback.description}
               className="mt-4"
               onClose={() => setFeedback(null)}
+            />
+          ) : null}
+
+          {errorActiveDryings ? (
+            <AppFeedbackMessage
+              variant={sessions.length > 0 ? 'warning' : 'error'}
+              title={sessions.length > 0 ? 'Sin conexión' : 'No pudimos cargar los secados'}
+              description={errorActiveDryings}
+              className="mt-4"
+              onClose={() => setErrorActiveDryings(null)}
             />
           ) : null}
 
@@ -199,7 +246,13 @@ export default function SecadosActivos() {
             </div>
           </section>
 
-          {sessions.length === 0 ? (
+          {loadingActiveDryings && sessions.length === 0 ? (
+            <section className="mt-5 rounded-[18px] border border-slate-200 bg-white px-5 py-8 text-center shadow-sm">
+              <p className="text-sm font-black text-slate-800">
+                Cargando secados activos...
+              </p>
+            </section>
+          ) : sessions.length === 0 ? (
             <section className="mt-5 rounded-[18px] border border-slate-200 bg-white px-5 py-8 text-center shadow-sm">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
                 <Package2 size={20} />
@@ -330,8 +383,9 @@ export default function SecadosActivos() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   try {
+                    await cancelSecadoRemoto(interruptionTarget.id);
                     cancelSecadoSession(interruptionTarget.id);
                     setInterruptionTarget(null);
                     setShowAll(false);

@@ -1,4 +1,4 @@
-import { apiFetch } from './apiService';
+import { apiFetch, invalidateApiCache } from './apiService';
 import { getApiBaseUrlCandidates } from '../config/api';
 import { getStoredAuthToken } from '../storage/authStorage';
 
@@ -66,17 +66,18 @@ export async function subirFotoPerfil(file: File) {
         throw new Error(
           typeof data.message === 'string'
             ? data.message
-            : 'No pudimos subir la foto de perfil.',
+            : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.',
         );
       }
 
       const profile = data as UserProfileResponse;
       if (!profile.avatarUrl) {
         throw new Error(
-          'No pudimos guardar la foto. Revisa tu conexión e inténtalo nuevamente.',
+          'La foto se subió, pero no pudimos actualizar tu perfil. Intenta nuevamente.',
         );
       }
 
+      invalidateApiCache();
       return profile;
     } catch (error) {
       lastError = error;
@@ -85,11 +86,13 @@ export async function subirFotoPerfil(file: File) {
 
   throw lastError instanceof Error
     ? lastError
-    : new Error('No pudimos subir la foto de perfil.');
+    : new Error('No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.');
 }
 
-export function quitarFotoPerfilRemota() {
-  return apiFetch('/users/profile/avatar', {
+export async function quitarFotoPerfilRemota() {
+  const profile = (await apiFetch('/users/profile/avatar', {
     method: 'DELETE',
-  }) as Promise<UserProfileResponse>;
+  })) as UserProfileResponse;
+  invalidateApiCache();
+  return profile;
 }

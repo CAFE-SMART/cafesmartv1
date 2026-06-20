@@ -2,20 +2,36 @@ import { apiFetch } from './apiService';
 
 export type SecadoSession = {
   id: string;
-  estado: 'IN_PROCESS' | 'READY' | 'COMPLETED';
-  loteId?: string;
+  estado: 'DRAFT' | 'IN_PROCESS' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  loteId: string;
+  loteCodigo: string;
   tipoCafeId: string;
   tipoCafe: string;
   calidadId: string;
   calidad: string;
-  subloteIds: string[];
-  inputKg: number;
+  modoSecado: 'TOTAL' | 'PARCIAL';
+  fechaLote: string;
+  sublotes: Array<{
+    id: string;
+    codigo?: string;
+    etiqueta: string;
+    sourceLoteId?: string;
+    pesoActual: number;
+    pesoSeleccionadoKg?: number;
+    pesoDisponible?: number;
+    modoSecado?: 'TOTAL' | 'PARCIAL';
+    humedad: number | null;
+    fechaIngreso: string;
+    diasEnBodega: number;
+  }>;
   outputBuenoKg: number;
   outputBuenoHumedad: number | null;
   outputRegularKg: number;
   outputRegularHumedad: number | null;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
   mermaKg: number;
-  rendimientoPct: number | null;
+  rendimientoPct: number;
   startedAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -23,6 +39,15 @@ export type SecadoSession = {
 
 export type StartSecadoPayload = {
   subloteIds: string[];
+  sessionId?: string;
+  loteId?: string;
+  loteCodigo?: string;
+  tipoCafe?: string;
+  calidad?: string;
+  modoSecado?: 'TOTAL' | 'PARCIAL';
+  fechaLote?: string;
+  startedAt?: string;
+  sublotes?: SecadoSession['sublotes'];
 };
 
 export type SecadoResultsPayload = {
@@ -30,6 +55,9 @@ export type SecadoResultsPayload = {
   outputBuenoHumedad?: number;
   outputRegularKg: number;
   outputRegularHumedad?: number;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number | null;
+  completedAt?: string;
 };
 
 export type TransformarSecadoPayload = {
@@ -120,13 +148,13 @@ export async function finalizeSecado(
   });
 }
 
-export async function getActiveSecado(): Promise<SecadoSession | null> {
+export async function getActiveSecado(): Promise<SecadoSession[]> {
   return apiFetch('/secado/active');
 }
 
 export async function getActiveSecadoForLote(
   loteId: string,
-): Promise<SecadoSession | null> {
+): Promise<SecadoSession[]> {
   return apiFetch(`/secado/active/${loteId}`);
 }
 
@@ -134,4 +162,10 @@ export async function getSecadoSession(
   sessionId: string,
 ): Promise<SecadoSession> {
   return apiFetch(`/secado/${sessionId}`);
+}
+
+export async function cancelSecado(sessionId: string): Promise<SecadoSession> {
+  return apiFetch(`/secado/${sessionId}/cancel`, {
+    method: 'PATCH',
+  });
 }

@@ -19,9 +19,11 @@ import {
   applySecadoToDetalle,
   createSecadoDraftWithWeights,
   getActiveSecadoSessions,
+  mergeSecadoSessions,
   SecadoValidationError,
   type SecadoSession,
 } from '../utils/secadoFlow';
+import { getActiveSecado } from '../services/secadoService';
 import {
   formatCoffeeFullName,
   formatSubloteVisualCode,
@@ -147,6 +149,14 @@ export default function SecadoSeleccion() {
       setError(null);
 
       try {
+        if (!isOffline) {
+          try {
+            mergeSecadoSessions(await getActiveSecado());
+          } catch {
+            // Conserva las sesiones locales si falla la consulta secundaria.
+          }
+        }
+
         const cacheKey = secadoDetalleCacheKey(tipoCafeId, calidadId);
         const base = isOffline
           ? await getOfflineCache<LoteDetalle>(cacheKey)
