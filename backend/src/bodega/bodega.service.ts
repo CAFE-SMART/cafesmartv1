@@ -473,17 +473,47 @@ export class BodegaService {
 
   async aplicarLimitesBodegaGeneral(
     organizacionId: string,
-    dto: ActualizarLimitesBodegaDto & { scope?: string },
+    dto: ActualizarLimitesBodegaDto & { scope?: string; bodegaIds?: string[] },
   ) {
     const limites = this.normalizeLimitesBodega(dto);
+    const selectedIds = Array.isArray(dto.bodegaIds)
+      ? Array.from(
+          new Set(
+            dto.bodegaIds
+              .map((id) => String(id ?? '').trim())
+              .filter(Boolean),
+          ),
+        )
+      : [];
+
+    if (dto.scope === 'seleccionadas' && selectedIds.length === 0) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_SELECCION_REQUERIDA',
+          'Selecciona al menos una bodega.',
+        ),
+      );
+    }
+
     const where =
-      dto.scope === 'activas'
-        ? { organizacionId, deletedAt: null, activa: true }
-        : { organizacionId, deletedAt: null };
+      dto.scope === 'seleccionadas'
+        ? { organizacionId, deletedAt: null, id: { in: selectedIds } }
+        : dto.scope === 'activas'
+          ? { organizacionId, deletedAt: null, activa: true }
+          : { organizacionId, deletedAt: null };
     const bodegas = await this.prisma.bodega.findMany({
       where,
       select: { id: true },
     });
+
+    if (dto.scope === 'seleccionadas' && bodegas.length !== selectedIds.length) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_SELECCION_INVALIDA',
+          'No pudimos encontrar todas las bodegas seleccionadas.',
+        ),
+      );
+    }
 
     const valor = JSON.stringify(limites);
     await this.prisma.$transaction(
@@ -833,7 +863,7 @@ export class BodegaService {
       throw new BadRequestException(
         apiError(
           'BODEGA_CAPACIDAD_INVALIDA',
-          'La capacidad debe ser mayor que 0 kg.',
+          'Ingresa una capacidad válida mayor que cero',
           { field: 'capacidadMaxKg' },
         ),
       );

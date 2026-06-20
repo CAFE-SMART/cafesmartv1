@@ -105,6 +105,7 @@ import {
 import {
   actualizarConfiguracionOrganizacion,
   actualizarPerfilUsuario,
+  obtenerPerfilUsuario,
   quitarFotoPerfilRemota,
   subirFotoPerfil,
 } from '../services/userSettingsService';
@@ -258,7 +259,7 @@ type PeopleAdminForm = {
 
 const PROFILE_NAME_MAX_LENGTH = 60;
 const PROFILE_EMAIL_MAX_LENGTH = 60;
-const PROFILE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_AVATAR_MAX_BYTES = 8 * 1024 * 1024;
 const PROFILE_AVATAR_ALLOWED_TYPES = new Set([
   'image/png',
   'image/jpeg',
@@ -604,7 +605,7 @@ export default function Ajustes() {
   const [profileAvatarRemoveConfirmOpen, setProfileAvatarRemoveConfirmOpen] =
     useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{
-    variant: 'success' | 'error' | 'warning';
+    variant: 'success' | 'error' | 'warning' | 'info';
     message: string;
   } | null>(null);
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
@@ -639,7 +640,8 @@ export default function Ajustes() {
     alertasActivas: true,
   });
   const [bodegaLimitesScope, setBodegaLimitesScope] =
-    useState<'todas' | 'activas'>('todas');
+    useState<'todas' | 'activas' | 'seleccionadas'>('todas');
+  const [bodegaLimitesSelectedIds, setBodegaLimitesSelectedIds] = useState<string[]>([]);
   const [limitesTab, setLimitesTab] = useState<LimitesTab>('todos');
   const [limitMinPesoCompraKg, setLimitMinPesoCompraKg] = useState(
     String(initialLimites.minPesoCompraKg),
@@ -1093,6 +1095,7 @@ export default function Ajustes() {
     setBodegaFeedback(null);
     setBodegaLimitesFeedback(null);
     setBodegaLimitesScope('todas');
+    setBodegaLimitesSelectedIds(bodegas.map((bodega) => bodega.id));
     setBodegaLimitesForm({
       alertaPreventivaPct: 80,
       alertaCriticaPct: 95,
@@ -1147,6 +1150,7 @@ export default function Ajustes() {
     mode: Exclude<PeopleAdminMode, null>,
     options: { resetSearch?: boolean } = {},
   ) => {
+    if (peopleLoading) return;
     setPeopleMode(mode);
     if (options.resetSearch ?? true) {
       setPeopleSearch('');
@@ -1164,7 +1168,18 @@ export default function Ajustes() {
               : undefined;
       const contactos = await listarContactos(rol);
       setContactosAdmin(contactos.map(mapContactoAdmin));
-    } catch {
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][contactos] load failed', {
+          mode,
+          status:
+            error && typeof error === 'object' && 'status' in error
+              ? (error as { status?: unknown }).status
+              : 'unknown',
+          response: error instanceof Error ? error.message : error,
+          error,
+        });
+      }
       setPeopleError('No pudimos cargar los contactos');
     } finally {
       setPeopleLoading(false);
@@ -1434,6 +1449,7 @@ export default function Ajustes() {
   }, []);
 
   const cargarBodegas = async () => {
+    if (bodegasLoading) return bodegas;
     setBodegasLoading(true);
     try {
       const items = await listarBodegas();
@@ -1447,11 +1463,25 @@ export default function Ajustes() {
         setInventarioActualKg(principal.cafeAlmacenadoKg);
         setUpdatedAt(principal.updatedAt);
       }
-    } catch {
+      return items;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][bodegas] load failed', {
+          endpoint: '/bodega',
+          method: 'GET',
+          status:
+            error && typeof error === 'object' && 'status' in error
+              ? (error as { status?: unknown }).status
+              : 'unknown',
+          response: error instanceof Error ? error.message : error,
+          error,
+        });
+      }
       setBodegaFeedback({
         variant: 'error',
         message: 'No pudimos cargar las bodegas. Intenta nuevamente.',
       });
+      return bodegas;
     } finally {
       setBodegasLoading(false);
     }
@@ -1549,7 +1579,7 @@ export default function Ajustes() {
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
       setProfileFeedback({
         variant: 'error',
-        message: 'La imagen es demasiado grande. Selecciona una foto de máximo 5 MB.',
+        message: 'La imagen es demasiado grande. Selecciona una imagen de máximo 8 MB.',
       });
       return;
     }
@@ -1561,7 +1591,7 @@ export default function Ajustes() {
       setProfileAvatarRemove(false);
       setProfileAvatarLoadFailed(false);
       setProfileFeedback({
-        variant: 'success',
+        variant: 'info',
         message: 'Vista previa lista. Guarda cambios para conservarla.',
       });
     } catch {
@@ -1627,9 +1657,27 @@ export default function Ajustes() {
       const perfilActualizado = profileAvatarRemove
         ? await quitarFotoPerfilRemota()
         : await subirFotoPerfil(profileAvatarFile as File);
-      const nextAvatarUrl = perfilActualizado.avatarUrl ?? '';
-
       setProfileAvatarUploading(false);
+
+      const perfilPersistido = await obtenerPerfilUsuario();
+      const nextAvatarUrl = perfilPersistido.avatarUrl ?? '';
+
+      if (!wasRemovingAvatar && !nextAvatarUrl) {
+        throw new Error(
+          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
+        );
+      }
+
+      if (
+        !wasRemovingAvatar &&
+        perfilActualizado.avatarUrl &&
+        perfilPersistido.avatarUrl !== perfilActualizado.avatarUrl
+      ) {
+        throw new Error(
+          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
+        );
+      }
+
       setProfileAvatarSaving(true);
       setProfileAvatarUrl(nextAvatarUrl);
       setProfileAvatarVersion(nextAvatarUrl ? Date.now() : 0);
@@ -1644,12 +1692,12 @@ export default function Ajustes() {
           hasCompany,
           user: {
             ...user,
-            id: perfilActualizado.id,
-            name: perfilActualizado.nombre,
-            email: perfilActualizado.correo,
-            telefono: perfilActualizado.telefono ?? user.telefono,
+            id: perfilPersistido.id,
+            name: perfilPersistido.nombre,
+            email: perfilPersistido.correo,
+            telefono: perfilPersistido.telefono ?? user.telefono,
             organizacionId:
-              perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+              perfilPersistido.organizacionId ?? user.organizacionId ?? null,
             avatarUrl: nextAvatarUrl || null,
           },
         });
@@ -1661,12 +1709,12 @@ export default function Ajustes() {
         variant: 'success',
         message: wasRemovingAvatar
           ? 'Foto eliminada. Ahora se mostrará la inicial de tu nombre.'
-          : 'Foto actualizada. Tu foto de perfil se guardó correctamente.',
+          : 'Foto de perfil actualizada. Tu nueva foto se guardó correctamente.',
       });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : '';
-      const message = rawMessage.includes('subió, pero no pudimos actualizar')
-        ? 'La foto se subió, pero no pudimos actualizar tu perfil. Intenta nuevamente.'
+      const message = rawMessage.includes('subió, pero no pudo guardarse')
+        ? 'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.'
         : rawMessage.includes('Formato') ||
             rawMessage.includes('imagen es demasiado grande')
           ? rawMessage
@@ -1961,7 +2009,7 @@ export default function Ajustes() {
     if (!Number.isFinite(capacidad) || capacidad <= 0) {
       setBodegaFeedback({
         variant: 'error',
-        message: 'La capacidad debe ser mayor que 0 kg.',
+        message: 'Ingresa una capacidad válida mayor que cero',
       });
       return;
     }
@@ -1983,33 +2031,46 @@ export default function Ajustes() {
       };
 
       if (bodegaEditando) {
-        await editarBodega(bodegaEditando.id, {
+        const updated = await editarBodega(bodegaEditando.id, {
           ...payload,
           activa: bodegaEditando.activa,
           esPrincipal: bodegaEditando.esPrincipal,
         });
+        const nextBodegas = await cargarBodegas();
+        if (!nextBodegas.some((item) => item.id === updated.id)) {
+          throw new Error('No pudimos confirmar la bodega actualizada. Intenta nuevamente.');
+        }
         setBodegaFeedback({
           variant: 'success',
           message: 'Bodega actualizada correctamente.',
         });
       } else {
-        await crearBodega(payload);
+        const created = await crearBodega({
+          ...payload,
+          activa: true,
+          esPrincipal: false,
+        });
+        const nextBodegas = await cargarBodegas();
+        if (!nextBodegas.some((item) => item.id === created.id)) {
+          throw new Error('No pudimos confirmar la bodega creada. Intenta nuevamente.');
+        }
         setBodegaFeedback({
           variant: 'success',
-          message: 'Bodega creada correctamente.',
+          message: 'Bodega creada correctamente. La nueva bodega ya está disponible.',
         });
       }
 
       setBodegaFormOpen(false);
       setBodegaEditando(null);
-      await cargarBodegas();
     } catch (err) {
       setBodegaFeedback({
         variant: 'error',
         message:
           err instanceof Error && err.message
             ? err.message
-            : 'No pudimos guardar la bodega. Intenta nuevamente.',
+            : bodegaEditando
+              ? 'No pudimos guardar la bodega. Intenta nuevamente.'
+              : 'No pudimos crear la bodega. Intenta nuevamente.',
       });
     } finally {
       setGuardandoBodega(false);
@@ -2168,6 +2229,13 @@ export default function Ajustes() {
       setBodegaLimitesFeedback({ variant: 'error', message: validationError });
       return;
     }
+    if (bodegaLimitesScope === 'seleccionadas' && bodegaLimitesSelectedIds.length === 0) {
+      setBodegaLimitesFeedback({
+        variant: 'error',
+        message: 'Selecciona al menos una bodega.',
+      });
+      return;
+    }
     setBodegaLimitesConfirmOpen(true);
   };
 
@@ -2177,6 +2245,9 @@ export default function Ajustes() {
       const result = await aplicarLimitesBodegaGeneral({
         ...bodegaLimitesForm,
         scope: bodegaLimitesScope,
+        ...(bodegaLimitesScope === 'seleccionadas'
+          ? { bodegaIds: bodegaLimitesSelectedIds }
+          : {}),
       });
       setBodegaLimitesGeneralOpen(false);
       setBodegaLimitesConfirmOpen(false);
@@ -2364,6 +2435,7 @@ export default function Ajustes() {
   const recentPeopleItems = filteredPeopleItems.slice(0, 4);
 
   const cargarPersonas = async (mode: Exclude<PeopleAdminMode, null>) => {
+    if (peopleLoading) return;
     setPeopleLoading(true);
     setPeopleError(null);
     try {
@@ -2377,8 +2449,19 @@ export default function Ajustes() {
               : undefined;
       const contactos = await listarContactos(rol);
       setContactosAdmin(contactos.map(mapContactoAdmin));
-    } catch {
-      setPeopleError('No pudimos cargar los contactos. Intenta nuevamente.');
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][contactos] load failed', {
+          mode,
+          status:
+            error && typeof error === 'object' && 'status' in error
+              ? (error as { status?: unknown }).status
+              : 'unknown',
+          response: error instanceof Error ? error.message : error,
+          error,
+        });
+      }
+      setPeopleError('No pudimos cargar los contactos');
     } finally {
       setPeopleLoading(false);
     }
@@ -5729,15 +5812,52 @@ export default function Ajustes() {
                         value={bodegaLimitesScope}
                         onChange={(event) =>
                           setBodegaLimitesScope(
-                            event.target.value as 'todas' | 'activas',
+                            event.target.value as 'todas' | 'activas' | 'seleccionadas',
                           )
                         }
                         className={fieldInputClass}
                       >
                         <option value="todas">Todas las bodegas</option>
                         <option value="activas">Solo bodegas activas</option>
+                        <option value="seleccionadas">Bodegas seleccionadas</option>
                       </SmartSelect>
                     </label>
+                  ) : null}
+                  {bodegaLimitesGeneralOpen && bodegaLimitesScope === 'seleccionadas' ? (
+                    <div className="rounded-[14px] border border-[#d5deee] bg-[#f8faff] p-3 dark:border-slate-700 dark:bg-slate-950">
+                      <p className="text-[0.62rem] font-black uppercase text-slate-500 dark:text-slate-300">
+                        Selecciona bodegas
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {bodegas.map((bodega) => {
+                          const checked = bodegaLimitesSelectedIds.includes(bodega.id);
+                          return (
+                            <label
+                              key={bodega.id}
+                              className="flex min-h-[38px] items-center gap-2 rounded-[10px] bg-white px-2 text-sm font-bold text-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) =>
+                                  setBodegaLimitesSelectedIds((current) =>
+                                    event.target.checked
+                                      ? Array.from(new Set([...current, bodega.id]))
+                                      : current.filter((id) => id !== bodega.id),
+                                  )
+                                }
+                              />
+                              <span className="min-w-0 truncate">{bodega.nombre}</span>
+                              {bodega.activa ? (
+                                <span className="ml-auto text-[0.62rem] font-black uppercase text-emerald-700">
+                                  Activa
+                                </span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ) : null}
                   <label className="block">
                     <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
@@ -5841,7 +5961,7 @@ export default function Ajustes() {
                       ) : (
                         <Save size={15} />
                       )}
-                      {bodegaLimitesGeneralOpen ? 'Aplicar a todas' : 'Guardar límites'}
+                      {bodegaLimitesGeneralOpen ? 'Aplicar límites' : 'Guardar límites'}
                     </button>
                   </div>
                 </div>
@@ -5861,7 +5981,7 @@ export default function Ajustes() {
                   id="confirmar-limites-generales-title"
                   className="text-lg font-black text-slate-950 dark:text-slate-100"
                 >
-                  Aplicar límites a todas las bodegas
+                  Aplicar límites generales
                 </h4>
                 <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
                   Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
@@ -6196,13 +6316,31 @@ export default function Ajustes() {
                   </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={iniciarRegistroPersona}
-                  className="inline-flex min-h-10 shrink-0 items-center rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white"
-                >
-                  Nuevo
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      peopleMode &&
+                      void cargarPersonasAdmin(peopleMode, { resetSearch: false })
+                    }
+                    disabled={peopleLoading || !peopleMode}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-[#d5deee] bg-white text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                    aria-label="Recargar contactos"
+                    title="Recargar contactos"
+                  >
+                    <RefreshCcw
+                      size={16}
+                      className={peopleLoading ? 'animate-spin' : ''}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={iniciarRegistroPersona}
+                    className="inline-flex min-h-10 items-center rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white"
+                  >
+                    Nuevo
+                  </button>
+                </div>
               </div>
               <input
                 type="text"
@@ -6285,7 +6423,7 @@ export default function Ajustes() {
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {peopleLoading ? (
                 <p className="rounded-[16px] bg-[#f8faff] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
-                  Cargando registros...
+                  Cargando contactos...
                 </p>
               ) : peopleError ? (
                 <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-5 text-left shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10">
@@ -6293,7 +6431,7 @@ export default function Ajustes() {
                     No pudimos cargar los contactos
                   </p>
                   <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    Revisa tu conexión e intenta nuevamente.
+                    Revisa tu conexión y vuelve a intentarlo.
                   </p>
                   <button
                     type="button"
@@ -6301,6 +6439,7 @@ export default function Ajustes() {
                       peopleMode &&
                       void cargarPersonasAdmin(peopleMode, { resetSearch: false })
                     }
+                    disabled={peopleLoading}
                     className="mt-4 rounded-[12px] border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-100 dark:border-amber-400/40 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-slate-800"
                   >
                     Reintentar
@@ -6309,10 +6448,10 @@ export default function Ajustes() {
               ) : peopleFiltered.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   <p className="font-bold text-slate-800 dark:text-slate-100">
-                    {peopleEmptyTitle}
+                    Aún no tienes contactos registrados
                   </p>
                   <p className="mt-1 font-semibold text-slate-500 dark:text-slate-300">
-                    {peopleEmptyDescription}
+                    Crea un contacto como cliente, productor o Multirol.
                   </p>
                   <button
                     type="button"

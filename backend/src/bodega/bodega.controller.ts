@@ -127,7 +127,7 @@ export class BodegaController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async aplicarLimitesGeneral(
-    @Body() dto: ActualizarLimitesBodegaDto & { scope?: string },
+    @Body() dto: ActualizarLimitesBodegaDto & { scope?: string; bodegaIds?: string[] },
     @Req() req: { user: { sub: string } },
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);

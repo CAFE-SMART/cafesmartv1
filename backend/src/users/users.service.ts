@@ -37,6 +37,50 @@ type UpdateOrganizationSettingsInput = {
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  async getProfile(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          avatarUrl: true,
+          organizacionId: true,
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException(
+          apiError('USUARIO_NO_ENCONTRADO', 'No encontramos tu usuario.'),
+        );
+      }
+
+      return user;
+    } catch (error) {
+      if (!this.isMissingAvatarColumn(error)) throw error;
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          nombre: true,
+          correo: true,
+          telefono: true,
+          organizacionId: true,
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException(
+          apiError('USUARIO_NO_ENCONTRADO', 'No encontramos tu usuario.'),
+        );
+      }
+
+      return { ...user, avatarUrl: null };
+    }
+  }
+
   /**
    * Busca un usuario por correo normalizando mayusculas y espacios.
    */
@@ -445,11 +489,11 @@ export class UsersService {
       );
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 8 * 1024 * 1024) {
       throw new BadRequestException(
         apiError(
           'AVATAR_TAMANO_INVALIDO',
-          'La imagen es demasiado grande. Selecciona una foto de máximo 5 MB.',
+          'La imagen es demasiado grande. Selecciona una imagen de máximo 8 MB.',
         ),
       );
     }
@@ -612,7 +656,10 @@ export class UsersService {
 
     if (!response.ok) {
       throw new BadRequestException(
-        apiError('AVATAR_UPLOAD_ERROR', 'No pudimos subir la foto de perfil.'),
+        apiError(
+          'AVATAR_UPLOAD_ERROR',
+          'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.',
+        ),
       );
     }
 

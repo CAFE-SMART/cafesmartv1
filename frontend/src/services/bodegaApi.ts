@@ -199,7 +199,10 @@ export function guardarLimitesBodega(id: string, payload: LimitesBodega) {
 }
 
 export function aplicarLimitesBodegaGeneral(
-  payload: LimitesBodega & { scope?: 'todas' | 'activas' },
+  payload: LimitesBodega & {
+    scope?: 'todas' | 'activas' | 'seleccionadas';
+    bodegaIds?: string[];
+  },
 ) {
   return apiFetch('/bodega/limites/general', {
     method: 'POST',

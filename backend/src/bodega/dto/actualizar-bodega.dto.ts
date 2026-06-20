@@ -35,7 +35,7 @@ export class CrearBodegaDto {
 
   @Type(() => Number)
   @IsNumber({}, { message: 'Ingresa la capacidad máxima de la bodega.' })
-  @Min(0.01, { message: 'La capacidad debe ser mayor que 0 kg.' })
+  @Min(0.01, { message: 'Ingresa una capacidad válida mayor que cero' })
   capacidadMaxKg: number;
 
   @IsOptional()
@@ -61,7 +61,7 @@ export class EditarBodegaDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'Ingresa la capacidad máxima de la bodega.' })
-  @Min(0.01, { message: 'La capacidad debe ser mayor que 0 kg.' })
+  @Min(0.01, { message: 'Ingresa una capacidad válida mayor que cero' })
   capacidadMaxKg?: number;
 
   @IsOptional()

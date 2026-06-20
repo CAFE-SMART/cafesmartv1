@@ -11,6 +11,7 @@ export type ContactoItem = {
   tipoDocumento: DocumentType;
   telefono: string | null;
   roles: ContactoRol[];
+  esMultirol: boolean;
   etiquetaRol: 'Cliente' | 'Productor' | 'Multirol';
   descripcionRol: string;
   clienteId: string | null;
@@ -30,7 +31,41 @@ export type GuardarContactoPayload = {
 
 export async function listarContactos(rol?: ContactoFiltroRol) {
   const query = rol ? `?rol=${encodeURIComponent(rol)}` : '';
-  return apiFetch(`/contactos${query}`) as Promise<ContactoItem[]>;
+  const endpoint = `/contactos${query}`;
+  if (import.meta.env.DEV) {
+    console.debug('[CafeSmart][contactos] request', {
+      endpoint,
+      method: 'GET',
+      rol: rol ?? 'TODOS',
+    });
+  }
+  try {
+    const response = (await apiFetch(endpoint)) as ContactoItem[];
+    if (import.meta.env.DEV) {
+      console.debug('[CafeSmart][contactos] response', {
+        endpoint,
+        method: 'GET',
+        status: 'ok',
+        count: Array.isArray(response) ? response.length : null,
+        response,
+      });
+    }
+    return response;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.debug('[CafeSmart][contactos] error', {
+        endpoint,
+        method: 'GET',
+        status:
+          error && typeof error === 'object' && 'status' in error
+            ? (error as { status?: unknown }).status
+            : 'unknown',
+        response: error instanceof Error ? error.message : error,
+        error,
+      });
+    }
+    throw error;
+  }
 }
 
 export async function crearContacto(payload: GuardarContactoPayload) {

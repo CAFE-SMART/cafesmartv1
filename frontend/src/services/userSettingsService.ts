@@ -41,6 +41,10 @@ export function actualizarPerfilUsuario(input: {
   }) as Promise<UserProfileResponse>;
 }
 
+export function obtenerPerfilUsuario() {
+  return apiFetch('/users/profile') as Promise<UserProfileResponse>;
+}
+
 export async function subirFotoPerfil(file: File) {
   const token = await getStoredAuthToken();
   if (!token) {
@@ -63,6 +67,14 @@ export async function subirFotoPerfil(file: File) {
         | { message?: string };
 
       if (!response.ok) {
+        if (import.meta.env.DEV) {
+          console.debug('[CafeSmart][profile-avatar] upload error', {
+            endpoint: '/users/profile/avatar',
+            method: 'POST',
+            status: response.status,
+            response: data,
+          });
+        }
         throw new Error(
           typeof data.message === 'string'
             ? data.message
@@ -73,7 +85,7 @@ export async function subirFotoPerfil(file: File) {
       const profile = data as UserProfileResponse;
       if (!profile.avatarUrl) {
         throw new Error(
-          'La foto se subió, pero no pudimos actualizar tu perfil. Intenta nuevamente.',
+          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
         );
       }
 

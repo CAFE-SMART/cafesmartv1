@@ -38,6 +38,7 @@ type ContactoListadoItem = {
   tipoDocumento: TipoDocumento;
   telefono: string | null;
   roles: ContactoRol[];
+  esMultirol: boolean;
   etiquetaRol: 'Cliente' | 'Productor' | 'Multirol';
   descripcionRol: string;
   clienteId: string | null;
@@ -403,6 +404,7 @@ export class ContactosService {
       tipoDocumento,
       telefono: preferred.telefono ?? productor?.telefono ?? null,
       roles,
+      esMultirol: roles.includes('CLIENTE') && roles.includes('PRODUCTOR'),
       etiquetaRol: roles.length > 1 ? 'Multirol' : roles[0] === 'CLIENTE' ? 'Cliente' : 'Productor',
       descripcionRol:
         roles.length > 1

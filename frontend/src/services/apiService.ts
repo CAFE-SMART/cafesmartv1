@@ -89,7 +89,7 @@ const SPECIFIC_CODE_MESSAGES: Record<string, string> = {
   SECADO_PESO_EXCEDIDO: 'El peso supera el disponible para secado.',
   SECADO_MONTO_INVALIDO: 'Ingresa un valor válido.',
   SECADO_MONTO_MAXIMO: 'El monto supera el máximo permitido.',
-  BODEGA_CAPACIDAD_INVALIDA: 'La capacidad debe ser mayor que 0.',
+  BODEGA_CAPACIDAD_INVALIDA: 'Ingresa una capacidad válida mayor que cero',
   BODEGA_CAPACIDAD_REQUERIDA: 'Ingresa la capacidad máxima de la bodega.',
   BODEGA_NOMBRE_DUPLICADO: 'Ya existe una bodega con este nombre.',
   BODEGA_NOMBRE_REQUERIDO: 'Ingresa el nombre de la bodega.',

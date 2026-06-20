@@ -13,6 +13,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Patch,
   Post,
   Req,
@@ -28,6 +29,12 @@ import { ActualizarPerfilDto } from './dto/actualizar-perfil.dto';
 @Controller('users') // prefijo base: /users
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Req() req: { user: { sub: string } }) {
+    return this.usersService.getProfile(req.user.sub);
+  }
 
   @Patch('organization')
   @UseGuards(JwtAuthGuard)
