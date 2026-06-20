@@ -148,6 +148,7 @@ model Bodega {
   organizacionId  String       @map("id_organizacion")
   nombre          String       @map("nombre")
   ubicacion       String?      @map("ubicacion")
+  descripcion     String?      @map("descripcion")
   capacidadMaxKg  Decimal      @map("capacidad_max_kg") @db.Decimal(12, 2)
   activa          Boolean      @default(true) @map("activa")
   esPrincipal     Boolean      @default(false) @map("es_principal")

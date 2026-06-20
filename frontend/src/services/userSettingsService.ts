@@ -17,6 +17,10 @@ export type UserProfileResponse = {
   telefono: string | null;
   avatarUrl?: string | null;
   organizacionId?: string | null;
+  nombreOrganizacion?: string | null;
+  tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+  otroTipoDetalle?: string | null;
+  descripcionOrganizacion?: string | null;
 };
 
 export function actualizarConfiguracionOrganizacion(input: {
@@ -51,13 +55,22 @@ export async function subirFotoPerfil(file: File) {
     throw new Error('No hay sesión activa. Inicia sesión nuevamente.');
   }
 
+  if (import.meta.env.DEV) {
+    console.debug('[CafeSmart][profile-avatar] archivo seleccionado', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+  }
+
   let lastError: unknown = null;
 
   for (const apiBaseUrl of getApiBaseUrlCandidates()) {
+    const endpoint = `${apiBaseUrl}/users/profile/avatar`;
     try {
       const formData = new FormData();
       formData.append('avatar', file, file.name || 'avatar');
-      const response = await fetch(`${apiBaseUrl}/users/profile/avatar`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -65,6 +78,17 @@ export async function subirFotoPerfil(file: File) {
       const data = (await response.json().catch(() => ({}))) as
         | UserProfileResponse
         | { message?: string };
+
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][profile-avatar] upload response', {
+          endpoint: '/users/profile/avatar',
+          url: endpoint,
+          method: 'POST',
+          status: response.status,
+          response: data,
+          avatarUrl: 'avatarUrl' in data ? data.avatarUrl : null,
+        });
+      }
 
       if (!response.ok) {
         if (import.meta.env.DEV) {
@@ -85,7 +109,7 @@ export async function subirFotoPerfil(file: File) {
       const profile = data as UserProfileResponse;
       if (!profile.avatarUrl) {
         throw new Error(
-          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
+          'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.',
         );
       }
 

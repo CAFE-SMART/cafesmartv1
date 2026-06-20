@@ -603,6 +603,8 @@ export default function Login() {
         nombreOrganizacion: data.user.nombreOrganizacion ?? null,
         tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
         otroTipoDetalle: data.user.otroTipoDetalle ?? null,
+        descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+        avatarUrl: data.user.avatarUrl ?? null,
       };
 
       await setSession({
@@ -744,6 +746,8 @@ export default function Login() {
         nombreOrganizacion: data.user.nombreOrganizacion ?? null,
         tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
         otroTipoDetalle: data.user.otroTipoDetalle ?? null,
+        descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+        avatarUrl: data.user.avatarUrl ?? null,
       };
 
       await setSession({

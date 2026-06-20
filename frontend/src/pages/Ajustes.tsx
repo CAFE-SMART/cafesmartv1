@@ -41,6 +41,7 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
+import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import { CafeSmartEmptyState } from '../components/common/CafeSmartEmptyState';
 import { CafeSmartModal } from '../components/common/CafeSmartModal';
 import { RefreshButton } from '../components/RefreshButton';
@@ -55,7 +56,11 @@ import { useUser } from '../context/UserContext';
 import { useTheme, type ThemePreference } from '../theme/themeProvider';
 import { useAccessibility } from '../theme/accessibilityProvider';
 import type { FontScalePreference } from '../theme/accessibilityService';
-import { updateRememberedAccountIfCurrent } from '../storage/authStorage';
+import {
+  AUTH_STORAGE_KEYS,
+  getAuthStorageValue,
+  updateRememberedAccountIfCurrent,
+} from '../storage/authStorage';
 import {
   obtenerDetalleLote,
   obtenerLotes,
@@ -237,6 +242,22 @@ type PeopleSortMode = 'recent' | 'oldest' | 'az' | 'za';
 type SecadoPanelMode = 'home' | 'start' | 'active' | null;
 type SecadoSortMode = 'recent' | 'oldest';
 type SecadoQualityFilter = 'TODOS' | 'BUENO' | 'REGULAR' | 'MALO';
+type BodegaWizardStep = 1 | 2 | 3;
+type BodegaDraftMode = 'crear' | 'editar';
+type BodegaDraft = {
+  version: 1;
+  mode: BodegaDraftMode;
+  bodegaId?: string | null;
+  savedAt: number;
+  step: BodegaWizardStep;
+  nombre: string;
+  ubicacion: string;
+  descripcion: string;
+  capacidadKg: string;
+  activa: boolean;
+  esPrincipal: boolean;
+  limites: LimitesBodega;
+};
 type PeopleAdminItem = {
   id: string;
   contactType: 'cliente' | 'productor';
@@ -260,6 +281,10 @@ type PeopleAdminForm = {
 const PROFILE_NAME_MAX_LENGTH = 60;
 const PROFILE_EMAIL_MAX_LENGTH = 60;
 const PROFILE_AVATAR_MAX_BYTES = 8 * 1024 * 1024;
+const BODEGA_DEFAULT_CAPACITY_KG = 3000;
+const BODEGA_DESCRIPTION_MAX_LENGTH = 250;
+const BODEGA_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const BODEGA_DRAFT_VERSION = 1;
 const PROFILE_AVATAR_ALLOWED_TYPES = new Set([
   'image/png',
   'image/jpeg',
@@ -325,6 +350,84 @@ function readFileAsDataUrl(file: File) {
 function formatKg(value: number) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
     value,
+  );
+}
+
+function formatKgInput(value: string | number) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
+    Number(digits),
+  );
+}
+
+function parseKgInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+function getBodegaDraftKey(userId: string | number | undefined, mode: BodegaDraftMode, bodegaId?: string | null) {
+  const owner = userId ? String(userId) : 'anonymous';
+  return mode === 'crear'
+    ? `cafe-smart:bodega-draft:v1:${owner}:crear-bodega`
+    : `cafe-smart:bodega-draft:v1:${owner}:editar-bodega-${bodegaId ?? 'sin-id'}`;
+}
+
+function sanitizeBodegaDraft(value: unknown): BodegaDraft | null {
+  if (!value || typeof value !== 'object') return null;
+  const draft = value as Partial<BodegaDraft>;
+  if (
+    draft.version !== BODEGA_DRAFT_VERSION ||
+    (draft.mode !== 'crear' && draft.mode !== 'editar') ||
+    typeof draft.savedAt !== 'number' ||
+    Date.now() - draft.savedAt > BODEGA_DRAFT_TTL_MS
+  ) {
+    return null;
+  }
+  const step = draft.step === 2 || draft.step === 3 ? draft.step : 1;
+  const limites = draft.limites;
+  if (!limites || typeof limites !== 'object') return null;
+  return {
+    version: BODEGA_DRAFT_VERSION,
+    mode: draft.mode,
+    bodegaId: typeof draft.bodegaId === 'string' ? draft.bodegaId : null,
+    savedAt: draft.savedAt,
+    step,
+    nombre: typeof draft.nombre === 'string' ? draft.nombre : '',
+    ubicacion: typeof draft.ubicacion === 'string' ? draft.ubicacion : '',
+    descripcion: typeof draft.descripcion === 'string' ? draft.descripcion : '',
+    capacidadKg:
+      typeof draft.capacidadKg === 'string'
+        ? draft.capacidadKg
+        : String(BODEGA_DEFAULT_CAPACITY_KG),
+    activa: draft.activa !== false,
+    esPrincipal: draft.esPrincipal === true,
+    limites: {
+      limiteMinimoKg: Number(limites.limiteMinimoKg) || 0,
+      limiteMaximoKg: Number(limites.limiteMaximoKg) || 0,
+      alertaPreventivaPct: Number(limites.alertaPreventivaPct) || 80,
+      alertaCriticaPct: Number(limites.alertaCriticaPct) || 95,
+      bloquearAlSuperarCapacidad:
+        limites.bloquearAlSuperarCapacidad !== false,
+      alertasActivas: limites.alertasActivas !== false,
+    },
+  };
+}
+
+function hasBodegaDraftProgress(draft: BodegaDraft) {
+  if (draft.mode === 'editar') return true;
+  return (
+    draft.step > 1 ||
+    Boolean(draft.nombre.trim()) ||
+    Boolean(draft.ubicacion.trim()) ||
+    Boolean(draft.descripcion.trim()) ||
+    parseKgInput(draft.capacidadKg) !== BODEGA_DEFAULT_CAPACITY_KG ||
+    draft.limites.limiteMinimoKg !== 0 ||
+    draft.limites.limiteMaximoKg !== 2700 ||
+    draft.limites.alertaPreventivaPct !== 80 ||
+    draft.limites.alertaCriticaPct !== 95 ||
+    draft.limites.bloquearAlSuperarCapacidad !== true ||
+    draft.limites.alertasActivas !== true
   );
 }
 
@@ -619,10 +722,18 @@ export default function Ajustes() {
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
   const [capacidadKg, setCapacidadKg] = useState('');
   const [ubicacionBodega, setUbicacionBodega] = useState('');
+  const [descripcionBodega, setDescripcionBodega] = useState('');
+  const [bodegaWizardStep, setBodegaWizardStep] = useState<BodegaWizardStep>(1);
   const [bodegas, setBodegas] = useState<BodegaItem[]>([]);
   const [bodegasLoading, setBodegasLoading] = useState(false);
   const [bodegaFormOpen, setBodegaFormOpen] = useState(false);
   const [bodegaEditando, setBodegaEditando] = useState<BodegaItem | null>(null);
+  const [bodegaDraftDirty, setBodegaDraftDirty] = useState(false);
+  const [bodegaDraftPending, setBodegaDraftPending] =
+    useState<BodegaDraft | null>(null);
+  const [bodegaDraftTarget, setBodegaDraftTarget] =
+    useState<BodegaItem | null>(null);
+  const [showBodegaDraftModal, setShowBodegaDraftModal] = useState(false);
   const [bodegaDeleteTarget, setBodegaDeleteTarget] = useState<BodegaItem | null>(null);
   const [bodegaFeedback, setBodegaFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
@@ -632,8 +743,12 @@ export default function Ajustes() {
     useState<BodegaItem | null>(null);
   const [bodegaLimitesGeneralOpen, setBodegaLimitesGeneralOpen] =
     useState(false);
+  const [bodegaLimitesGeneralStep, setBodegaLimitesGeneralStep] =
+    useState<BodegaWizardStep>(1);
   const [bodegaLimitesLoading, setBodegaLimitesLoading] = useState(false);
   const [bodegaLimitesForm, setBodegaLimitesForm] = useState<LimitesBodega>({
+    limiteMinimoKg: 0,
+    limiteMaximoKg: 2700,
     alertaPreventivaPct: 80,
     alertaCriticaPct: 95,
     bloquearAlSuperarCapacidad: true,
@@ -1041,53 +1156,154 @@ export default function Ajustes() {
     setIsEditingBodega(false);
   };
 
-  const abrirCrearBodega = () => {
+  const buildCurrentBodegaDraft = (): BodegaDraft => ({
+    version: BODEGA_DRAFT_VERSION,
+    mode: bodegaEditando ? 'editar' : 'crear',
+    bodegaId: bodegaEditando?.id ?? null,
+    savedAt: Date.now(),
+    step: bodegaWizardStep,
+    nombre: nombreBodega,
+    ubicacion: ubicacionBodega,
+    descripcion: descripcionBodega,
+    capacidadKg,
+    activa: bodegaEditando?.activa ?? true,
+    esPrincipal: bodegaEditando?.esPrincipal ?? bodegas.length === 0,
+    limites: bodegaLimitesForm,
+  });
+
+  const readBodegaDraft = async (
+    mode: BodegaDraftMode,
+    bodegaId?: string | null,
+  ) => {
+    const key = getBodegaDraftKey(user?.id, mode, bodegaId);
+    const { value } = await Preferences.get({ key });
+    if (!value) return null;
+    try {
+      const draft = sanitizeBodegaDraft(JSON.parse(value));
+      if (!draft || !hasBodegaDraftProgress(draft)) {
+        await Preferences.remove({ key });
+        return null;
+      }
+      return draft;
+    } catch {
+      await Preferences.remove({ key });
+      return null;
+    }
+  };
+
+  const removeBodegaDraft = async (
+    mode: BodegaDraftMode,
+    bodegaId?: string | null,
+  ) => {
+    await Preferences.remove({
+      key: getBodegaDraftKey(user?.id, mode, bodegaId),
+    });
+  };
+
+  const persistCurrentBodegaDraft = async () => {
+    if (!bodegaFormOpen || !bodegaDraftDirty) return;
+    const draft = buildCurrentBodegaDraft();
+    if (!hasBodegaDraftProgress(draft)) return;
+    await Preferences.set({
+      key: getBodegaDraftKey(user?.id, draft.mode, draft.bodegaId),
+      value: JSON.stringify(draft),
+    });
+  };
+
+  const applyBodegaDraft = (draft: BodegaDraft, target?: BodegaItem | null) => {
+    setBodegaEditando(target ?? null);
+    setNombreBodega(draft.nombre);
+    setDescripcionBodega(draft.descripcion);
+    setUbicacionBodega(draft.ubicacion);
+    setCapacidadKg(draft.capacidadKg || String(BODEGA_DEFAULT_CAPACITY_KG));
+    setBodegaLimitesForm(draft.limites);
+    setBodegaWizardStep(draft.step);
+    setBodegaDraftDirty(true);
+    setBodegaFormOpen(true);
+  };
+
+  const iniciarCrearBodega = () => {
     clearFeedback();
     setBodegaFeedback(null);
     setBodegaEditando(null);
     setNombreBodega('');
+    setDescripcionBodega('');
     setUbicacionBodega('');
-    setCapacidadKg('');
+    setCapacidadKg(String(BODEGA_DEFAULT_CAPACITY_KG));
+    setBodegaLimitesForm({
+      limiteMinimoKg: 0,
+      limiteMaximoKg: 2700,
+      alertaPreventivaPct: 80,
+      alertaCriticaPct: 95,
+      bloquearAlSuperarCapacidad: true,
+      alertasActivas: true,
+    });
+    setBodegaWizardStep(1);
+    setBodegaDraftDirty(false);
     setBodegaFormOpen(true);
   };
 
-  const abrirEditarBodega = (bodega: BodegaItem) => {
+  const abrirCrearBodega = async () => {
+    const draft = await readBodegaDraft('crear');
+    if (draft) {
+      setBodegaDraftPending(draft);
+      setBodegaDraftTarget(null);
+      setShowBodegaDraftModal(true);
+      return;
+    }
+    iniciarCrearBodega();
+  };
+
+  const iniciarEditarBodega = async (
+    bodega: BodegaItem,
+    initialStep: BodegaWizardStep = 1,
+  ) => {
     clearFeedback();
     setBodegaFeedback(null);
     setBodegaEditando(bodega);
     setNombreBodega(bodega.nombre);
+    setDescripcionBodega(bodega.descripcion ?? '');
     setUbicacionBodega(bodega.ubicacion ?? '');
     setCapacidadKg(String(Math.round(bodega.capacidadMaxKg)));
     setInventarioActualKg(bodega.cafeAlmacenadoKg);
+    setBodegaLimitesForm({
+      limiteMinimoKg: 0,
+      limiteMaximoKg: Math.max(1, Math.round(bodega.capacidadMaxKg * 0.9)),
+      alertaPreventivaPct: 80,
+      alertaCriticaPct: 95,
+      bloquearAlSuperarCapacidad: true,
+      alertasActivas: true,
+    });
+    setBodegaWizardStep(initialStep);
+    setBodegaDraftDirty(false);
     setBodegaFormOpen(true);
-  };
-
-  const abrirLimitesBodega = async (bodega: BodegaItem) => {
-    clearFeedback();
-    setBodegaFeedback(null);
-    setBodegaLimitesFeedback(null);
-    setBodegaLimitesTarget(bodega);
     setBodegaLimitesLoading(true);
     try {
       const limites = await obtenerLimitesBodega(bodega.id);
       setBodegaLimitesForm(limites);
-    } catch (err) {
-      setBodegaLimitesForm({
-        alertaPreventivaPct: 80,
-        alertaCriticaPct: 95,
-        bloquearAlSuperarCapacidad: true,
-        alertasActivas: true,
-      });
-      setBodegaLimitesFeedback({
-        variant: 'warning',
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : 'Esta bodega aún no tiene límites configurados. Puedes crearlos ahora.',
-      });
+    } catch {
+      // Keep defaults based on the saved capacity; the user can adjust them.
     } finally {
       setBodegaLimitesLoading(false);
     }
+  };
+
+  const abrirEditarBodega = async (
+    bodega: BodegaItem,
+    initialStep: BodegaWizardStep = 1,
+  ) => {
+    const draft = await readBodegaDraft('editar', bodega.id);
+    if (draft) {
+      setBodegaDraftPending(draft);
+      setBodegaDraftTarget(bodega);
+      setShowBodegaDraftModal(true);
+      return;
+    }
+    await iniciarEditarBodega(bodega, initialStep);
+  };
+
+  const abrirLimitesBodega = async (bodega: BodegaItem) => {
+    await abrirEditarBodega(bodega, 2);
   };
 
   const abrirLimiteGeneral = () => {
@@ -1095,8 +1311,11 @@ export default function Ajustes() {
     setBodegaFeedback(null);
     setBodegaLimitesFeedback(null);
     setBodegaLimitesScope('todas');
+    setBodegaLimitesGeneralStep(1);
     setBodegaLimitesSelectedIds(bodegas.map((bodega) => bodega.id));
     setBodegaLimitesForm({
+      limiteMinimoKg: 0,
+      limiteMaximoKg: 2700,
       alertaPreventivaPct: 80,
       alertaCriticaPct: 95,
       bloquearAlSuperarCapacidad: true,
@@ -1280,6 +1499,75 @@ export default function Ajustes() {
   useEffect(() => {
     void cargarInventario();
   }, []);
+
+  useEffect(() => {
+    if (!token || isOffline) return;
+    let active = true;
+    const refreshProfileAndCompany = async () => {
+      try {
+        const perfilPersistido = await obtenerPerfilUsuario();
+        if (!active) return;
+        setProfile({
+          nombre: perfilPersistido.nombre,
+          correo: perfilPersistido.correo,
+          telefono: formatPhoneNumber(perfilPersistido.telefono ?? ''),
+        });
+        if (perfilPersistido.nombreOrganizacion) {
+          setCompany((prev) => ({
+            nombreEmpresa: perfilPersistido.nombreOrganizacion ?? prev.nombreEmpresa,
+            tipoEmpresa:
+              perfilPersistido.tipoOrganizacion ?? prev.tipoEmpresa ?? 'COMPRAVENTA',
+            descripcion:
+              perfilPersistido.descripcionOrganizacion ?? prev.descripcion,
+          }));
+        }
+        setProfileAvatarUrl(perfilPersistido.avatarUrl ?? '');
+        setProfileAvatarVersion(perfilPersistido.avatarUrl ? Date.now() : 0);
+        setProfileAvatarLoadFailed(false);
+        if (user) {
+          await setSession({
+            token,
+            hasCompany,
+            user: {
+              ...user,
+              id: perfilPersistido.id,
+              name: perfilPersistido.nombre,
+              email: perfilPersistido.correo,
+              telefono: perfilPersistido.telefono ?? user.telefono,
+              organizacionId:
+                perfilPersistido.organizacionId ?? user.organizacionId ?? null,
+              nombreOrganizacion:
+                perfilPersistido.nombreOrganizacion ??
+                user.nombreOrganizacion ??
+                null,
+              tipoOrganizacion:
+                perfilPersistido.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+              otroTipoDetalle:
+                perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
+              descripcionOrganizacion:
+                perfilPersistido.descripcionOrganizacion ??
+                user.descripcionOrganizacion ??
+                null,
+              avatarUrl: perfilPersistido.avatarUrl ?? null,
+            },
+          });
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.debug('[CafeSmart][profile] refresh failed', {
+            endpoint: '/users/profile',
+            method: 'GET',
+            response: error instanceof Error ? error.message : error,
+            error,
+          });
+        }
+      }
+    };
+    void refreshProfileAndCompany();
+    return () => {
+      active = false;
+    };
+  }, [token, isOffline]);
 
   const secadosActivosInline = useMemo(
     () =>
@@ -1560,6 +1848,14 @@ export default function Ajustes() {
 
     if (!file) return;
 
+    if (import.meta.env.DEV) {
+      console.debug('[CafeSmart][profile-avatar] seleccion', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      });
+    }
+
     if (!isAllowedAvatarFile(file)) {
       setProfileFeedback({
         variant: 'error',
@@ -1571,7 +1867,7 @@ export default function Ajustes() {
     if (file.size <= 0) {
       setProfileFeedback({
         variant: 'error',
-        message: 'No pudimos leer la imagen. Selecciona otro archivo e intenta nuevamente.',
+        message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
       return;
     }
@@ -1590,14 +1886,10 @@ export default function Ajustes() {
       setProfileAvatarFile(file);
       setProfileAvatarRemove(false);
       setProfileAvatarLoadFailed(false);
-      setProfileFeedback({
-        variant: 'info',
-        message: 'Vista previa lista. Guarda cambios para conservarla.',
-      });
     } catch {
       setProfileFeedback({
         variant: 'error',
-        message: 'No pudimos leer la imagen. Selecciona otro archivo e intenta nuevamente.',
+        message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
     }
   };
@@ -1617,10 +1909,10 @@ export default function Ajustes() {
     setProfileAvatarRemove(true);
     setProfileAvatarLoadFailed(false);
     setProfileAvatarRemoveConfirmOpen(false);
-    setProfileFeedback({
-      variant: 'warning',
-      message: 'La foto se quitará cuando guardes los cambios.',
-    });
+      setProfileFeedback({
+        variant: 'warning',
+        message: 'La foto se quitará cuando guardes los cambios.',
+      });
   };
 
   const cancelarEdicionFotoPerfil = () => {
@@ -1646,7 +1938,6 @@ export default function Ajustes() {
       const message =
         'Conéctate a internet para guardar la foto de perfil en la nube.';
       setProfileFeedback({ variant: 'warning', message });
-      setError(message);
       return;
     }
 
@@ -1662,9 +1953,19 @@ export default function Ajustes() {
       const perfilPersistido = await obtenerPerfilUsuario();
       const nextAvatarUrl = perfilPersistido.avatarUrl ?? '';
 
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][profile-avatar] perfil confirmado por GET', {
+          endpoint: '/users/profile',
+          method: 'GET',
+          response: perfilPersistido,
+          avatarUrl: nextAvatarUrl || null,
+          postAvatarUrl: perfilActualizado.avatarUrl ?? null,
+        });
+      }
+
       if (!wasRemovingAvatar && !nextAvatarUrl) {
         throw new Error(
-          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
+          'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.',
         );
       }
 
@@ -1674,7 +1975,7 @@ export default function Ajustes() {
         perfilPersistido.avatarUrl !== perfilActualizado.avatarUrl
       ) {
         throw new Error(
-          'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.',
+          'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.',
         );
       }
 
@@ -1698,8 +1999,36 @@ export default function Ajustes() {
             telefono: perfilPersistido.telefono ?? user.telefono,
             organizacionId:
               perfilPersistido.organizacionId ?? user.organizacionId ?? null,
+            nombreOrganizacion:
+              perfilPersistido.nombreOrganizacion ?? user.nombreOrganizacion ?? null,
+            tipoOrganizacion:
+              perfilPersistido.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+            otroTipoDetalle:
+              perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
+            descripcionOrganizacion:
+              perfilPersistido.descripcionOrganizacion ??
+              user.descripcionOrganizacion ??
+              null,
             avatarUrl: nextAvatarUrl || null,
           },
+        });
+      }
+
+      if (import.meta.env.DEV) {
+        const storedUserRaw = await getAuthStorageValue(AUTH_STORAGE_KEYS.user);
+        let storedAvatarUrl: string | null = null;
+        try {
+          const storedUser = storedUserRaw
+            ? (JSON.parse(storedUserRaw) as { avatarUrl?: string | null })
+            : null;
+          storedAvatarUrl = storedUser?.avatarUrl ?? null;
+        } catch {
+          storedAvatarUrl = null;
+        }
+        console.debug('[CafeSmart][profile-avatar] authStorage verificado', {
+          storedAvatarUrl,
+          expectedAvatarUrl: nextAvatarUrl || null,
+          userContextAvatarUrl: nextAvatarUrl || null,
         });
       }
 
@@ -1708,20 +2037,20 @@ export default function Ajustes() {
       setProfileFeedback({
         variant: 'success',
         message: wasRemovingAvatar
-          ? 'Foto eliminada. Ahora se mostrará la inicial de tu nombre.'
+          ? 'Foto eliminada correctamente.'
           : 'Foto de perfil actualizada. Tu nueva foto se guardó correctamente.',
       });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : '';
-      const message = rawMessage.includes('subió, pero no pudo guardarse')
-        ? 'La foto se subió, pero no pudo guardarse en tu perfil. Intenta nuevamente.'
+      const message = rawMessage.includes('subió, pero')
+        ? 'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.'
         : rawMessage.includes('Formato') ||
             rawMessage.includes('imagen es demasiado grande')
           ? rawMessage
-          : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.';
-      setError(message);
+            : profileAvatarRemove
+            ? 'No pudimos quitar la foto. Intenta nuevamente.'
+            : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.';
       setProfileFeedback({ variant: 'error', message });
-      setFloatingError(getAjustesGuidance(message));
     } finally {
       setProfileAvatarUploading(false);
       setProfileAvatarSaving(false);
@@ -1806,6 +2135,16 @@ export default function Ajustes() {
             telefono: nextProfile.telefono,
             organizacionId:
               perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+            nombreOrganizacion:
+              perfilActualizado.nombreOrganizacion ?? user.nombreOrganizacion ?? null,
+            tipoOrganizacion:
+              perfilActualizado.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+            otroTipoDetalle:
+              perfilActualizado.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
+            descripcionOrganizacion:
+              perfilActualizado.descripcionOrganizacion ??
+              user.descripcionOrganizacion ??
+              null,
             avatarUrl: nextAvatarUrl,
           },
         });
@@ -1899,7 +2238,7 @@ export default function Ajustes() {
           },
         });
       }
-      setSuccess('Negocio actualizado. Los datos de tu negocio se guardaron correctamente.');
+      setSuccess('Negocio actualizado correctamente. Los cambios ya están disponibles en tu perfil.');
     } catch {
       const message = 'No pudimos actualizar el negocio. Revisa tu conexión e intenta nuevamente.';
       setError(message);
@@ -1985,8 +2324,167 @@ export default function Ajustes() {
     }
   };
 
+  const getBodegaFormCapacidad = () => parseKgInput(capacidadKg);
+
+  const validateBodegaStep = (step: BodegaWizardStep) => {
+    const capacidad = getBodegaFormCapacidad();
+    if (!nombreBodega.trim()) {
+      return 'Ingresa un nombre para la bodega.';
+    }
+
+    const duplicated = bodegas.some(
+      (bodega) =>
+        bodega.id !== bodegaEditando?.id &&
+        bodega.nombre.trim().toLocaleLowerCase('es-CO') ===
+          nombreBodega.trim().toLocaleLowerCase('es-CO'),
+    );
+    if (duplicated) {
+      return 'Ya existe una bodega con este nombre.';
+    }
+
+    if (!Number.isFinite(capacidad) || capacidad <= 0) {
+      return 'Ingresa una capacidad válida mayor que cero.';
+    }
+
+    if (capacidad < inventarioActualKg) {
+      return 'La capacidad no puede ser menor al café almacenado actualmente.';
+    }
+
+    if (descripcionBodega.length > BODEGA_DESCRIPTION_MAX_LENGTH) {
+      return 'La descripción no debe superar 250 caracteres.';
+    }
+
+    if (step >= 2) {
+      if (
+        !Number.isFinite(bodegaLimitesForm.limiteMinimoKg) ||
+        bodegaLimitesForm.limiteMinimoKg < 0
+      ) {
+        return 'Ingresa un límite mínimo válido.';
+      }
+      if (
+        !Number.isFinite(bodegaLimitesForm.limiteMaximoKg) ||
+        bodegaLimitesForm.limiteMaximoKg <= 0
+      ) {
+        return 'Ingresa un límite máximo válido.';
+      }
+      if (bodegaLimitesForm.limiteMinimoKg >= bodegaLimitesForm.limiteMaximoKg) {
+        return 'El límite mínimo debe ser menor que el límite máximo.';
+      }
+      if (bodegaLimitesForm.limiteMaximoKg > capacidad) {
+        return 'El límite máximo no puede superar la capacidad de la bodega.';
+      }
+    }
+
+    if (step >= 3) {
+      if (
+        !Number.isInteger(bodegaLimitesForm.alertaPreventivaPct) ||
+        bodegaLimitesForm.alertaPreventivaPct <= 0 ||
+        bodegaLimitesForm.alertaPreventivaPct >= bodegaLimitesForm.alertaCriticaPct
+      ) {
+        return 'La alerta preventiva debe ser menor que el nivel crítico.';
+      }
+      if (
+        !Number.isInteger(bodegaLimitesForm.alertaCriticaPct) ||
+        bodegaLimitesForm.alertaCriticaPct <= bodegaLimitesForm.alertaPreventivaPct ||
+        bodegaLimitesForm.alertaCriticaPct > 100
+      ) {
+        return 'El nivel crítico debe ser mayor que la alerta preventiva.';
+      }
+    }
+
+    return null;
+  };
+
+  const continuarBodegaStep = () => {
+    const validationError = validateBodegaStep(bodegaWizardStep);
+    if (validationError) {
+      setBodegaFeedback({ variant: 'error', message: validationError });
+      return;
+    }
+    setBodegaFeedback(null);
+    setBodegaDraftDirty(true);
+    setBodegaWizardStep((current) => (current < 3 ? ((current + 1) as BodegaWizardStep) : current));
+  };
+
+  const volverBodegaStep = () => {
+    setBodegaFeedback(null);
+    setBodegaDraftDirty(true);
+    setBodegaWizardStep((current) => (current > 1 ? ((current - 1) as BodegaWizardStep) : current));
+  };
+
+  const cerrarFlujoBodega = async () => {
+    await persistCurrentBodegaDraft();
+    setBodegaFormOpen(false);
+    setBodegaEditando(null);
+    setBodegaFeedback(null);
+  };
+
+  const continuarBorradorBodega = () => {
+    if (!bodegaDraftPending) return;
+    applyBodegaDraft(bodegaDraftPending, bodegaDraftTarget);
+    setShowBodegaDraftModal(false);
+    setBodegaDraftPending(null);
+    setBodegaDraftTarget(null);
+  };
+
+  const descartarBorradorBodega = async () => {
+    if (!bodegaDraftPending) return;
+    const confirmed = window.confirm(
+      bodegaDraftPending.mode === 'crear'
+        ? '¿Empezar una bodega nueva?\n\nSe eliminará el borrador guardado.'
+        : '¿Descartar cambios?\n\nSe eliminará el borrador guardado.',
+    );
+    if (!confirmed) return;
+    await removeBodegaDraft(bodegaDraftPending.mode, bodegaDraftPending.bodegaId);
+    const target = bodegaDraftTarget;
+    const mode = bodegaDraftPending.mode;
+    setShowBodegaDraftModal(false);
+    setBodegaDraftPending(null);
+    setBodegaDraftTarget(null);
+    if (mode === 'editar' && target) {
+      await iniciarEditarBodega(target);
+    } else {
+      iniciarCrearBodega();
+    }
+  };
+
+  useEffect(() => {
+    if (!bodegaFormOpen || !bodegaDraftDirty || guardandoBodega) return;
+    const timer = window.setTimeout(() => {
+      void persistCurrentBodegaDraft();
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [
+    bodegaFormOpen,
+    bodegaDraftDirty,
+    guardandoBodega,
+    bodegaWizardStep,
+    nombreBodega,
+    ubicacionBodega,
+    descripcionBodega,
+    capacidadKg,
+    bodegaLimitesForm,
+  ]);
+
+  useEffect(() => {
+    if (!bodegaFormOpen || !bodegaDraftDirty) return;
+    const saveDraft = () => {
+      void persistCurrentBodegaDraft();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') saveDraft();
+    };
+    window.addEventListener('beforeunload', saveDraft);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      saveDraft();
+      window.removeEventListener('beforeunload', saveDraft);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [bodegaFormOpen, bodegaDraftDirty, bodegaWizardStep, nombreBodega, ubicacionBodega, descripcionBodega, capacidadKg, bodegaLimitesForm]);
+
   const guardarBodega = async () => {
-    const capacidad = Number(capacidadKg);
+    const capacidad = getBodegaFormCapacidad();
     clearFeedback();
     setBodegaFeedback(null);
 
@@ -1998,27 +2496,9 @@ export default function Ajustes() {
       return;
     }
 
-    if (!nombreBodega.trim()) {
-      setBodegaFeedback({
-        variant: 'error',
-        message: 'Ingresa el nombre de la bodega.',
-      });
-      return;
-    }
-
-    if (!Number.isFinite(capacidad) || capacidad <= 0) {
-      setBodegaFeedback({
-        variant: 'error',
-        message: 'Ingresa una capacidad válida mayor que cero',
-      });
-      return;
-    }
-
-    if (capacidad < inventarioActualKg) {
-      setBodegaFeedback({
-        variant: 'error',
-        message: 'La capacidad no puede ser menor al café almacenado actualmente.',
-      });
+    const validationError = validateBodegaStep(3);
+    if (validationError) {
+      setBodegaFeedback({ variant: 'error', message: validationError });
       return;
     }
 
@@ -2027,6 +2507,7 @@ export default function Ajustes() {
       const payload = {
         nombre: nombreBodega.trim(),
         ubicacion: ubicacionBodega.trim() || null,
+        descripcion: descripcionBodega.trim() || null,
         capacidadMaxKg: capacidad,
       };
 
@@ -2036,13 +2517,15 @@ export default function Ajustes() {
           activa: bodegaEditando.activa,
           esPrincipal: bodegaEditando.esPrincipal,
         });
+        await guardarLimitesBodega(updated.id, bodegaLimitesForm);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === updated.id)) {
           throw new Error('No pudimos confirmar la bodega actualizada. Intenta nuevamente.');
         }
+        await removeBodegaDraft('editar', updated.id);
         setBodegaFeedback({
           variant: 'success',
-          message: 'Bodega actualizada correctamente.',
+          message: 'Bodega actualizada correctamente. Los cambios se guardaron correctamente.',
         });
       } else {
         const created = await crearBodega({
@@ -2050,16 +2533,19 @@ export default function Ajustes() {
           activa: true,
           esPrincipal: false,
         });
+        await guardarLimitesBodega(created.id, bodegaLimitesForm);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === created.id)) {
           throw new Error('No pudimos confirmar la bodega creada. Intenta nuevamente.');
         }
+        await removeBodegaDraft('crear');
         setBodegaFeedback({
           variant: 'success',
           message: 'Bodega creada correctamente. La nueva bodega ya está disponible.',
         });
       }
 
+      setBodegaDraftDirty(false);
       setBodegaFormOpen(false);
       setBodegaEditando(null);
     } catch (err) {
@@ -2175,6 +2661,39 @@ export default function Ajustes() {
 
   const validarLimitesBodega = () => {
     if (
+      !Number.isFinite(bodegaLimitesForm.limiteMinimoKg) ||
+      bodegaLimitesForm.limiteMinimoKg < 0
+    ) {
+      return 'Ingresa un límite mínimo válido.';
+    }
+    if (
+      !Number.isFinite(bodegaLimitesForm.limiteMaximoKg) ||
+      bodegaLimitesForm.limiteMaximoKg <= 0
+    ) {
+      return 'Ingresa un límite máximo válido.';
+    }
+    if (bodegaLimitesForm.limiteMinimoKg >= bodegaLimitesForm.limiteMaximoKg) {
+      return 'El límite mínimo debe ser menor que el límite máximo.';
+    }
+    const referenceCapacity =
+      bodegaLimitesTarget?.capacidadMaxKg ??
+      (bodegaLimitesScope === 'seleccionadas'
+        ? Math.min(
+            ...bodegas
+              .filter((bodega) => bodegaLimitesSelectedIds.includes(bodega.id))
+              .map((bodega) => bodega.capacidadMaxKg),
+          )
+        : undefined);
+    if (
+      typeof referenceCapacity === 'number' &&
+      Number.isFinite(referenceCapacity) &&
+      bodegaLimitesForm.limiteMaximoKg > referenceCapacity
+    ) {
+      return bodegaLimitesTarget
+        ? 'El límite máximo no puede superar la capacidad de la bodega.'
+        : 'Los límites superan la capacidad de una o más bodegas.';
+    }
+    if (
       !Number.isInteger(bodegaLimitesForm.alertaPreventivaPct) ||
       bodegaLimitesForm.alertaPreventivaPct <= 0 ||
       bodegaLimitesForm.alertaPreventivaPct > 100
@@ -2223,7 +2742,71 @@ export default function Ajustes() {
     }
   };
 
+  const getBodegasAfectadasLimiteGeneral = () => {
+    if (bodegaLimitesScope === 'activas') {
+      return bodegas.filter((bodega) => bodega.activa);
+    }
+    if (bodegaLimitesScope === 'seleccionadas') {
+      return bodegas.filter((bodega) =>
+        bodegaLimitesSelectedIds.includes(bodega.id),
+      );
+    }
+    return bodegas;
+  };
+
   const aplicarLimitesGenerales = async () => {
+    if (bodegaLimitesGeneralStep === 1) {
+      if (getBodegasAfectadasLimiteGeneral().length === 0) {
+        setBodegaLimitesFeedback({
+          variant: 'error',
+          message: 'Selecciona al menos una bodega.',
+        });
+        return;
+      }
+      setBodegaLimitesFeedback(null);
+      setBodegaLimitesGeneralStep(2);
+      return;
+    }
+
+    if (bodegaLimitesGeneralStep === 2) {
+      const selected = getBodegasAfectadasLimiteGeneral();
+      if (
+        !Number.isFinite(bodegaLimitesForm.limiteMinimoKg) ||
+        bodegaLimitesForm.limiteMinimoKg < 0
+      ) {
+        setBodegaLimitesFeedback({
+          variant: 'error',
+          message: 'Ingresa un límite mínimo válido.',
+        });
+        return;
+      }
+      if (
+        !Number.isFinite(bodegaLimitesForm.limiteMaximoKg) ||
+        bodegaLimitesForm.limiteMaximoKg <= bodegaLimitesForm.limiteMinimoKg
+      ) {
+        setBodegaLimitesFeedback({
+          variant: 'error',
+          message: 'El límite máximo debe ser mayor que el mínimo.',
+        });
+        return;
+      }
+      const conflicts = selected.filter(
+        (bodega) => bodegaLimitesForm.limiteMaximoKg > bodega.capacidadMaxKg,
+      );
+      if (conflicts.length > 0) {
+        setBodegaLimitesFeedback({
+          variant: 'error',
+          message: `Los límites superan la capacidad de una o más bodegas: ${conflicts
+            .map((bodega) => `${bodega.nombre} (${formatKg(bodega.capacidadMaxKg)} kg)`)
+            .join(', ')}.`,
+        });
+        return;
+      }
+      setBodegaLimitesFeedback(null);
+      setBodegaLimitesGeneralStep(3);
+      return;
+    }
+
     const validationError = validarLimitesBodega();
     if (validationError) {
       setBodegaLimitesFeedback({ variant: 'error', message: validationError });
@@ -2252,11 +2835,12 @@ export default function Ajustes() {
       setBodegaLimitesGeneralOpen(false);
       setBodegaLimitesConfirmOpen(false);
       setBodegaLimitesFeedback(null);
+      await cargarBodegas();
       setBodegaFeedback({
         variant: 'success',
-        message: `Límites aplicados a ${result.bodegasAfectadas} bodega${
+        message: `Configuración aplicada correctamente. Los límites y alertas se actualizaron en ${result.bodegasAfectadas} bodega${
           result.bodegasAfectadas === 1 ? '' : 's'
-        }.`,
+        } seleccionada${result.bodegasAfectadas === 1 ? '' : 's'}.`,
       });
     } catch (err) {
       setBodegaLimitesFeedback({
@@ -2573,23 +3157,30 @@ export default function Ajustes() {
         return;
       }
       if (bodegaFormOpen) {
+        if (bodegaWizardStep > 1) {
+          volverBodegaStep();
+          backEvent.preventDefault();
+          return;
+        }
         const original = bodegaEditando;
         const hasBodegaChanges = original
           ? original.nombre !== nombreBodega.trim() ||
             (original.ubicacion ?? '') !== ubicacionBodega.trim() ||
-            Math.round(original.capacidadMaxKg) !== Number(capacidadKg)
+            (original.descripcion ?? '') !== descripcionBodega.trim() ||
+            Math.round(original.capacidadMaxKg) !== getBodegaFormCapacidad() ||
+            bodegaWizardStep > 1
           : Boolean(
               nombreBodega.trim() ||
                 ubicacionBodega.trim() ||
-                capacidadKg.trim(),
+                descripcionBodega.trim() ||
+                capacidadKg.trim() ||
+                bodegaWizardStep > 1,
             );
         if (hasBodegaChanges && !confirmarSalidaSinGuardar()) {
           backEvent.preventDefault();
           return;
         }
-        setBodegaFormOpen(false);
-        setBodegaEditando(null);
-        setBodegaFeedback(null);
+        void cerrarFlujoBodega();
         backEvent.preventDefault();
         return;
       }
@@ -4044,7 +4635,7 @@ export default function Ajustes() {
                   </div>
                   <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
-                    {company.nombreEmpresa || (!hydrated ? 'Cargando perfil...' : 'Negocio sin nombre')}
+                    {company.nombreEmpresa || (!hydrated ? 'Cargando negocio...' : 'Negocio sin nombre')}
                   </p>
                 </div>
                 <input
@@ -4149,7 +4740,12 @@ export default function Ajustes() {
                     <div className="mt-5 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => avatarInputRef.current?.click()}
+                        onClick={() => {
+                          if (avatarInputRef.current) {
+                            avatarInputRef.current.value = '';
+                            avatarInputRef.current.click();
+                          }
+                        }}
                         disabled={profileAvatarBusy}
                         className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55 dark:bg-blue-600"
                       >
@@ -4200,7 +4796,7 @@ export default function Ajustes() {
                           id="quitar-foto-perfil-title"
                           className="text-lg font-black text-slate-950 dark:text-slate-100"
                         >
-                          Quitar foto de perfil
+                          ¿Quitar la foto de perfil?
                         </h5>
                         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                           Se volverá a mostrar la inicial de tu nombre.
@@ -4211,7 +4807,7 @@ export default function Ajustes() {
                             onClick={() => setProfileAvatarRemoveConfirmOpen(false)}
                             className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                           >
-                            Cancelar
+                            Conservar foto
                           </button>
                           <button
                             type="button"
@@ -5338,11 +5934,11 @@ export default function Ajustes() {
               {error && activeErrorSection === 'company' ? (
                 <InlineGuidedError message={getAjustesGuidance(error)} />
               ) : null}
-              {success?.startsWith('Negocio actualizado.') ? (
+              {success?.startsWith('Negocio actualizado') ? (
                 <AppFeedbackMessage
                   variant="success"
-                  title="Negocio actualizado"
-                  description="Los datos de tu negocio se guardaron correctamente."
+                  title="Negocio actualizado correctamente"
+                  description="Los cambios ya están disponibles en tu perfil."
                   action={
                     <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
                       <X size={14} />
@@ -5362,7 +5958,7 @@ export default function Ajustes() {
                   ) : (
                     <Save size={15} />
                   )}
-                  {guardandoEmpresa ? 'Guardando...' : 'Guardar negocio'}
+                  {guardandoEmpresa ? 'Guardando negocio...' : 'Guardar negocio'}
                 </button>
                 <button
                   type="button"
@@ -5454,7 +6050,7 @@ export default function Ajustes() {
 
               <button
                 type="button"
-                onClick={abrirCrearBodega}
+                onClick={() => void abrirCrearBodega()}
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-3 text-[0.9rem] font-black text-white transition hover:bg-[#0d2475] focus:outline-none focus:ring-4 focus:ring-blue-400/25 disabled:opacity-70 dark:bg-blue-600 dark:hover:bg-blue-500"
               >
                 <Warehouse size={16} />
@@ -5511,7 +6107,7 @@ export default function Ajustes() {
                         <div className="flex shrink-0 items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => abrirEditarBodega(bodega)}
+                            onClick={() => void abrirEditarBodega(bodega)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d5deee] bg-white text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
                             aria-label={`Editar ${bodega.nombre}`}
                           >
@@ -5622,34 +6218,59 @@ export default function Ajustes() {
           </section>
 
           {bodegaFormOpen ? (
-            <div className="fixed inset-0 z-[90] bg-[#f4f7fb] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
-              <section className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#f4f7fb] dark:bg-slate-950">
-                <header className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex items-start gap-3">
+            <div className="fixed inset-0 z-[90] bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+              <section className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-transparent">
+                <header className="shrink-0 px-4 py-4 pt-[max(1.5rem,env(safe-area-inset-top))]">
+                  <div className="relative flex items-center justify-center">
                     <button
                       type="button"
                       onClick={() => {
-                        setBodegaFormOpen(false);
-                        setBodegaEditando(null);
-                        setBodegaFeedback(null);
+                        if (bodegaWizardStep > 1) {
+                          volverBodegaStep();
+                          return;
+                        }
+                        if (!confirmarSalidaSinGuardar()) return;
+                        void cerrarFlujoBodega();
                       }}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#102d92] dark:bg-slate-800 dark:text-blue-100"
+                      className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-900 transition hover:bg-white/70 hover:opacity-75 dark:text-slate-100"
                       aria-label="Volver a bodegas"
                     >
-                      <ArrowLeft size={18} />
+                      <ArrowLeft size={22} />
                     </button>
-                    <div className="min-w-0">
-                    <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
+                    <h4 className="text-[1.35rem] font-semibold text-slate-900 dark:text-slate-100">
                       {bodegaEditando ? 'Editar bodega' : 'Crear bodega'}
                     </h4>
-                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                      Registra un punto de almacenamiento para tu café.
+                  </div>
+
+                  <div className="mt-8">
+                    <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900 dark:text-slate-100">
+                      <span>
+                        Paso {bodegaWizardStep}: {bodegaWizardStep === 1 ? 'Información' : bodegaWizardStep === 2 ? 'Límites' : 'Alertas'}
+                      </span>
+                      <span>{bodegaWizardStep} de 3</span>
+                    </div>
+                    <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#d0dbeb] dark:bg-slate-800">
+                      <div
+                        className={`h-full rounded-full bg-[#04337b] transition-all duration-300 dark:bg-blue-500 ${
+                          bodegaWizardStep === 1
+                            ? 'w-1/3'
+                            : bodegaWizardStep === 2
+                              ? 'w-2/3'
+                              : 'w-full'
+                        }`}
+                      />
+                    </div>
+                    <p className="mt-3 text-[0.98rem] text-slate-500 dark:text-slate-300">
+                      {bodegaWizardStep === 1
+                        ? 'Registra los datos principales del punto de almacenamiento.'
+                        : bodegaWizardStep === 2
+                          ? 'Define los valores mínimos y máximos permitidos para esta bodega.'
+                          : 'Configura cuándo debe advertir el sistema sobre la ocupación de la bodega.'}
                     </p>
                   </div>
-                </div>
                 </header>
 
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 pb-[calc(env(safe-area-inset-bottom)+92px)]">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2 pb-[calc(env(safe-area-inset-bottom)+112px)]">
                   {bodegaFeedback && bodegaFeedback.variant !== 'success' ? (
                     <AppFeedbackMessage
                       variant={bodegaFeedback.variant}
@@ -5659,65 +6280,298 @@ export default function Ajustes() {
                   {limitNotice ? (
                     <AppFeedbackMessage variant="warning" description={limitNotice} />
                   ) : null}
-                  <label className="block">
-                    <span className={fieldLabelClass}>Nombre de bodega</span>
-                    <input
-                      type="text"
-                      maxLength={BODEGA_NAME_MAX_LENGTH}
-                      value={nombreBodega}
-                      onChange={(event) => {
-                        if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
-                          showLimitNotice();
-                        }
-                        setNombreBodega(
-                          sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
-                        );
-                        setBodegaFeedback(null);
-                      }}
-                      className={fieldInputClass}
-                      placeholder="Bodega principal"
-                    />
-                  </label>
+                  {bodegaWizardStep === 1 ? (
+                    <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                      <div>
+                        <p className="text-[0.78rem] font-black uppercase tracking-[0.11em] text-[#40516d] dark:text-blue-200">
+                          Paso 1 de 3
+                        </p>
+                        <h5 className="mt-1 text-[1.28rem] font-black leading-tight text-slate-950 dark:text-slate-100">
+                          Información de la bodega
+                        </h5>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Registra los datos principales del punto de almacenamiento.
+                        </p>
+                      </div>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Nombre de la bodega</span>
+                        <input
+                          type="text"
+                          maxLength={BODEGA_NAME_MAX_LENGTH}
+                          value={nombreBodega}
+                          onChange={(event) => {
+                            if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                              showLimitNotice();
+                            }
+                            setBodegaDraftDirty(true);
+                            setNombreBodega(
+                              sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
+                            );
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                          placeholder="Bodega principal"
+                        />
+                      </label>
 
-                  <label className="block">
-                    <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
-                    <input
-                      type="text"
-                      maxLength={120}
-                      value={ubicacionBodega}
-                      onChange={(event) => {
-                        setUbicacionBodega(sanitizeLimitedText(event.target.value, 120));
-                        setBodegaFeedback(null);
-                      }}
-                      className={fieldInputClass}
-                      placeholder="Tuluá, zona centro"
-                    />
-                  </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
+                        <textarea
+                          maxLength={BODEGA_DESCRIPTION_MAX_LENGTH}
+                          value={descripcionBodega}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setDescripcionBodega(
+                              sanitizeLimitedText(
+                                event.target.value,
+                                BODEGA_DESCRIPTION_MAX_LENGTH,
+                              ),
+                            );
+                            setBodegaFeedback(null);
+                          }}
+                          className={`${fieldInputClass} min-h-[92px] resize-none py-3`}
+                          placeholder="Tuluá, zona centro"
+                        />
+                        <span className="mt-1 block text-right text-[0.68rem] font-bold text-slate-400">
+                          {descripcionBodega.length}/{BODEGA_DESCRIPTION_MAX_LENGTH}
+                        </span>
+                      </label>
 
-                  <label className="block">
-                    <span className={fieldLabelClass}>Capacidad máxima (kg)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={BODEGA_CAPACITY_MAX_KG}
-                      step="1"
-                      value={capacidadKg}
-                      onChange={(event) => {
-                        if (event.target.value.replace(/\D/g, '').length >= 6) {
-                          showLimitNotice();
-                        }
-                        setCapacidadKg(
-                          sanitizePositiveIntegerInput(
-                            event.target.value,
-                            BODEGA_CAPACITY_MAX_KG,
-                          ),
-                        );
-                        setBodegaFeedback(null);
-                      }}
-                      className={fieldInputClass}
-                      placeholder="3000"
-                    />
-                  </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Capacidad máxima (kg)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatKgInput(capacidadKg)}
+                          onChange={(event) => {
+                            const digits = sanitizePositiveIntegerInput(
+                              event.target.value,
+                              BODEGA_CAPACITY_MAX_KG,
+                            );
+                            setBodegaDraftDirty(true);
+                            setCapacidadKg(digits);
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                          placeholder="3.000"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className={fieldLabelClass}>Ubicación</span>
+                        <input
+                          type="text"
+                          maxLength={120}
+                          value={ubicacionBodega}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setUbicacionBodega(sanitizeLimitedText(event.target.value, 120));
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                          placeholder="Sede principal, zona norte"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {bodegaWizardStep === 2 ? (
+                    <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                      <div>
+                        <p className="text-[0.78rem] font-black uppercase tracking-[0.11em] text-[#40516d] dark:text-blue-200">
+                          Paso 2 de 3
+                        </p>
+                        <h5 className="mt-1 text-[1.28rem] font-black leading-tight text-slate-950 dark:text-slate-100">
+                          Límites de almacenamiento
+                        </h5>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Define los valores mínimos y máximos permitidos para esta bodega.
+                        </p>
+                      </div>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Límite mínimo (kg)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatKgInput(bodegaLimitesForm.limiteMinimoKg)}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              limiteMinimoKg: parseKgInput(event.target.value),
+                            }));
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                          placeholder="200"
+                        />
+                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Se podrá generar una alerta cuando el inventario esté por debajo de este valor.
+                        </span>
+                      </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Límite máximo (kg)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatKgInput(bodegaLimitesForm.limiteMaximoKg)}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              limiteMaximoKg: parseKgInput(event.target.value),
+                            }));
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                          placeholder="2.700"
+                        />
+                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Este valor indica hasta cuánto debería llenarse normalmente la bodega.
+                        </span>
+                      </label>
+                      <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-[#102d92]"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(
+                                  0,
+                                  (bodegaLimitesForm.limiteMaximoKg /
+                                    Math.max(1, getBodegaFormCapacidad())) *
+                                    100,
+                                ),
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-2 text-center text-[0.7rem] font-black text-slate-500 dark:text-slate-300">
+                          0 kg → {formatKg(bodegaLimitesForm.limiteMinimoKg)} kg → {formatKg(bodegaLimitesForm.limiteMaximoKg)} kg → {formatKg(getBodegaFormCapacidad())} kg
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {bodegaWizardStep === 3 ? (
+                    <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                      <div>
+                        <p className="text-[0.78rem] font-black uppercase tracking-[0.11em] text-[#40516d] dark:text-blue-200">
+                          Paso 3 de 3
+                        </p>
+                        <h5 className="mt-1 text-[1.28rem] font-black leading-tight text-slate-950 dark:text-slate-100">
+                          Alertas de almacenamiento
+                        </h5>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Configura cuándo debe advertir el sistema sobre la ocupación de la bodega.
+                        </p>
+                      </div>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          value={bodegaLimitesForm.alertaPreventivaPct}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              alertaPreventivaPct: Number(event.target.value),
+                            }));
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                        />
+                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          Se mostrará una advertencia cuando la ocupación alcance este porcentaje.
+                        </span>
+                      </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Estado crítico (%)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={bodegaLimitesForm.alertaCriticaPct}
+                          onChange={(event) => {
+                            setBodegaDraftDirty(true);
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              alertaCriticaPct: Number(event.target.value),
+                            }));
+                            setBodegaFeedback(null);
+                          }}
+                          className={fieldInputClass}
+                        />
+                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
+                          La bodega se mostrará en estado crítico al alcanzar este porcentaje.
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
+                        onClick={() => {
+                          setBodegaDraftDirty(true);
+                          setBodegaLimitesForm((current) => ({
+                            ...current,
+                            bloquearAlSuperarCapacidad:
+                              !current.bloquearAlSuperarCapacidad,
+                          }));
+                        }}
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        <span className="text-left">
+                          <span className="block">Bloquear movimientos al alcanzar el 100 %</span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            No se permitirán nuevas entradas cuando la bodega no tenga espacio disponible.
+                          </span>
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {bodegaLimitesForm.bloquearAlSuperarCapacidad ? 'Activado' : 'Desactivado'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={bodegaLimitesForm.alertasActivas}
+                        onClick={() => {
+                          setBodegaDraftDirty(true);
+                          setBodegaLimitesForm((current) => ({
+                            ...current,
+                            alertasActivas: !current.alertasActivas,
+                          }));
+                        }}
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        <span className="text-left">
+                          <span className="block">Alertas de espacio</span>
+                          <span className="block text-xs font-semibold text-slate-500">
+                            El sistema mostrará avisos cuando se alcancen los niveles configurados.
+                          </span>
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
+                        </span>
+                      </button>
+                      <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 text-xs font-semibold leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <p><strong>Nombre:</strong> {nombreBodega || 'Sin nombre'}</p>
+                        <p><strong>Capacidad máxima:</strong> {formatKg(getBodegaFormCapacidad())} kg</p>
+                        <p><strong>Descripción:</strong> {descripcionBodega || 'No registrada'}</p>
+                        <p><strong>Ubicación:</strong> {ubicacionBodega || 'No registrada'}</p>
+                        <p><strong>Límite mínimo:</strong> {formatKg(bodegaLimitesForm.limiteMinimoKg)} kg</p>
+                        <p><strong>Límite máximo:</strong> {formatKg(bodegaLimitesForm.limiteMaximoKg)} kg</p>
+                        <p><strong>Alerta preventiva:</strong> {bodegaLimitesForm.alertaPreventivaPct} %</p>
+                        <p><strong>Nivel crítico:</strong> {bodegaLimitesForm.alertaCriticaPct} %</p>
+                        <p><strong>Bloqueo al 100 %:</strong> {bodegaLimitesForm.bloquearAlSuperarCapacidad ? 'Activado' : 'Desactivado'}</p>
+                        <p><strong>Alertas:</strong> {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}</p>
+                        <p><strong>Estado inicial:</strong> Activa</p>
+                        <p><strong>Bodega principal:</strong> {bodegaEditando?.esPrincipal || bodegas.length === 0 ? 'Sí' : 'No'}</p>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {bodegaEditando ? (
                     <div className="rounded-[12px] border border-slate-200 bg-[#f8fafc] px-3 py-2.5 dark:border-slate-700 dark:bg-slate-950">
@@ -5730,30 +6584,43 @@ export default function Ajustes() {
                     </div>
                   ) : null}
 
-                  <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] grid-cols-2 gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95">
                     <button
                       type="button"
                       onClick={() => {
-                        setBodegaFormOpen(false);
-                        setBodegaEditando(null);
-                        setBodegaFeedback(null);
+                        if (bodegaWizardStep > 1) {
+                          volverBodegaStep();
+                          return;
+                        }
+                        if (!confirmarSalidaSinGuardar()) return;
+                        void cerrarFlujoBodega();
                       }}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                      className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     >
-                      Cancelar
+                      {bodegaWizardStep === 1 ? 'Cancelar' : 'Atrás'}
                     </button>
                     <button
                       type="button"
-                      onClick={guardarBodega}
+                      onClick={
+                        bodegaWizardStep === 1
+                          ? continuarBodegaStep
+                          : bodegaWizardStep === 2
+                            ? continuarBodegaStep
+                            : guardarBodega
+                      }
                       disabled={guardandoBodega}
-                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                      className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
                     >
                       {guardandoBodega ? (
                         <LoaderCircle size={15} className="animate-spin" />
                       ) : (
                         <Save size={15} />
                       )}
-                      {bodegaEditando ? 'Guardar cambios' : 'Guardar bodega'}
+                      {guardandoBodega
+                        ? 'Guardando bodega...'
+                        : bodegaWizardStep < 3
+                          ? 'Continuar'
+                          : 'Guardar bodega'}
                     </button>
                   </div>
                 </div>
@@ -5762,7 +6629,39 @@ export default function Ajustes() {
             </div>
           ) : null}
 
-          {bodegaLimitesTarget || bodegaLimitesGeneralOpen ? (
+          {showBodegaDraftModal && bodegaDraftPending ? (
+            <DraftRecoveryModal
+              labelledById="bodega-draft-title"
+              describedById="bodega-draft-description"
+              title="Borrador guardado"
+              heading="Registro en progreso"
+              message={
+                bodegaDraftPending.mode === 'editar'
+                  ? 'Tienes cambios pendientes en esta bodega. ¿Deseas continuarlos o descartarlos?'
+                  : 'Tienes una bodega pendiente. ¿Deseas continuarla o iniciar una nueva?'
+              }
+              primaryLabel="Continuar registro"
+              secondaryLabel={
+                bodegaDraftPending.mode === 'editar'
+                  ? 'Descartar cambios'
+                  : 'Empezar de nuevo'
+              }
+              onPrimary={continuarBorradorBodega}
+              onSecondary={() => void descartarBorradorBodega()}
+              details={[
+                {
+                  label: 'Último paso',
+                  value: `Paso ${bodegaDraftPending.step} de 3`,
+                },
+                {
+                  label: 'Nombre',
+                  value: bodegaDraftPending.nombre || 'Sin nombre',
+                },
+              ]}
+            />
+          ) : null}
+
+          {bodegaLimitesGeneralOpen ? (
             <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#0f172a]/50 px-5 py-6 backdrop-blur-sm">
               <section className="max-h-[88vh] w-full max-w-[390px] overflow-y-auto rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex items-start justify-between gap-3">
@@ -5783,6 +6682,7 @@ export default function Ajustes() {
                     onClick={() => {
                       setBodegaLimitesTarget(null);
                       setBodegaLimitesGeneralOpen(false);
+                      setBodegaLimitesGeneralStep(1);
                       setBodegaLimitesConfirmOpen(false);
                       setBodegaLimitesFeedback(null);
                     }}
@@ -5794,6 +6694,28 @@ export default function Ajustes() {
                 </div>
 
                 <div className="mt-4 space-y-3">
+                  {bodegaLimitesGeneralOpen ? (
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-[0.58rem] font-black">
+                      {[
+                        { step: 1 as const, label: 'Alcance' },
+                        { step: 2 as const, label: 'Límites' },
+                        { step: 3 as const, label: 'Alertas' },
+                      ].map((item) => (
+                        <span
+                          key={item.step}
+                          className={`rounded-full px-2 py-1.5 ${
+                            bodegaLimitesGeneralStep === item.step
+                              ? 'bg-[#102d92] text-white'
+                              : bodegaLimitesGeneralStep > item.step
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                          }`}
+                        >
+                          {item.step} {item.label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {bodegaLimitesLoading ? (
                     <p className="rounded-[14px] bg-[#f8faff] px-3 py-4 text-center text-sm font-bold text-slate-500 dark:bg-slate-950 dark:text-slate-300">
                       Cargando límites...
@@ -5805,7 +6727,7 @@ export default function Ajustes() {
                       description={bodegaLimitesFeedback.message}
                     />
                   ) : null}
-                  {bodegaLimitesGeneralOpen ? (
+                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 ? (
                     <label className="block">
                       <span className={fieldLabelClass}>Aplicar a</span>
                       <SmartSelect
@@ -5823,7 +6745,22 @@ export default function Ajustes() {
                       </SmartSelect>
                     </label>
                   ) : null}
-                  {bodegaLimitesGeneralOpen && bodegaLimitesScope === 'seleccionadas' ? (
+                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 ? (
+                    <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 text-xs font-semibold leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                      <p className="font-black text-slate-900 dark:text-slate-100">
+                        {getBodegasAfectadasLimiteGeneral().length} bodega{getBodegasAfectadasLimiteGeneral().length === 1 ? '' : 's'} seleccionada{getBodegasAfectadasLimiteGeneral().length === 1 ? '' : 's'}
+                      </p>
+                      {getBodegasAfectadasLimiteGeneral().map((bodega) => (
+                        <p key={bodega.id}>
+                          {bodega.nombre}: {formatKg(bodega.capacidadMaxKg)} kg
+                        </p>
+                      ))}
+                      <p className="mt-2 text-amber-700 dark:text-amber-200">
+                        Las capacidades individuales no se modificarán.
+                      </p>
+                    </div>
+                  ) : null}
+                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 && bodegaLimitesScope === 'seleccionadas' ? (
                     <div className="rounded-[14px] border border-[#d5deee] bg-[#f8faff] p-3 dark:border-slate-700 dark:bg-slate-950">
                       <p className="text-[0.62rem] font-black uppercase text-slate-500 dark:text-slate-300">
                         Selecciona bodegas
@@ -5859,8 +6796,44 @@ export default function Ajustes() {
                       </div>
                     </div>
                   ) : null}
-                  <label className="block">
-                    <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
+                  {(!bodegaLimitesGeneralOpen || bodegaLimitesGeneralStep === 2) ? (
+                    <>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Límite mínimo (kg)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatKgInput(bodegaLimitesForm.limiteMinimoKg)}
+                          onChange={(event) =>
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              limiteMinimoKg: parseKgInput(event.target.value),
+                            }))
+                          }
+                          className={fieldInputClass}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Límite máximo (kg)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatKgInput(bodegaLimitesForm.limiteMaximoKg)}
+                          onChange={(event) =>
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              limiteMaximoKg: parseKgInput(event.target.value),
+                            }))
+                          }
+                          className={fieldInputClass}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                  {(!bodegaLimitesGeneralOpen || bodegaLimitesGeneralStep === 3) ? (
+                    <>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
                     <input
                       type="number"
                       min="1"
@@ -5874,9 +6847,9 @@ export default function Ajustes() {
                       }
                       className={fieldInputClass}
                     />
-                  </label>
-                  <label className="block">
-                    <span className={fieldLabelClass}>Estado crítico (%)</span>
+                      </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Estado crítico (%)</span>
                     <input
                       type="number"
                       min="1"
@@ -5890,45 +6863,47 @@ export default function Ajustes() {
                       }
                       className={fieldInputClass}
                     />
-                  </label>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
-                    onClick={() =>
-                      setBodegaLimitesForm((current) => ({
-                        ...current,
-                        bloquearAlSuperarCapacidad:
-                          !current.bloquearAlSuperarCapacidad,
-                      }))
-                    }
-                    className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  >
-                    Bloquear movimientos al 100%
-                    <span className="text-xs text-slate-500 dark:text-slate-300">
-                      {bodegaLimitesForm.bloquearAlSuperarCapacidad
-                        ? 'Activado'
-                        : 'Desactivado'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={bodegaLimitesForm.alertasActivas}
-                    onClick={() =>
-                      setBodegaLimitesForm((current) => ({
-                        ...current,
-                        alertasActivas: !current.alertasActivas,
-                      }))
-                    }
-                    className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  >
-                    Alertas de espacio
-                    <span className="text-xs text-slate-500 dark:text-slate-300">
-                      {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
-                    </span>
-                  </button>
-                  {bodegaLimitesGeneralOpen ? (
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
+                        onClick={() =>
+                          setBodegaLimitesForm((current) => ({
+                            ...current,
+                            bloquearAlSuperarCapacidad:
+                              !current.bloquearAlSuperarCapacidad,
+                          }))
+                        }
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        Bloquear movimientos al 100%
+                        <span className="text-xs text-slate-500 dark:text-slate-300">
+                          {bodegaLimitesForm.bloquearAlSuperarCapacidad
+                            ? 'Activado'
+                            : 'Desactivado'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={bodegaLimitesForm.alertasActivas}
+                        onClick={() =>
+                          setBodegaLimitesForm((current) => ({
+                            ...current,
+                            alertasActivas: !current.alertasActivas,
+                          }))
+                        }
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        Alertas de espacio
+                        <span className="text-xs text-slate-500 dark:text-slate-300">
+                          {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
+                        </span>
+                      </button>
+                    </>
+                  ) : null}
+                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 3 ? (
                     <p className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
                       Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
                     </p>
@@ -5937,14 +6912,21 @@ export default function Ajustes() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep > 1) {
+                          setBodegaLimitesGeneralStep((current) =>
+                            current > 1 ? ((current - 1) as BodegaWizardStep) : current,
+                          );
+                          return;
+                        }
                         setBodegaLimitesTarget(null);
                         setBodegaLimitesGeneralOpen(false);
+                        setBodegaLimitesGeneralStep(1);
                         setBodegaLimitesConfirmOpen(false);
                         setBodegaLimitesFeedback(null);
                       }}
                       className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     >
-                      Cancelar
+                      {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep > 1 ? 'Atrás' : 'Cancelar'}
                     </button>
                     <button
                       type="button"
@@ -5961,7 +6943,11 @@ export default function Ajustes() {
                       ) : (
                         <Save size={15} />
                       )}
-                      {bodegaLimitesGeneralOpen ? 'Aplicar límites' : 'Guardar límites'}
+                      {bodegaLimitesGeneralOpen
+                        ? bodegaLimitesGeneralStep < 3
+                          ? 'Continuar'
+                          : 'Aplicar configuración'
+                        : 'Guardar límites'}
                     </button>
                   </div>
                 </div>
@@ -6003,7 +6989,7 @@ export default function Ajustes() {
                     {guardandoBodega ? (
                       <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
                     ) : null}
-                    Aplicar límites
+                    Aplicar configuración
                   </button>
                 </div>
               </section>

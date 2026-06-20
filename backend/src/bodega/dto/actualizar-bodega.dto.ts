@@ -33,6 +33,11 @@ export class CrearBodegaDto {
   @MaxLength(120, { message: 'La ubicación no debe superar 120 caracteres.' })
   ubicacion?: string | null;
 
+  @IsOptional()
+  @IsString({ message: 'La descripción debe ser un texto' })
+  @MaxLength(250, { message: 'La descripción no debe superar 250 caracteres.' })
+  descripcion?: string | null;
+
   @Type(() => Number)
   @IsNumber({}, { message: 'Ingresa la capacidad máxima de la bodega.' })
   @Min(0.01, { message: 'Ingresa una capacidad válida mayor que cero' })
@@ -59,6 +64,11 @@ export class EditarBodegaDto {
   ubicacion?: string | null;
 
   @IsOptional()
+  @IsString({ message: 'La descripción debe ser un texto' })
+  @MaxLength(250, { message: 'La descripción no debe superar 250 caracteres.' })
+  descripcion?: string | null;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'Ingresa la capacidad máxima de la bodega.' })
   @Min(0.01, { message: 'Ingresa una capacidad válida mayor que cero' })
@@ -74,6 +84,16 @@ export class EditarBodegaDto {
 }
 
 export class ActualizarLimitesBodegaDto {
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Ingresa un límite mínimo válido.' })
+  @Min(0, { message: 'El límite mínimo debe ser igual o mayor que cero.' })
+  limiteMinimoKg: number;
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Ingresa un límite máximo válido.' })
+  @Min(0.01, { message: 'El límite máximo debe ser mayor que cero.' })
+  limiteMaximoKg: number;
+
   @Type(() => Number)
   @IsInt({ message: 'El porcentaje preventivo debe ser un número entero.' })
   @Min(1, { message: 'La alerta preventiva debe ser mayor que 0%.' })

@@ -270,9 +270,29 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [offlineSession, token]);
 
   const setSession = async (data: UserSessionInput) => {
-    const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+    const nextUser: User = {
+      ...data.user,
+      telefono: data.user.telefono ?? null,
+      organizacionId: data.user.organizacionId ?? null,
+      nombreOrganizacion: data.user.nombreOrganizacion ?? null,
+      tipoOrganizacion: data.user.tipoOrganizacion ?? null,
+      otroTipoDetalle: data.user.otroTipoDetalle ?? null,
+      descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+      avatarUrl: data.user.avatarUrl ?? null,
+    };
+    const nextHasCompany = data.hasCompany || Boolean(nextUser.organizacionId);
 
-    setUser(data.user);
+    if (import.meta.env.DEV) {
+      console.debug('[CafeSmart][session] setSession', {
+        userId: nextUser.id,
+        hasAvatarUrl: Boolean(nextUser.avatarUrl),
+        avatarUrl: nextUser.avatarUrl ?? null,
+        hasCompany: nextHasCompany,
+        persist: data.persist !== false,
+      });
+    }
+
+    setUser(nextUser);
     setToken(data.token);
     setHasCompany(nextHasCompany);
     setOfflineSession(Boolean(data.offline));
@@ -282,7 +302,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setRuntimeAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token);
       setRuntimeAuthStorageValue(
         AUTH_STORAGE_KEYS.user,
-        JSON.stringify(data.user),
+        JSON.stringify(nextUser),
       );
       setRuntimeAuthStorageValue(
         AUTH_STORAGE_KEYS.hasCompany,
@@ -290,7 +310,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       );
       await authSessionService.saveLastSession({
         accessToken: data.token,
-        user: data.user,
+        user: nextUser,
         hasCompany: nextHasCompany,
         lastLoginAt: Date.now(),
         offlineAllowed: true,
@@ -301,12 +321,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     await Promise.all([
       setAuthStorageValue(AUTH_STORAGE_KEYS.token, data.token),
-      setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(data.user)),
+      setAuthStorageValue(AUTH_STORAGE_KEYS.user, JSON.stringify(nextUser)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.hasCompany, String(nextHasCompany)),
       setAuthStorageValue(AUTH_STORAGE_KEYS.rememberSession, 'true'),
       authSessionService.saveLastSession({
         accessToken: data.token,
-        user: data.user,
+        user: nextUser,
         hasCompany: nextHasCompany,
         lastLoginAt: Date.now(),
         offlineAllowed: true,

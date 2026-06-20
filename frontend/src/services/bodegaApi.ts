@@ -19,6 +19,7 @@ export type BodegaItem = {
   id: string;
   nombre: string;
   ubicacion: string | null;
+  descripcion: string | null;
   capacidadMaxKg: number;
   cafeAlmacenadoKg: number;
   disponibleKg: number;
@@ -32,12 +33,15 @@ export type BodegaItem = {
 export type GuardarBodegaPayload = {
   nombre: string;
   ubicacion?: string | null;
+  descripcion?: string | null;
   capacidadMaxKg: number;
   activa?: boolean;
   esPrincipal?: boolean;
 };
 
 export type LimitesBodega = {
+  limiteMinimoKg: number;
+  limiteMaximoKg: number;
   alertaPreventivaPct: number;
   alertaCriticaPct: number;
   bloquearAlSuperarCapacidad: boolean;

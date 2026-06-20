@@ -216,6 +216,7 @@ export default function SystemStatus() {
               response.user.descripcionOrganizacion ??
               processState.descripcionOrganizacion ??
               null,
+            avatarUrl: response.user.avatarUrl ?? null,
           },
           token: response.access_token,
           hasCompany: response.hasCompany,

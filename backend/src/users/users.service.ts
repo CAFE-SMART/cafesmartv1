@@ -48,6 +48,14 @@ export class UsersService {
           telefono: true,
           avatarUrl: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
 
@@ -57,7 +65,7 @@ export class UsersService {
         );
       }
 
-      return user;
+      return this.mapProfileResponse(user);
     } catch (error) {
       if (!this.isMissingAvatarColumn(error)) throw error;
       const user = await this.prisma.user.findUnique({
@@ -68,6 +76,14 @@ export class UsersService {
           correo: true,
           telefono: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
 
@@ -77,7 +93,7 @@ export class UsersService {
         );
       }
 
-      return { ...user, avatarUrl: null };
+      return this.mapProfileResponse({ ...user, avatarUrl: null });
     }
   }
 
@@ -104,6 +120,14 @@ export class UsersService {
           password: true,
           googleId: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
     } catch (error) {
@@ -316,9 +340,18 @@ export class UsersService {
         nombre: true,
         correo: true,
         telefono: true,
+        avatarUrl: true,
         rol: true,
         organizacionId: true,
         googleId: true,
+        organizacion: {
+          select: {
+            nombre: true,
+            tipo: true,
+            otroTipoDetalle: true,
+            descripcion: true,
+          },
+        },
       },
     });
   }
@@ -358,7 +391,7 @@ export class UsersService {
     }
 
     try {
-      return await this.prisma.user.update({
+      const updated = await this.prisma.user.update({
         where: { id: userId },
         data: {
           nombre,
@@ -372,8 +405,17 @@ export class UsersService {
           telefono: true,
           avatarUrl: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
+      return this.mapProfileResponse(updated);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -398,9 +440,17 @@ export class UsersService {
             correo: true,
             telefono: true,
             organizacionId: true,
+            organizacion: {
+              select: {
+                nombre: true,
+                tipo: true,
+                otroTipoDetalle: true,
+                descripcion: true,
+              },
+            },
           },
         });
-        return { ...updated, avatarUrl: null };
+        return this.mapProfileResponse({ ...updated, avatarUrl: null });
       }
 
       throw error;
@@ -509,6 +559,16 @@ export class UsersService {
     }
 
     const objectPath = `${userId}/profile-${Date.now()}.${extension}`;
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[CafeSmart][profile-avatar] archivo recibido', {
+        userId,
+        originalname: file.originalname ?? null,
+        mimetype: file.mimetype,
+        size: file.size,
+        bucket: 'avatars',
+        objectPath,
+      });
+    }
     const avatarUrl = await this.uploadAvatarToSupabase(
       objectPath,
       file.buffer,
@@ -516,7 +576,7 @@ export class UsersService {
     );
 
     try {
-      return await this.prisma.user.update({
+      const updated = await this.prisma.user.update({
         where: { id: userId },
         data: { avatarUrl },
         select: {
@@ -526,8 +586,24 @@ export class UsersService {
           telefono: true,
           avatarUrl: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
+      const profile = this.mapProfileResponse(updated);
+      if (process.env.NODE_ENV !== 'production') {
+        console.info('[CafeSmart][profile-avatar] perfil actualizado', {
+          userId,
+          avatarUrl: profile.avatarUrl,
+        });
+      }
+      return profile;
     } catch (error) {
       if (!this.isMissingAvatarColumn(error)) throw error;
       throw new BadRequestException(
@@ -541,7 +617,7 @@ export class UsersService {
 
   async removeAvatar(userId: string) {
     try {
-      return await this.prisma.user.update({
+      const updated = await this.prisma.user.update({
         where: { id: userId },
         data: { avatarUrl: null },
         select: {
@@ -551,8 +627,17 @@ export class UsersService {
           telefono: true,
           avatarUrl: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              descripcion: true,
+            },
+          },
         },
       });
+      return this.mapProfileResponse(updated);
     } catch (error) {
       if (!this.isMissingAvatarColumn(error)) throw error;
       throw new BadRequestException(
@@ -567,6 +652,34 @@ export class UsersService {
   private normalizeOptionalDescription(value?: string | null) {
     const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
     return normalized ? normalized.slice(0, 200) : null;
+  }
+
+  private mapProfileResponse(user: {
+    id: string;
+    nombre: string;
+    correo: string;
+    telefono: string | null;
+    avatarUrl?: string | null;
+    organizacionId: string | null;
+    organizacion?: {
+      nombre: string;
+      tipo: TipoOrganizacion;
+      otroTipoDetalle: string | null;
+      descripcion?: string | null;
+    } | null;
+  }) {
+    return {
+      id: user.id,
+      nombre: user.nombre,
+      correo: user.correo,
+      telefono: user.telefono,
+      avatarUrl: user.avatarUrl ?? null,
+      organizacionId: user.organizacionId,
+      nombreOrganizacion: user.organizacion?.nombre ?? null,
+      tipoOrganizacion: user.organizacion?.tipo ?? null,
+      otroTipoDetalle: user.organizacion?.otroTipoDetalle ?? null,
+      descripcionOrganizacion: user.organizacion?.descripcion ?? null,
+    };
   }
 
   private normalizeTipoOrganizacion(value: string): TipoOrganizacion {

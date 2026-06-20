@@ -33,6 +33,7 @@ export type BodegaItem = {
   id: string;
   nombre: string;
   ubicacion: string | null;
+  descripcion: string | null;
   capacidadMaxKg: number;
   cafeAlmacenadoKg: number;
   disponibleKg: number;
@@ -44,6 +45,8 @@ export type BodegaItem = {
 };
 
 export type LimitesBodega = {
+  limiteMinimoKg: number;
+  limiteMaximoKg: number;
   alertaPreventivaPct: number;
   alertaCriticaPct: number;
   bloquearAlSuperarCapacidad: boolean;
@@ -181,6 +184,7 @@ export class BodegaService {
   ): Promise<BodegaItem> {
     const nombre = this.normalizeNombre(dto.nombre);
     const ubicacion = this.normalizeUbicacion(dto.ubicacion);
+    const descripcion = this.normalizeDescripcion(dto.descripcion);
     const capacidadMaxKg = this.normalizeCapacidad(dto.capacidadMaxKg);
     let existingCount = 0;
     try {
@@ -228,6 +232,7 @@ export class BodegaService {
           organizacionId,
           nombre,
           ubicacion,
+          descripcion,
           capacidadMaxKg,
           activa: esPrincipal ? true : dto.activa ?? true,
           esPrincipal,
@@ -365,6 +370,9 @@ export class BodegaService {
           ...(typeof dto.ubicacion !== 'undefined'
             ? { ubicacion: this.normalizeUbicacion(dto.ubicacion) }
             : {}),
+          ...(typeof dto.descripcion !== 'undefined'
+            ? { descripcion: this.normalizeDescripcion(dto.descripcion) }
+            : {}),
           ...(capacidadMaxKg !== undefined ? { capacidadMaxKg } : {}),
           ...(!nextPrincipal && typeof dto.activa === 'boolean'
             ? { activa: dto.activa }
@@ -452,8 +460,12 @@ export class BodegaService {
     organizacionId: string,
     bodegaId: string,
   ): Promise<LimitesBodega> {
-    await this.ensureBodegaExists(organizacionId, bodegaId);
-    return this.getLimitesBodega(organizacionId, bodegaId);
+    const bodega = await this.ensureBodegaExists(organizacionId, bodegaId);
+    return this.getLimitesBodega(
+      organizacionId,
+      bodegaId,
+      Number(bodega.capacidadMaxKg),
+    );
   }
 
   async actualizarLimitesBodega(
@@ -461,8 +473,11 @@ export class BodegaService {
     bodegaId: string,
     dto: ActualizarLimitesBodegaDto,
   ): Promise<LimitesBodega> {
-    await this.ensureBodegaExists(organizacionId, bodegaId);
-    const limites = this.normalizeLimitesBodega(dto);
+    const bodega = await this.ensureBodegaExists(organizacionId, bodegaId);
+    const limites = this.normalizeLimitesBodega(
+      dto,
+      Number(bodega.capacidadMaxKg),
+    );
     await this.parametrosService.setParametro(
       this.limitesBodegaKey(bodegaId),
       JSON.stringify(limites),
@@ -503,7 +518,7 @@ export class BodegaService {
           : { organizacionId, deletedAt: null };
     const bodegas = await this.prisma.bodega.findMany({
       where,
-      select: { id: true },
+      select: { id: true, nombre: true, capacidadMaxKg: true },
     });
 
     if (dto.scope === 'seleccionadas' && bodegas.length !== selectedIds.length) {
@@ -511,6 +526,28 @@ export class BodegaService {
         apiError(
           'BODEGA_SELECCION_INVALIDA',
           'No pudimos encontrar todas las bodegas seleccionadas.',
+        ),
+      );
+    }
+
+    const overCapacity = bodegas.filter(
+      (bodega) => limites.limiteMaximoKg > Number(bodega.capacidadMaxKg),
+    );
+    if (overCapacity.length > 0) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_LIMITES_SUPERAN_CAPACIDAD',
+          'Los límites superan la capacidad de una o más bodegas.',
+          {
+            details: {
+              bodegas: overCapacity.map((bodega) => ({
+                id: bodega.id,
+                nombre: bodega.nombre,
+                capacidadMaxKg: Number(bodega.capacidadMaxKg),
+                limiteMaximoKg: limites.limiteMaximoKg,
+              })),
+            },
+          },
         ),
       );
     }
@@ -732,6 +769,7 @@ export class BodegaService {
       cafeAlmacenadoKg,
       disponibleKg,
       ocupacionPct,
+      descripcion: null,
       activa: true,
       esPrincipal: true,
       createdAt: config.updatedAt,
@@ -743,8 +781,13 @@ export class BodegaService {
     return `bodega_limites:${bodegaId}`;
   }
 
-  private defaultLimitesBodega(): LimitesBodega {
+  private defaultLimitesBodega(capacidadMaxKg = 3000): LimitesBodega {
+    const capacidad = Number.isFinite(capacidadMaxKg) && capacidadMaxKg > 0
+      ? capacidadMaxKg
+      : 3000;
     return {
+      limiteMinimoKg: 0,
+      limiteMaximoKg: Math.max(1, Math.round(capacidad * 0.9)),
       alertaPreventivaPct: 80,
       alertaCriticaPct: 95,
       bloquearAlSuperarCapacidad: true,
@@ -754,9 +797,49 @@ export class BodegaService {
 
   private normalizeLimitesBodega(
     input: Partial<LimitesBodega>,
+    capacidadMaxKg?: number,
   ): LimitesBodega {
+    const defaults = this.defaultLimitesBodega(capacidadMaxKg);
+    const limiteMinimoKg = Number(input.limiteMinimoKg ?? defaults.limiteMinimoKg);
+    const limiteMaximoKg = Number(input.limiteMaximoKg ?? defaults.limiteMaximoKg);
     const preventiva = Number(input.alertaPreventivaPct);
     const critica = Number(input.alertaCriticaPct);
+    if (!Number.isFinite(limiteMinimoKg) || limiteMinimoKg < 0) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_LIMITE_MINIMO_INVALIDO',
+          'Ingresa un límite mínimo válido.',
+        ),
+      );
+    }
+    if (!Number.isFinite(limiteMaximoKg) || limiteMaximoKg <= 0) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_LIMITE_MAXIMO_INVALIDO',
+          'Ingresa un límite máximo válido.',
+        ),
+      );
+    }
+    if (limiteMinimoKg >= limiteMaximoKg) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_LIMITE_MINIMO_MAYOR',
+          'El límite mínimo debe ser menor que el límite máximo.',
+        ),
+      );
+    }
+    if (
+      typeof capacidadMaxKg === 'number' &&
+      Number.isFinite(capacidadMaxKg) &&
+      limiteMaximoKg > capacidadMaxKg
+    ) {
+      throw new BadRequestException(
+        apiError(
+          'BODEGA_LIMITE_MAXIMO_SUPERA_CAPACIDAD',
+          'El límite máximo no puede superar la capacidad de la bodega.',
+        ),
+      );
+    }
     if (
       !Number.isInteger(preventiva) ||
       preventiva <= 0 ||
@@ -786,6 +869,8 @@ export class BodegaService {
       );
     }
     return {
+      limiteMinimoKg,
+      limiteMaximoKg,
       alertaPreventivaPct: preventiva,
       alertaCriticaPct: critica,
       bloquearAlSuperarCapacidad:
@@ -797,29 +882,31 @@ export class BodegaService {
   private async getLimitesBodega(
     organizacionId: string,
     bodegaId: string,
+    capacidadMaxKg?: number,
   ): Promise<LimitesBodega> {
     const raw = await this.parametrosService.getParametroString(
       this.limitesBodegaKey(bodegaId),
       organizacionId,
     );
-    if (!raw) return this.defaultLimitesBodega();
+    if (!raw) return this.defaultLimitesBodega(capacidadMaxKg);
     try {
-      return this.normalizeLimitesBodega(JSON.parse(raw));
+      return this.normalizeLimitesBodega(JSON.parse(raw), capacidadMaxKg);
     } catch {
-      return this.defaultLimitesBodega();
+      return this.defaultLimitesBodega(capacidadMaxKg);
     }
   }
 
   private async ensureBodegaExists(organizacionId: string, bodegaId: string) {
     const bodega = await this.prisma.bodega.findFirst({
       where: { id: bodegaId, organizacionId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, capacidadMaxKg: true },
     });
     if (!bodega) {
       throw new NotFoundException(
         apiError('BODEGA_NO_ENCONTRADA', 'No encontramos esta bodega.'),
       );
     }
+    return bodega;
   }
 
   private isMissingBodegaStorage(error: unknown) {
@@ -846,6 +933,11 @@ export class BodegaService {
   private normalizeUbicacion(value?: string | null) {
     const ubicacion = String(value ?? '').trim().replace(/\s+/g, ' ');
     return ubicacion ? ubicacion.slice(0, 120) : null;
+  }
+
+  private normalizeDescripcion(value?: string | null) {
+    const descripcion = String(value ?? '').trim().replace(/\s+/g, ' ');
+    return descripcion ? descripcion.slice(0, 250) : null;
   }
 
   private normalizeCapacidad(value: number) {
@@ -902,6 +994,7 @@ export class BodegaService {
       id: string;
       nombre: string;
       ubicacion: string | null;
+      descripcion?: string | null;
       capacidadMaxKg: Prisma.Decimal | number;
       activa: boolean;
       esPrincipal: boolean;
@@ -920,6 +1013,7 @@ export class BodegaService {
       id: bodega.id,
       nombre: bodega.nombre,
       ubicacion: bodega.ubicacion,
+      descripcion: bodega.descripcion ?? null,
       capacidadMaxKg,
       cafeAlmacenadoKg,
       disponibleKg,
