@@ -696,16 +696,18 @@ export default function Ajustes() {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState(
     () => user?.avatarUrl ?? '',
   );
-  const [profileAvatarDraft, setProfileAvatarDraft] = useState<string | null>(null);
-  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
-  const [profileAvatarRemove, setProfileAvatarRemove] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarFeedback, setAvatarFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const [profilePhotoOpen, setProfilePhotoOpen] = useState(false);
   const [profileAvatarVersion, setProfileAvatarVersion] = useState(() =>
     user?.avatarUrl ? Date.now() : 0,
   );
   const [profileAvatarLoadFailed, setProfileAvatarLoadFailed] = useState(false);
-  const [profileAvatarUploading, setProfileAvatarUploading] = useState(false);
-  const [profileAvatarSaving, setProfileAvatarSaving] = useState(false);
   const [profileAvatarRemoveConfirmOpen, setProfileAvatarRemoveConfirmOpen] =
     useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{
@@ -908,18 +910,17 @@ export default function Ajustes() {
     savedAvatarUrl && profileAvatarVersion
       ? `${savedAvatarUrl}${savedAvatarUrl.includes('?') ? '&' : '?'}v=${profileAvatarVersion}`
       : savedAvatarUrl;
-  const currentAvatarUrl = profileAvatarRemove
-    ? ''
-    : profileAvatarDraft ?? (profileAvatarLoadFailed ? '' : versionedSavedAvatarUrl);
-  const hasSavedAvatar = Boolean(savedAvatarUrl) && !profileAvatarRemove;
-  const profileAvatarBusy = profileAvatarUploading || profileAvatarSaving;
+  const currentAvatarUrl =
+    avatarPreview ?? (profileAvatarLoadFailed ? '' : versionedSavedAvatarUrl);
+  const hasSavedAvatar = Boolean(savedAvatarUrl);
+  const profileAvatarBusy = avatarSaving;
   const handleAvatarImageLoad = () => {
-    if (!profileAvatarDraft) {
+    if (!avatarPreview) {
       setProfileAvatarLoadFailed(false);
     }
   };
   const handleAvatarImageError = () => {
-    if (!profileAvatarDraft && savedAvatarUrl) {
+    if (!avatarPreview && savedAvatarUrl) {
       console.warn('[CafeSmart][profile-avatar] no se pudo cargar la foto guardada');
     }
     setProfileAvatarLoadFailed(true);
@@ -1166,7 +1167,7 @@ export default function Ajustes() {
     step: bodegaWizardStep,
     nombre: nombreBodega,
     ubicacion: ubicacionBodega,
-    descripcion: descripcionBodega,
+    descripcion: '',
     capacidadKg,
     activa: bodegaEditando?.activa ?? true,
     esPrincipal: bodegaEditando?.esPrincipal ?? bodegas.length === 0,
@@ -1215,8 +1216,8 @@ export default function Ajustes() {
   const applyBodegaDraft = (draft: BodegaDraft, target?: BodegaItem | null) => {
     setBodegaEditando(target ?? null);
     setNombreBodega(draft.nombre);
-    setDescripcionBodega(draft.descripcion);
-    setUbicacionBodega(draft.ubicacion);
+    setDescripcionBodega('');
+    setUbicacionBodega(draft.ubicacion || draft.descripcion);
     setCapacidadKg(draft.capacidadKg || String(BODEGA_DEFAULT_CAPACITY_KG));
     setBodegaLimitesForm(draft.limites);
     setBodegaWizardStep(draft.step);
@@ -1264,8 +1265,8 @@ export default function Ajustes() {
     setBodegaFeedback(null);
     setBodegaEditando(bodega);
     setNombreBodega(bodega.nombre);
-    setDescripcionBodega(bodega.descripcion ?? '');
-    setUbicacionBodega(bodega.ubicacion ?? '');
+    setDescripcionBodega('');
+    setUbicacionBodega(bodega.ubicacion ?? bodega.descripcion ?? '');
     setCapacidadKg(String(Math.round(bodega.capacidadMaxKg)));
     setInventarioActualKg(bodega.cafeAlmacenadoKg);
     setBodegaLimitesForm({
@@ -1462,7 +1463,7 @@ export default function Ajustes() {
       }));
     }
 
-    if (!profileAvatarDraft && !profileAvatarRemove && user?.avatarUrl !== profileAvatarUrl) {
+    if (!avatarPreview && user?.avatarUrl !== profileAvatarUrl) {
       setProfileAvatarUrl(user?.avatarUrl ?? '');
       setProfileAvatarLoadFailed(false);
       setProfileAvatarVersion(user?.avatarUrl ? Date.now() : 0);
@@ -1486,8 +1487,7 @@ export default function Ajustes() {
     user?.tipoOrganizacion,
     user?.descripcionOrganizacion,
     user?.avatarUrl,
-    profileAvatarDraft,
-    profileAvatarRemove,
+    avatarPreview,
     profileAvatarUrl,
   ]);
 
@@ -1892,6 +1892,7 @@ export default function Ajustes() {
   ) => {
     const file = event.target.files?.[0];
     event.target.value = '';
+    setAvatarFeedback(null);
     setProfileFeedback(null);
     setError(null);
 
@@ -1906,24 +1907,24 @@ export default function Ajustes() {
     }
 
     if (!isAllowedAvatarFile(file)) {
-      setProfileFeedback({
-        variant: 'error',
+      setAvatarFeedback({
+        type: 'error',
         message: 'Formato no compatible. Selecciona una imagen JPG, PNG o WebP.',
       });
       return;
     }
 
     if (file.size <= 0) {
-      setProfileFeedback({
-        variant: 'error',
+      setAvatarFeedback({
+        type: 'error',
         message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
       return;
     }
 
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
-      setProfileFeedback({
-        variant: 'error',
+      setAvatarFeedback({
+        type: 'error',
         message: 'La imagen es demasiado grande. Selecciona una imagen de máximo 8 MB.',
       });
       return;
@@ -1931,13 +1932,12 @@ export default function Ajustes() {
 
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      setProfileAvatarDraft(dataUrl);
-      setProfileAvatarFile(file);
-      setProfileAvatarRemove(false);
+      setAvatarPreview(dataUrl);
+      setAvatarFile(file);
       setProfileAvatarLoadFailed(false);
     } catch {
-      setProfileFeedback({
-        variant: 'error',
+      setAvatarFeedback({
+        type: 'error',
         message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
     }
@@ -1945,96 +1945,31 @@ export default function Ajustes() {
 
   const quitarFotoPerfil = () => {
     if (profileAvatarBusy) return;
-    if (hasSavedAvatar || profileAvatarDraft) {
+    if (hasSavedAvatar || avatarPreview) {
       setProfileAvatarRemoveConfirmOpen(true);
       return;
     }
-    confirmarQuitarFotoPerfil();
+    void confirmarQuitarFotoPerfil();
   };
 
-  const confirmarQuitarFotoPerfil = () => {
-    setProfileAvatarDraft(null);
-    setProfileAvatarFile(null);
-    setProfileAvatarRemove(true);
-    setProfileAvatarLoadFailed(false);
+  const confirmarQuitarFotoPerfil = async () => {
     setProfileAvatarRemoveConfirmOpen(false);
-      setProfileFeedback({
-        variant: 'warning',
-        message: 'La foto se quitará cuando guardes los cambios.',
-      });
-  };
-
-  const cancelarEdicionFotoPerfil = () => {
-    if (profileAvatarBusy) return;
-    setProfilePhotoOpen(false);
-    setProfileAvatarDraft(null);
-    setProfileAvatarFile(null);
-    setProfileAvatarRemove(false);
-    setProfileAvatarLoadFailed(false);
-    setProfileAvatarRemoveConfirmOpen(false);
-    setProfileFeedback(null);
-  };
-
-  const guardarFotoPerfil = async () => {
-    clearFeedback();
-
-    if (!profileAvatarFile && !profileAvatarRemove) {
-      setProfilePhotoOpen(false);
-      return;
-    }
-
-    if (isOffline) {
-      const message =
-        'Conéctate a internet para guardar la foto de perfil en la nube.';
-      setProfileFeedback({ variant: 'warning', message });
-      return;
-    }
+    setAvatarSaving(true);
+    setAvatarFeedback(null);
 
     try {
-      setGuardandoPerfil(true);
-      setProfileAvatarUploading(!profileAvatarRemove);
-      const wasRemovingAvatar = profileAvatarRemove;
-      const perfilActualizado = profileAvatarRemove
-        ? await quitarFotoPerfilRemota()
-        : await subirFotoPerfil(profileAvatarFile as File);
-      setProfileAvatarUploading(false);
-
+      await quitarFotoPerfilRemota();
       const perfilPersistido = await obtenerPerfilUsuario();
-      const nextAvatarUrl = perfilPersistido.avatarUrl ?? '';
 
-      if (import.meta.env.DEV) {
-        console.debug('[CafeSmart][profile-avatar] perfil confirmado por GET', {
-          endpoint: '/users/profile',
-          method: 'GET',
-          response: perfilPersistido,
-          avatarUrl: nextAvatarUrl || null,
-          postAvatarUrl: perfilActualizado.avatarUrl ?? null,
-        });
+      if (perfilPersistido.avatarUrl) {
+        throw new Error('No pudimos quitar la foto. Intenta nuevamente.');
       }
 
-      if (!wasRemovingAvatar && !nextAvatarUrl) {
-        throw new Error(
-          'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.',
-        );
-      }
-
-      if (
-        !wasRemovingAvatar &&
-        perfilActualizado.avatarUrl &&
-        perfilPersistido.avatarUrl !== perfilActualizado.avatarUrl
-      ) {
-        throw new Error(
-          'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.',
-        );
-      }
-
-      setProfileAvatarSaving(true);
-      setProfileAvatarUrl(nextAvatarUrl);
-      setProfileAvatarVersion(nextAvatarUrl ? Date.now() : 0);
+      setProfileAvatarUrl('');
+      setProfileAvatarVersion(0);
       setProfileAvatarLoadFailed(false);
-      setProfileAvatarDraft(null);
-      setProfileAvatarFile(null);
-      setProfileAvatarRemove(false);
+      setAvatarPreview(null);
+      setAvatarFile(null);
 
       if (user && token) {
         await setSession({
@@ -2070,7 +2005,132 @@ export default function Ajustes() {
               user.descripcionOrganizacion ??
               user.organizacion?.descripcion ??
               null,
-            avatarUrl: nextAvatarUrl || null,
+            avatarUrl: null,
+          },
+        });
+      }
+
+      setAvatarFeedback({
+        type: 'success',
+        message: 'Foto eliminada correctamente.',
+      });
+
+      window.setTimeout(() => {
+        setProfilePhotoOpen(false);
+        setAvatarFeedback(null);
+      }, 1700);
+    } catch (error) {
+      setAvatarFeedback({
+        type: 'error',
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : 'No pudimos quitar la foto. Intenta nuevamente.',
+      });
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
+
+  const cancelarEdicionFotoPerfil = () => {
+    if (profileAvatarBusy) return;
+    setProfilePhotoOpen(false);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setAvatarFeedback(null);
+    setProfileAvatarLoadFailed(false);
+    setProfileAvatarRemoveConfirmOpen(false);
+    setProfileFeedback(null);
+  };
+
+  const guardarFotoPerfil = async () => {
+    console.log('[avatar] guardar presionado');
+    console.log('[avatar] archivo', avatarFile);
+    console.log('[avatar] estado saving', avatarSaving);
+
+    if (!avatarFile) {
+      setAvatarFeedback({
+        type: 'error',
+        message: 'Selecciona una foto antes de guardar.',
+      });
+      return;
+    }
+
+    if (isOffline) {
+      setAvatarFeedback({
+        type: 'error',
+        message: 'No pudimos guardar la foto. Intenta nuevamente.',
+      });
+      return;
+    }
+
+    setAvatarSaving(true);
+    setAvatarFeedback(null);
+
+    try {
+      const perfilActualizado = await subirFotoPerfil(avatarFile);
+      if (!perfilActualizado.avatarUrl) {
+        throw new Error('La foto no quedó asociada al perfil.');
+      }
+
+      const perfilPersistido = await obtenerPerfilUsuario();
+      const confirmedAvatarUrl = perfilPersistido.avatarUrl ?? '';
+
+      if (import.meta.env.DEV) {
+        console.debug('[CafeSmart][profile-avatar] perfil confirmado por GET', {
+          endpoint: '/users/profile',
+          method: 'GET',
+          response: perfilPersistido,
+          avatarUrl: confirmedAvatarUrl || null,
+          postAvatarUrl: perfilActualizado.avatarUrl ?? null,
+        });
+      }
+
+      if (!confirmedAvatarUrl || confirmedAvatarUrl !== perfilActualizado.avatarUrl) {
+        throw new Error('La foto se subió, pero no quedó guardada en el perfil.');
+      }
+
+      setProfileAvatarUrl(confirmedAvatarUrl);
+      setProfileAvatarVersion(Date.now());
+      setProfileAvatarLoadFailed(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
+
+      if (user && token) {
+        await setSession({
+          token,
+          hasCompany,
+          user: {
+            ...user,
+            id: perfilPersistido.id,
+            name: perfilPersistido.nombre,
+            email: perfilPersistido.correo,
+            telefono: perfilPersistido.telefono ?? user.telefono,
+            organizacionId:
+              perfilPersistido.organizacionId ?? user.organizacionId ?? null,
+            organizacion:
+              perfilPersistido.organizacion ?? user.organizacion ?? null,
+            nombreOrganizacion:
+              perfilPersistido.nombreOrganizacion ??
+              perfilPersistido.organizacion?.nombre ??
+              user.nombreOrganizacion ??
+              user.organizacion?.nombre ??
+              null,
+            tipoOrganizacion:
+              perfilPersistido.tipoOrganizacion ??
+              perfilPersistido.organizacion?.tipo ??
+              user.tipoOrganizacion ??
+              user.organizacion?.tipo ??
+              null,
+            otroTipoDetalle:
+              perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
+            descripcionOrganizacion:
+              perfilPersistido.descripcionOrganizacion ??
+              perfilPersistido.organizacion?.descripcion ??
+              user.descripcionOrganizacion ??
+              user.organizacion?.descripcion ??
+              null,
+            avatarUrl: confirmedAvatarUrl,
           },
         });
       }
@@ -2088,34 +2148,31 @@ export default function Ajustes() {
         }
         console.debug('[CafeSmart][profile-avatar] authStorage verificado', {
           storedAvatarUrl,
-          expectedAvatarUrl: nextAvatarUrl || null,
-          userContextAvatarUrl: nextAvatarUrl || null,
+          expectedAvatarUrl: confirmedAvatarUrl,
+          userContextAvatarUrl: confirmedAvatarUrl,
         });
       }
 
-      setProfilePhotoOpen(false);
-      setProfileAvatarSaving(false);
-      setProfileFeedback({
-        variant: 'success',
-        message: wasRemovingAvatar
-          ? 'Foto eliminada correctamente.'
-          : 'Foto de perfil actualizada. Tu nueva foto se guardó correctamente.',
+      setAvatarFeedback({
+        type: 'success',
+        message: 'Foto de perfil actualizada correctamente.',
       });
+
+      window.setTimeout(() => {
+        setProfilePhotoOpen(false);
+        setAvatarFeedback(null);
+      }, 1700);
     } catch (err) {
-      const rawMessage = err instanceof Error ? err.message : '';
-      const message = rawMessage.includes('subió, pero')
-        ? 'La foto se subió, pero no quedó guardada en tu perfil. Intenta nuevamente.'
-        : rawMessage.includes('Formato') ||
-            rawMessage.includes('imagen es demasiado grande')
-          ? rawMessage
-            : profileAvatarRemove
-            ? 'No pudimos quitar la foto. Intenta nuevamente.'
-            : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.';
-      setProfileFeedback({ variant: 'error', message });
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'No pudimos guardar la foto. Intenta nuevamente.';
+      setAvatarFeedback({
+        type: 'error',
+        message,
+      });
     } finally {
-      setProfileAvatarUploading(false);
-      setProfileAvatarSaving(false);
-      setGuardandoPerfil(false);
+      setAvatarSaving(false);
     }
   };
 
@@ -2436,8 +2493,8 @@ export default function Ajustes() {
       return 'La capacidad no puede ser menor al café almacenado actualmente.';
     }
 
-    if (descripcionBodega.length > BODEGA_DESCRIPTION_MAX_LENGTH) {
-      return 'La descripción no debe superar 250 caracteres.';
+    if (ubicacionBodega.length > BODEGA_DESCRIPTION_MAX_LENGTH) {
+      return 'La ubicación o descripción no debe superar 250 caracteres.';
     }
 
     if (step >= 2) {
@@ -2547,7 +2604,6 @@ export default function Ajustes() {
     bodegaWizardStep,
     nombreBodega,
     ubicacionBodega,
-    descripcionBodega,
     capacidadKg,
     bodegaLimitesForm,
   ]);
@@ -2567,7 +2623,7 @@ export default function Ajustes() {
       window.removeEventListener('beforeunload', saveDraft);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [bodegaFormOpen, bodegaDraftDirty, bodegaWizardStep, nombreBodega, ubicacionBodega, descripcionBodega, capacidadKg, bodegaLimitesForm]);
+  }, [bodegaFormOpen, bodegaDraftDirty, bodegaWizardStep, nombreBodega, ubicacionBodega, capacidadKg, bodegaLimitesForm]);
 
   const guardarBodega = async () => {
     const capacidad = getBodegaFormCapacidad();
@@ -2593,7 +2649,7 @@ export default function Ajustes() {
       const payload = {
         nombre: nombreBodega.trim(),
         ubicacion: ubicacionBodega.trim() || null,
-        descripcion: descripcionBodega.trim() || null,
+        descripcion: null,
         capacidadMaxKg: capacidad,
       };
 
@@ -3175,7 +3231,7 @@ export default function Ajustes() {
           backEvent.preventDefault();
           return;
         }
-        if ((profileAvatarFile || profileAvatarRemove) && !confirmarSalidaSinGuardar()) {
+        if ((avatarFile || avatarPreview) && !confirmarSalidaSinGuardar()) {
           backEvent.preventDefault();
           return;
         }
@@ -3251,14 +3307,13 @@ export default function Ajustes() {
         const original = bodegaEditando;
         const hasBodegaChanges = original
           ? original.nombre !== nombreBodega.trim() ||
-            (original.ubicacion ?? '') !== ubicacionBodega.trim() ||
-            (original.descripcion ?? '') !== descripcionBodega.trim() ||
+            ((original.ubicacion ?? original.descripcion ?? '') !==
+              ubicacionBodega.trim()) ||
             Math.round(original.capacidadMaxKg) !== getBodegaFormCapacidad() ||
             bodegaWizardStep > 1
           : Boolean(
               nombreBodega.trim() ||
                 ubicacionBodega.trim() ||
-                descripcionBodega.trim() ||
                 capacidadKg.trim() ||
                 bodegaWizardStep > 1,
             );
@@ -3312,8 +3367,8 @@ export default function Ajustes() {
     peopleMode,
     profileInfoOpen,
     profile,
-    profileAvatarFile,
-    profileAvatarRemove,
+    avatarFile,
+    avatarPreview,
     profileAvatarBusy,
     profilePhotoOpen,
     bodegaEditando,
@@ -4755,6 +4810,7 @@ export default function Ajustes() {
                 type="button"
                 onClick={() => {
                   setProfilePhotoOpen(true);
+                  setAvatarFeedback(null);
                   setProfileFeedback(null);
                 }}
                 className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
@@ -4823,9 +4879,22 @@ export default function Ajustes() {
                         )}
                       </div>
                       <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">
-                        La foto se guardará solo cuando pulses Guardar cambios.
+                        La foto se guardará solo cuando pulses Guardar foto.
                       </p>
                     </div>
+                    {avatarFeedback ? (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={`mt-4 rounded-[14px] px-3 py-2 text-sm font-bold ${
+                          avatarFeedback.type === 'success'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200'
+                        }`}
+                      >
+                        {avatarFeedback.message}
+                      </div>
+                    ) : null}
                     <div className="mt-5 grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -4843,7 +4912,7 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={quitarFotoPerfil}
-                        disabled={profileAvatarBusy || (!hasSavedAvatar && !profileAvatarDraft)}
+                        disabled={profileAvatarBusy || (!hasSavedAvatar && !avatarPreview)}
                         className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       >
                         Quitar foto
@@ -4853,15 +4922,15 @@ export default function Ajustes() {
                       <button
                         type="button"
                         onClick={() => void guardarFotoPerfil()}
-                        disabled={profileAvatarBusy || (!profileAvatarFile && !profileAvatarRemove)}
+                        disabled={!avatarFile || avatarSaving}
                         className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
                       >
-                        {guardandoPerfil ? (
+                        {avatarSaving ? (
                           <LoaderCircle size={15} className="animate-spin" />
                         ) : (
                           <Save size={15} />
                         )}
-                        {guardandoPerfil ? 'Guardando foto...' : 'Guardar cambios'}
+                        {avatarSaving ? 'Guardando foto...' : 'Guardar foto'}
                       </button>
                       <button
                         type="button"
@@ -4900,10 +4969,11 @@ export default function Ajustes() {
                           </button>
                           <button
                             type="button"
-                            onClick={confirmarQuitarFotoPerfil}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
+                            onClick={() => void confirmarQuitarFotoPerfil()}
+                            disabled={avatarSaving}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
                           >
-                            Quitar foto
+                            {avatarSaving ? 'Quitando...' : 'Quitar foto'}
                           </button>
                         </div>
                       </section>
@@ -6108,14 +6178,6 @@ export default function Ajustes() {
                     className={bodegasLoading ? 'animate-spin' : ''}
                   />
                 </button>
-                <button
-                  type="button"
-                  onClick={abrirLimiteGeneral}
-                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[13px] border border-[#d5deee] bg-white px-3 text-[0.72rem] font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
-                >
-                  <SlidersHorizontal size={14} />
-                  Límite general
-                </button>
               </div>
             </div>
             </header>
@@ -6136,6 +6198,15 @@ export default function Ajustes() {
                   }
                 />
               ) : null}
+
+              <button
+                type="button"
+                onClick={abrirLimiteGeneral}
+                className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-[0.85rem] font-black text-[#334b85] transition hover:bg-[#f8faff] focus:outline-none focus:ring-4 focus:ring-blue-400/15 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+              >
+                <SlidersHorizontal size={15} />
+                Límite general
+              </button>
 
               <button
                 type="button"
@@ -6258,15 +6329,6 @@ export default function Ajustes() {
                         />
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void abrirLimitesBodega(bodega)}
-                          disabled={guardandoBodega}
-                          className="col-span-2 inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-[12px] border border-[#d5deee] bg-white px-3 text-[0.7rem] font-black text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-100"
-                        >
-                          <SlidersHorizontal size={13} />
-                          Límites y alertas
-                        </button>
                         {!bodega.esPrincipal ? (
                           <button
                             type="button"
@@ -6404,29 +6466,6 @@ export default function Ajustes() {
                       </label>
 
                       <label className="block">
-                        <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
-                        <textarea
-                          maxLength={BODEGA_DESCRIPTION_MAX_LENGTH}
-                          value={descripcionBodega}
-                          onChange={(event) => {
-                            setBodegaDraftDirty(true);
-                            setDescripcionBodega(
-                              sanitizeLimitedText(
-                                event.target.value,
-                                BODEGA_DESCRIPTION_MAX_LENGTH,
-                              ),
-                            );
-                            setBodegaFeedback(null);
-                          }}
-                          className={`${fieldInputClass} min-h-[92px] resize-none py-3`}
-                          placeholder="Tuluá, zona centro"
-                        />
-                        <span className="mt-1 block text-right text-[0.68rem] font-bold text-slate-400">
-                          {descripcionBodega.length}/{BODEGA_DESCRIPTION_MAX_LENGTH}
-                        </span>
-                      </label>
-
-                      <label className="block">
                         <span className={fieldLabelClass}>Capacidad máxima (kg)</span>
                         <input
                           type="text"
@@ -6447,19 +6486,26 @@ export default function Ajustes() {
                       </label>
 
                       <label className="block">
-                        <span className={fieldLabelClass}>Ubicación</span>
-                        <input
-                          type="text"
-                          maxLength={120}
+                        <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
+                        <textarea
+                          maxLength={BODEGA_DESCRIPTION_MAX_LENGTH}
                           value={ubicacionBodega}
                           onChange={(event) => {
                             setBodegaDraftDirty(true);
-                            setUbicacionBodega(sanitizeLimitedText(event.target.value, 120));
+                            setUbicacionBodega(
+                              sanitizeLimitedText(
+                                event.target.value,
+                                BODEGA_DESCRIPTION_MAX_LENGTH,
+                              ),
+                            );
                             setBodegaFeedback(null);
                           }}
-                          className={fieldInputClass}
-                          placeholder="Sede principal, zona norte"
+                          className={`${fieldInputClass} min-h-[92px] resize-none py-3`}
+                          placeholder="Tuluá, zona centro"
                         />
+                        <span className="mt-1 block text-right text-[0.68rem] font-bold text-slate-400">
+                          {ubicacionBodega.length}/{BODEGA_DESCRIPTION_MAX_LENGTH}
+                        </span>
                       </label>
                     </div>
                   ) : null}
@@ -6648,8 +6694,7 @@ export default function Ajustes() {
                       <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 text-xs font-semibold leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                         <p><strong>Nombre:</strong> {nombreBodega || 'Sin nombre'}</p>
                         <p><strong>Capacidad máxima:</strong> {formatKg(getBodegaFormCapacidad())} kg</p>
-                        <p><strong>Descripción:</strong> {descripcionBodega || 'No registrada'}</p>
-                        <p><strong>Ubicación:</strong> {ubicacionBodega || 'No registrada'}</p>
+                        <p><strong>Ubicación o descripción:</strong> {ubicacionBodega || 'No registrada'}</p>
                         <p><strong>Límite mínimo:</strong> {formatKg(bodegaLimitesForm.limiteMinimoKg)} kg</p>
                         <p><strong>Límite máximo:</strong> {formatKg(bodegaLimitesForm.limiteMaximoKg)} kg</p>
                         <p><strong>Alerta preventiva:</strong> {bodegaLimitesForm.alertaPreventivaPct} %</p>
@@ -6702,18 +6747,19 @@ export default function Ajustes() {
                     >
                       {guardandoBodega ? (
                         <LoaderCircle size={15} className="animate-spin" />
+                      ) : bodegaWizardStep < 3 ? (
+                        <ChevronRight size={16} />
                       ) : (
                         <Save size={15} />
                       )}
                       {guardandoBodega
                         ? 'Guardando bodega...'
                         : bodegaWizardStep < 3
-                          ? 'Continuar'
+                          ? 'Siguiente'
                           : 'Guardar bodega'}
                     </button>
                   </div>
                 </div>
-                <AppBottomNav />
               </section>
             </div>
           ) : null}
