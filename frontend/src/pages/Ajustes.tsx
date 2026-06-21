@@ -693,6 +693,7 @@ export default function Ajustes() {
   }));
   const profileBaselineRef = React.useRef<ProfileSettings | null>(null);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+  const confirmedAvatarUrlRef = React.useRef<string | null>(user?.avatarUrl ?? null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState(
     () => user?.avatarUrl ?? '',
   );
@@ -731,6 +732,7 @@ export default function Ajustes() {
   const [bodegas, setBodegas] = useState<BodegaItem[]>([]);
   const [bodegasLoading, setBodegasLoading] = useState(false);
   const [bodegaFormOpen, setBodegaFormOpen] = useState(false);
+  const [bodegaPreviewOpen, setBodegaPreviewOpen] = useState(false);
   const [bodegaEditando, setBodegaEditando] = useState<BodegaItem | null>(null);
   const [bodegaDraftDirty, setBodegaDraftDirty] = useState(false);
   const [bodegaDraftPending, setBodegaDraftPending] =
@@ -1094,14 +1096,18 @@ export default function Ajustes() {
   };
 
   const abrirEditorPerfil = () => {
+    console.log('[perfil] tarjeta presionada');
     clearFeedback();
     profileBaselineRef.current = profile;
     setProfileErrors({});
-    setProfileAvatarDraft(null);
-    setProfileAvatarFile(null);
-    setProfileAvatarRemove(false);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setAvatarFeedback(null);
     setProfileFeedback(null);
+    setProfileInfoOpen(false);
+    setProfilePhotoOpen(false);
     setIsEditingProfile(true);
+    console.log('[perfil] isEditingProfile:', true);
     setIsViewingPublicProfile(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
@@ -1114,9 +1120,9 @@ export default function Ajustes() {
       setProfile(profileBaselineRef.current);
     }
     setProfileErrors({});
-    setProfileAvatarDraft(null);
-    setProfileAvatarFile(null);
-    setProfileAvatarRemove(false);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setAvatarFeedback(null);
     setProfileFeedback(null);
     setProfilePhotoOpen(false);
     setProfileInfoOpen(false);
@@ -1463,7 +1469,19 @@ export default function Ajustes() {
       }));
     }
 
-    if (!avatarPreview && user?.avatarUrl !== profileAvatarUrl) {
+    const userAvatarUrl = user?.avatarUrl ?? '';
+    if (userAvatarUrl) {
+      confirmedAvatarUrlRef.current = userAvatarUrl;
+    }
+    const confirmedAvatarUrl = confirmedAvatarUrlRef.current ?? '';
+    const shouldKeepConfirmedAvatar =
+      confirmedAvatarUrl && profileAvatarUrl === confirmedAvatarUrl && !userAvatarUrl;
+
+    if (
+      !avatarPreview &&
+      userAvatarUrl !== profileAvatarUrl &&
+      !shouldKeepConfirmedAvatar
+    ) {
       setProfileAvatarUrl(user?.avatarUrl ?? '');
       setProfileAvatarLoadFailed(false);
       setProfileAvatarVersion(user?.avatarUrl ? Date.now() : 0);
@@ -1898,6 +1916,12 @@ export default function Ajustes() {
 
     if (!file) return;
 
+    console.log('[avatar] imagen seleccionada', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+
     if (import.meta.env.DEV) {
       console.debug('[CafeSmart][profile-avatar] seleccion', {
         name: file.name,
@@ -1934,6 +1958,7 @@ export default function Ajustes() {
       const dataUrl = await readFileAsDataUrl(file);
       setAvatarPreview(dataUrl);
       setAvatarFile(file);
+      console.log('[avatar] vista previa preparada:', dataUrl.slice(0, 48));
       setProfileAvatarLoadFailed(false);
     } catch {
       setAvatarFeedback({
@@ -2045,8 +2070,10 @@ export default function Ajustes() {
 
   const guardarFotoPerfil = async () => {
     console.log('[avatar] guardar presionado');
-    console.log('[avatar] archivo', avatarFile);
-    console.log('[avatar] estado saving', avatarSaving);
+    console.log('[avatar] archivo seleccionado:', avatarFile);
+    console.log('[avatar] vista previa:', avatarPreview ? avatarPreview.slice(0, 64) : null);
+    console.log('[avatar] URL actual:', profileAvatarUrl);
+    console.log('[avatar] estado saving:', avatarSaving);
 
     if (!avatarFile) {
       setAvatarFeedback({
@@ -2068,12 +2095,29 @@ export default function Ajustes() {
     setAvatarFeedback(null);
 
     try {
+      console.log('[avatar] POST /users/profile/avatar iniciando');
       const perfilActualizado = await subirFotoPerfil(avatarFile);
+      console.log(
+        '[avatar] POST /users/profile/avatar respuesta',
+        JSON.stringify({
+          status: 'ok',
+          response: perfilActualizado,
+          avatarUrl: perfilActualizado.avatarUrl ?? null,
+        }),
+      );
       if (!perfilActualizado.avatarUrl) {
         throw new Error('La foto no quedó asociada al perfil.');
       }
 
+      console.log('[avatar] GET /users/profile iniciando');
       const perfilPersistido = await obtenerPerfilUsuario();
+      console.log(
+        '[avatar] GET /users/profile respuesta',
+        JSON.stringify({
+          response: perfilPersistido,
+          avatarUrl: perfilPersistido.avatarUrl ?? null,
+        }),
+      );
       const confirmedAvatarUrl = perfilPersistido.avatarUrl ?? '';
 
       if (import.meta.env.DEV) {
@@ -2091,6 +2135,7 @@ export default function Ajustes() {
       }
 
       setProfileAvatarUrl(confirmedAvatarUrl);
+      confirmedAvatarUrlRef.current = confirmedAvatarUrl;
       setProfileAvatarVersion(Date.now());
       setProfileAvatarLoadFailed(false);
       setAvatarFile(null);
@@ -2555,8 +2600,20 @@ export default function Ajustes() {
     setBodegaWizardStep((current) => (current > 1 ? ((current - 1) as BodegaWizardStep) : current));
   };
 
+  const abrirVistaPreviaBodega = () => {
+    const validationError = validateBodegaStep(3);
+    if (validationError) {
+      setBodegaFeedback({ variant: 'error', message: validationError });
+      return;
+    }
+    setBodegaFeedback(null);
+    setBodegaDraftDirty(true);
+    setBodegaPreviewOpen(true);
+  };
+
   const cerrarFlujoBodega = async () => {
     await persistCurrentBodegaDraft();
+    setBodegaPreviewOpen(false);
     setBodegaFormOpen(false);
     setBodegaEditando(null);
     setBodegaFeedback(null);
@@ -2688,6 +2745,7 @@ export default function Ajustes() {
       }
 
       setBodegaDraftDirty(false);
+      setBodegaPreviewOpen(false);
       setBodegaFormOpen(false);
       setBodegaEditando(null);
     } catch (err) {
@@ -3299,6 +3357,11 @@ export default function Ajustes() {
         return;
       }
       if (bodegaFormOpen) {
+        if (bodegaPreviewOpen) {
+          setBodegaPreviewOpen(false);
+          backEvent.preventDefault();
+          return;
+        }
         if (bodegaWizardStep > 1) {
           volverBodegaStep();
           backEvent.preventDefault();
@@ -3371,11 +3434,18 @@ export default function Ajustes() {
     avatarPreview,
     profileAvatarBusy,
     profilePhotoOpen,
+    bodegaPreviewOpen,
     bodegaEditando,
     nombreBodega,
     ubicacionBodega,
     capacidadKg,
   ]);
+
+  useEffect(() => {
+    if (isEditingProfile) {
+      console.log('[perfil] Editar perfil renderizado');
+    }
+  }, [isEditingProfile]);
 
   const iniciarEdicionPersona = (item: PeopleAdminItem) => {
     setPeopleDetail(null);
@@ -4510,7 +4580,7 @@ export default function Ajustes() {
               }
             }}
             className="flex cursor-pointer items-center gap-3 rounded-[16px] outline-none transition focus-visible:ring-4 focus-visible:ring-[#102d92]/15"
-            aria-label="Abrir editar perfil"
+            aria-label="Abrir edición del perfil"
           >
             <div className="relative shrink-0">
               <div className="h-14 w-14 overflow-hidden rounded-full bg-[#eef2ff] p-1 shadow-inner">
@@ -4879,7 +4949,7 @@ export default function Ajustes() {
                         )}
                       </div>
                       <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">
-                        La foto se guardará solo cuando pulses Guardar foto.
+                        La foto se guardará solo cuando pulses Guardar cambios.
                       </p>
                     </div>
                     {avatarFeedback ? (
@@ -4930,7 +5000,7 @@ export default function Ajustes() {
                         ) : (
                           <Save size={15} />
                         )}
-                        {avatarSaving ? 'Guardando foto...' : 'Guardar foto'}
+                        {avatarSaving ? 'Guardando foto...' : 'Guardar cambios'}
                       </button>
                       <button
                         type="button"
@@ -6691,19 +6761,6 @@ export default function Ajustes() {
                           {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
                         </span>
                       </button>
-                      <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 text-xs font-semibold leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                        <p><strong>Nombre:</strong> {nombreBodega || 'Sin nombre'}</p>
-                        <p><strong>Capacidad máxima:</strong> {formatKg(getBodegaFormCapacidad())} kg</p>
-                        <p><strong>Ubicación o descripción:</strong> {ubicacionBodega || 'No registrada'}</p>
-                        <p><strong>Límite mínimo:</strong> {formatKg(bodegaLimitesForm.limiteMinimoKg)} kg</p>
-                        <p><strong>Límite máximo:</strong> {formatKg(bodegaLimitesForm.limiteMaximoKg)} kg</p>
-                        <p><strong>Alerta preventiva:</strong> {bodegaLimitesForm.alertaPreventivaPct} %</p>
-                        <p><strong>Nivel crítico:</strong> {bodegaLimitesForm.alertaCriticaPct} %</p>
-                        <p><strong>Bloqueo al 100 %:</strong> {bodegaLimitesForm.bloquearAlSuperarCapacidad ? 'Activado' : 'Desactivado'}</p>
-                        <p><strong>Alertas:</strong> {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}</p>
-                        <p><strong>Estado inicial:</strong> Activa</p>
-                        <p><strong>Bodega principal:</strong> {bodegaEditando?.esPrincipal || bodegas.length === 0 ? 'Sí' : 'No'}</p>
-                      </div>
                     </div>
                   ) : null}
 
@@ -6718,21 +6775,20 @@ export default function Ajustes() {
                     </div>
                   ) : null}
 
-                  <div className="fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] grid-cols-2 gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (bodegaWizardStep > 1) {
-                          volverBodegaStep();
-                          return;
-                        }
-                        if (!confirmarSalidaSinGuardar()) return;
-                        void cerrarFlujoBodega();
-                      }}
-                      className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    >
-                      {bodegaWizardStep === 1 ? 'Cancelar' : 'Atrás'}
-                    </button>
+                  <div
+                    className={`fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95 ${
+                      bodegaWizardStep === 1 ? 'grid-cols-1' : 'grid-cols-2'
+                    }`}
+                  >
+                    {bodegaWizardStep > 1 ? (
+                      <button
+                        type="button"
+                        onClick={volverBodegaStep}
+                        className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                      >
+                        Atrás
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={
@@ -6740,7 +6796,7 @@ export default function Ajustes() {
                           ? continuarBodegaStep
                           : bodegaWizardStep === 2
                             ? continuarBodegaStep
-                            : guardarBodega
+                            : abrirVistaPreviaBodega
                       }
                       disabled={guardandoBodega}
                       className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
@@ -6759,6 +6815,150 @@ export default function Ajustes() {
                           : 'Guardar bodega'}
                     </button>
                   </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {bodegaPreviewOpen ? (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="bodega-preview-title"
+                className="flex max-h-[88dvh] w-full max-w-[390px] flex-col overflow-hidden rounded-[22px] border border-[#dbe5f7] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900"
+              >
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+                  <div>
+                    <h4
+                      id="bodega-preview-title"
+                      className="text-lg font-black text-slate-950 dark:text-slate-100"
+                    >
+                      {bodegaEditando ? 'Vista previa de los cambios' : 'Vista previa de la bodega'}
+                    </h4>
+                    <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
+                      Revisa la información antes de guardar.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBodegaPreviewOpen(false)}
+                    disabled={guardandoBodega}
+                    aria-label="Cerrar vista previa"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 disabled:cursor-wait disabled:opacity-60 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+                  {bodegaFeedback && bodegaFeedback.variant === 'error' ? (
+                    <AppFeedbackMessage
+                      variant="error"
+                      title="No pudimos guardar la bodega"
+                      description="Revisa la información e intenta nuevamente."
+                    />
+                  ) : null}
+
+                  {[
+                    {
+                      title: 'Información',
+                      items: [
+                        ['Nombre', nombreBodega.trim() || 'Sin nombre'],
+                        ['Capacidad máxima', `${formatKg(getBodegaFormCapacidad())} kg`],
+                        [
+                          'Ubicación o descripción',
+                          ubicacionBodega.trim() || 'No registrada',
+                        ],
+                      ],
+                    },
+                    {
+                      title: 'Límites',
+                      items: [
+                        ['Límite mínimo', `${formatKg(bodegaLimitesForm.limiteMinimoKg)} kg`],
+                        ['Límite máximo', `${formatKg(bodegaLimitesForm.limiteMaximoKg)} kg`],
+                      ],
+                    },
+                    {
+                      title: 'Alertas',
+                      items: [
+                        ['Alerta preventiva', `${bodegaLimitesForm.alertaPreventivaPct} %`],
+                        ['Nivel crítico', `${bodegaLimitesForm.alertaCriticaPct} %`],
+                        [
+                          'Bloqueo al 100 %',
+                          bodegaLimitesForm.bloquearAlSuperarCapacidad
+                            ? 'Activado'
+                            : 'Desactivado',
+                        ],
+                        [
+                          'Alertas',
+                          bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas',
+                        ],
+                      ],
+                    },
+                    {
+                      title: 'Estado',
+                      items: [
+                        ['Estado inicial', bodegaEditando?.activa === false ? 'Inactiva' : 'Activa'],
+                        [
+                          'Bodega principal',
+                          bodegaEditando?.esPrincipal || bodegas.length === 0 ? 'Sí' : 'No',
+                        ],
+                      ],
+                    },
+                  ].map((section) => (
+                    <div
+                      key={section.title}
+                      className="rounded-[16px] border border-[#e5eaf4] bg-[#fbfcff] p-3 dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                        {section.title}
+                      </p>
+                      <div className="mt-2 space-y-1.5">
+                        {section.items.map(([label, value]) => (
+                          <div
+                            key={label}
+                            className="flex items-start justify-between gap-3 text-sm"
+                          >
+                            <span className="font-semibold text-slate-500 dark:text-slate-300">
+                              {label}
+                            </span>
+                            <span className="max-w-[55%] text-right font-black text-slate-950 dark:text-slate-100">
+                              {value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => setBodegaPreviewOpen(false)}
+                    disabled={guardandoBodega}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    Volver a editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void guardarBodega()}
+                    disabled={guardandoBodega}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                  >
+                    {guardandoBodega ? (
+                      <LoaderCircle size={15} className="animate-spin" />
+                    ) : (
+                      <Save size={15} />
+                    )}
+                    {guardandoBodega
+                      ? 'Guardando bodega...'
+                      : bodegaEditando
+                        ? 'Confirmar cambios'
+                        : 'Confirmar y guardar'}
+                  </button>
                 </div>
               </section>
             </div>
@@ -6802,14 +7002,10 @@ export default function Ajustes() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className="text-lg font-black text-slate-950 dark:text-slate-100">
-                      {bodegaLimitesGeneralOpen
-                        ? 'Límite general'
-                        : 'Límites y alertas'}
+                      Límite general
                     </h4>
                     <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                      {bodegaLimitesGeneralOpen
-                        ? 'Aplica una configuración a varias bodegas.'
-                        : bodegaLimitesTarget?.nombre ?? 'Configura esta bodega.'}
+                      Aplica una configuración a varias bodegas.
                     </p>
                   </div>
                   <button

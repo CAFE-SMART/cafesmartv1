@@ -763,10 +763,18 @@ export class UsersService {
   }
 
   private getSupabaseStorageConfig() {
-    const url = process.env.SUPABASE_URL?.trim().replace(/\/$/, '');
+    const configuredUrl =
+      process.env.SUPABASE_URL?.trim() ||
+      process.env.SUPABASE_PROJECT_URL?.trim() ||
+      process.env.SUPABASE_STORAGE_URL?.trim();
+    const url =
+      this.normalizeSupabaseProjectUrl(configuredUrl) ??
+      this.inferSupabaseProjectUrlFromDatabaseUrl(process.env.DATABASE_URL);
     const serviceKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-      process.env.SUPABASE_SERVICE_KEY?.trim();
+      process.env.SUPABASE_SERVICE_KEY?.trim() ||
+      process.env.SUPABASE_SERVICE_ROLE?.trim() ||
+      process.env.SUPABASE_SECRET_KEY?.trim();
 
     if (!url || !serviceKey) {
       throw new BadRequestException(
@@ -778,6 +786,22 @@ export class UsersService {
     }
 
     return { url, serviceKey };
+  }
+
+  private normalizeSupabaseProjectUrl(value?: string | null) {
+    const normalized = value?.trim().replace(/\/$/, '');
+    if (!normalized) return null;
+    return normalized.startsWith('http') ? normalized : `https://${normalized}`;
+  }
+
+  private inferSupabaseProjectUrlFromDatabaseUrl(value?: string | null) {
+    if (!value) return null;
+    const directHostMatch = value.match(/@db\.([a-z0-9-]+)\.supabase\.co/i);
+    const poolerUserMatch = value.match(
+      /postgres(?:ql)?:\/\/postgres\.([a-z0-9-]+)[:@]/i,
+    );
+    const projectRef = directHostMatch?.[1] ?? poolerUserMatch?.[1] ?? null;
+    return projectRef ? `https://${projectRef}.supabase.co` : null;
   }
 
   private async ensureAvatarsBucket() {

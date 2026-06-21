@@ -89,6 +89,17 @@ export async function subirFotoPerfil(file: File) {
         | UserProfileResponse
         | { message?: string };
 
+      console.log(
+        '[avatar] POST /users/profile/avatar HTTP',
+        JSON.stringify({
+          endpoint: '/users/profile/avatar',
+          method: 'POST',
+          status: response.status,
+          response: data,
+          avatarUrl: 'avatarUrl' in data ? data.avatarUrl : null,
+        }),
+      );
+
       if (import.meta.env.DEV) {
         console.debug('[CafeSmart][profile-avatar] upload response', {
           endpoint: '/users/profile/avatar',
@@ -126,6 +137,7 @@ export async function subirFotoPerfil(file: File) {
       invalidateApiCache();
       return profile;
     } catch (error) {
+      console.log('[avatar] POST /users/profile/avatar error', error);
       lastError = error;
     }
   }
