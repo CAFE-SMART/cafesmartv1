@@ -51,6 +51,12 @@ export class UsersController {
     return this.usersService.updateOrganizationSettings(req.user.sub, dto);
   }
 
+  @Get('organization')
+  @UseGuards(JwtAuthGuard)
+  getOrganization(@Req() req: { user: { sub: string } }) {
+    return this.usersService.getOrganizationSettings(req.user.sub);
+  }
+
   @Patch('profile')
   @UseGuards(JwtAuthGuard)
   updateProfile(

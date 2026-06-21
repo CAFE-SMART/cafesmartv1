@@ -110,6 +110,7 @@ import {
 import {
   actualizarConfiguracionOrganizacion,
   actualizarPerfilUsuario,
+  obtenerConfiguracionOrganizacion,
   obtenerPerfilUsuario,
   quitarFotoPerfilRemota,
   subirFotoPerfil,
@@ -717,6 +718,7 @@ export default function Ajustes() {
     tipoEmpresa: '',
     descripcion: '',
   }));
+  const [companyLoaded, setCompanyLoaded] = useState(false);
   const companyBaselineRef = React.useRef<CompanySettings | null>(null);
 
   const [nombreBodega, setNombreBodega] = useState(initialConfig.nombreBodega);
@@ -1407,7 +1409,7 @@ export default function Ajustes() {
 
   useEffect(() => {
     const nombreOrganizacionReal = normalizeCompanyName(
-      user?.nombreOrganizacion ?? '',
+      user?.organizacion?.nombre ?? user?.nombreOrganizacion ?? '',
     );
     const nextNombre = profile.nombre || user?.name || '';
     const nextCorreo = profile.correo || user?.email || '';
@@ -1417,9 +1419,14 @@ export default function Ajustes() {
       (user?.tipoOrganizacion
         ? user.tipoOrganizacion.charAt(0) +
           user.tipoOrganizacion.slice(1).toLowerCase()
+        : user?.organizacion?.tipo
+          ? user.organizacion.tipo.charAt(0) +
+            user.organizacion.tipo.slice(1).toLowerCase()
         : 'Compraventa');
     const nextDescripcion =
-      user?.descripcionOrganizacion?.trim() || company.descripcion;
+      user?.organizacion?.descripcion?.trim() ||
+      user?.descripcionOrganizacion?.trim() ||
+      company.descripcion;
 
     if (
       !isEditingProfile &&
@@ -1473,6 +1480,9 @@ export default function Ajustes() {
     user?.email,
     user?.telefono,
     user?.nombreOrganizacion,
+    user?.organizacion?.nombre,
+    user?.organizacion?.tipo,
+    user?.organizacion?.descripcion,
     user?.tipoOrganizacion,
     user?.descripcionOrganizacion,
     user?.avatarUrl,
@@ -1501,24 +1511,65 @@ export default function Ajustes() {
   }, []);
 
   useEffect(() => {
-    if (!token || isOffline) return;
+    if (!token || isOffline) {
+      setCompanyLoaded(true);
+      return;
+    }
     let active = true;
     const refreshProfileAndCompany = async () => {
+      setCompanyLoaded(false);
       try {
         const perfilPersistido = await obtenerPerfilUsuario();
         if (!active) return;
+        let organizacionPersistida = perfilPersistido.organizacion ?? null;
+        if (!organizacionPersistida?.nombre) {
+          try {
+            const organizacion = await obtenerConfiguracionOrganizacion();
+            organizacionPersistida = {
+              id: organizacion.id,
+              nombre: organizacion.nombre,
+              tipo: organizacion.tipo as typeof perfilPersistido.tipoOrganizacion,
+              descripcion: organizacion.descripcion ?? null,
+            };
+          } catch (error) {
+            if (import.meta.env.DEV) {
+              console.debug('[CafeSmart][organization] refresh failed', {
+                endpoint: '/users/organization',
+                method: 'GET',
+                response: error instanceof Error ? error.message : error,
+                error,
+              });
+            }
+          }
+        }
+        const nombreOrganizacion =
+          organizacionPersistida?.nombre ??
+          perfilPersistido.nombreOrganizacion ??
+          user?.nombreOrganizacion ??
+          user?.organizacion?.nombre ??
+          null;
+        const tipoOrganizacion =
+          perfilPersistido.tipoOrganizacion ??
+          organizacionPersistida?.tipo ??
+          user?.tipoOrganizacion ??
+          user?.organizacion?.tipo ??
+          null;
+        const descripcionOrganizacion =
+          perfilPersistido.descripcionOrganizacion ??
+          organizacionPersistida?.descripcion ??
+          user?.descripcionOrganizacion ??
+          user?.organizacion?.descripcion ??
+          null;
         setProfile({
           nombre: perfilPersistido.nombre,
           correo: perfilPersistido.correo,
           telefono: formatPhoneNumber(perfilPersistido.telefono ?? ''),
         });
-        if (perfilPersistido.nombreOrganizacion) {
+        if (nombreOrganizacion) {
           setCompany((prev) => ({
-            nombreEmpresa: perfilPersistido.nombreOrganizacion ?? prev.nombreEmpresa,
-            tipoEmpresa:
-              perfilPersistido.tipoOrganizacion ?? prev.tipoEmpresa ?? 'COMPRAVENTA',
-            descripcion:
-              perfilPersistido.descripcionOrganizacion ?? prev.descripcion,
+            nombreEmpresa: nombreOrganizacion,
+            tipoEmpresa: tipoOrganizacion ?? prev.tipoEmpresa ?? 'COMPRAVENTA',
+            descripcion: descripcionOrganizacion ?? prev.descripcion,
           }));
         }
         setProfileAvatarUrl(perfilPersistido.avatarUrl ?? '');
@@ -1536,18 +1587,12 @@ export default function Ajustes() {
               telefono: perfilPersistido.telefono ?? user.telefono,
               organizacionId:
                 perfilPersistido.organizacionId ?? user.organizacionId ?? null,
-              nombreOrganizacion:
-                perfilPersistido.nombreOrganizacion ??
-                user.nombreOrganizacion ??
-                null,
-              tipoOrganizacion:
-                perfilPersistido.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+              organizacion: organizacionPersistida ?? user.organizacion ?? null,
+              nombreOrganizacion,
+              tipoOrganizacion,
               otroTipoDetalle:
                 perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
-              descripcionOrganizacion:
-                perfilPersistido.descripcionOrganizacion ??
-                user.descripcionOrganizacion ??
-                null,
+              descripcionOrganizacion,
               avatarUrl: perfilPersistido.avatarUrl ?? null,
             },
           });
@@ -1560,6 +1605,10 @@ export default function Ajustes() {
             response: error instanceof Error ? error.message : error,
             error,
           });
+        }
+      } finally {
+        if (active) {
+          setCompanyLoaded(true);
         }
       }
     };
@@ -1999,15 +2048,27 @@ export default function Ajustes() {
             telefono: perfilPersistido.telefono ?? user.telefono,
             organizacionId:
               perfilPersistido.organizacionId ?? user.organizacionId ?? null,
+            organizacion:
+              perfilPersistido.organizacion ?? user.organizacion ?? null,
             nombreOrganizacion:
-              perfilPersistido.nombreOrganizacion ?? user.nombreOrganizacion ?? null,
+              perfilPersistido.nombreOrganizacion ??
+              perfilPersistido.organizacion?.nombre ??
+              user.nombreOrganizacion ??
+              user.organizacion?.nombre ??
+              null,
             tipoOrganizacion:
-              perfilPersistido.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+              perfilPersistido.tipoOrganizacion ??
+              perfilPersistido.organizacion?.tipo ??
+              user.tipoOrganizacion ??
+              user.organizacion?.tipo ??
+              null,
             otroTipoDetalle:
               perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
             descripcionOrganizacion:
               perfilPersistido.descripcionOrganizacion ??
+              perfilPersistido.organizacion?.descripcion ??
               user.descripcionOrganizacion ??
+              user.organizacion?.descripcion ??
               null,
             avatarUrl: nextAvatarUrl || null,
           },
@@ -2135,15 +2196,27 @@ export default function Ajustes() {
             telefono: nextProfile.telefono,
             organizacionId:
               perfilActualizado.organizacionId ?? user.organizacionId ?? null,
+            organizacion:
+              perfilActualizado.organizacion ?? user.organizacion ?? null,
             nombreOrganizacion:
-              perfilActualizado.nombreOrganizacion ?? user.nombreOrganizacion ?? null,
+              perfilActualizado.nombreOrganizacion ??
+              perfilActualizado.organizacion?.nombre ??
+              user.nombreOrganizacion ??
+              user.organizacion?.nombre ??
+              null,
             tipoOrganizacion:
-              perfilActualizado.tipoOrganizacion ?? user.tipoOrganizacion ?? null,
+              perfilActualizado.tipoOrganizacion ??
+              perfilActualizado.organizacion?.tipo ??
+              user.tipoOrganizacion ??
+              user.organizacion?.tipo ??
+              null,
             otroTipoDetalle:
               perfilActualizado.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
             descripcionOrganizacion:
               perfilActualizado.descripcionOrganizacion ??
+              perfilActualizado.organizacion?.descripcion ??
               user.descripcionOrganizacion ??
+              user.organizacion?.descripcion ??
               null,
             avatarUrl: nextAvatarUrl,
           },
@@ -2211,18 +2284,24 @@ export default function Ajustes() {
         tipoOrganizacion: company.tipoEmpresa,
         descripcionOrganizacion: descripcionEmpresa || null,
       });
+      const organizacionConfirmada =
+        (await obtenerConfiguracionOrganizacion().catch(() => null)) ??
+        organizacionActualizada;
+      if (!organizacionConfirmada?.nombre?.trim()) {
+        throw new Error('ORGANIZACION_NOMBRE_NO_CONFIRMADO');
+      }
       const descripcionActualizada =
-        organizacionActualizada.descripcion ?? descripcionEmpresa;
+        organizacionConfirmada.descripcion ?? descripcionEmpresa;
       setCompany((prev) => ({
         ...prev,
-        nombreEmpresa: organizacionActualizada.nombre ?? nombreEmpresa,
-        tipoEmpresa: organizacionActualizada.tipo,
+        nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
+        tipoEmpresa: organizacionConfirmada.tipo,
         descripcion: descripcionActualizada,
       }));
       companyBaselineRef.current = {
         ...company,
-        nombreEmpresa: organizacionActualizada.nombre ?? nombreEmpresa,
-        tipoEmpresa: organizacionActualizada.tipo,
+        nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
+        tipoEmpresa: organizacionConfirmada.tipo,
         descripcion: descripcionActualizada,
       };
       if (user && token) {
@@ -2231,9 +2310,16 @@ export default function Ajustes() {
           hasCompany,
           user: {
             ...user,
-            nombreOrganizacion: organizacionActualizada.nombre ?? nombreEmpresa,
-            tipoOrganizacion: organizacionActualizada.tipo as typeof user.tipoOrganizacion,
-            otroTipoDetalle: organizacionActualizada.otroTipoDetalle ?? null,
+            organizacionId: organizacionConfirmada.id ?? user.organizacionId ?? null,
+            organizacion: {
+              id: organizacionConfirmada.id ?? user.organizacionId ?? null,
+              nombre: organizacionConfirmada.nombre ?? nombreEmpresa,
+              tipo: organizacionConfirmada.tipo as typeof user.tipoOrganizacion,
+              descripcion: descripcionActualizada || null,
+            },
+            nombreOrganizacion: organizacionConfirmada.nombre ?? nombreEmpresa,
+            tipoOrganizacion: organizacionConfirmada.tipo as typeof user.tipoOrganizacion,
+            otroTipoDetalle: organizacionConfirmada.otroTipoDetalle ?? null,
             descripcionOrganizacion: descripcionActualizada || null,
           },
         });
@@ -4635,7 +4721,10 @@ export default function Ajustes() {
                   </div>
                   <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
-                    {company.nombreEmpresa || (!hydrated ? 'Cargando negocio...' : 'Negocio sin nombre')}
+                    {company.nombreEmpresa ||
+                      (!hydrated || !companyLoaded
+                        ? 'Cargando negocio...'
+                        : 'Negocio sin nombre')}
                   </p>
                 </div>
                 <input

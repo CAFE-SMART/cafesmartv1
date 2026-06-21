@@ -109,7 +109,13 @@ function FieldMessage({
 }
 
 function normalizeTipoOrganizacion(
-  value: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null | undefined,
+  value:
+    | 'COOPERATIVA'
+    | 'COMPRAVENTA'
+    | 'PERSONALIZADO'
+    | 'OTRO'
+    | null
+    | undefined,
 ): 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | null {
   if (value === 'OTRO') {
     return 'PERSONALIZADO' as const;
@@ -600,10 +606,17 @@ export default function Login() {
         email: data.user.email,
         name: data.user.name,
         organizacionId: data.user.organizacionId ?? null,
-        nombreOrganizacion: data.user.nombreOrganizacion ?? null,
-        tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+        organizacion: data.user.organizacion ?? null,
+        nombreOrganizacion:
+          data.user.nombreOrganizacion ?? data.user.organizacion?.nombre ?? null,
+        tipoOrganizacion: normalizeTipoOrganizacion(
+          data.user.tipoOrganizacion ?? data.user.organizacion?.tipo,
+        ),
         otroTipoDetalle: data.user.otroTipoDetalle ?? null,
-        descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+        descripcionOrganizacion:
+          data.user.descripcionOrganizacion ??
+          data.user.organizacion?.descripcion ??
+          null,
         avatarUrl: data.user.avatarUrl ?? null,
       };
 
@@ -743,10 +756,17 @@ export default function Login() {
         email: data.user.email,
         name: data.user.name,
         organizacionId: data.user.organizacionId ?? null,
-        nombreOrganizacion: data.user.nombreOrganizacion ?? null,
-        tipoOrganizacion: normalizeTipoOrganizacion(data.user.tipoOrganizacion),
+        organizacion: data.user.organizacion ?? null,
+        nombreOrganizacion:
+          data.user.nombreOrganizacion ?? data.user.organizacion?.nombre ?? null,
+        tipoOrganizacion: normalizeTipoOrganizacion(
+          data.user.tipoOrganizacion ?? data.user.organizacion?.tipo,
+        ),
         otroTipoDetalle: data.user.otroTipoDetalle ?? null,
-        descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+        descripcionOrganizacion:
+          data.user.descripcionOrganizacion ??
+          data.user.organizacion?.descripcion ??
+          null,
         avatarUrl: data.user.avatarUrl ?? null,
       };
 

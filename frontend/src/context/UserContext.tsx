@@ -25,6 +25,12 @@ type User = {
   name: string;
   telefono?: string | null;
   organizacionId?: string | null;
+  organizacion?: {
+    id?: string | null;
+    nombre?: string | null;
+    tipo?: TipoOrganizacion | null;
+    descripcion?: string | null;
+  } | null;
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
@@ -40,6 +46,12 @@ type StoredUserShape = {
   nombre?: string;
   telefono?: string | null;
   organizacionId?: string | null;
+  organizacion?: {
+    id?: string | null;
+    nombre?: string | null;
+    tipo?: TipoOrganizacion | null;
+    descripcion?: string | null;
+  } | null;
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: TipoOrganizacion | null;
   otroTipoDetalle?: string | null;
@@ -75,6 +87,7 @@ function mapStoredUserToUser(parsed: StoredUserShape): User {
     name: parsed.name ?? parsed.nombre ?? '',
     telefono: parsed.telefono ?? null,
     organizacionId: parsed.organizacionId ?? null,
+    organizacion: parsed.organizacion ?? null,
     nombreOrganizacion: parsed.nombreOrganizacion ?? null,
     tipoOrganizacion: parsed.tipoOrganizacion ?? null,
     otroTipoDetalle: parsed.otroTipoDetalle ?? null,
@@ -270,14 +283,47 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [offlineSession, token]);
 
   const setSession = async (data: UserSessionInput) => {
+    const previousUser = user;
+    const hasOwn = <T extends object>(target: T, key: keyof T) =>
+      Object.prototype.hasOwnProperty.call(target, key);
+    const nextOrganizacion =
+      hasOwn(data.user, 'organizacion')
+        ? data.user.organizacion ?? null
+        : previousUser?.organizacion ?? null;
+    const nextNombreOrganizacion =
+      hasOwn(data.user, 'nombreOrganizacion')
+        ? data.user.nombreOrganizacion ?? null
+        : data.user.organizacion?.nombre ??
+          previousUser?.nombreOrganizacion ??
+          previousUser?.organizacion?.nombre ??
+          null;
+    const nextTipoOrganizacion =
+      hasOwn(data.user, 'tipoOrganizacion')
+        ? data.user.tipoOrganizacion ?? null
+        : data.user.organizacion?.tipo ??
+          previousUser?.tipoOrganizacion ??
+          previousUser?.organizacion?.tipo ??
+          null;
+    const nextDescripcionOrganizacion =
+      hasOwn(data.user, 'descripcionOrganizacion')
+        ? data.user.descripcionOrganizacion ?? null
+        : data.user.organizacion?.descripcion ??
+          previousUser?.descripcionOrganizacion ??
+          previousUser?.organizacion?.descripcion ??
+          null;
     const nextUser: User = {
+      ...previousUser,
       ...data.user,
       telefono: data.user.telefono ?? null,
-      organizacionId: data.user.organizacionId ?? null,
-      nombreOrganizacion: data.user.nombreOrganizacion ?? null,
-      tipoOrganizacion: data.user.tipoOrganizacion ?? null,
-      otroTipoDetalle: data.user.otroTipoDetalle ?? null,
-      descripcionOrganizacion: data.user.descripcionOrganizacion ?? null,
+      organizacionId:
+        data.user.organizacionId ?? previousUser?.organizacionId ?? null,
+      organizacion: nextOrganizacion,
+      nombreOrganizacion: nextNombreOrganizacion,
+      tipoOrganizacion: nextTipoOrganizacion,
+      otroTipoDetalle: hasOwn(data.user, 'otroTipoDetalle')
+        ? data.user.otroTipoDetalle ?? null
+        : previousUser?.otroTipoDetalle ?? null,
+      descripcionOrganizacion: nextDescripcionOrganizacion,
       avatarUrl: data.user.avatarUrl ?? null,
     };
     const nextHasCompany = data.hasCompany || Boolean(nextUser.organizacionId);

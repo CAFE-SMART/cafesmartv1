@@ -25,8 +25,14 @@ export type AuthResponse = {
     email: string;
     name: string;
     organizacionId?: string | null;
+    organizacion?: {
+      id?: string | null;
+      nombre?: string | null;
+      tipo?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+      descripcion?: string | null;
+    } | null;
     nombreOrganizacion?: string | null;
-    tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO' | null;
+    tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
     otroTipoDetalle?: string | null;
     descripcionOrganizacion?: string | null;
     avatarUrl?: string | null;

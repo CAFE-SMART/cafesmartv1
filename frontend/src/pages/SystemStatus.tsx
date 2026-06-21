@@ -208,12 +208,30 @@ export default function SystemStatus() {
             email: response.user.email,
             name: response.user.name,
             organizacionId: response.user.organizacionId ?? null,
+            organizacion:
+              response.user.organizacion ??
+              (response.user.organizacionId
+                ? {
+                    id: response.user.organizacionId,
+                    nombre:
+                      response.user.nombreOrganizacion ??
+                      processState.nombreOrganizacion,
+                    tipo: response.user.tipoOrganizacion ?? null,
+                    descripcion:
+                      response.user.descripcionOrganizacion ??
+                      processState.descripcionOrganizacion ??
+                      null,
+                  }
+                : null),
             nombreOrganizacion:
-              response.user.nombreOrganizacion ?? processState.nombreOrganizacion,
+              response.user.nombreOrganizacion ??
+              response.user.organizacion?.nombre ??
+              processState.nombreOrganizacion,
             tipoOrganizacion: response.user.tipoOrganizacion ?? null,
             otroTipoDetalle: response.user.otroTipoDetalle ?? null,
             descripcionOrganizacion:
               response.user.descripcionOrganizacion ??
+              response.user.organizacion?.descripcion ??
               processState.descripcionOrganizacion ??
               null,
             avatarUrl: response.user.avatarUrl ?? null,

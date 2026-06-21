@@ -17,6 +17,12 @@ type CachedUser = {
   name: string;
   telefono?: string | null;
   organizacionId?: string | null;
+  organizacion?: {
+    id?: string | null;
+    nombre?: string | null;
+    tipo?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+    descripcion?: string | null;
+  } | null;
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
   otroTipoDetalle?: string | null;

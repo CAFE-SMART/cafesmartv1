@@ -779,6 +779,7 @@ export class AuthService {
     const sessionData: {
       avatarUrl?: string | null;
       organizacion?: {
+        id?: string | null;
         nombre?: string;
         tipo?: string;
         otroTipoDetalle?: string | null;
@@ -808,6 +809,14 @@ export class AuthService {
         email: user.correo,
         name: user.nombre,
         organizacionId: user.organizacionId ?? null,
+        organizacion: sessionData.organizacion
+          ? {
+              id: sessionData.organizacion.id ?? user.organizacionId ?? null,
+              nombre: sessionData.organizacion.nombre ?? null,
+              tipo: sessionData.organizacion.tipo ?? null,
+              descripcion: sessionData.organizacion.descripcion ?? null,
+            }
+          : null,
         nombreOrganizacion: sessionData.organizacion?.nombre ?? null,
         tipoOrganizacion: sessionData.organizacion?.tipo ?? null,
         otroTipoDetalle: sessionData.organizacion?.otroTipoDetalle ?? null,

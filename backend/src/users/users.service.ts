@@ -280,6 +280,10 @@ export class UsersService {
         },
         select: {
           id: true,
+          nombre: true,
+          tipo: true,
+          otroTipoDetalle: true,
+          ...(supportsOrganizationDescription ? { descripcion: true } : {}),
         },
       });
 
@@ -298,12 +302,24 @@ export class UsersService {
           nombre: true,
           correo: true,
           telefono: true,
+          avatarUrl: true,
           rol: true,
           organizacionId: true,
           googleId: true,
         },
       });
-      return { ...user, avatarUrl: null };
+      return {
+        ...user,
+        avatarUrl: null,
+        organizacion: {
+          id: organization.id,
+          nombre: organization.nombre,
+          tipo: organization.tipo,
+          otroTipoDetalle: organization.otroTipoDetalle,
+          descripcion:
+            'descripcion' in organization ? organization.descripcion ?? null : null,
+        },
+      };
     });
   }
 
@@ -329,6 +345,42 @@ export class UsersService {
       );
       return true;
     }
+  }
+
+  async getOrganizationSettings(userId: string) {
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        organizacion: {
+          select: {
+            id: true,
+            nombre: true,
+            tipo: true,
+            otroTipoDetalle: true,
+            ...(supportsOrganizationDescription ? { descripcion: true } : {}),
+          },
+        },
+      },
+    });
+
+    if (!user?.organizacion) {
+      throw new BadRequestException(
+        apiError('ORGANIZACION_REQUERIDA', 'Usuario sin organizacion.'),
+      );
+    }
+
+    return {
+      id: user.organizacion.id,
+      nombre: user.organizacion.nombre,
+      tipo: user.organizacion.tipo,
+      otroTipoDetalle: user.organizacion.otroTipoDetalle,
+      descripcion:
+        'descripcion' in user.organizacion
+          ? user.organizacion.descripcion ?? null
+          : null,
+    };
   }
 
   async linkGoogleAccount(userId: string, googleId: string) {
@@ -662,6 +714,7 @@ export class UsersService {
     avatarUrl?: string | null;
     organizacionId: string | null;
     organizacion?: {
+      id?: string | null;
       nombre: string;
       tipo: TipoOrganizacion;
       otroTipoDetalle: string | null;
@@ -675,6 +728,15 @@ export class UsersService {
       telefono: user.telefono,
       avatarUrl: user.avatarUrl ?? null,
       organizacionId: user.organizacionId,
+      organizacion: user.organizacion
+        ? {
+            id: user.organizacion.id ?? user.organizacionId,
+            nombre: user.organizacion.nombre,
+            tipo: user.organizacion.tipo,
+            otroTipoDetalle: user.organizacion.otroTipoDetalle,
+            descripcion: user.organizacion.descripcion ?? null,
+          }
+        : null,
       nombreOrganizacion: user.organizacion?.nombre ?? null,
       tipoOrganizacion: user.organizacion?.tipo ?? null,
       otroTipoDetalle: user.organizacion?.otroTipoDetalle ?? null,

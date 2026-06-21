@@ -17,6 +17,12 @@ export type UserProfileResponse = {
   telefono: string | null;
   avatarUrl?: string | null;
   organizacionId?: string | null;
+  organizacion?: {
+    id?: string | null;
+    nombre?: string | null;
+    tipo?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+    descripcion?: string | null;
+  } | null;
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
   otroTipoDetalle?: string | null;
@@ -43,6 +49,10 @@ export function actualizarPerfilUsuario(input: {
     method: 'PATCH',
     body: JSON.stringify(input),
   }) as Promise<UserProfileResponse>;
+}
+
+export function obtenerConfiguracionOrganizacion() {
+  return apiFetch('/users/organization') as Promise<OrganizationSettingsResponse>;
 }
 
 export function obtenerPerfilUsuario() {

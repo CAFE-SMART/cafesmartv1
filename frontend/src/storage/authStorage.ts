@@ -8,6 +8,12 @@ type StoredSessionUser = {
   nombre?: string;
   telefono?: string | null;
   organizacionId?: string | null;
+  organizacion?: {
+    id?: string | null;
+    nombre?: string | null;
+    tipo?: string | null;
+    descripcion?: string | null;
+  } | null;
   nombreOrganizacion?: string | null;
   tipoOrganizacion?: string | null;
   otroTipoDetalle?: string | null;
