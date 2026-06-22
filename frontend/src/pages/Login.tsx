@@ -303,6 +303,7 @@ export default function Login() {
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
   const restoredLoginDraftRef = useRef(false);
+  const loginInFlightRef = useRef(false);
 
   const navigate = useNavigate();
   const { setSession, token, hasCompany, hydrated } = useUser();
@@ -583,6 +584,13 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loginInFlightRef.current || loading) {
+      logLoginDebug('submit ignorado', {
+        reason: loginInFlightRef.current ? 'in-flight' : 'loading',
+      });
+      return;
+    }
+    loginInFlightRef.current = true;
     setEmailTouched(true);
     setError(null);
     setEmailFieldError(null);
@@ -606,6 +614,7 @@ export default function Login() {
       } finally {
         logLoginDebug('finally loading=false', { mode: 'offline' });
         setLoading(false);
+        loginInFlightRef.current = false;
       }
       return;
     }
@@ -630,6 +639,7 @@ export default function Login() {
 
     if (hasValidationError) {
       setError('Completa los datos para continuar.');
+      loginInFlightRef.current = false;
       return;
     }
 
@@ -768,6 +778,7 @@ export default function Login() {
         backendReachable,
       });
       setLoading(false);
+      loginInFlightRef.current = false;
     }
   };
 
@@ -1157,7 +1168,7 @@ export default function Login() {
                   : 'bg-[#1e3a8a] shadow-md hover:bg-[#1e3a8a]/90 hover:shadow-lg'
               }`}
             >
-              {loading ? 'Entrando...' : 'Entrar'} <LogIn size={18} />
+              {loading ? 'Iniciando sesión...' : 'Entrar'} <LogIn size={18} />
             </button>
           </form>
 
