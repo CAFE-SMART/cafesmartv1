@@ -59,11 +59,8 @@ export function AppLoadingScreen({
         </section>
 
         <section className="mt-16 animate-[appSplashFadeUp_520ms_ease-out_180ms_both]">
-          <div
-            className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-700 dark:border-slate-700 dark:border-t-blue-300"
-            aria-hidden="true"
-          />
-          <span className="sr-only">Cargando información</span>
+          <div className="cs-loader mx-auto h-12 w-12" aria-hidden="true" />
+          <span className="sr-only">Cargando</span>
           <p className="mt-6 text-[23px] font-black leading-7 text-[#07153b] dark:text-slate-100">
             {title}
           </p>

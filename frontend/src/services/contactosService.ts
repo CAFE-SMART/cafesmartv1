@@ -1,4 +1,9 @@
-import { apiFetch } from './apiService';
+import { ApiRequestError, apiFetch } from './apiService';
+import { getApiBaseUrlCandidates } from '../config/api';
+import {
+  getStoredAuthToken,
+  restorePrimaryAuthFromLastSession,
+} from '../storage/authStorage';
 import type { DocumentType } from '../utils/personValidation';
 
 export type ContactoRol = 'CLIENTE' | 'PRODUCTOR';
@@ -32,40 +37,87 @@ export type GuardarContactoPayload = {
 export async function listarContactos(rol?: ContactoFiltroRol) {
   const query = rol ? `?rol=${encodeURIComponent(rol)}` : '';
   const endpoint = `/contactos${query}`;
-  if (import.meta.env.DEV) {
-    console.debug('[CafeSmart][contactos] request', {
-      endpoint,
-      method: 'GET',
-      rol: rol ?? 'TODOS',
+
+  const normalizeResponse = (data: unknown): ContactoItem[] => {
+    if (Array.isArray(data)) return data as ContactoItem[];
+    if (data && typeof data === 'object') {
+      const record = data as {
+        contactos?: unknown;
+        data?: unknown;
+        items?: unknown;
+      };
+      if (Array.isArray(record.contactos)) return record.contactos as ContactoItem[];
+      if (Array.isArray(record.data)) return record.data as ContactoItem[];
+      if (Array.isArray(record.items)) return record.items as ContactoItem[];
+    }
+    throw new ApiRequestError('La respuesta de contactos no es válida.', {
+      status: 0,
+      code: 'CONTACTOS_RESPUESTA_INVALIDA',
     });
-  }
-  try {
-    const response = (await apiFetch(endpoint)) as ContactoItem[];
-    if (import.meta.env.DEV) {
-      console.debug('[CafeSmart][contactos] response', {
-        endpoint,
+  };
+
+  let token = await getStoredAuthToken();
+  let lastError: unknown = null;
+
+  for (const apiBaseUrl of getApiBaseUrlCandidates()) {
+    const url = `${apiBaseUrl}${endpoint}`;
+    console.log('[contactos] endpoint:', url);
+    console.log('[contactos] token presente:', Boolean(token));
+
+    const request = async (authToken: string | null) =>
+      fetch(url, {
         method: 'GET',
-        status: 'ok',
-        count: Array.isArray(response) ? response.length : null,
-        response,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
       });
+
+    try {
+      let response = await request(token);
+      let data = await response.json().catch(() => null);
+
+      if (response.status === 401) {
+        const restored = await restorePrimaryAuthFromLastSession();
+        if (restored?.token && restored.token !== token) {
+          token = restored.token;
+          response = await request(token);
+          data = await response.json().catch(() => null);
+        }
+      }
+
+      console.log('[contactos] status:', response.status);
+      console.log('[contactos] response:', data);
+
+      if (!response.ok) {
+        throw new ApiRequestError(
+          typeof data?.message === 'string'
+            ? data.message
+            : 'No pudimos cargar los contactos',
+          {
+            status: response.status,
+            code: typeof data?.code === 'string' ? data.code : null,
+            field: typeof data?.field === 'string' ? data.field : null,
+            details:
+              data?.details && typeof data.details === 'object'
+                ? (data.details as Record<string, string[]>)
+                : null,
+          },
+        );
+      }
+
+      return normalizeResponse(data);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof ApiRequestError) throw error;
+      console.log('[contactos] status:', 'network-error');
+      console.log('[contactos] response:', error);
     }
-    return response;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.debug('[CafeSmart][contactos] error', {
-        endpoint,
-        method: 'GET',
-        status:
-          error && typeof error === 'object' && 'status' in error
-            ? (error as { status?: unknown }).status
-            : 'unknown',
-        response: error instanceof Error ? error.message : error,
-        error,
-      });
-    }
-    throw error;
   }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('No pudimos cargar los contactos');
 }
 
 export async function crearContacto(payload: GuardarContactoPayload) {

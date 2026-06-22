@@ -357,11 +357,8 @@ export function CafeSmartProcessingScreen({
         <div className="mt-7 animate-[cafesmartFadeUp_420ms_ease-out_260ms_both]">
           {showSpinner ? (
             <>
-              <div
-                className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-700 dark:border-slate-700 dark:border-t-blue-300"
-                aria-hidden="true"
-              />
-              <span className="sr-only">Cargando información</span>
+              <div className="cs-loader mx-auto h-12 w-12" aria-hidden="true" />
+              <span className="sr-only">Cargando</span>
             </>
           ) : null}
           <p className={`${showSpinner ? 'mt-4' : ''} text-sm font-semibold leading-6 text-slate-500 dark:text-slate-300`}>

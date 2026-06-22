@@ -339,18 +339,7 @@ export class ContactosService {
     organizacionId: string,
   ): Promise<ContactoListadoItem[]> {
     const [clientes, productores] = await Promise.all([
-      this.prisma.cliente.findMany({
-        where: { organizacionId, deletedAt: null, documento: { not: null } },
-        select: {
-          id: true,
-          nombre: true,
-          documento: true,
-          tipoDocumento: true,
-          telefono: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
+      this.findClientesCompat(organizacionId),
       this.prisma.productor.findMany({
         where: { organizacionId, deletedAt: null, documento: { not: null } },
         select: {
@@ -423,6 +412,53 @@ export class ContactosService {
   private encodeId(tipoDocumento: TipoDocumento, documento: string) {
     return Buffer.from(JSON.stringify({ tipoDocumento, documento })).toString(
       'base64url',
+    );
+  }
+
+  private async findClientesCompat(organizacionId: string) {
+    try {
+      return await this.prisma.cliente.findMany({
+        where: { organizacionId, deletedAt: null, documento: { not: null } },
+        select: {
+          id: true,
+          nombre: true,
+          documento: true,
+          tipoDocumento: true,
+          telefono: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (error) {
+      if (!this.isMissingTipoDocumentoColumn(error)) throw error;
+      const clientes = await this.prisma.cliente.findMany({
+        where: { organizacionId, deletedAt: null, documento: { not: null } },
+        select: {
+          id: true,
+          nombre: true,
+          documento: true,
+          telefono: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return clientes.map((cliente) => ({
+        ...cliente,
+        tipoDocumento: this.inferirTipoDocumento(cliente.documento),
+      }));
+    }
+  }
+
+  private inferirTipoDocumento(documento: string | null): TipoDocumento | null {
+    if (!documento) return null;
+    return documento.includes('-') ? 'NIT' : 'CEDULA';
+  }
+
+  private isMissingTipoDocumentoColumn(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2022' &&
+      String(error.meta?.column ?? '').includes('tipo_documento')
     );
   }
 

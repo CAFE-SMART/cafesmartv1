@@ -115,6 +115,7 @@ import {
   quitarFotoPerfilRemota,
   subirFotoPerfil,
 } from '../services/userSettingsService';
+import { ApiRequestError } from '../services/apiService';
 import {
   getAppPermissionStatuses,
   getScreenReaderStatus,
@@ -914,6 +915,13 @@ export default function Ajustes() {
       : savedAvatarUrl;
   const currentAvatarUrl =
     avatarPreview ?? (profileAvatarLoadFailed ? '' : versionedSavedAvatarUrl);
+  const profileCompanyName =
+    normalizeCompanyName(
+      user?.organizacion?.nombre ??
+        user?.nombreOrganizacion ??
+        company.nombreEmpresa ??
+        '',
+    ) || 'Nombre de empresa no registrado';
   const hasSavedAvatar = Boolean(savedAvatarUrl);
   const profileAvatarBusy = avatarSaving;
   const handleAvatarImageLoad = () => {
@@ -1374,6 +1382,26 @@ export default function Ajustes() {
     createdAt: contacto.createdAt,
   });
 
+  const getPeopleLoadErrorMessage = (error: unknown) => {
+    if (error instanceof ApiRequestError) {
+      if (error.status === 401) {
+        return 'Tu sesión venció. Inicia sesión nuevamente para consultar tus contactos.';
+      }
+      if (error.status >= 500) {
+        return 'No pudimos cargar los contactos. Intenta nuevamente en unos momentos.';
+      }
+      if (error.status === 403) {
+        return 'No tienes permiso para consultar estos contactos.';
+      }
+      if (error.status === 404) {
+        return 'No encontramos el servicio de contactos. Intenta nuevamente en unos momentos.';
+      }
+      return error.message || 'No pudimos cargar los contactos.';
+    }
+
+    return 'No pudimos cargar los contactos. Revisa tu conexión y vuelve a intentarlo.';
+  };
+
   const cargarPersonasAdmin = async (
     mode: Exclude<PeopleAdminMode, null>,
     options: { resetSearch?: boolean } = {},
@@ -1408,7 +1436,7 @@ export default function Ajustes() {
           error,
         });
       }
-      setPeopleError('No pudimos cargar los contactos');
+      setPeopleError(getPeopleLoadErrorMessage(error));
     } finally {
       setPeopleLoading(false);
     }
@@ -2208,10 +2236,20 @@ export default function Ajustes() {
         setAvatarFeedback(null);
       }, 1700);
     } catch (err) {
-      const message =
+      const rawMessage =
         err instanceof Error && err.message
           ? err.message
           : 'No pudimos guardar la foto. Intenta nuevamente.';
+      if (
+        /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(rawMessage)
+      ) {
+        console.error('[avatar] SUPABASE_STORAGE_CONFIG_FALTANTE', err);
+      }
+      const message = /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(
+        rawMessage,
+      )
+        ? 'No pudimos guardar la foto. Intenta nuevamente en unos momentos.'
+        : rawMessage;
       setAvatarFeedback({
         type: 'error',
         message,
@@ -3245,7 +3283,7 @@ export default function Ajustes() {
           error,
         });
       }
-      setPeopleError('No pudimos cargar los contactos');
+      setPeopleError(getPeopleLoadErrorMessage(error));
     } finally {
       setPeopleLoading(false);
     }
@@ -4746,9 +4784,9 @@ export default function Ajustes() {
                 </p>
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
                   <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Nombre de usuario
+                    Nombre de la empresa
                   </span>
-                  {user?.name || profile.nombre || 'Usuario no registrado'}
+                  {profileCompanyName}
                 </p>
                 <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
                   <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
@@ -4783,13 +4821,6 @@ export default function Ajustes() {
                   Activo
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={abrirEditorPerfil}
-                className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-[14px] border border-[#cdd8ef] bg-white px-4 text-sm font-black text-[#102d92]"
-              >
-                Editar perfil
-              </button>
             </section>
             </div>
           ) : null}
@@ -6287,6 +6318,11 @@ export default function Ajustes() {
                 Crear bodega
               </button>
 
+              <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
+                <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
+                Última actualización: {formatDate(updatedAt)}
+              </p>
+
               {bodegasLoading ? (
                 <div className="space-y-2">
                   {[0, 1].map((item) => (
@@ -6430,10 +6466,6 @@ export default function Ajustes() {
                   ))}
                 </div>
               )}
-              <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
-                <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
-                Última actualización: {formatDate(updatedAt)}
-              </p>
             </div>
             <AppBottomNav />
           </section>
@@ -6581,20 +6613,19 @@ export default function Ajustes() {
                   ) : null}
 
                   {bodegaWizardStep === 2 ? (
-                    <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
-                      <div>
-                        <p className="text-[0.78rem] font-black uppercase tracking-[0.11em] text-[#40516d] dark:text-blue-200">
-                          Paso 2 de 3
+                    <div className="space-y-5 rounded-[24px] border border-[#e3e9f5] bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
+                      <div className="space-y-1">
+                        <p className="text-[0.72rem] font-black uppercase tracking-[0.13em] text-[#40516d] dark:text-blue-200">
+                          PASO 2 DE 3
                         </p>
-                        <h5 className="mt-1 text-[1.28rem] font-black leading-tight text-slate-950 dark:text-slate-100">
-                          Límites de almacenamiento
+                        <h5 className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-950 dark:text-slate-100">
+                          LÍMITES DE ALMACENAMIENTO
                         </h5>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Define los valores mínimos y máximos permitidos para esta bodega.
-                        </p>
                       </div>
                       <label className="block">
-                        <span className={fieldLabelClass}>Límite mínimo (kg)</span>
+                        <span className={fieldLabelClass}>
+                          Límite mínimo de almacenamiento (kg)
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -6608,14 +6639,13 @@ export default function Ajustes() {
                             setBodegaFeedback(null);
                           }}
                           className={fieldInputClass}
-                          placeholder="200"
+                          placeholder="0"
                         />
-                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Se podrá generar una alerta cuando el inventario esté por debajo de este valor.
-                        </span>
                       </label>
                       <label className="block">
-                        <span className={fieldLabelClass}>Límite máximo (kg)</span>
+                        <span className={fieldLabelClass}>
+                          Límite máximo de almacenamiento (kg)
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -6631,31 +6661,10 @@ export default function Ajustes() {
                           className={fieldInputClass}
                           placeholder="2.700"
                         />
-                        <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Este valor indica hasta cuánto debería llenarse normalmente la bodega.
-                        </span>
                       </label>
-                      <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                        <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-[#102d92]"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.max(
-                                  0,
-                                  (bodegaLimitesForm.limiteMaximoKg /
-                                    Math.max(1, getBodegaFormCapacidad())) *
-                                    100,
-                                ),
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="mt-2 text-center text-[0.7rem] font-black text-slate-500 dark:text-slate-300">
-                          0 kg → {formatKg(bodegaLimitesForm.limiteMinimoKg)} kg → {formatKg(bodegaLimitesForm.limiteMaximoKg)} kg → {formatKg(getBodegaFormCapacidad())} kg
-                        </p>
-                      </div>
+                      <p className="rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-3 py-2 text-[0.78rem] font-black text-[#40516d] dark:border-slate-700 dark:bg-slate-950 dark:text-blue-100">
+                        Capacidad máxima de la bodega: {formatKg(getBodegaFormCapacidad())} kg
+                      </p>
                     </div>
                   ) : null}
 
@@ -7714,7 +7723,7 @@ export default function Ajustes() {
               </div>
               <p className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">
                 {peopleError
-                  ? 'Contactos no disponibles'
+                  ? 'No pudimos cargar los contactos'
                   : `${peopleFiltered.length} contacto${peopleFiltered.length === 1 ? '' : 's'}`}
               </p>
               {peopleSearchResult.isSimilar ? (
@@ -7739,16 +7748,22 @@ export default function Ajustes() {
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {peopleLoading ? (
-                <p className="rounded-[16px] bg-[#f8faff] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
-                  Cargando contactos...
-                </p>
+                <div
+                  className="rounded-[16px] bg-[#f8faff] px-4 py-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-300"
+                  role="status"
+                  aria-label="Cargando"
+                >
+                  <div className="cs-loader mx-auto h-8 w-8" aria-hidden="true" />
+                  <p className="mt-3">Cargando contactos...</p>
+                </div>
               ) : peopleError ? (
                 <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-5 text-left shadow-sm dark:border-amber-400/30 dark:bg-amber-500/10">
                   <p className="text-sm font-black text-amber-900 dark:text-amber-100">
                     No pudimos cargar los contactos
                   </p>
                   <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    Revisa tu conexión y vuelve a intentarlo.
+                    {peopleError.replace(/^No pudimos cargar los contactos\.?\s*/i, '') ||
+                      'Intenta nuevamente en unos momentos.'}
                   </p>
                   <button
                     type="button"
@@ -7765,10 +7780,10 @@ export default function Ajustes() {
               ) : peopleFiltered.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   <p className="font-bold text-slate-800 dark:text-slate-100">
-                    Aún no tienes contactos registrados
+                    Todavía no tienes contactos registrados
                   </p>
                   <p className="mt-1 font-semibold text-slate-500 dark:text-slate-300">
-                    Crea un contacto como cliente, productor o Multirol.
+                    Agrega tu primer cliente o productor.
                   </p>
                   <button
                     type="button"

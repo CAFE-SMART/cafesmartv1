@@ -1371,7 +1371,7 @@ export default function Inicio() {
             </section>
 
             <section className="px-5 py-3">
-              <p className={sectionTitleClass}>Inventario en bodega</p>
+              <p className={sectionTitleClass}>Lotes más antiguos en bodega</p>
 
               <div className={`mt-3 overflow-hidden ${cardClass} p-0`}>
                 {loading && !summary ? (
