@@ -787,10 +787,17 @@ export class UsersService {
       process.env.SUPABASE_SECRET_KEY?.trim();
 
     if (!url || !serviceKey) {
+      const missing = [
+        !url ? 'SUPABASE_URL' : null,
+        !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+      ].filter(Boolean);
       throw new BadRequestException(
         apiError(
           'SUPABASE_STORAGE_CONFIG_FALTANTE',
-          'No pudimos subir la foto. Falta configurar Supabase Storage.',
+          `No pudimos subir la foto. Falta configurar Supabase Storage (${missing.join(
+            ', ',
+          )}).`,
+          { details: { missing } },
         ),
       );
     }
