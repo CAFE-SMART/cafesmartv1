@@ -38,6 +38,8 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async getProfile(userId: string) {
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
     try {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -53,7 +55,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -81,7 +83,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -154,6 +156,8 @@ export class UsersService {
   }
 
   async findSessionById(userId: string) {
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
     try {
       return await this.prisma.user.findUnique({
         where: { id: userId },
@@ -170,7 +174,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -191,7 +195,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -416,6 +420,8 @@ export class UsersService {
       telefono?: string | null;
     },
   ) {
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
     const nombre = input.nombre.trim();
     const correo = input.correo.trim().toLowerCase();
     const telefonoRaw = input.telefono?.trim() ?? '';
@@ -462,7 +468,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -497,7 +503,7 @@ export class UsersService {
                 nombre: true,
                 tipo: true,
                 otroTipoDetalle: true,
-                descripcion: true,
+                ...(supportsOrganizationDescription ? { descripcion: true } : {}),
               },
             },
           },
@@ -611,6 +617,8 @@ export class UsersService {
     }
 
     const objectPath = `${userId}/profile-${Date.now()}.${extension}`;
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
     if (process.env.NODE_ENV !== 'production') {
       console.info('[CafeSmart][profile-avatar] archivo recibido', {
         userId,
@@ -643,7 +651,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -668,6 +676,8 @@ export class UsersService {
   }
 
   async removeAvatar(userId: string) {
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
     try {
       const updated = await this.prisma.user.update({
         where: { id: userId },
@@ -684,7 +694,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
