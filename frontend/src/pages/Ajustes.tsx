@@ -83,6 +83,7 @@ import {
 import {
   guardarLimitesEntradaLocales,
   obtenerLimitesEntradaLocales,
+  LIMITES_TRANSACCION_DEFAULT,
   type LimitesTransaccion,
 } from '../services/limitesEntradaService';
 import {
@@ -259,6 +260,7 @@ type BodegaDraft = {
   activa: boolean;
   esPrincipal: boolean;
   limites: LimitesBodega;
+  limitesTransaccion?: LimitesTransaccion;
 };
 type PeopleAdminItem = {
   id: string;
@@ -368,6 +370,25 @@ function parseKgInput(value: string) {
   return digits ? Number(digits) : 0;
 }
 
+function formatNumericInput(value: string | number) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
+    Number(digits),
+  );
+}
+
+function parseNumericInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+function normalizeNumericInput(value: string, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = parseNumericInput(value);
+  if (!Number.isFinite(parsed)) return '';
+  return String(Math.min(parsed, max));
+}
+
 function getBodegaDraftKey(userId: string | number | undefined, mode: BodegaDraftMode, bodegaId?: string | null) {
   const owner = userId ? String(userId) : 'anonymous';
   return mode === 'crear'
@@ -413,6 +434,28 @@ function sanitizeBodegaDraft(value: unknown): BodegaDraft | null {
         limites.bloquearAlSuperarCapacidad !== false,
       alertasActivas: limites.alertasActivas !== false,
     },
+    limitesTransaccion: draft.limitesTransaccion
+      ? {
+          minPesoCompraKg:
+            Number(draft.limitesTransaccion.minPesoCompraKg) ||
+            LIMITES_TRANSACCION_DEFAULT.minPesoCompraKg,
+          maxPesoCompraKg:
+            Number(draft.limitesTransaccion.maxPesoCompraKg) ||
+            LIMITES_TRANSACCION_DEFAULT.maxPesoCompraKg,
+          minPrecioCompraKg:
+            Number(draft.limitesTransaccion.minPrecioCompraKg) ||
+            LIMITES_TRANSACCION_DEFAULT.minPrecioCompraKg,
+          maxPrecioCompraKg:
+            Number(draft.limitesTransaccion.maxPrecioCompraKg) ||
+            LIMITES_TRANSACCION_DEFAULT.maxPrecioCompraKg,
+          minPrecioVentaKg:
+            Number(draft.limitesTransaccion.minPrecioVentaKg) ||
+            LIMITES_TRANSACCION_DEFAULT.minPrecioVentaKg,
+          maxPrecioVentaKg:
+            Number(draft.limitesTransaccion.maxPrecioVentaKg) ||
+            LIMITES_TRANSACCION_DEFAULT.maxPrecioVentaKg,
+        }
+      : undefined,
   };
 }
 
@@ -429,7 +472,8 @@ function hasBodegaDraftProgress(draft: BodegaDraft) {
     draft.limites.alertaPreventivaPct !== 80 ||
     draft.limites.alertaCriticaPct !== 95 ||
     draft.limites.bloquearAlSuperarCapacidad !== true ||
-    draft.limites.alertasActivas !== true
+    draft.limites.alertasActivas !== true ||
+    Boolean(draft.limitesTransaccion)
   );
 }
 
@@ -1141,7 +1185,9 @@ export default function Ajustes() {
   const abrirPerfilPublico = () => {
     clearFeedback();
     setIsViewingPublicProfile(true);
-    setIsEditingProfile(false);
+    setIsEditingProfile(true);
+    setProfileInfoOpen(false);
+    setProfilePhotoOpen(false);
     setIsEditingCompany(false);
     setIsEditingBodega(false);
     setIsEditingLimites(false);
@@ -1186,6 +1232,14 @@ export default function Ajustes() {
     activa: bodegaEditando?.activa ?? true,
     esPrincipal: bodegaEditando?.esPrincipal ?? bodegas.length === 0,
     limites: bodegaLimitesForm,
+    limitesTransaccion: {
+      minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
+      maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
+      minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
+      maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
+      minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
+      maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
+    },
   });
 
   const readBodegaDraft = async (
@@ -1234,6 +1288,14 @@ export default function Ajustes() {
     setUbicacionBodega(draft.ubicacion || draft.descripcion);
     setCapacidadKg(draft.capacidadKg || String(BODEGA_DEFAULT_CAPACITY_KG));
     setBodegaLimitesForm(draft.limites);
+    if (draft.limitesTransaccion) {
+      setLimitMinPesoCompraKg(String(draft.limitesTransaccion.minPesoCompraKg));
+      setLimitMaxPesoKg(String(draft.limitesTransaccion.maxPesoCompraKg));
+      setLimitMinPrecioCompraKg(String(draft.limitesTransaccion.minPrecioCompraKg));
+      setLimitMaxPrecioKg(String(draft.limitesTransaccion.maxPrecioCompraKg));
+      setLimitMinPrecioVentaKg(String(draft.limitesTransaccion.minPrecioVentaKg));
+      setLimitMaxPrecioVentaKg(String(draft.limitesTransaccion.maxPrecioVentaKg));
+    }
     setBodegaWizardStep(draft.step);
     setBodegaDraftDirty(true);
     setBodegaFormOpen(true);
@@ -2581,23 +2643,39 @@ export default function Ajustes() {
     }
 
     if (step >= 2) {
-      if (
-        !Number.isFinite(bodegaLimitesForm.limiteMinimoKg) ||
-        bodegaLimitesForm.limiteMinimoKg < 0
-      ) {
-        return 'Ingresa un límite mínimo válido.';
+      const pesoMin = parseNumericInput(limitMinPesoCompraKg);
+      const pesoMax = parseNumericInput(limitMaxPesoKg);
+      const precioCompraMin = parseNumericInput(limitMinPrecioCompraKg);
+      const precioCompraMax = parseNumericInput(limitMaxPrecioKg);
+      const precioVentaMin = parseNumericInput(limitMinPrecioVentaKg);
+      const precioVentaMax = parseNumericInput(limitMaxPrecioVentaKg);
+
+      if (!Number.isFinite(pesoMin) || pesoMin <= 0) {
+        return 'Ingresa un peso mínimo de compra válido.';
       }
-      if (
-        !Number.isFinite(bodegaLimitesForm.limiteMaximoKg) ||
-        bodegaLimitesForm.limiteMaximoKg <= 0
-      ) {
-        return 'Ingresa un límite máximo válido.';
+      if (!Number.isFinite(pesoMax) || pesoMax <= 0) {
+        return 'El peso máximo debe ser mayor que cero.';
       }
-      if (bodegaLimitesForm.limiteMinimoKg >= bodegaLimitesForm.limiteMaximoKg) {
-        return 'El límite mínimo debe ser menor que el límite máximo.';
+      if (pesoMin >= pesoMax) {
+        return 'El peso mínimo debe ser menor que el peso máximo.';
       }
-      if (bodegaLimitesForm.limiteMaximoKg > capacidad) {
-        return 'El límite máximo no puede superar la capacidad de la bodega.';
+      if (!Number.isFinite(precioCompraMin) || precioCompraMin <= 0) {
+        return 'Ingresa un precio mínimo de compra válido.';
+      }
+      if (!Number.isFinite(precioCompraMax) || precioCompraMax <= 0) {
+        return 'Ingresa un precio máximo de compra válido.';
+      }
+      if (precioCompraMin >= precioCompraMax) {
+        return 'El precio mínimo de compra debe ser menor que el máximo.';
+      }
+      if (!Number.isFinite(precioVentaMin) || precioVentaMin <= 0) {
+        return 'Ingresa un precio mínimo de venta válido.';
+      }
+      if (!Number.isFinite(precioVentaMax) || precioVentaMax <= 0) {
+        return 'Ingresa un precio máximo de venta válido.';
+      }
+      if (precioVentaMin >= precioVentaMax) {
+        return 'El precio mínimo de venta debe ser menor que el máximo.';
       }
     }
 
@@ -2701,6 +2779,12 @@ export default function Ajustes() {
     ubicacionBodega,
     capacidadKg,
     bodegaLimitesForm,
+    limitMinPesoCompraKg,
+    limitMaxPesoKg,
+    limitMinPrecioCompraKg,
+    limitMaxPrecioKg,
+    limitMinPrecioVentaKg,
+    limitMaxPrecioVentaKg,
   ]);
 
   useEffect(() => {
@@ -2718,7 +2802,50 @@ export default function Ajustes() {
       window.removeEventListener('beforeunload', saveDraft);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [bodegaFormOpen, bodegaDraftDirty, bodegaWizardStep, nombreBodega, ubicacionBodega, capacidadKg, bodegaLimitesForm]);
+  }, [
+    bodegaFormOpen,
+    bodegaDraftDirty,
+    bodegaWizardStep,
+    nombreBodega,
+    ubicacionBodega,
+    capacidadKg,
+    bodegaLimitesForm,
+    limitMinPesoCompraKg,
+    limitMaxPesoKg,
+    limitMinPrecioCompraKg,
+    limitMaxPrecioKg,
+    limitMinPrecioVentaKg,
+    limitMaxPrecioVentaKg,
+  ]);
+
+  const guardarLimitesOperativosBodega = async () => {
+    const limitesLocales: LimitesTransaccion = {
+      minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
+      maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
+      minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
+      maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
+      minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
+      maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
+    };
+
+    const result = await guardarLimitesEntrada({
+      maxPesoKg: limitesLocales.maxPesoCompraKg,
+      maxPrecioKg: limitesLocales.maxPrecioCompraKg,
+      maxPrecioVentaKg: limitesLocales.maxPrecioVentaKg,
+    });
+    const limitesGuardados = guardarLimitesEntradaLocales({
+      ...limitesLocales,
+      maxPesoCompraKg: result.maxPesoKg,
+      maxPrecioCompraKg: result.maxPrecioKg,
+      maxPrecioVentaKg: result.maxPrecioVentaKg,
+    });
+    setLimitMinPesoCompraKg(String(limitesGuardados.minPesoCompraKg));
+    setLimitMaxPesoKg(String(limitesGuardados.maxPesoCompraKg));
+    setLimitMinPrecioCompraKg(String(limitesGuardados.minPrecioCompraKg));
+    setLimitMaxPrecioKg(String(limitesGuardados.maxPrecioCompraKg));
+    setLimitMinPrecioVentaKg(String(limitesGuardados.minPrecioVentaKg));
+    setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
+  };
 
   const guardarBodega = async () => {
     const capacidad = getBodegaFormCapacidad();
@@ -2754,6 +2881,7 @@ export default function Ajustes() {
           activa: bodegaEditando.activa,
           esPrincipal: bodegaEditando.esPrincipal,
         });
+        await guardarLimitesOperativosBodega();
         await guardarLimitesBodega(updated.id, bodegaLimitesForm);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === updated.id)) {
@@ -2770,6 +2898,7 @@ export default function Ajustes() {
           activa: true,
           esPrincipal: false,
         });
+        await guardarLimitesOperativosBodega();
         await guardarLimitesBodega(created.id, bodegaLimitesForm);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === created.id)) {
@@ -3578,12 +3707,15 @@ export default function Ajustes() {
     contact: DeviceContact,
     phone?: DeviceContactPhone,
   ) => {
+    console.log('[contactos] contacto seleccionado:', contact);
     const phoneResult = phone?.number
       ? normalizeImportedContactPhone(phone.number)
       : null;
+    console.log('[contactos] nombre importado:', contact.name?.trim() || '');
+    console.log('[contactos] teléfono importado:', phoneResult?.formatted ?? '');
     const nextForm: PeopleAdminForm = {
       nombre: contact.name?.trim() || peopleForm.nombre,
-      tipoDocumento: '',
+      tipoDocumento: peopleForm.tipoDocumento || 'CEDULA',
       documento: '',
       telefono: phoneResult?.formatted ?? peopleForm.telefono,
       roles: peopleForm.roles.length ? peopleForm.roles : ['CLIENTE'],
@@ -3607,15 +3739,16 @@ export default function Ajustes() {
 
     setPeopleForm(nextForm);
     setPeopleFormErrors({
-      tipoDocumento: 'Selecciona el tipo de documento.',
       documento: 'Ingresa el número de documento.',
-      telefono: telefonoWarning,
+      ...(telefonoWarning ? { telefono: telefonoWarning } : {}),
     });
     setPeopleImportedPendingDocument(true);
     setPeopleImportMessage(
-      'Contacto importado. Completa el tipo y número de documento antes de guardar este contacto.',
+      phoneResult
+        ? 'Contacto importado. Completa el número de documento antes de guardar este contacto.'
+        : 'Este contacto no tiene un número de teléfono registrado. Puedes escribirlo manualmente o dejarlo vacío.',
     );
-    setPeopleFormError('Falta completar el documento del contacto.');
+    setPeopleFormError(null);
     setPeoplePhoneChoice(null);
     window.setTimeout(() => {
       document.querySelector<HTMLButtonElement>('[aria-label="Tipo de documento"]')?.focus();
@@ -3623,6 +3756,7 @@ export default function Ajustes() {
   };
 
   const importarPersonaDesdeContactos = async () => {
+    console.log('[contactos] importar presionado');
     if (!canImportDeviceContacts()) {
       setPeopleFormError(
         'La importación de contactos está disponible en la aplicación Android. Puedes registrar los datos manualmente.',
@@ -3632,6 +3766,7 @@ export default function Ajustes() {
 
     try {
       const contact = await pickDeviceContact();
+      console.log('[contactos] permiso:', 'solicitado por plugin nativo');
       if (contact.cancelled) return;
 
       const phones = (contact.phones ?? []).filter((phone) => phone.number?.trim());
@@ -3642,9 +3777,13 @@ export default function Ajustes() {
 
       aplicarContactoImportadoPersona(contact, phones[0]);
     } catch (importError) {
+      console.log('[contactos] permiso:', 'rechazado o no disponible');
+      console.log('[contactos] contacto seleccionado:', null);
       const message =
-        importError instanceof Error && importError.message.includes('CONTACTS_PERMISSION_REQUIRED')
-          ? 'No pudimos leer el contacto seleccionado. Puedes registrar los datos manualmente o revisar los permisos de contactos en Android.'
+        importError instanceof Error &&
+        (importError.message.includes('CONTACTS_PERMISSION_REQUIRED') ||
+          importError.message.includes('CONTACTS_PERMISSION_DENIED'))
+          ? 'Permiso de contactos desactivado. Actívalo en los ajustes del teléfono para importar desde tu agenda.'
           : 'No pudimos importar el contacto seleccionado. Intenta nuevamente o ingresa los datos manualmente.';
       setPeopleFormError(message);
     }
@@ -4726,7 +4865,7 @@ export default function Ajustes() {
 
           {isViewingPublicProfile ? (
             <div
-              className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
+              className="fixed inset-0 z-[116] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
               onClick={() => setIsViewingPublicProfile(false)}
             >
             <section
@@ -6613,58 +6752,177 @@ export default function Ajustes() {
                   ) : null}
 
                   {bodegaWizardStep === 2 ? (
-                    <div className="space-y-5 rounded-[24px] border border-[#e3e9f5] bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
-                      <div className="space-y-1">
-                        <p className="text-[0.72rem] font-black uppercase tracking-[0.13em] text-[#40516d] dark:text-blue-200">
-                          PASO 2 DE 3
-                        </p>
-                        <h5 className="text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-950 dark:text-slate-100">
-                          LÍMITES DE ALMACENAMIENTO
-                        </h5>
+                    <div className="mx-auto w-full max-w-[390px] rounded-[28px] border border-[#dfe7f5] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.14)] dark:border-slate-700 dark:bg-slate-900">
+                      <div className="border-b border-[#edf1f8] px-4 pt-4 dark:border-slate-700">
+                        <div className="grid grid-cols-3 rounded-[18px] bg-[#eef3fb] p-1 text-[0.78rem] font-black text-[#40516d] dark:bg-slate-950 dark:text-slate-300">
+                          {[
+                            ['todos', 'Todos'],
+                            ['compra', 'Compra'],
+                            ['venta', 'Venta'],
+                          ].map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setLimitesTab(value as LimitesTab)}
+                              className={`rounded-[14px] px-2 py-2 transition ${
+                                limitesTab === value
+                                  ? 'bg-white text-[#102d92] shadow-sm dark:bg-slate-800 dark:text-blue-200'
+                                  : 'text-[#40516d] dark:text-slate-300'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <label className="block">
-                        <span className={fieldLabelClass}>
-                          Límite mínimo de almacenamiento (kg)
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={formatKgInput(bodegaLimitesForm.limiteMinimoKg)}
-                          onChange={(event) => {
-                            setBodegaDraftDirty(true);
-                            setBodegaLimitesForm((current) => ({
-                              ...current,
-                              limiteMinimoKg: parseKgInput(event.target.value),
-                            }));
-                            setBodegaFeedback(null);
-                          }}
-                          className={fieldInputClass}
-                          placeholder="0"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className={fieldLabelClass}>
-                          Límite máximo de almacenamiento (kg)
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={formatKgInput(bodegaLimitesForm.limiteMaximoKg)}
-                          onChange={(event) => {
-                            setBodegaDraftDirty(true);
-                            setBodegaLimitesForm((current) => ({
-                              ...current,
-                              limiteMaximoKg: parseKgInput(event.target.value),
-                            }));
-                            setBodegaFeedback(null);
-                          }}
-                          className={fieldInputClass}
-                          placeholder="2.700"
-                        />
-                      </label>
-                      <p className="rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-3 py-2 text-[0.78rem] font-black text-[#40516d] dark:border-slate-700 dark:bg-slate-950 dark:text-blue-100">
-                        Capacidad máxima de la bodega: {formatKg(getBodegaFormCapacidad())} kg
-                      </p>
+
+                      <div className="max-h-[54vh] space-y-5 overflow-y-auto px-5 py-5">
+                        <div className="space-y-2">
+                          <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[#40516d] dark:text-blue-200">
+                            PASO 2 DE 3
+                          </p>
+                          <h5 className="text-[1.16rem] font-black uppercase leading-tight tracking-[0.04em] text-slate-950 dark:text-slate-100">
+                            LÍMITES DE COMPRA Y VENTA
+                          </h5>
+                        </div>
+
+                        {limitesTab === 'todos' || limitesTab === 'compra' ? (
+                          <section className="space-y-4">
+                            <p className="text-[0.78rem] font-black uppercase tracking-[0.12em] text-[#102d92] dark:text-blue-200">
+                              Compra
+                            </p>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Peso mínimo en compra (kg)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMinPesoCompraKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMinPesoCompraKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="5"
+                              />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Peso máximo en compra (kg)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMaxPesoKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMaxPesoKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="99.999"
+                              />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Precio mínimo x kg (Compra)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMinPrecioCompraKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMinPrecioCompraKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="$ 1.000"
+                              />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Precio máximo x kg (Compra)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMaxPrecioKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMaxPrecioKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="$ 100.000"
+                              />
+                            </label>
+                          </section>
+                        ) : null}
+
+                        {limitesTab === 'todos' || limitesTab === 'venta' ? (
+                          <section className="space-y-4">
+                            <p className="text-[0.78rem] font-black uppercase tracking-[0.12em] text-[#102d92] dark:text-blue-200">
+                              Venta
+                            </p>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Precio mínimo x kg (Venta)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMinPrecioVentaKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMinPrecioVentaKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="$ 1.000"
+                              />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className={fieldLabelClass}>
+                                Precio máximo x kg (Venta)
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumericInput(limitMaxPrecioVentaKg)}
+                                onChange={(event) => {
+                                  setBodegaDraftDirty(true);
+                                  setLimitMaxPrecioVentaKg(normalizeNumericInput(event.target.value));
+                                  setBodegaFeedback(null);
+                                }}
+                                className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
+                                placeholder="$ 100.000"
+                              />
+                            </label>
+                          </section>
+                        ) : null}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 border-t border-[#edf1f8] px-5 py-4 dark:border-slate-700">
+                        <button
+                          type="button"
+                          onClick={volverBodegaStep}
+                          className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          Atrás
+                        </button>
+                        <button
+                          type="button"
+                          onClick={continuarBodegaStep}
+                          disabled={guardandoBodega}
+                          className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                        >
+                          <ChevronRight size={16} />
+                          Siguiente
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
@@ -6784,46 +7042,46 @@ export default function Ajustes() {
                     </div>
                   ) : null}
 
-                  <div
-                    className={`fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95 ${
-                      bodegaWizardStep === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                    }`}
-                  >
-                    {bodegaWizardStep > 1 ? (
+                  {bodegaWizardStep !== 2 ? (
+                    <div
+                      className={`fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95 ${
+                        bodegaWizardStep === 1 ? 'grid-cols-1' : 'grid-cols-2'
+                      }`}
+                    >
+                      {bodegaWizardStep > 1 ? (
+                        <button
+                          type="button"
+                          onClick={volverBodegaStep}
+                          className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          Atrás
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={volverBodegaStep}
-                        className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                      >
-                        Atrás
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={
-                        bodegaWizardStep === 1
-                          ? continuarBodegaStep
-                          : bodegaWizardStep === 2
+                        onClick={
+                          bodegaWizardStep === 1
                             ? continuarBodegaStep
                             : abrirVistaPreviaBodega
-                      }
-                      disabled={guardandoBodega}
-                      className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
-                    >
-                      {guardandoBodega ? (
-                        <LoaderCircle size={15} className="animate-spin" />
-                      ) : bodegaWizardStep < 3 ? (
-                        <ChevronRight size={16} />
-                      ) : (
-                        <Save size={15} />
-                      )}
-                      {guardandoBodega
-                        ? 'Guardando bodega...'
-                        : bodegaWizardStep < 3
-                          ? 'Siguiente'
-                          : 'Guardar bodega'}
-                    </button>
-                  </div>
+                        }
+                        disabled={guardandoBodega}
+                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                      >
+                        {guardandoBodega ? (
+                          <LoaderCircle size={15} className="animate-spin" />
+                        ) : bodegaWizardStep < 3 ? (
+                          <ChevronRight size={16} />
+                        ) : (
+                          <Save size={15} />
+                        )}
+                        {guardandoBodega
+                          ? 'Guardando bodega...'
+                          : bodegaWizardStep < 3
+                            ? 'Siguiente'
+                            : 'Guardar bodega'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </section>
             </div>
@@ -6882,10 +7140,19 @@ export default function Ajustes() {
                       ],
                     },
                     {
-                      title: 'Límites',
+                      title: 'Límites de compra',
                       items: [
-                        ['Límite mínimo', `${formatKg(bodegaLimitesForm.limiteMinimoKg)} kg`],
-                        ['Límite máximo', `${formatKg(bodegaLimitesForm.limiteMaximoKg)} kg`],
+                        ['Peso mínimo', `${formatKg(parseNumericInput(limitMinPesoCompraKg))} kg`],
+                        ['Peso máximo', `${formatKg(parseNumericInput(limitMaxPesoKg))} kg`],
+                        ['Precio mínimo x kg', `$ ${formatNumericInput(limitMinPrecioCompraKg)}`],
+                        ['Precio máximo x kg', `$ ${formatNumericInput(limitMaxPrecioKg)}`],
+                      ],
+                    },
+                    {
+                      title: 'Límites de venta',
+                      items: [
+                        ['Precio mínimo x kg', `$ ${formatNumericInput(limitMinPrecioVentaKg)}`],
+                        ['Precio máximo x kg', `$ ${formatNumericInput(limitMaxPrecioVentaKg)}`],
                       ],
                     },
                     {
@@ -7951,7 +8218,23 @@ export default function Ajustes() {
             </div>
             <div className="mt-4 space-y-3">
               {peopleFormError ? (
-                <AppFeedbackMessage variant="error" description={peopleFormError} />
+                <div role="alert" aria-live="assertive">
+                  <AppFeedbackMessage
+                    variant="error"
+                    description={peopleFormError}
+                    action={
+                      peopleFormError.startsWith('Permiso de contactos desactivado') ? (
+                        <button
+                          type="button"
+                          onClick={() => void openAppSettings()}
+                          className="rounded-[10px] bg-white px-3 py-1.5 text-xs font-black text-amber-900"
+                        >
+                          Abrir ajustes
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                </div>
               ) : null}
               <div className="rounded-[18px] border border-[#dbe5f4] bg-[#f8fbff] p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -7988,42 +8271,34 @@ export default function Ajustes() {
                 <span className="mb-1.5 block text-xs font-black text-slate-700">
                   Rol en el negocio
                 </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    ['CLIENTE', 'Cliente'],
-                    ['PRODUCTOR', 'Productor'],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        const rol = value as ContactoRol;
-                        setPeopleForm((prev) => {
-                          const selected = prev.roles.includes(rol);
-                          const roles = selected
-                            ? prev.roles.filter((item) => item !== rol)
-                            : [...prev.roles, rol];
-                          setPeopleFormErrors((current) => ({
-                            ...current,
-                            roles:
-                              roles.length === 0
-                                ? 'Selecciona al menos un rol para el contacto.'
-                                : undefined,
-                          }));
-                          return { ...prev, roles };
-                        });
-                      }}
-                      aria-pressed={peopleForm.roles.includes(value as ContactoRol)}
-                      className={`min-h-[40px] rounded-[13px] text-xs font-black ${
-                        peopleForm.roles.includes(value as ContactoRol)
-                          ? 'bg-[#102d92] text-white'
-                          : 'border border-[#d5deee] bg-white text-[#334b85]'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <SmartSelect
+                  value={
+                    peopleForm.roles.includes('CLIENTE') &&
+                    peopleForm.roles.includes('PRODUCTOR')
+                      ? 'MULTIROL'
+                      : peopleForm.roles.includes('PRODUCTOR')
+                        ? 'PRODUCTOR'
+                        : 'CLIENTE'
+                  }
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const roles: ContactoRol[] =
+                      value === 'MULTIROL'
+                        ? ['CLIENTE', 'PRODUCTOR']
+                        : value === 'PRODUCTOR'
+                          ? ['PRODUCTOR']
+                          : ['CLIENTE'];
+                    setPeopleForm((prev) => ({ ...prev, roles }));
+                    setPeopleFormErrors((current) => ({ ...current, roles: undefined }));
+                    setPeopleFormError(null);
+                  }}
+                  className={fieldInputClass}
+                  aria-label="Rol en el negocio"
+                >
+                  <option value="CLIENTE">Cliente</option>
+                  <option value="PRODUCTOR">Productor</option>
+                  <option value="MULTIROL">Cliente y productor</option>
+                </SmartSelect>
                 {peopleForm.roles.includes('CLIENTE') && peopleForm.roles.includes('PRODUCTOR') ? (
                   <p className="mt-2 rounded-[12px] bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#102d92]">
                     Este contacto será Multirol y podrá participar en compras y ventas.
@@ -8123,7 +8398,7 @@ export default function Ajustes() {
               {peopleFormErrors.documento ? <p className={fieldErrorClass}>{peopleFormErrors.documento}</p> : null}
               <label className="block">
                 <span className={fieldLabelClass}>
-                  Teléfono
+                  Teléfono (opcional)
                 </span>
               <input
                 type="text"
@@ -8151,7 +8426,7 @@ export default function Ajustes() {
                   disabled={peopleLoading}
                   className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:opacity-70"
                 >
-                  Guardar
+                  {peopleLoading ? 'Guardando contacto...' : 'Guardar contacto'}
                 </button>
                 <button
                   type="button"

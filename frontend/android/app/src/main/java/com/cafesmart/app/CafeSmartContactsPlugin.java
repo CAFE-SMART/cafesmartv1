@@ -1,5 +1,6 @@
 package com.cafesmart.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
@@ -15,11 +16,42 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.PermissionState;
 
-@CapacitorPlugin(name = "CafeSmartContacts")
+@CapacitorPlugin(
+    name = "CafeSmartContacts",
+    permissions = {
+        @Permission(strings = { Manifest.permission.READ_CONTACTS }, alias = "contacts")
+    }
+)
 public class CafeSmartContactsPlugin extends Plugin {
     @PluginMethod
     public void pickContact(PluginCall call) {
+        if (getPermissionState("contacts") != PermissionState.GRANTED) {
+            requestPermissionForAlias("contacts", call, "contactsPermissionCallback");
+            return;
+        }
+
+        openContactPicker(call);
+    }
+
+    @PermissionCallback
+    private void contactsPermissionCallback(PluginCall call) {
+        if (call == null) {
+            return;
+        }
+
+        if (getPermissionState("contacts") != PermissionState.GRANTED) {
+            call.reject("CONTACTS_PERMISSION_DENIED", "Permiso de contactos desactivado.");
+            return;
+        }
+
+        openContactPicker(call);
+    }
+
+    private void openContactPicker(PluginCall call) {
         try {
             Intent intent = new Intent(
                 Intent.ACTION_PICK,

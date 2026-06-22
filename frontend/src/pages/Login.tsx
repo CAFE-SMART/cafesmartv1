@@ -218,6 +218,47 @@ function maskEmailForLog(value: string) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
+function getSpecificLoginErrorMessage(error: AuthError) {
+  const code = (error.apiCode || error.code || '').toUpperCase();
+  const message = error.message || '';
+
+  if (
+    error.status === 401 ||
+    code.includes('INVALID') ||
+    code.includes('CREDENTIAL') ||
+    /credenciales|contrase/i.test(message)
+  ) {
+    return 'Correo o contraseña incorrectos. Revisa los datos e intenta nuevamente.';
+  }
+
+  if (
+    error.status === 404 ||
+    code.includes('USER_NOT_FOUND') ||
+    code.includes('NOT_FOUND') ||
+    /no encontramos|no existe|registrad/i.test(message)
+  ) {
+    return 'No encontramos una cuenta con este correo.';
+  }
+
+  if (error.code === 'OFFLINE' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    return 'No tienes conexión. Revisa tu internet e intenta nuevamente.';
+  }
+
+  if (error.code === 'TIMEOUT') {
+    return 'La conexión está tardando demasiado. Intenta nuevamente.';
+  }
+
+  if (error.code === 'CORS_OR_NETWORK' || error.status === 0) {
+    return 'No pudimos conectar con el servidor. Intenta nuevamente en unos momentos.';
+  }
+
+  if ((error.status ?? 0) >= 500) {
+    return 'No pudimos conectar con el servidor. Intenta nuevamente en unos momentos.';
+  }
+
+  return message || 'No pudimos iniciar sesión. Intenta nuevamente.';
+}
+
 function withLoginSafetyTimeout<T>(operation: Promise<T>): Promise<T> {
   let timeoutId: number | null = null;
 
@@ -662,6 +703,7 @@ export default function Login() {
       });
       const field = (authError.field || '').toLowerCase();
       const message = authError.message || 'No pudimos iniciar sesión en este momento.';
+      const specificLoginMessage = getSpecificLoginErrorMessage(authError);
       const details = authError.details ?? {};
       const isCredentialError =
         authError.status === 401 ||
@@ -675,26 +717,22 @@ export default function Login() {
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
 
       if (isCredentialError && (emailDetail || passwordDetail)) {
-        setPasswordFieldError(passwordDetail || 'La contraseña no coincide.');
+        setPasswordFieldError(passwordDetail || specificLoginMessage);
         setPassword('');
-        setError(null);
+        setError(specificLoginMessage);
       } else if (isCredentialError && (field === 'email' || field === 'correo')) {
         setEmailFieldTone('error');
-        setEmailFieldError(message);
-        setError(null);
+        setEmailFieldError(specificLoginMessage);
+        setError(specificLoginMessage);
       } else if (isCredentialError && (field === 'password' || field === 'contrasena')) {
-        setPasswordFieldError(message);
+        setPasswordFieldError(specificLoginMessage);
         setPassword('');
-        setError(null);
+        setError(specificLoginMessage);
       } else if (
         authError.code === 'TIMEOUT' ||
         authError.code === 'CORS_OR_NETWORK'
       ) {
-        setError(
-          authError.code === 'TIMEOUT'
-            ? AUTH_MESSAGES.cloudTimeout
-            : AUTH_MESSAGES.cloudTryAgain,
-        );
+        setError(specificLoginMessage);
         setPasswordFieldError(null);
       } else if (
         authError.code === 'OFFLINE' ||
@@ -710,14 +748,14 @@ export default function Login() {
             setPasswordFieldError(null);
           }
         } else {
-          setError(AUTH_MESSAGES.cloudUnavailable);
+          setError(specificLoginMessage);
           setPasswordFieldError(null);
         }
       } else if ((authError.status ?? 0) >= 500) {
-        setError('No pudimos iniciar sesión en este momento.');
+        setError(specificLoginMessage);
         setPasswordFieldError(null);
       } else {
-        setError(message);
+        setError(specificLoginMessage);
         setPasswordFieldError(null);
       }
     } finally {

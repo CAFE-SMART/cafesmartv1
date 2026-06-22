@@ -196,6 +196,8 @@ async function postAuth<TResponse>(
             method: 'POST',
             url,
           });
+          console.log('[login] endpoint:', '/auth/login');
+          console.log('[login] api url:', apiBaseUrl);
         }
 
         const response = await fetch(url, {
@@ -228,11 +230,24 @@ async function postAuth<TResponse>(
             'respuesta recibida',
             summarizeAuthResponse(data as RawApiError & Record<string, unknown>),
           );
+          console.log('[login] status:', response.status);
+          console.log(
+            '[login] response:',
+            summarizeAuthResponse(data as RawApiError & Record<string, unknown>),
+          );
         }
 
         if (!response.ok) {
           if (shouldLogLogin && response.status === 401) {
             logLoginAuth('credenciales incorrectas', { status: response.status });
+          }
+          if (shouldLogLogin) {
+            console.log('[login] error:', {
+              status: response.status,
+              code: data.code ?? null,
+              field: data.field ?? null,
+              message: data.message ?? null,
+            });
           }
           if (SHOULD_LOG_API_DEBUG) {
             console.info(
@@ -295,6 +310,7 @@ async function postAuth<TResponse>(
                 typeof navigator === 'undefined' ? null : navigator.onLine,
               error: describeAuthFetchError(error),
             });
+            console.log('[login] error:', describeAuthFetchError(error));
             if (error instanceof TypeError) {
               logLoginAuth('cors suspected', { url });
             }
