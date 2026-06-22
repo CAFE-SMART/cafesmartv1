@@ -104,6 +104,8 @@ export class UsersService {
    */
   async findByEmail(correo: string) {
     const normalizedEmail = correo.trim().toLowerCase();
+    const supportsOrganizationDescription =
+      await this.supportsOrganizationDescriptionColumn(this.prisma);
 
     try {
       return await this.prisma.user.findFirst({
@@ -127,7 +129,7 @@ export class UsersService {
               nombre: true,
               tipo: true,
               otroTipoDetalle: true,
-              descripcion: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
             },
           },
         },
@@ -149,6 +151,14 @@ export class UsersService {
           password: true,
           googleId: true,
           organizacionId: true,
+          organizacion: {
+            select: {
+              nombre: true,
+              tipo: true,
+              otroTipoDetalle: true,
+              ...(supportsOrganizationDescription ? { descripcion: true } : {}),
+            },
+          },
         },
       });
       return user ? { ...user, avatarUrl: null } : null;
