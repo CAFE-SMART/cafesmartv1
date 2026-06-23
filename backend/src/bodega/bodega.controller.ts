@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Patch,
   Post,
@@ -30,6 +31,8 @@ import {
 
 @Controller('bodega')
 export class BodegaController {
+  private readonly logger = new Logger(BodegaController.name);
+
   constructor(
     private readonly bodegaService: BodegaService,
     private readonly prisma: PrismaService,
@@ -49,7 +52,12 @@ export class BodegaController {
     @Req() req: { user: { sub: string } },
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
-    return this.bodegaService.crearBodega(organizacionId, dto);
+    try {
+      return await this.bodegaService.crearBodega(organizacionId, dto);
+    } catch (error) {
+      this.logCreateWarehouseFailure('POST /bodega', req.user.sub, organizacionId, dto, error);
+      throw error;
+    }
   }
 
   @Get('detalle/:id')
@@ -80,7 +88,18 @@ export class BodegaController {
     @Req() req: { user: { sub: string } },
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
-    return this.bodegaService.actualizarLimitesBodega(organizacionId, id, dto);
+    try {
+      return await this.bodegaService.actualizarLimitesBodega(organizacionId, id, dto);
+    } catch (error) {
+      this.logCreateWarehouseFailure(
+        'PATCH /bodega/:id/limites',
+        req.user.sub,
+        organizacionId,
+        { bodegaId: id, ...dto },
+        error,
+      );
+      throw error;
+    }
   }
 
   @Patch(':id')
@@ -143,11 +162,50 @@ export class BodegaController {
     @Req() req: { user: { sub: string } },
   ) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
-    return this.bodegaService.actualizarLimites(
-      organizacionId,
-      body.maxPesoKg,
-      body.maxPrecioKg,
-      body.maxPrecioVentaKg,
+    try {
+      return await this.bodegaService.actualizarLimites(
+        organizacionId,
+        body.maxPesoKg,
+        body.maxPrecioKg,
+        body.maxPrecioVentaKg,
+      );
+    } catch (error) {
+      this.logCreateWarehouseFailure(
+        'POST /bodega/limites',
+        req.user.sub,
+        organizacionId,
+        body,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private logCreateWarehouseFailure(
+    endpoint: string,
+    userId: string,
+    organizacionId: string,
+    payload: unknown,
+    error: unknown,
+  ) {
+    const errorLike = error as {
+      response?: unknown;
+      status?: number;
+      message?: string;
+      stack?: string;
+    };
+    this.logger.error(
+      JSON.stringify({
+        event: 'CREATE_WAREHOUSE_FAILED',
+        endpoint,
+        userId,
+        organizacionId,
+        payload,
+        status: errorLike?.status ?? null,
+        response: errorLike?.response ?? null,
+        message: errorLike?.message ?? String(error),
+      }),
+      errorLike?.stack,
     );
   }
 

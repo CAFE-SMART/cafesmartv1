@@ -6110,11 +6110,12 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Apariencia
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             <button
               type="button"
               onClick={() => setThemeModalOpen(true)}
-              className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900"
+              aria-label={`Tema visual. Actual: ${theme === 'system' ? 'Sistema' : resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'}.`}
+              className="col-span-full flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
             >
               <span className="inline-flex rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
                 <Settings size={14} />

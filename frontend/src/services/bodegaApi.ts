@@ -1,4 +1,5 @@
 import { apiFetch } from './apiService';
+import { SHOULD_LOG_API_DEBUG } from '../config/api';
 
 export type ConfiguracionBodega = {
   nombreBodega: string;
@@ -56,7 +57,7 @@ function logBodegaDebug(
   message: string,
   data: Record<string, unknown>,
 ) {
-  if (!import.meta.env.DEV) return;
+  if (!SHOULD_LOG_API_DEBUG) return;
   console.debug(`[CafeSmart][bodegas] ${message}`, data);
 }
 
@@ -66,7 +67,7 @@ function logBodegaError(
   payload: unknown,
   error: unknown,
 ) {
-  if (!import.meta.env.DEV) return;
+  if (!SHOULD_LOG_API_DEBUG) return;
   const apiError = error as {
     status?: number;
     code?: string | null;

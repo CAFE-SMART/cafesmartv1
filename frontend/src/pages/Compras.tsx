@@ -5884,13 +5884,13 @@ export default function Compras() {
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
-                <div className="order-0 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3">
+                <div className="order-0 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-[#17336f]">
+                      <p className="text-sm font-black text-[#17336f] dark:text-slate-100">
                         Importar contacto
                       </p>
-                      <p className="mt-0.5 text-xs font-semibold leading-4 text-slate-500">
+                      <p className="mt-0.5 text-xs font-semibold leading-4 text-slate-500 dark:text-slate-300">
                         Completa nombre y teléfono desde tu celular.
                       </p>
                     </div>
@@ -5898,7 +5898,7 @@ export default function Compras() {
                       type="button"
                       onClick={() => void importarProductorDesdeContactos()}
                       aria-label="Importar productor desde los contactos del dispositivo"
-                      className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92]"
+                      className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                     >
                       Importar
                     </button>
