@@ -60,6 +60,33 @@ function logBodegaDebug(
   console.debug(`[CafeSmart][bodegas] ${message}`, data);
 }
 
+function logBodegaError(
+  endpoint: string,
+  method: string,
+  payload: unknown,
+  error: unknown,
+) {
+  if (!import.meta.env.DEV) return;
+  const apiError = error as {
+    status?: number;
+    code?: string | null;
+    message?: string;
+    details?: unknown;
+  };
+  console.error('CREATE_WAREHOUSE_ERROR', {
+    endpoint,
+    method,
+    payload,
+    status: apiError?.status ?? 'unknown',
+    responseData: {
+      code: apiError?.code ?? null,
+      message: apiError?.message ?? String(error),
+      details: apiError?.details ?? null,
+    },
+    message: apiError?.message ?? String(error),
+  });
+}
+
 /**
  * Obtiene la configuración de bodega del servidor.
  */
@@ -89,6 +116,9 @@ export async function guardarLimitesEntrada(
   return apiFetch('/bodega/limites', {
     method: 'POST',
     body: JSON.stringify(limites),
+  }).catch((error) => {
+    logBodegaError('/bodega/limites', 'POST', limites, error);
+    throw error;
   }) as Promise<LimitesEntrada>;
 }
 
@@ -126,6 +156,7 @@ export function crearBodega(payload: GuardarBodegaPayload) {
         status: error?.status ?? 'unknown',
         response: error?.message ?? error,
       });
+      logBodegaError('/bodega', 'POST', payload, error);
       throw error;
     });
 }
@@ -157,6 +188,7 @@ export function editarBodega(id: string, payload: Partial<GuardarBodegaPayload>)
         status: error?.status ?? 'unknown',
         response: error?.message ?? error,
       });
+      logBodegaError(endpoint, 'PATCH', payload, error);
       throw error;
     });
 }
@@ -196,9 +228,13 @@ export function obtenerLimitesBodega(id: string) {
 }
 
 export function guardarLimitesBodega(id: string, payload: LimitesBodega) {
-  return apiFetch(`/bodega/${encodeURIComponent(id)}/limites`, {
+  const endpoint = `/bodega/${encodeURIComponent(id)}/limites`;
+  return apiFetch(endpoint, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  }).catch((error) => {
+    logBodegaError(endpoint, 'PATCH', payload, error);
+    throw error;
   }) as Promise<LimitesBodega>;
 }
 

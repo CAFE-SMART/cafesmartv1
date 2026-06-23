@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { AppBottomNav } from '../../components/AppBottomNav';
 import { AppFeedbackMessage } from '../../components/AppFeedbackMessage';
+import { ContactDetailModal } from '../../components/ContactDetailModal';
 import { SmartSelect } from '../../components/SmartSelect';
 import {
   createGuidedError,
@@ -1873,7 +1874,7 @@ export default function Ventas() {
       setClienteFormError('Falta completar el documento del contacto.');
       setClienteImportedPendingDocument(true);
       setClienteImportMessage(
-        'Contacto importado. Completa el tipo y número de documento antes de registrar el cliente.',
+        'Contacto importado. Revisa los datos antes de guardar.',
       );
       setClientePhoneChoice(null);
       window.setTimeout(() => {
@@ -3868,58 +3869,29 @@ export default function Ventas() {
       ) : null}
 
       {clienteDetalle ? (
-        <div className="fixed inset-0 z-50 flex h-[100dvh] items-end justify-center bg-slate-900/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cliente-detalle-title"
-            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
-                  Cliente
-                </p>
-                <h2 id="cliente-detalle-title" className="mt-1 text-lg font-black text-slate-950">
-                  {clienteDetalle.nombre}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setClienteDetalle(null)}
-                aria-label="Cerrar detalle de cliente"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
-              <p>Cédula/NIT: <span className="font-black text-slate-900">{clienteDetalle.documento}</span></p>
-              <p>Teléfono: <span className="font-black text-slate-900">{clienteDetalle.telefono ? formatPhoneNumber(clienteDetalle.telefono) : 'No registrado'}</span></p>
-              <p>Dirección: <span className="font-black text-slate-900">No disponible</span></p>
-              <p>Observaciones: <span className="font-black text-slate-900">No disponible</span></p>
-              <p>Ubicación: <span className="font-black text-slate-900">No disponible</span></p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const c = clienteDetalle;
-                setClienteDetalle(null);
-                setClienteEditando(c);
-                setClienteForm({
-                  nombre: c.nombre,
-                  telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
-                  documento: c.documento === 'Documento pendiente' ? '' : c.documento,
-                  tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
-                });
-                setMostrarModal(true);
-              }}
-              className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-            >
-              Editar
-            </button>
-          </section>
-        </div>
+        <ContactDetailModal
+          contact={{
+            ...clienteDetalle,
+            roles: ['CLIENTE'],
+            documento:
+              clienteDetalle.documento === 'Documento pendiente'
+                ? null
+                : clienteDetalle.documento,
+          }}
+          onClose={() => setClienteDetalle(null)}
+          onEdit={() => {
+            const c = clienteDetalle;
+            setClienteDetalle(null);
+            setClienteEditando(c);
+            setClienteForm({
+              nombre: c.nombre,
+              telefono: c.telefono ? formatPhoneNumber(c.telefono) : '',
+              documento: c.documento === 'Documento pendiente' ? '' : c.documento,
+              tipoDocumento: c.documento.includes('-') ? 'NIT' : 'CEDULA',
+            });
+            setMostrarModal(true);
+          }}
+        />
       ) : null}
 
       <ModalConfirmacionVenta
@@ -4014,14 +3986,14 @@ export default function Ventas() {
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-5 pb-6">
-                <div className="order-0 rounded-[18px] border border-[#dbe5f4] bg-[#f8fbff] p-3 dark:border-slate-700 dark:bg-slate-900">
+                <div className="order-0 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
-                        Datos del cliente
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-[#17336f] dark:text-slate-100">
+                        Importar contacto
                       </p>
-                      <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                        Importa nombre y celular desde la agenda del celular.
+                      <p className="mt-0.5 text-xs font-semibold leading-4 text-slate-500 dark:text-slate-300">
+                        Completa nombre y teléfono desde tu celular.
                       </p>
                     </div>
                     <button
@@ -4030,7 +4002,7 @@ export default function Ventas() {
                       aria-label="Importar cliente desde los contactos del dispositivo"
                       className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                     >
-                      Importar desde contactos
+                      Importar
                     </button>
                   </div>
                   {clienteImportMessage ? (

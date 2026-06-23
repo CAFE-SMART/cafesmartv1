@@ -41,6 +41,7 @@ import {
 import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
+import { ContactDetailModal } from '../components/ContactDetailModal';
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal';
 import { CafeSmartEmptyState } from '../components/common/CafeSmartEmptyState';
 import { CafeSmartModal } from '../components/common/CafeSmartModal';
@@ -229,13 +230,41 @@ type CompanySettings = {
   descripcion: string;
 };
 
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  COMPRAVENTA: 'Compraventa',
+  COOPERATIVA: 'Cooperativa',
+  OTRO: 'Personalizado',
+  PERSONALIZADO: 'Personalizado',
+};
+
+function normalizeBusinessType(value?: string | null) {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized) return '';
+  if (normalized === 'COMPRAVENTA' || normalized === 'COMPRA VENTA') {
+    return 'COMPRAVENTA';
+  }
+  if (normalized === 'COOPERATIVA') {
+    return 'COOPERATIVA';
+  }
+  if (
+    normalized === 'OTRO' ||
+    normalized === 'PERSONALIZADO' ||
+    normalized === 'OTRA' ||
+    normalized === 'PERSONALIZADA'
+  ) {
+    return 'OTRO';
+  }
+  return normalized;
+}
+
 function isCustomBusinessType(value: string) {
-  const normalized = value.trim().toUpperCase();
+  const normalized = normalizeBusinessType(value);
   return normalized === 'OTRO' || normalized === 'PERSONALIZADO';
 }
 
 function getBusinessTypeLabel(value: string) {
-  return isCustomBusinessType(value) ? 'Personalizado' : value;
+  const normalized = normalizeBusinessType(value);
+  return BUSINESS_TYPE_LABELS[normalized] ?? value;
 }
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
@@ -1512,14 +1541,9 @@ export default function Ajustes() {
     const nextCorreo = profile.correo || user?.email || '';
     const nextTelefono = profile.telefono || formatPhoneNumber(user?.telefono ?? '');
     const nextTipo =
-      company.tipoEmpresa ||
-      (user?.tipoOrganizacion
-        ? user.tipoOrganizacion.charAt(0) +
-          user.tipoOrganizacion.slice(1).toLowerCase()
-        : user?.organizacion?.tipo
-          ? user.organizacion.tipo.charAt(0) +
-            user.organizacion.tipo.slice(1).toLowerCase()
-        : 'Compraventa');
+      normalizeBusinessType(user?.tipoOrganizacion ?? user?.organizacion?.tipo) ||
+      normalizeBusinessType(company.tipoEmpresa) ||
+      'COMPRAVENTA';
     const nextDescripcion =
       user?.organizacion?.descripcion?.trim() ||
       user?.descripcionOrganizacion?.trim() ||
@@ -1554,7 +1578,7 @@ export default function Ajustes() {
           prev.nombreEmpresa === 'Negocio sin nombre'
             ? nombreOrganizacionReal
             : prev.nombreEmpresa,
-        tipoEmpresa: nextTipo,
+        tipoEmpresa: normalizeBusinessType(nextTipo),
         descripcion: nextDescripcion,
       }));
     }
@@ -1673,10 +1697,14 @@ export default function Ajustes() {
           correo: perfilPersistido.correo,
           telefono: formatPhoneNumber(perfilPersistido.telefono ?? ''),
         });
+        const tipoOrganizacionNormalizado = normalizeBusinessType(tipoOrganizacion);
         if (nombreOrganizacion) {
           setCompany((prev) => ({
             nombreEmpresa: nombreOrganizacion,
-            tipoEmpresa: tipoOrganizacion ?? prev.tipoEmpresa ?? 'COMPRAVENTA',
+            tipoEmpresa:
+              tipoOrganizacionNormalizado ||
+              normalizeBusinessType(prev.tipoEmpresa) ||
+              'COMPRAVENTA',
             descripcion: descripcionOrganizacion ?? prev.descripcion,
           }));
         }
@@ -1695,9 +1723,19 @@ export default function Ajustes() {
               telefono: perfilPersistido.telefono ?? user.telefono,
               organizacionId:
                 perfilPersistido.organizacionId ?? user.organizacionId ?? null,
-              organizacion: organizacionPersistida ?? user.organizacion ?? null,
+              organizacion: organizacionPersistida
+                ? {
+                    ...organizacionPersistida,
+                    tipo:
+                      tipoOrganizacionNormalizado ||
+                      normalizeBusinessType(organizacionPersistida.tipo),
+                  }
+                : user.organizacion ?? null,
               nombreOrganizacion,
-              tipoOrganizacion,
+              tipoOrganizacion:
+                tipoOrganizacionNormalizado ||
+                normalizeBusinessType(user.tipoOrganizacion) ||
+                null,
               otroTipoDetalle:
                 perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
               descripcionOrganizacion,
@@ -2471,7 +2509,8 @@ export default function Ajustes() {
       setFloatingError(getAjustesGuidance(message));
       return;
     }
-    if (!company.tipoEmpresa.trim()) {
+    const tipoEmpresa = normalizeBusinessType(company.tipoEmpresa);
+    if (!tipoEmpresa) {
       const message = 'Selecciona el tipo de negocio.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
@@ -2483,7 +2522,7 @@ export default function Ajustes() {
       setGuardandoEmpresa(true);
       const organizacionActualizada = await actualizarConfiguracionOrganizacion({
         nombreOrganizacion: nombreEmpresa,
-        tipoOrganizacion: company.tipoEmpresa,
+        tipoOrganizacion: tipoEmpresa,
         descripcionOrganizacion: descripcionEmpresa || null,
       });
       const organizacionConfirmada =
@@ -2497,13 +2536,13 @@ export default function Ajustes() {
       setCompany((prev) => ({
         ...prev,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: organizacionConfirmada.tipo,
+        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo),
         descripcion: descripcionActualizada,
       }));
       companyBaselineRef.current = {
         ...company,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: organizacionConfirmada.tipo,
+        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo),
         descripcion: descripcionActualizada,
       };
       if (user && token) {
@@ -2516,11 +2555,15 @@ export default function Ajustes() {
             organizacion: {
               id: organizacionConfirmada.id ?? user.organizacionId ?? null,
               nombre: organizacionConfirmada.nombre ?? nombreEmpresa,
-              tipo: organizacionConfirmada.tipo as typeof user.tipoOrganizacion,
+              tipo: normalizeBusinessType(
+                organizacionConfirmada.tipo,
+              ) as typeof user.tipoOrganizacion,
               descripcion: descripcionActualizada || null,
             },
             nombreOrganizacion: organizacionConfirmada.nombre ?? nombreEmpresa,
-            tipoOrganizacion: organizacionConfirmada.tipo as typeof user.tipoOrganizacion,
+            tipoOrganizacion: normalizeBusinessType(
+              organizacionConfirmada.tipo,
+            ) as typeof user.tipoOrganizacion,
             otroTipoDetalle: organizacionConfirmada.otroTipoDetalle ?? null,
             descripcionOrganizacion: descripcionActualizada || null,
           },
@@ -2699,6 +2742,23 @@ export default function Ajustes() {
     return null;
   };
 
+  const getBodegaLimitesForSave = (capacidad: number): LimitesBodega => {
+    const limiteMaximoSeguro = Math.min(
+      capacidad,
+      Math.max(1, Math.round(capacidad * 0.9)),
+    );
+    const limiteMinimoSeguro = Math.min(
+      Math.max(0, Number(bodegaLimitesForm.limiteMinimoKg) || 0),
+      Math.max(0, limiteMaximoSeguro - 1),
+    );
+
+    return {
+      ...bodegaLimitesForm,
+      limiteMinimoKg: limiteMinimoSeguro,
+      limiteMaximoKg: limiteMaximoSeguro,
+    };
+  };
+
   const continuarBodegaStep = () => {
     const validationError = validateBodegaStep(bodegaWizardStep);
     if (validationError) {
@@ -2847,6 +2907,40 @@ export default function Ajustes() {
     setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
   };
 
+  const getBodegaSaveErrorMessage = (err: unknown) => {
+    if (err instanceof ApiRequestError) {
+      if (err.code === 'BODEGA_LIMITE_MAXIMO_SUPERA_CAPACIDAD') {
+        return 'El límite máximo no puede superar la capacidad de la bodega.';
+      }
+      if (err.code === 'BODEGA_LIMITE_MINIMO_MAYOR') {
+        return 'El límite mínimo debe ser menor que el límite máximo.';
+      }
+      if (err.code === 'BODEGA_NOMBRE_DUPLICADO') {
+        return 'Ya existe una bodega con este nombre.';
+      }
+      if (err.status === 0) {
+        return 'No pudimos conectar con el servidor. Revisa tu conexión e intenta nuevamente.';
+      }
+      if (err.status === 401 || err.status === 403) {
+        return 'Tu sesión venció. Inicia sesión nuevamente para guardar la bodega.';
+      }
+      if (err.status >= 500) {
+        return 'No pudimos crear la bodega en este momento. Intenta nuevamente.';
+      }
+      if (err.message) {
+        return err.message;
+      }
+    }
+
+    if (err instanceof Error && err.message) {
+      return err.message;
+    }
+
+    return bodegaEditando
+      ? 'No pudimos guardar la bodega. Revisa la información e intenta nuevamente.'
+      : 'No pudimos crear la bodega. Intenta nuevamente.';
+  };
+
   const guardarBodega = async () => {
     const capacidad = getBodegaFormCapacidad();
     clearFeedback();
@@ -2868,6 +2962,7 @@ export default function Ajustes() {
 
     try {
       setGuardandoBodega(true);
+      const limitesBodegaPayload = getBodegaLimitesForSave(capacidad);
       const payload = {
         nombre: nombreBodega.trim(),
         ubicacion: ubicacionBodega.trim() || null,
@@ -2882,7 +2977,7 @@ export default function Ajustes() {
           esPrincipal: bodegaEditando.esPrincipal,
         });
         await guardarLimitesOperativosBodega();
-        await guardarLimitesBodega(updated.id, bodegaLimitesForm);
+        await guardarLimitesBodega(updated.id, limitesBodegaPayload);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === updated.id)) {
           throw new Error('No pudimos confirmar la bodega actualizada. Intenta nuevamente.');
@@ -2898,8 +2993,22 @@ export default function Ajustes() {
           activa: true,
           esPrincipal: false,
         });
-        await guardarLimitesOperativosBodega();
-        await guardarLimitesBodega(created.id, bodegaLimitesForm);
+        try {
+          await guardarLimitesOperativosBodega();
+          await guardarLimitesBodega(created.id, limitesBodegaPayload);
+        } catch (configurationError) {
+          try {
+            await eliminarBodega(created.id);
+          } catch (rollbackError) {
+            if (import.meta.env.DEV) {
+              console.error('CREATE_WAREHOUSE_ROLLBACK_ERROR', {
+                bodegaId: created.id,
+                rollbackError,
+              });
+            }
+          }
+          throw configurationError;
+        }
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === created.id)) {
           throw new Error('No pudimos confirmar la bodega creada. Intenta nuevamente.');
@@ -2918,16 +3027,51 @@ export default function Ajustes() {
     } catch (err) {
       setBodegaFeedback({
         variant: 'error',
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : bodegaEditando
-              ? 'No pudimos guardar la bodega. Intenta nuevamente.'
-              : 'No pudimos crear la bodega. Intenta nuevamente.',
+        message: getBodegaSaveErrorMessage(err),
       });
     } finally {
       setGuardandoBodega(false);
     }
+  };
+
+  const renderBodegaStepFooter = () => {
+    const showBack = bodegaWizardStep > 1;
+    const primaryAction =
+      bodegaWizardStep < 3 ? continuarBodegaStep : abrirVistaPreviaBodega;
+    const primaryLabel = bodegaWizardStep < 3 ? 'Siguiente' : 'Guardar bodega';
+
+    return (
+      <div
+        className={`fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95 ${
+          showBack ? 'grid-cols-2' : 'grid-cols-1'
+        }`}
+      >
+        {showBack ? (
+          <button
+            type="button"
+            onClick={volverBodegaStep}
+            className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          >
+            Atrás
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={primaryAction}
+          disabled={guardandoBodega}
+          className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+        >
+          {guardandoBodega ? (
+            <LoaderCircle size={15} className="animate-spin" />
+          ) : bodegaWizardStep < 3 ? (
+            <ChevronRight size={16} />
+          ) : (
+            <Save size={15} />
+          )}
+          {guardandoBodega ? 'Guardando bodega...' : primaryLabel}
+        </button>
+      </div>
+    );
   };
 
   const marcarBodegaPrincipal = async (bodega: BodegaItem) => {
@@ -3745,7 +3889,7 @@ export default function Ajustes() {
     setPeopleImportedPendingDocument(true);
     setPeopleImportMessage(
       phoneResult
-        ? 'Contacto importado. Completa el número de documento antes de guardar este contacto.'
+        ? 'Contacto importado. Revisa los datos antes de guardar.'
         : 'Este contacto no tiene un número de teléfono registrado. Puedes escribirlo manualmente o dejarlo vacío.',
     );
     setPeopleFormError(null);
@@ -5407,7 +5551,7 @@ export default function Ajustes() {
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Procesos operativos
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             {procesosOperativos.map((item) => {
               const Icon = item.icon;
               return (
@@ -5976,10 +6120,10 @@ export default function Ajustes() {
                 <Settings size={14} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span className="block whitespace-normal text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">
                   Tema visual
                 </span>
-                <span className="block truncate text-[11px] text-slate-500 dark:text-slate-300">
+                <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-slate-500 dark:text-slate-300">
                   Actual: {theme === 'system' ? 'Sistema' : resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'}
                 </span>
               </span>
@@ -5993,7 +6137,7 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
             Accesibilidad
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             {accessibilityCards.map((item) => {
               const Icon = item.icon;
               return (
@@ -6009,10 +6153,10 @@ export default function Ajustes() {
                     <Icon size={14} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    <span className="block whitespace-normal text-sm font-semibold leading-5 text-slate-900 dark:text-slate-50">
                       {item.title}
                     </span>
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
+                    <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-slate-500 dark:text-slate-200">
                       {item.description}
                     </span>
                   </span>
@@ -6028,7 +6172,7 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
             Asistente inteligente
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             <button
               type="button"
               onClick={() => navigate('/asistente')}
@@ -6043,10 +6187,10 @@ export default function Ajustes() {
                 />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                <span className="block whitespace-normal text-sm font-semibold leading-5 text-slate-900 dark:text-slate-50">
                   IA asistente 
                 </span>
-                <span className="block truncate text-[11px] text-slate-500 dark:text-slate-200">
+                <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-slate-500 dark:text-slate-200">
                   Consulta tu negocio
                 </span>
               </span>
@@ -6060,7 +6204,7 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Configuración del negocio
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             {configuracionNegocio.map((item) => {
               const Icon = item.icon;
               const disabled = configuracionNegocioInactiva.has(item.id);
@@ -6087,7 +6231,7 @@ export default function Ajustes() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
-                      className={`block truncate text-sm font-semibold ${
+                      className={`block whitespace-normal text-sm font-semibold leading-5 ${
                         disabled
                           ? 'text-slate-500 dark:text-slate-400'
                           : 'text-slate-900 dark:text-slate-100'
@@ -6096,7 +6240,7 @@ export default function Ajustes() {
                       {item.title}
                     </span>
                     <span
-                      className={`block truncate text-[11px] ${
+                      className={`mt-0.5 block whitespace-normal text-[11px] leading-4 ${
                         disabled
                           ? 'text-slate-400 dark:text-slate-500'
                           : 'text-slate-500 dark:text-slate-300'
@@ -6121,7 +6265,7 @@ export default function Ajustes() {
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
             Gestión de personas
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             {gestionPersonas.map((item) => {
               const Icon = item.icon;
               const disabled = !item.onClick;
@@ -6148,7 +6292,7 @@ export default function Ajustes() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
-                      className={`block truncate text-sm font-semibold ${
+                      className={`block whitespace-normal text-sm font-semibold leading-5 ${
                         disabled
                           ? 'text-slate-500 dark:text-slate-400'
                           : 'text-slate-900 dark:text-slate-100'
@@ -6157,7 +6301,7 @@ export default function Ajustes() {
                       {item.title}
                     </span>
                     <span
-                      className={`block truncate text-[11px] ${
+                      className={`mt-0.5 block whitespace-normal text-[11px] leading-4 ${
                         disabled
                           ? 'text-slate-400 dark:text-slate-500'
                           : 'text-slate-500 dark:text-slate-300'
@@ -6294,9 +6438,9 @@ export default function Ajustes() {
                   className="text-sm"
                 >
                   <option value="">Seleccionar tipo</option>
-                  <option value="Compraventa">Compraventa</option>
-                  <option value="Cooperativa">Cooperativa</option>
-                  <option value="Otro">Personalizado</option>
+                  <option value="COMPRAVENTA">Compraventa</option>
+                  <option value="COOPERATIVA">Cooperativa</option>
+                  <option value="OTRO">Personalizado</option>
                 </SmartSelect>
               </label>
               <label htmlFor="settings-business-description" className="block">
@@ -6610,9 +6754,9 @@ export default function Ajustes() {
           </section>
 
           {bodegaFormOpen ? (
-            <div className="fixed inset-0 z-[90] bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+            <div className="fixed inset-0 z-[90] bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-950 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
               <section className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-transparent">
-                <header className="shrink-0 px-4 py-4 pt-[max(1.5rem,env(safe-area-inset-top))]">
+                <header className="shrink-0 px-4 py-4 pt-[max(1.5rem,env(safe-area-inset-top))] dark:bg-slate-950">
                   <div className="relative flex items-center justify-center">
                     <button
                       type="button"
@@ -6752,9 +6896,9 @@ export default function Ajustes() {
                   ) : null}
 
                   {bodegaWizardStep === 2 ? (
-                    <div className="mx-auto w-full max-w-[390px] rounded-[28px] border border-[#dfe7f5] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.14)] dark:border-slate-700 dark:bg-slate-900">
+                    <div className="mx-auto w-full max-w-[390px] rounded-[28px] border border-[#dfe7f5] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.14)] dark:border-slate-600 dark:bg-slate-900 dark:shadow-[0_24px_64px_rgba(0,0,0,0.42)]">
                       <div className="border-b border-[#edf1f8] px-4 pt-4 dark:border-slate-700">
-                        <div className="grid grid-cols-3 rounded-[18px] bg-[#eef3fb] p-1 text-[0.78rem] font-black text-[#40516d] dark:bg-slate-950 dark:text-slate-300">
+                        <div className="grid grid-cols-3 rounded-[18px] bg-[#eef3fb] p-1 text-[0.78rem] font-black text-[#40516d] dark:border dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
                           {[
                             ['todos', 'Todos'],
                             ['compra', 'Compra'],
@@ -6766,8 +6910,8 @@ export default function Ajustes() {
                               onClick={() => setLimitesTab(value as LimitesTab)}
                               className={`rounded-[14px] px-2 py-2 transition ${
                                 limitesTab === value
-                                  ? 'bg-white text-[#102d92] shadow-sm dark:bg-slate-800 dark:text-blue-200'
-                                  : 'text-[#40516d] dark:text-slate-300'
+                                  ? 'bg-white text-[#102d92] shadow-sm ring-1 ring-[#d5deee] dark:bg-blue-600 dark:text-white dark:ring-blue-300/60'
+                                  : 'text-[#40516d] hover:bg-white/70 hover:text-[#102d92] dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                               }`}
                             >
                               {label}
@@ -6905,24 +7049,6 @@ export default function Ajustes() {
                         ) : null}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 border-t border-[#edf1f8] px-5 py-4 dark:border-slate-700">
-                        <button
-                          type="button"
-                          onClick={volverBodegaStep}
-                          className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          Atrás
-                        </button>
-                        <button
-                          type="button"
-                          onClick={continuarBodegaStep}
-                          disabled={guardandoBodega}
-                          className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
-                        >
-                          <ChevronRight size={16} />
-                          Siguiente
-                        </button>
-                      </div>
                     </div>
                   ) : null}
 
@@ -6997,11 +7123,11 @@ export default function Ajustes() {
                       >
                         <span className="text-left">
                           <span className="block">Bloquear movimientos al alcanzar el 100 %</span>
-                          <span className="block text-xs font-semibold text-slate-500">
+                          <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
                             No se permitirán nuevas entradas cuando la bodega no tenga espacio disponible.
                           </span>
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-500 dark:text-slate-300">
                           {bodegaLimitesForm.bloquearAlSuperarCapacidad ? 'Activado' : 'Desactivado'}
                         </span>
                       </button>
@@ -7020,11 +7146,11 @@ export default function Ajustes() {
                       >
                         <span className="text-left">
                           <span className="block">Alertas de espacio</span>
-                          <span className="block text-xs font-semibold text-slate-500">
+                          <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
                             El sistema mostrará avisos cuando se alcancen los niveles configurados.
                           </span>
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-500 dark:text-slate-300">
                           {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
                         </span>
                       </button>
@@ -7042,46 +7168,7 @@ export default function Ajustes() {
                     </div>
                   ) : null}
 
-                  {bodegaWizardStep !== 2 ? (
-                    <div
-                      className={`fixed inset-x-0 bottom-0 z-[2] mx-auto grid w-full max-w-[430px] gap-2 bg-[#f3f3fb]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:bg-slate-950/95 ${
-                        bodegaWizardStep === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                      }`}
-                    >
-                      {bodegaWizardStep > 1 ? (
-                        <button
-                          type="button"
-                          onClick={volverBodegaStep}
-                          className="inline-flex min-h-[54px] items-center justify-center rounded-[16px] border border-[#d5deee] bg-white px-5 py-3 text-[0.98rem] font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          Atrás
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={
-                          bodegaWizardStep === 1
-                            ? continuarBodegaStep
-                            : abrirVistaPreviaBodega
-                        }
-                        disabled={guardandoBodega}
-                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-5 py-3 text-[0.98rem] font-black text-white shadow-[0_16px_34px_rgba(16,45,146,0.22)] disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
-                      >
-                        {guardandoBodega ? (
-                          <LoaderCircle size={15} className="animate-spin" />
-                        ) : bodegaWizardStep < 3 ? (
-                          <ChevronRight size={16} />
-                        ) : (
-                          <Save size={15} />
-                        )}
-                        {guardandoBodega
-                          ? 'Guardando bodega...'
-                          : bodegaWizardStep < 3
-                            ? 'Siguiente'
-                            : 'Guardar bodega'}
-                      </button>
-                    </div>
-                  ) : null}
+                  {renderBodegaStepFooter()}
                 </div>
               </section>
             </div>
@@ -8147,59 +8234,13 @@ export default function Ajustes() {
       ) : null}
 
       {peopleDetail ? (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
-          <section className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">Detalle</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">{peopleDetail.nombre}</h3>
-                <p className="mt-1 text-xs font-black text-slate-500">
-                  {peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR')
-                    ? 'Multirol · Cliente y productor'
-                    : peopleDetail.roles.includes('CLIENTE')
-                      ? 'Cliente'
-                      : 'Productor'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPeopleDetail(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-                aria-label="Cerrar detalle"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
-              <p>Nombre: <span className="font-black text-slate-900">{peopleDetail.nombre}</span></p>
-              <p>Rol: <span className="font-black text-slate-900">{peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR') ? 'Multirol' : peopleDetail.roles.includes('CLIENTE') ? 'Cliente' : 'Productor'}</span></p>
-              {peopleDetail.roles.includes('CLIENTE') && peopleDetail.roles.includes('PRODUCTOR') ? (
-                <p>Descripción: <span className="font-black text-slate-900">Cliente y productor</span></p>
-              ) : null}
-              <p>Documento: <span className="font-black text-slate-900">{peopleDetail.documento || 'Pendiente'}</span></p>
-              <p>Teléfono: <span className="font-black text-slate-900">{peopleDetail.telefono ? formatPhoneNumber(peopleDetail.telefono) : 'No registrado'}</span></p>
-              <p>Fecha: <span className="font-black text-slate-900">{peopleDetail.createdAt ? formatDate(peopleDetail.createdAt) : 'No disponible'}</span></p>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => abrirEdicionPersona(peopleDetail)}
-                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white"
-              >
-                <Pencil size={15} />
-                Editar
-              </button>
-              <button
-                type="button"
-                onClick={() => setPeopleDeleteTarget(peopleDetail)}
-                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] bg-rose-50 px-4 text-sm font-black text-rose-700 ring-1 ring-rose-100"
-              >
-                <Trash2 size={15} />
-                Eliminar
-              </button>
-            </div>
-          </section>
-        </div>
+        <ContactDetailModal
+          contact={peopleDetail}
+          onClose={() => setPeopleDetail(null)}
+          onEdit={() => abrirEdicionPersona(peopleDetail)}
+          allowDelete
+          onDelete={() => setPeopleDeleteTarget(peopleDetail)}
+        />
       ) : null}
 
       {peopleEditing ? (
@@ -8236,23 +8277,23 @@ export default function Ajustes() {
                   />
                 </div>
               ) : null}
-              <div className="rounded-[18px] border border-[#dbe5f4] bg-[#f8fbff] p-3">
+              <div className="rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85]">
-                      Datos del contacto
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-[#17336f] dark:text-slate-100">
+                      Importar contacto
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Importa nombre y celular desde la agenda del celular.
+                    <p className="mt-0.5 text-xs font-semibold leading-4 text-slate-500 dark:text-slate-300">
+                      Completa nombre y teléfono desde tu celular.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void importarPersonaDesdeContactos()}
                     aria-label="Importar cliente o productor desde los contactos del dispositivo"
-                    className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92]"
+                    className="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-[13px] border border-[#c8d5eb] bg-white px-3 text-xs font-black text-[#102d92] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   >
-                    Importar desde contactos
+                    Importar
                   </button>
                 </div>
                 {peopleImportMessage ? (
