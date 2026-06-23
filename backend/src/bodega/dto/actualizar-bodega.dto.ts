@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
+  IsObject,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -50,6 +51,18 @@ export class CrearBodegaDto {
   @IsOptional()
   @IsBoolean({ message: 'La bodega principal debe ser verdadero o falso.' })
   esPrincipal?: boolean;
+
+  @IsOptional()
+  @IsObject({ message: 'Los límites operativos deben ser un objeto válido.' })
+  limitesOperativos?: {
+    maxPesoKg?: number;
+    maxPrecioKg?: number;
+    maxPrecioVentaKg?: number;
+  };
+
+  @IsOptional()
+  @IsObject({ message: 'Los límites de almacenamiento deben ser un objeto válido.' })
+  limitesAlmacenamiento?: Partial<ActualizarLimitesBodegaDto>;
 }
 
 export class EditarBodegaDto {

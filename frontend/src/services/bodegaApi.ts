@@ -38,6 +38,8 @@ export type GuardarBodegaPayload = {
   capacidadMaxKg: number;
   activa?: boolean;
   esPrincipal?: boolean;
+  limitesOperativos?: LimitesEntrada;
+  limitesAlmacenamiento?: LimitesBodega;
 };
 
 export type LimitesBodega = {

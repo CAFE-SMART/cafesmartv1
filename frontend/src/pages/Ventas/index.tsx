@@ -1915,6 +1915,19 @@ export default function Ventas() {
     }
   }, [aplicarContactoImportadoCliente, setClienteFormError]);
 
+  const seleccionarTelefonoImportadoCliente = React.useCallback(
+    (phone: DeviceContactPhone) => {
+      const choice = clientePhoneChoice;
+      if (!choice?.contact) {
+        setClientePhoneChoice(null);
+        setClienteFormError('No pudimos seleccionar ese número. Intenta importar el contacto nuevamente.');
+        return;
+      }
+      aplicarContactoImportadoCliente(choice.contact, phone);
+    },
+    [aplicarContactoImportadoCliente, clientePhoneChoice],
+  );
+
   const volverDesdeEncabezado = React.useCallback(() => {
     if (paso > 1) {
       volverPasoAnterior();
@@ -3634,7 +3647,7 @@ export default function Ventas() {
                 <button
                   key={`${phone.number}-${index}`}
                   type="button"
-                  onClick={() => aplicarContactoImportadoCliente(clientePhoneChoice.contact, phone)}
+                  onClick={() => seleccionarTelefonoImportadoCliente(phone)}
                   className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-900"
                 >
                   <span>

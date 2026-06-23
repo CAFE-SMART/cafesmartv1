@@ -3086,6 +3086,19 @@ export default function Compras() {
     }
   };
 
+  const seleccionarTelefonoImportadoProductor = (phone: DeviceContactPhone) => {
+    const choice = productorPhoneChoice;
+    if (!choice?.contact) {
+      setProductorPhoneChoice(null);
+      setProductorFormError({
+        title: 'No pudimos seleccionar ese número',
+        description: 'Intenta importar el contacto nuevamente.',
+      });
+      return;
+    }
+    aplicarContactoImportadoProductor(choice.contact, phone);
+  };
+
   const seleccionarProductor = (productor: ProductorOption) => {
     if (productorSeleccionado?.id === productor.id) {
       setProductorSeleccionado(null);
@@ -6227,17 +6240,17 @@ export default function Compras() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="productor-phone-choice-title"
-            className="w-full max-w-[430px] rounded-[24px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+            className="w-full max-w-[430px] rounded-[24px] bg-white p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)] dark:border dark:border-slate-700 dark:bg-slate-950"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85]">
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
                   Selecciona un número
                 </p>
-                <h2 id="productor-phone-choice-title" className="mt-1 text-lg font-black text-slate-950">
+                <h2 id="productor-phone-choice-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
                   {productorPhoneChoice.contact.name || 'Contacto'}
                 </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
                   Este contacto tiene varios números guardados.
                 </p>
               </div>
@@ -6245,7 +6258,7 @@ export default function Compras() {
                 type="button"
                 onClick={() => setProductorPhoneChoice(null)}
                 aria-label="Cerrar selección de número"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
               >
                 <X size={18} />
               </button>
@@ -6255,25 +6268,25 @@ export default function Compras() {
                 <button
                   key={`${phone.number}-${index}`}
                   type="button"
-                  onClick={() => aplicarContactoImportadoProductor(productorPhoneChoice.contact, phone)}
-                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left"
+                  onClick={() => seleccionarTelefonoImportadoProductor(phone)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-900"
                 >
                   <span>
-                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                       {phone.label || 'Número'}
                     </span>
-                    <span className="mt-1 block text-sm font-black text-slate-950">
+                    <span className="mt-1 block text-sm font-black text-slate-950 dark:text-slate-100">
                       {phone.number}
                     </span>
                   </span>
-                  <ArrowRight size={18} className="text-[#102d92]" aria-hidden="true" />
+                  <ArrowRight size={18} className="text-[#102d92] dark:text-slate-100" aria-hidden="true" />
                 </button>
               ))}
             </div>
             <button
               type="button"
               onClick={() => setProductorPhoneChoice(null)}
-              className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 py-3 text-[0.95rem] font-semibold text-[#334b85]"
+              className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-5 py-3 text-[0.95rem] font-semibold text-[#334b85] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               Cancelar
             </button>

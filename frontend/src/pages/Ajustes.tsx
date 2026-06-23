@@ -130,6 +130,7 @@ import {
   type SystemScreenReaderStatus,
 } from '../services/screenReaderService';
 import {
+  fieldErrorClass,
   fieldHelpTextClass,
   fieldInputClass,
   fieldLabelClass,
@@ -2879,14 +2880,7 @@ export default function Ajustes() {
   ]);
 
   const guardarLimitesOperativosBodega = async () => {
-    const limitesLocales: LimitesTransaccion = {
-      minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
-      maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
-      minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
-      maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
-      minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
-      maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
-    };
+    const limitesLocales = getLimitesOperativosBodegaForSave();
 
     const result = await guardarLimitesEntrada({
       maxPesoKg: limitesLocales.maxPesoCompraKg,
@@ -2906,6 +2900,15 @@ export default function Ajustes() {
     setLimitMinPrecioVentaKg(String(limitesGuardados.minPrecioVentaKg));
     setLimitMaxPrecioVentaKg(String(limitesGuardados.maxPrecioVentaKg));
   };
+
+  const getLimitesOperativosBodegaForSave = (): LimitesTransaccion => ({
+      minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
+      maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
+      minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
+      maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
+      minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
+      maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
+  });
 
   const getBodegaSaveErrorMessage = (err: unknown) => {
     if (err instanceof ApiRequestError) {
@@ -2988,27 +2991,19 @@ export default function Ajustes() {
           message: 'Bodega actualizada correctamente. Los cambios se guardaron correctamente.',
         });
       } else {
+        const limitesOperativos = getLimitesOperativosBodegaForSave();
         const created = await crearBodega({
           ...payload,
           activa: true,
           esPrincipal: false,
+          limitesOperativos: {
+            maxPesoKg: limitesOperativos.maxPesoCompraKg,
+            maxPrecioKg: limitesOperativos.maxPrecioCompraKg,
+            maxPrecioVentaKg: limitesOperativos.maxPrecioVentaKg,
+          },
+          limitesAlmacenamiento: limitesBodegaPayload,
         });
-        try {
-          await guardarLimitesOperativosBodega();
-          await guardarLimitesBodega(created.id, limitesBodegaPayload);
-        } catch (configurationError) {
-          try {
-            await eliminarBodega(created.id);
-          } catch (rollbackError) {
-            if (import.meta.env.DEV) {
-              console.error('CREATE_WAREHOUSE_ROLLBACK_ERROR', {
-                bodegaId: created.id,
-                rollbackError,
-              });
-            }
-          }
-          throw configurationError;
-        }
+        guardarLimitesEntradaLocales(limitesOperativos);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === created.id)) {
           throw new Error('No pudimos confirmar la bodega creada. Intenta nuevamente.');
@@ -3931,6 +3926,16 @@ export default function Ajustes() {
           : 'No pudimos importar el contacto seleccionado. Intenta nuevamente o ingresa los datos manualmente.';
       setPeopleFormError(message);
     }
+  };
+
+  const seleccionarTelefonoImportadoPersona = (phone: DeviceContactPhone) => {
+    const choice = peoplePhoneChoice;
+    if (!choice?.contact) {
+      setPeoplePhoneChoice(null);
+      setPeopleFormError('No pudimos seleccionar ese número. Intenta importar el contacto nuevamente.');
+      return;
+    }
+    aplicarContactoImportadoPersona(choice.contact, phone);
   };
 
   const validarPersonaEnTiempoReal = (
@@ -6115,7 +6120,7 @@ export default function Ajustes() {
               type="button"
               onClick={() => setThemeModalOpen(true)}
               aria-label={`Tema visual. Actual: ${theme === 'system' ? 'Sistema' : resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'}.`}
-              className="col-span-full flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+              className="col-span-full flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 min-[390px]:col-span-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
             >
               <span className="inline-flex rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
                 <Settings size={14} />
@@ -8489,24 +8494,24 @@ export default function Ajustes() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="people-phone-choice-title"
-            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border dark:border-slate-700 dark:bg-slate-950"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85]">
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
                   Selecciona un número
                 </p>
-                <h3 id="people-phone-choice-title" className="mt-1 text-lg font-black text-slate-950">
+                <h3 id="people-phone-choice-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
                   {peoplePhoneChoice.contact.name || 'Contacto'}
                 </h3>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
                   Este contacto tiene varios números guardados.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setPeoplePhoneChoice(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200"
                 aria-label="Cerrar selección de número"
               >
                 <X size={16} />
@@ -8517,25 +8522,25 @@ export default function Ajustes() {
                 <button
                   key={`${phone.number}-${index}`}
                   type="button"
-                  onClick={() => aplicarContactoImportadoPersona(peoplePhoneChoice.contact, phone)}
-                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left"
+                  onClick={() => seleccionarTelefonoImportadoPersona(phone)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#dbe5f4] bg-[#f8fbff] p-3 text-left dark:border-slate-700 dark:bg-slate-900"
                 >
                   <span>
-                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500">
+                    <span className="block text-xs font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
                       {phone.label || 'Número'}
                     </span>
-                    <span className="mt-1 block text-sm font-black text-slate-950">
+                    <span className="mt-1 block text-sm font-black text-slate-950 dark:text-slate-100">
                       {phone.number}
                     </span>
                   </span>
-                  <ChevronRight size={18} className="text-[#102d92]" aria-hidden="true" />
+                  <ChevronRight size={18} className="text-[#102d92] dark:text-slate-100" aria-hidden="true" />
                 </button>
               ))}
             </div>
             <button
               type="button"
               onClick={() => setPeoplePhoneChoice(null)}
-              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85]"
+              className="mt-4 inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               Cancelar
             </button>

@@ -186,6 +186,17 @@ export class BodegaService {
     const ubicacion = this.normalizeUbicacion(dto.ubicacion);
     const descripcion = this.normalizeDescripcion(dto.descripcion);
     const capacidadMaxKg = this.normalizeCapacidad(dto.capacidadMaxKg);
+    const capacidadMaxKgNumber = Number(capacidadMaxKg);
+    const limitesAlmacenamiento = dto.limitesAlmacenamiento
+      ? this.normalizeLimitesBodega(dto.limitesAlmacenamiento, capacidadMaxKgNumber)
+      : null;
+    const limitesOperativos = dto.limitesOperativos
+      ? this.normalizeLimitesOperativos(
+          dto.limitesOperativos.maxPesoKg,
+          dto.limitesOperativos.maxPrecioKg,
+          dto.limitesOperativos.maxPrecioVentaKg,
+        )
+      : null;
     let existingCount = 0;
     try {
       const duplicated = await this.prisma.bodega.findFirst({
@@ -227,7 +238,7 @@ export class BodegaService {
         });
       }
 
-      return tx.bodega.create({
+      const created = await tx.bodega.create({
         data: {
           organizacionId,
           nombre,
@@ -238,6 +249,38 @@ export class BodegaService {
           esPrincipal,
         },
       });
+
+      if (limitesOperativos) {
+        await this.upsertParametroOrganizacion(
+          tx,
+          organizacionId,
+          'max_peso_kg',
+          limitesOperativos.maxPesoKg.toString(),
+        );
+        await this.upsertParametroOrganizacion(
+          tx,
+          organizacionId,
+          'max_precio_kg',
+          limitesOperativos.maxPrecioKg.toString(),
+        );
+        await this.upsertParametroOrganizacion(
+          tx,
+          organizacionId,
+          'max_precio_venta_kg',
+          limitesOperativos.maxPrecioVentaKg.toString(),
+        );
+      }
+
+      if (limitesAlmacenamiento) {
+        await this.upsertParametroOrganizacion(
+          tx,
+          organizacionId,
+          this.limitesBodegaKey(created.id),
+          JSON.stringify(limitesAlmacenamiento),
+        );
+      }
+
+      return created;
     });
 
     return this.mapBodega(bodega, esPrincipal ? await this.obtenerInventarioActualKg(organizacionId) : 0);
@@ -635,28 +678,14 @@ export class BodegaService {
     maxPrecioKg: number;
     maxPrecioVentaKg: number;
   }> {
-    if (
-      !Number.isFinite(maxPesoKg) ||
-      maxPesoKg < PESO_MINIMO_KG ||
-      maxPesoKg > PESO_MAXIMO_ENTRADA_KG
-    ) {
-      throw new BadRequestException(
-        `El peso máximo debe estar entre ${PESO_MINIMO_KG} y ${PESO_MAXIMO_ENTRADA_KG} kg`,
-      );
-    }
-
-    if (!Number.isFinite(maxPrecioKg) || maxPrecioKg <= 0) {
-      throw new BadRequestException(
-        'El precio máximo de compra debe ser mayor que 0',
-      );
-    }
-
-    if (!Number.isFinite(maxPrecioVentaKg) || maxPrecioVentaKg <= 0) {
-      throw new BadRequestException(
-        'El precio máximo de venta debe ser mayor que 0',
-      );
-    }
-
+    const limites = this.normalizeLimitesOperativos(
+      maxPesoKg,
+      maxPrecioKg,
+      maxPrecioVentaKg,
+    );
+    maxPesoKg = limites.maxPesoKg;
+    maxPrecioKg = limites.maxPrecioKg;
+    maxPrecioVentaKg = limites.maxPrecioVentaKg;
     await Promise.all([
       this.parametrosService.setParametro(
         'max_peso_kg',
@@ -676,6 +705,75 @@ export class BodegaService {
     ]);
 
     return { maxPesoKg, maxPrecioKg, maxPrecioVentaKg };
+  }
+
+  private normalizeLimitesOperativos(
+    maxPesoKg: unknown,
+    maxPrecioKg: unknown,
+    maxPrecioVentaKg: unknown,
+  ): {
+    maxPesoKg: number;
+    maxPrecioKg: number;
+    maxPrecioVentaKg: number;
+  } {
+    const parsedMaxPesoKg = Number(maxPesoKg);
+    const parsedMaxPrecioKg = Number(maxPrecioKg);
+    const parsedMaxPrecioVentaKg = Number(maxPrecioVentaKg);
+
+    if (
+      !Number.isFinite(parsedMaxPesoKg) ||
+      parsedMaxPesoKg < PESO_MINIMO_KG ||
+      parsedMaxPesoKg > PESO_MAXIMO_ENTRADA_KG
+    ) {
+      throw new BadRequestException(
+        `El peso máximo debe estar entre ${PESO_MINIMO_KG} y ${PESO_MAXIMO_ENTRADA_KG} kg`,
+      );
+    }
+
+    if (!Number.isFinite(parsedMaxPrecioKg) || parsedMaxPrecioKg <= 0) {
+      throw new BadRequestException(
+        'El precio máximo de compra debe ser mayor que 0',
+      );
+    }
+
+    if (
+      !Number.isFinite(parsedMaxPrecioVentaKg) ||
+      parsedMaxPrecioVentaKg <= 0
+    ) {
+      throw new BadRequestException(
+        'El precio máximo de venta debe ser mayor que 0',
+      );
+    }
+
+    return {
+      maxPesoKg: parsedMaxPesoKg,
+      maxPrecioKg: parsedMaxPrecioKg,
+      maxPrecioVentaKg: parsedMaxPrecioVentaKg,
+    };
+  }
+
+  private upsertParametroOrganizacion(
+    tx: Prisma.TransactionClient,
+    organizacionId: string,
+    nombre: string,
+    valor: string,
+  ) {
+    return tx.parametroOrganizacion.upsert({
+      where: {
+        organizacionId_nombre: {
+          organizacionId,
+          nombre,
+        },
+      },
+      create: {
+        nombre,
+        valor,
+        organizacionId,
+      },
+      update: {
+        valor,
+      },
+    });
   }
 
   private async ensureBodegaPrincipal(organizacionId: string) {
