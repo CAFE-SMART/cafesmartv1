@@ -40,14 +40,20 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
                 key={item.id}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[0.56rem] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] focus-visible:ring-offset-2 ${
+                className={`group flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[18px] px-1 py-2 text-[0.56rem] font-black transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.88] hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 ${
                   isActive
-                    ? 'bg-[#123aa6] text-white shadow-[0_10px_22px_rgba(18,58,166,0.22)]'
-                    : 'text-[#6b7890] hover:bg-[#f4f6fb]'
+                    ? 'bg-[#111827] text-white shadow-[0_10px_22px_rgba(17,24,39,0.22)] scale-100'
+                    : 'text-[#6b7890] hover:bg-[#f4f6fb] hover:text-[#111827]'
                 }`}
               >
-                <Icon size={18} strokeWidth={isActive ? 2.5 : 2.2} />
-                <span>{item.label}</span>
+                <Icon
+                  size={18}
+                  strokeWidth={isActive ? 2.5 : 2.2}
+                  className={`transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                    isActive ? 'scale-110' : 'group-hover:scale-105'
+                  }`}
+                />
+                <span className="transition-transform duration-300 ease-out">{item.label}</span>
               </button>
             );
           })}

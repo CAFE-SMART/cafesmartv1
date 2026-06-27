@@ -1,4 +1,5 @@
 import { apiFetch } from './apiService';
+import { updateMemoryCurrency } from '../utils/formatMoney';
 
 export type ConfiguracionBodega = {
   nombreBodega: string;
@@ -10,6 +11,7 @@ export type ConfiguracionBodega = {
   minPrecioVentaKg: number;
   maxPrecioVentaKg: number;
   updatedAt: string;
+  moneda: string | null;
 };
 
 export type LimitesEntrada = {
@@ -25,7 +27,11 @@ export type LimitesEntrada = {
  * Obtiene la configuración de bodega del servidor.
  */
 export async function obtenerConfiguracionBodega(): Promise<ConfiguracionBodega> {
-  return apiFetch('/bodega/configuracion') as Promise<ConfiguracionBodega>;
+  const config = await apiFetch('/bodega/configuracion') as ConfiguracionBodega;
+  if (config) {
+    updateMemoryCurrency(config.moneda, config.moneda !== null);
+  }
+  return config;
 }
 
 /**

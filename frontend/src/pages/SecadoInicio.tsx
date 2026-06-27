@@ -202,7 +202,7 @@ export default function SecadoInicio() {
                   ? 'Secados pendientes'
                   : hasPending
                     ? 'Secado en proceso'
-                    : 'Iniciar secado'}
+                    : 'Nuevo secado'}
               </h1>
               <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
                 {view === 'pending'

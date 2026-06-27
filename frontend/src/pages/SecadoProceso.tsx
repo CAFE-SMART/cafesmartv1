@@ -570,7 +570,7 @@ export default function SecadoProceso() {
           </button>
           <h1 className="text-sm font-extrabold">
             {step === 'config'
-              ? 'Fecha de inicio'
+              ? 'Nuevo secado'
               : step === 'active'
                 ? 'Secado en proceso'
                 : 'Finalizar el secado'}

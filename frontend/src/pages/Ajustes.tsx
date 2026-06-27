@@ -22,8 +22,17 @@ import {
   Wallet,
   X,
   LoaderCircle,
+  Coins,
+  Bell,
+  MapPin,
+  Pencil,
+  Trash2,
+  Check,
+  Info,
+  AlertTriangle,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { obtenerDashboardSummary } from '../services/dashboardService';
 import {
   createGuidedError,
   FloatingGuidedNotice,
@@ -46,13 +55,23 @@ import {
   isValidPhone,
   sanitizeRegisterPhoneInput,
 } from '../utils/registerValidators';
+import { formatearMonedaInput, getActiveCurrencyLabel, setActiveCurrency, CURRENCIES, getActiveCurrency } from '../utils/formatMoney';
 import {
   PESO_MAXIMO_ENTRADA_KG,
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
   PESO_MINIMO_KG,
   PRECIO_MINIMO_KG,
 } from '../utils/businessRules';
-
+import {
+  obtenerCatalogosCompra,
+  crearTipoCafe,
+  editarTipoCafe,
+  eliminarTipoCafe,
+  crearCalidad,
+  editarCalidad,
+  eliminarCalidad,
+  type CatalogoItem,
+} from '../services/comprasService';
 type ProfileSettings = {
   nombre: string;
   correo: string;
@@ -66,6 +85,15 @@ type CompanySettings = {
 };
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega' | 'limites';
+
+const TABS = [
+  { key: 'NEGOCIO', label: 'Negocio' },
+  { key: 'BODEGA', label: 'Bodega' },
+  { key: 'CALIDADES', label: 'Calidades' },
+  { key: 'USUARIOS', label: 'Usuarios' },
+] as const;
+
+type TabKey = typeof TABS[number]['key'];
 
 const CAPACIDAD_BODEGA_MAX_KG = 999999;
 const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
@@ -283,6 +311,8 @@ export default function Ajustes() {
     [],
   );
 
+  const [activeTab, setActiveTab] = useState<TabKey>('NEGOCIO');
+
   const [profile, setProfile] = useState<ProfileSettings>(() => ({
     nombre: safeUserName,
     correo: safeUserEmail,
@@ -307,6 +337,28 @@ export default function Ajustes() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
+  const [isEditingMoneda, setIsEditingMoneda] = useState(false);
+  const [selectedMoneda, setSelectedMoneda] = useState(() => getActiveCurrency() || 'COP');
+  const [, setCurrencyTick] = useState(0);
+  const [hasTransactions, setHasTransactions] = useState(false);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [modalTiposCafeAbierto, setModalTiposCafeAbierto] = useState(false);
+  const [modalCalidadesAbierto, setModalCalidadesAbierto] = useState(false);
+  const [tiposCafeList, setTiposCafeList] = useState<CatalogoItem[]>([]);
+  const [calidadesList, setCalidadesList] = useState<CatalogoItem[]>([]);
+  const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
+
+  const [mostrarFormTipo, setMostrarFormTipo] = useState(false);
+  const [tipoEditandoId, setTipoEditandoId] = useState<string | null>(null);
+  const [nombreTipoForm, setNombreTipoForm] = useState('');
+  const [errorTipoForm, setErrorTipoForm] = useState<string | null>(null);
+  const [guardandoTipo, setGuardandoTipo] = useState(false);
+
+  const [mostrarFormCalidad, setMostrarFormCalidad] = useState(false);
+  const [calidadEditandoId, setCalidadEditandoId] = useState<string | null>(null);
+  const [nombreCalidadForm, setNombreCalidadForm] = useState('');
+  const [errorCalidadForm, setErrorCalidadForm] = useState<string | null>(null);
+  const [guardandoCalidad, setGuardandoCalidad] = useState(false);
   const [showNoActiveSecadoModal, setShowNoActiveSecadoModal] = useState(false);
 
   const [toastNotification, setToastNotification] = useState<{
@@ -363,6 +415,61 @@ export default function Ajustes() {
     clearFeedback();
     setIsEditingBodega(false);
   };
+
+  const abrirEditorMoneda = () => {
+    clearFeedback();
+    setSelectedMoneda(getActiveCurrency() || 'COP');
+    setIsEditingMoneda(true);
+    setIsEditingBodega(false);
+    setIsEditingCompany(false);
+    setIsEditingProfile(false);
+    setIsEditingLimites(false);
+  };
+
+  const cerrarEditorMoneda = () => {
+    clearFeedback();
+    setIsEditingMoneda(false);
+  };
+
+  const guardarMoneda = () => {
+    setActiveCurrency(selectedMoneda);
+    setToastNotification({
+      message: 'Moneda actualizada correctamente.',
+      type: 'success',
+    });
+    setIsEditingMoneda(false);
+  };
+
+  useEffect(() => {
+    const handleCurrencyChange = () => {
+      setSelectedMoneda(getActiveCurrency() || 'COP');
+      setCurrencyTick((t) => t + 1);
+    };
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    
+    const checkTransactions = async () => {
+      setLoadingTransactions(true);
+      try {
+        const summary = await obtenerDashboardSummary();
+        const totalPurchases = summary.totalComprasAcumulado ?? 0;
+        const totalSales = summary.totalVentasAcumulado ?? 0;
+        const totalExpenses = summary.totalGastosAcumulado ?? 0;
+        if (totalPurchases > 0 || totalSales > 0 || totalExpenses > 0) {
+          setHasTransactions(true);
+          localStorage.setItem('cafesmart_moneda_configurada', 'true');
+        }
+      } catch (error) {
+        console.error('Error al validar historial de transacciones:', error);
+      } finally {
+        setLoadingTransactions(false);
+      }
+    };
+    void checkTransactions();
+
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (isEditingCompany) return;
@@ -464,6 +571,7 @@ export default function Ajustes() {
       return;
     }
 
+    setActiveTab('BODEGA');
     abrirEditorBodega();
     setFocusSettingApplied(true);
     navigate('/ajustes', { replace: true, state: null });
@@ -500,6 +608,156 @@ export default function Ajustes() {
     setIsEditingCompany(false);
     setIsEditingBodega(false);
     setIsEditingLimites(false);
+  };
+
+  const cargarCatalogos = async () => {
+    setCargandoCatalogos(true);
+    try {
+      const data = await obtenerCatalogosCompra();
+      setTiposCafeList(data.tiposCafe);
+      setCalidadesList(data.calidades);
+    } catch {
+      setToastNotification({
+        message: 'No se pudieron cargar los catálogos.',
+        type: 'error',
+      });
+    } finally {
+      setCargandoCatalogos(false);
+    }
+  };
+
+  const abrirGestionTiposCafe = () => {
+    clearFeedback();
+    setModalTiposCafeAbierto(true);
+    setMostrarFormTipo(false);
+    setTipoEditandoId(null);
+    setNombreTipoForm('');
+    setErrorTipoForm(null);
+    void cargarCatalogos();
+  };
+
+  const abrirGestionCalidades = () => {
+    clearFeedback();
+    setModalCalidadesAbierto(true);
+    setMostrarFormCalidad(false);
+    setCalidadEditandoId(null);
+    setNombreCalidadForm('');
+    setErrorCalidadForm(null);
+    void cargarCatalogos();
+  };
+
+  const guardarTipoCafeLocal = async () => {
+    const nombre = nombreTipoForm.trim();
+    if (!nombre) {
+      setErrorTipoForm('El nombre es obligatorio.');
+      return;
+    }
+    if (nombre.length > 50) {
+      setErrorTipoForm('Máximo 50 caracteres permitidos.');
+      return;
+    }
+
+    setGuardandoTipo(true);
+    setErrorTipoForm(null);
+    try {
+      if (tipoEditandoId) {
+        await editarTipoCafe(tipoEditandoId, nombre);
+        setToastNotification({
+          message: 'Tipo de café actualizado con éxito.',
+          type: 'success',
+        });
+      } else {
+        await crearTipoCafe(nombre);
+        setToastNotification({
+          message: 'Tipo de café creado con éxito.',
+          type: 'success',
+        });
+      }
+      setMostrarFormTipo(false);
+      setTipoEditandoId(null);
+      setNombreTipoForm('');
+      void cargarCatalogos();
+    } catch (err) {
+      setErrorTipoForm(err instanceof Error ? err.message : 'Error al guardar el tipo de café.');
+    } finally {
+      setGuardandoTipo(false);
+    }
+  };
+
+  const eliminarTipoCafeLocal = async (id: string) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar este tipo de café?')) {
+      try {
+        await eliminarTipoCafe(id);
+        setToastNotification({
+          message: 'Tipo de café eliminado con éxito.',
+          type: 'success',
+        });
+        void cargarCatalogos();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'No se pudo eliminar el tipo de café.');
+      }
+    }
+  };
+
+  const guardarCalidadLocal = async () => {
+    const nombre = nombreCalidadForm.trim();
+    if (!nombre) {
+      setErrorCalidadForm('El nombre es obligatorio.');
+      return;
+    }
+    if (nombre.length > 50) {
+      setErrorCalidadForm('Máximo 50 caracteres permitidos.');
+      return;
+    }
+
+    setGuardandoCalidad(true);
+    setErrorCalidadForm(null);
+    try {
+      if (calidadEditandoId) {
+        await editarCalidad(calidadEditandoId, nombre);
+        setToastNotification({
+          message: 'Calidad de café actualizada con éxito.',
+          type: 'success',
+        });
+      } else {
+        await crearCalidad(nombre);
+        setToastNotification({
+          message: 'Calidad de café creada con éxito.',
+          type: 'success',
+        });
+      }
+      setMostrarFormCalidad(false);
+      setCalidadEditandoId(null);
+      setNombreCalidadForm('');
+      void cargarCatalogos();
+    } catch (err) {
+      setErrorCalidadForm(err instanceof Error ? err.message : 'Error al guardar la calidad.');
+    } finally {
+      setGuardandoCalidad(false);
+    }
+  };
+
+  const eliminarCalidadLocal = async (id: string) => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar esta calidad de café?')) {
+      try {
+        await eliminarCalidad(id);
+        setToastNotification({
+          message: 'Calidad de café eliminada con éxito.',
+          type: 'success',
+        });
+        void cargarCatalogos();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'No se pudo eliminar la calidad.');
+      }
+    }
+  };
+
+  const esTipoBase = (nombre: string) => {
+    return ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'].includes(nombre.toUpperCase().trim());
+  };
+
+  const esCalidadBase = (nombre: string) => {
+    return ['BUENO', 'REGULAR', 'MALO'].includes(nombre.toUpperCase().trim());
   };
 
   const cerrarEditorPerfil = () => {
@@ -778,81 +1036,132 @@ export default function Ajustes() {
     },
   ] as const;
 
-  const configuracionNegocio = [
-    {
-      id: 'info-empresa',
-      title: 'Datos de empresa',
-      description: company.nombreEmpresa || 'Nombre y descripción',
-      icon: Building2,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: false,
-      onClick: abrirEditorEmpresa,
-    },
-    {
-      id: 'tipos-cafe',
-      title: 'Variedades de café',
-      description: 'Tipos de café registrados',
-      icon: FlaskConical,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: true,
-      onClick: undefined,
-    },
-    {
-      id: 'calidades-cafe',
-      title: 'Calidad del café',
-      description: 'Nivel de calidad del grano',
-      icon: ScanSearch,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: true,
-      onClick: undefined,
-    },
-    {
-      id: 'capacidad-bodega',
-      title: 'Ajustar bodega',
-      description: 'Capacidad máxima en kg',
-      icon: Warehouse,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: false,
-      onClick: abrirEditorBodega,
-    },
-    {
-      id: 'limites-entrada',
-      title: 'Límites de compra',
-      description: 'Precios y pesos permitidos',
-      icon: Scale,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: false,
-      onClick: abrirEditorLimites,
-    },
-    {
-      id: 'gestion-usuarios',
-      title: 'Permisos y roles',
-      description: 'Acceso de trabajadores',
-      icon: Users,
-      iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
-      staticOnly: true,
-      onClick: undefined,
-    },
-  ] as const;
-
-  const gestionPersonas = [
-    {
-      id: 'clientes-registrados',
-      title: 'Compradores',
-      description: 'Directorio de compradores',
-      icon: Users2,
-      iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
-      staticOnly: true,
-    },
-    {
-      id: 'usuarios-sistema',
-      title: 'Personal',
-      description: 'Trabajadores del sistema',
-      icon: Shield,
-      iconStyle: 'bg-[#f3f6ff] text-[#5b6f9d]',
-      staticOnly: true,
-    },
-  ] as const;
+  const tabItems = useMemo(() => {
+    switch (activeTab) {
+      case 'NEGOCIO':
+        return [
+          {
+            id: 'info-empresa',
+            title: 'Datos de empresa',
+            description: company.nombreEmpresa || 'Nombre y descripción',
+            icon: Building2,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirEditorEmpresa,
+          },
+          {
+            id: 'limites-entrada',
+            title: 'Límites de compra',
+            description: 'Precios y pesos permitidos',
+            icon: Scale,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirEditorLimites,
+          },
+          {
+            id: 'moneda',
+            title: 'Cambia tu moneda',
+            description: getActiveCurrencyLabel(),
+            icon: Coins,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirEditorMoneda,
+          },
+          {
+            id: 'unidades',
+            title: 'Unidades por defecto',
+            description: 'Medición en kilogramos (kg)',
+            icon: Scale,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+          {
+            id: 'notif',
+            title: 'Preferencias',
+            description: 'Alertas y notificaciones',
+            icon: Bell,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+        ];
+      case 'BODEGA':
+        return [
+          {
+            id: 'capacidad-bodega',
+            title: 'Ajustar bodega',
+            description: 'Capacidad máxima en kg',
+            icon: Warehouse,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirEditorBodega,
+          },
+          {
+            id: 'zonas-bodega',
+            title: 'Zonas de bodega',
+            description: 'Distribución del espacio',
+            icon: MapPin,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+        ];
+      case 'CALIDADES':
+        return [
+          {
+            id: 'tipos-cafe',
+            title: 'Tipos de café',
+            description: 'Gestiona los tipos de café registrados',
+            icon: FlaskConical,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirGestionTiposCafe,
+          },
+          {
+            id: 'calidades-cafe',
+            title: 'Calidades del café',
+            description: 'Gestiona los niveles de calidad del grano',
+            icon: ScanSearch,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: false,
+            onClick: abrirGestionCalidades,
+          },
+        ];
+      case 'USUARIOS':
+        return [
+          {
+            id: 'gestion-usuarios',
+            title: 'Permisos y roles',
+            description: 'Acceso de trabajadores',
+            icon: Users,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+          {
+            id: 'usuarios-sistema',
+            title: 'Personal',
+            description: 'Trabajadores del sistema',
+            icon: Shield,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+          {
+            id: 'clientes-registrados',
+            title: 'Compradores',
+            description: 'Directorio de compradores',
+            icon: Users2,
+            iconStyle: 'bg-[#eff4ff] text-[#2c57cc]',
+            disabled: true,
+            onClick: undefined,
+          },
+        ];
+      default:
+        return [];
+    }
+  }, [activeTab, company.nombreEmpresa]);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900">
@@ -949,22 +1258,47 @@ export default function Ajustes() {
           </div>
 
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
-            Configuración del negocio
+            Configuraci&oacute;n
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {configuracionNegocio.map((item) => {
+
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map((tab) => {
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`rounded-full border px-4 py-2 text-xs font-black transition whitespace-nowrap ${
+                    active
+                      ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white shadow-sm'
+                      : 'border-[#dce2f1] bg-white text-slate-500'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            {tabItems.map((item) => {
               const Icon = item.icon;
-              const disabled = item.staticOnly === true;
+              const disabled = item.disabled;
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
                   disabled={disabled}
-                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm ${disabled ? 'opacity-75' : ''}`}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition ${
+                    disabled
+                      ? 'opacity-65 cursor-not-allowed bg-slate-50/50'
+                      : 'active:bg-[#f3f6ff]'
+                  }`}
                 >
                   <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                    className={`inline-flex shrink-0 rounded-lg p-2 ${item.iconStyle}`}
                   >
                     <Icon size={14} />
                   </span>
@@ -976,45 +1310,12 @@ export default function Ajustes() {
                       {item.description}
                     </span>
                   </span>
-                  <ChevronRight
-                    size={14}
-                    className="mt-0.5 shrink-0 text-slate-300"
-                  />
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
-            Gestión de personas
-          </p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {gestionPersonas.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  disabled
-                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left opacity-80 shadow-sm"
-                >
-                  <span
-                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
-                  >
-                    <Icon size={14} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
-                      {item.title}
-                    </span>
-                    <span className="block truncate text-[11px] text-slate-500">
-                      {item.description}
-                    </span>
-                  </span>
-                  <ChevronRight
-                    size={14}
-                    className="mt-0.5 shrink-0 text-slate-300"
-                  />
+                  {!disabled && (
+                    <ChevronRight
+                      size={14}
+                      className="mt-0.5 shrink-0 text-slate-300"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -1398,6 +1699,148 @@ export default function Ajustes() {
         </div>
       ) : null}
 
+      {isEditingMoneda ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <h3 className="text-[1.25rem] font-semibold leading-tight text-[#111827]">
+                Moneda de tu negocio
+              </h3>
+              <button
+                type="button"
+                onClick={cerrarEditorMoneda}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {loadingTransactions ? (
+              <div className="flex flex-col items-center justify-center py-10 space-y-3">
+                <LoaderCircle className="animate-spin text-[#1D4ED8]" size={36} />
+                <p className="text-sm font-semibold text-slate-500">
+                  Verificando registros de tu negocio...
+                </p>
+              </div>
+            ) : hasTransactions ? (
+              <div className="mt-4 space-y-4">
+                <section className="rounded-[16px] border border-amber-100 bg-[#fffbeb] p-4 text-[#9a5b00]">
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff2cd] text-[#d29309]">
+                      <AlertTriangle size={18} />
+                    </span>
+                    <div>
+                      <p className="text-[0.95rem] font-bold text-slate-800">
+                        Esta es tu moneda oficial
+                      </p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                        Ya has registrado compras, ventas o gastos. Para que las cuentas de tu negocio den exactas y no se mezclen diferentes monedas, la moneda no se puede cambiar.
+                      </p>
+                      <p className="mt-2 text-[0.68rem] leading-4 text-slate-500 font-medium">
+                        Si necesitas operar con otra moneda, puedes crear una nueva organización.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="space-y-2 mt-2">
+                  {Object.values(CURRENCIES).map((curr) => {
+                    const isSelected = selectedMoneda === curr.code;
+                    if (!isSelected) return null;
+                    return (
+                      <div
+                        key={curr.code}
+                        className="flex w-full items-center justify-between rounded-[16px] border border-[#1D4ED8] bg-[#eef2ff] p-4 text-[#1D4ED8]"
+                      >
+                        <div className="text-left">
+                          <p className="text-[0.95rem] font-bold">{curr.label}</p>
+                          <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                        </div>
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
+                          <Check size={12} strokeWidth={3} />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 pt-2">
+                  <button
+                    type="button"
+                    onClick={cerrarEditorMoneda}
+                    className="inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-slate-900 px-4 py-3 text-[0.9rem] font-semibold text-white transition active:scale-[0.98]"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <section className="rounded-[16px] border border-blue-100 bg-[#eff6ff] p-4 text-[#1e40af]">
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#dbeafe] text-[#1D4ED8]">
+                      <Info size={18} />
+                    </span>
+                    <div>
+                      <p className="text-[0.95rem] font-bold text-slate-800">
+                        Elige tu moneda de trabajo
+                      </p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                        Selecciona la moneda principal de tu negocio.
+                      </p>
+                      <p className="mt-2 text-[0.68rem] leading-4 text-slate-500 font-bold">
+                        ⚠️ Atención: Una vez registres tu primera compra, venta o gasto, esta moneda quedará fija y no se podrá volver a cambiar para evitar errores en tus cuentas.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="space-y-2 mt-2">
+                  {Object.values(CURRENCIES).map((curr) => {
+                    const isSelected = selectedMoneda === curr.code;
+                    return (
+                      <button
+                        key={curr.code}
+                        type="button"
+                        onClick={() => setSelectedMoneda(curr.code)}
+                        className={`flex w-full items-center justify-between rounded-[16px] border p-4 transition-all ${
+                          isSelected
+                            ? 'border-[#1D4ED8] bg-[#eef2ff] text-[#1D4ED8] shadow-[0_4px_10px_rgba(29,78,216,0.08)]'
+                            : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-700 hover:bg-[#f3f6ff]'
+                        }`}
+                      >
+                        <div className="text-left">
+                          <p className="text-[0.95rem] font-bold">{curr.label}</p>
+                          <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                        </div>
+                        {isSelected ? (
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
+                            <Check size={12} strokeWidth={3} />
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 pt-2">
+                  <button
+                    type="button"
+                    onClick={guardarMoneda}
+                    className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.9rem] font-semibold text-white transition active:scale-[0.98]"
+                  >
+                    <Save size={14} />
+                    Guardar moneda
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {isEditingLimites ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
           <div className="max-h-[88vh] w-full max-w-[430px] overflow-y-auto rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
@@ -1510,8 +1953,8 @@ export default function Ajustes() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      maxLength={6}
-                      value={limitMinPrecioKg}
+                      maxLength={10}
+                      value={formatearMonedaInput(limitMinPrecioKg)}
                       onChange={(event) => {
                         const raw = event.target.value
                           .replace(/\D/g, '')
@@ -1524,7 +1967,7 @@ export default function Ajustes() {
                         clearFeedback();
                       }}
                       className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioCompraMin ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
-                      placeholder="1000"
+                      placeholder="1.000"
                     />
                   </div>
                 </div>
@@ -1539,8 +1982,8 @@ export default function Ajustes() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      maxLength={6}
-                      value={limitMaxPrecioKg}
+                      maxLength={10}
+                      value={formatearMonedaInput(limitMaxPrecioKg)}
                       onChange={(event) => {
                         const raw = event.target.value
                           .replace(/\D/g, '')
@@ -1553,7 +1996,7 @@ export default function Ajustes() {
                         clearFeedback();
                       }}
                       className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioCompraMax ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
-                      placeholder="100000"
+                      placeholder="100.000"
                     />
                   </div>
                 </div>
@@ -1596,8 +2039,8 @@ export default function Ajustes() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      maxLength={6}
-                      value={limitMinPrecioVentaKg}
+                      maxLength={10}
+                      value={formatearMonedaInput(limitMinPrecioVentaKg)}
                       onChange={(event) => {
                         const raw = event.target.value
                           .replace(/\D/g, '')
@@ -1610,7 +2053,7 @@ export default function Ajustes() {
                         clearFeedback();
                       }}
                       className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioVentaMin ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
-                      placeholder="1000"
+                      placeholder="1.000"
                     />
                   </div>
                 </div>
@@ -1625,8 +2068,8 @@ export default function Ajustes() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      maxLength={6}
-                      value={limitMaxPrecioVentaKg}
+                      maxLength={10}
+                      value={formatearMonedaInput(limitMaxPrecioVentaKg)}
                       onChange={(event) => {
                         const raw = event.target.value
                           .replace(/\D/g, '')
@@ -1639,7 +2082,7 @@ export default function Ajustes() {
                         clearFeedback();
                       }}
                       className={`w-full rounded-[14px] border py-3 pl-7 pr-3 text-[0.95rem] font-semibold outline-none focus:border-[#173ea6] ${limitesErrors.precioVentaMax ? 'border-rose-400 bg-rose-50 text-slate-900' : 'border-[#dde4f1] bg-[#f7f9fd] text-[#121826]'}`}
-                      placeholder="100000"
+                      placeholder="100.000"
                     />
                   </div>
                 </div>
@@ -1746,6 +2189,276 @@ export default function Ajustes() {
           </div>
         </div>
       ) : null}
+
+      {modalTiposCafeAbierto && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[88vh] w-full max-w-[430px] flex-col rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-[1.25rem] font-black leading-tight text-[#111827]">
+                  Tipos de café
+                </h3>
+                <p className="text-[0.72rem] font-semibold text-slate-400 mt-0.5">
+                  Gestiona las categorías de café de tu bodega
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalTiposCafeAbierto(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin] max-h-[300px]">
+              {cargandoCatalogos ? (
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">Cargando tipos de café...</p>
+              ) : tiposCafeList.length === 0 ? (
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">No hay tipos de café registrados.</p>
+              ) : (
+                tiposCafeList.map((tipo) => {
+                  const isBase = esTipoBase(tipo.nombre);
+                  return (
+                    <div
+                      key={tipo.id}
+                      className="flex items-center justify-between rounded-[14px] border border-[#eef2f8] bg-[#fcfdff] p-3.5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#1D4ED8]" />
+                        <span className="text-[0.92rem] font-bold text-slate-800">
+                          {tipo.nombre}
+                        </span>
+                        {isBase && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.55rem] font-black uppercase text-slate-400">
+                            Sistema
+                          </span>
+                        )}
+                      </div>
+                      {!isBase && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTipoEditandoId(tipo.id);
+                              setNombreTipoForm(tipo.nombre);
+                              setMostrarFormTipo(true);
+                              setErrorTipoForm(null);
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef3ff] text-[#1D4ED8] hover:bg-[#dfe8ff] transition"
+                            title="Editar"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void eliminarTipoCafeLocal(tipo.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] hover:bg-[#ffe0e4] transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {mostrarFormTipo ? (
+              <div className="mt-4 rounded-[18px] border border-slate-100 bg-[#fbfbfe] p-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                <h4 className="text-[0.8rem] font-black text-slate-700">
+                  {tipoEditandoId ? 'Editar tipo de café' : 'Nuevo tipo de café'}
+                </h4>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={50}
+                    value={nombreTipoForm}
+                    onChange={(e) => {
+                      setNombreTipoForm(e.target.value);
+                      setErrorTipoForm(null);
+                    }}
+                    placeholder="Ej: Cereza"
+                    className="flex-1 rounded-[12px] border border-[#dde4f1] bg-white px-3 py-2 text-[0.88rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void guardarTipoCafeLocal()}
+                    disabled={guardandoTipo}
+                    className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-xs font-black text-white disabled:opacity-60"
+                  >
+                    {guardandoTipo ? '...' : 'Guardar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarFormTipo(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {errorTipoForm && (
+                  <p className="mt-2 rounded-[10px] bg-rose-50 px-3 py-1.5 text-[0.72rem] font-semibold text-rose-600 border border-rose-100">
+                    {errorTipoForm}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoEditandoId(null);
+                  setNombreTipoForm('');
+                  setMostrarFormTipo(true);
+                  setErrorTipoForm(null);
+                }}
+                className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-dashed border-[#1D4ED8] bg-[#f8fbff] text-xs font-black text-[#1D4ED8] hover:bg-[#eff6ff] transition"
+              >
+                + Agregar tipo de café
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modalCalidadesAbierto && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[88vh] w-full max-w-[430px] flex-col rounded-[22px] border border-[#e6e8f3] bg-white px-5 pb-5 pt-3 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-[#cfd8e6]" />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-[1.25rem] font-black leading-tight text-[#111827]">
+                  Calidades del café
+                </h3>
+                <p className="text-[0.72rem] font-semibold text-slate-400 mt-0.5">
+                  Gestiona las calidades de grano permitidas
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalCalidadesAbierto(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                aria-label="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin] max-h-[300px]">
+              {cargandoCatalogos ? (
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">Cargando calidades...</p>
+              ) : calidadesList.length === 0 ? (
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">No hay calidades registradas.</p>
+              ) : (
+                calidadesList.map((calidad) => {
+                  const isBase = esCalidadBase(calidad.nombre);
+                  return (
+                    <div
+                      key={calidad.id}
+                      className="flex items-center justify-between rounded-[14px] border border-[#eef2f8] bg-[#fcfdff] p-3.5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#0d7b67]" />
+                        <span className="text-[0.92rem] font-bold text-slate-800">
+                          {calidad.nombre}
+                        </span>
+                        {isBase && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[0.55rem] font-black uppercase text-slate-400">
+                            Sistema
+                          </span>
+                        )}
+                      </div>
+                      {!isBase && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCalidadEditandoId(calidad.id);
+                              setNombreCalidadForm(calidad.nombre);
+                              setMostrarFormCalidad(true);
+                              setErrorCalidadForm(null);
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef3ff] text-[#1D4ED8] hover:bg-[#dfe8ff] transition"
+                            title="Editar"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void eliminarCalidadLocal(calidad.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] hover:bg-[#ffe0e4] transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {mostrarFormCalidad ? (
+              <div className="mt-4 rounded-[18px] border border-slate-100 bg-[#fbfbfe] p-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                <h4 className="text-[0.8rem] font-black text-slate-700">
+                  {calidadEditandoId ? 'Editar calidad' : 'Nueva calidad'}
+                </h4>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={50}
+                    value={nombreCalidadForm}
+                    onChange={(e) => {
+                      setNombreCalidadForm(e.target.value);
+                      setErrorCalidadForm(null);
+                    }}
+                    placeholder="Ej: Premium"
+                    className="flex-1 rounded-[12px] border border-[#dde4f1] bg-white px-3 py-2 text-[0.88rem] font-semibold text-slate-900 outline-none focus:border-[#1D4ED8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void guardarCalidadLocal()}
+                    disabled={guardandoCalidad}
+                    className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-xs font-black text-white disabled:opacity-60"
+                  >
+                    {guardandoCalidad ? '...' : 'Guardar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarFormCalidad(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {errorCalidadForm && (
+                  <p className="mt-2 rounded-[10px] bg-rose-50 px-3 py-1.5 text-[0.72rem] font-semibold text-rose-600 border border-rose-100">
+                    {errorCalidadForm}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setCalidadEditandoId(null);
+                  setNombreCalidadForm('');
+                  setMostrarFormCalidad(true);
+                  setErrorCalidadForm(null);
+                }}
+                className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-dashed border-[#1D4ED8] bg-[#f8fbff] text-xs font-black text-[#1D4ED8] hover:bg-[#eff6ff] transition"
+              >
+                + Agregar calidad
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <AppBottomNav />
     </div>

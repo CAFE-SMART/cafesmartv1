@@ -189,6 +189,196 @@ export class ComprasService {
     };
   }
 
+  async crearTipoCafe(nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre del tipo de café es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre del tipo de café no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.tipoCafe.findFirst({
+      where: {
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('Este tipo de café ya está registrado.');
+    }
+
+    return this.prisma.tipoCafe.create({
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async editarTipoCafe(id: string, nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre del tipo de café es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre del tipo de café no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.tipoCafe.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('El tipo de café no existe.');
+    }
+
+    if (TIPOS_CAFE_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden modificar los tipos de café base del sistema.');
+    }
+
+    const duplicate = await this.prisma.tipoCafe.findFirst({
+      where: {
+        id: { not: id },
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException('Ya existe otro tipo de café con este nombre.');
+    }
+
+    return this.prisma.tipoCafe.update({
+      where: { id },
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async eliminarTipoCafe(id: string, userId: string): Promise<void> {
+    const existing = await this.prisma.tipoCafe.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('El tipo de café no existe.');
+    }
+
+    if (TIPOS_CAFE_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden eliminar los tipos de café base del sistema.');
+    }
+
+    const lotesCount = await this.prisma.lote.count({ where: { tipoCafeId: id } });
+    const sublotesCount = await this.prisma.sublote.count({ where: { tipoCafeId: id, deletedAt: null } });
+    if (lotesCount > 0 || sublotesCount > 0) {
+      throw new BadRequestException('No se puede eliminar el tipo de café porque tiene lotes o sublotes activos asociados.');
+    }
+
+    try {
+      await this.prisma.tipoCafe.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('No se puede eliminar el tipo de café porque está en uso en transacciones del sistema.');
+      }
+      throw error;
+    }
+  }
+
+  async crearCalidad(nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre de la calidad es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre de la calidad no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.calidad.findFirst({
+      where: {
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('Esta calidad ya está registrada.');
+    }
+
+    return this.prisma.calidad.create({
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async editarCalidad(id: string, nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre de la calidad es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre de la calidad no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.calidad.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('La calidad no existe.');
+    }
+
+    if (CALIDADES_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden modificar las calidades base del sistema.');
+    }
+
+    const duplicate = await this.prisma.calidad.findFirst({
+      where: {
+        id: { not: id },
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException('Ya existe otra calidad con este nombre.');
+    }
+
+    return this.prisma.calidad.update({
+      where: { id },
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async eliminarCalidad(id: string, userId: string): Promise<void> {
+    const existing = await this.prisma.calidad.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('La calidad no existe.');
+    }
+
+    if (CALIDADES_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden eliminar las calidades base del sistema.');
+    }
+
+    const lotesCount = await this.prisma.lote.count({ where: { calidadId: id } });
+    const sublotesCount = await this.prisma.sublote.count({ where: { calidadId: id, deletedAt: null } });
+    if (lotesCount > 0 || sublotesCount > 0) {
+      throw new BadRequestException('No se puede eliminar la calidad porque tiene lotes o sublotes activos asociados.');
+    }
+
+    try {
+      await this.prisma.calidad.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('No se puede eliminar la calidad porque está en uso en transacciones del sistema.');
+      }
+      throw error;
+    }
+  }
+
   async crearCompra(
     input: CreateCompraDto,
     userId: string,

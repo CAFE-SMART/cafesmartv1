@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -26,13 +26,12 @@ import {
 } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import { ApiRequestError } from '../services/apiService';
+import { formatoMoneda, formatCurrencyShort as getFormatCurrencyShort } from '../utils/formatMoney';
 
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 
 function formatCurrency(value: number) {
-  return `$ ${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatoMoneda(value);
 }
 
 function formatKg(value: number) {
@@ -60,18 +59,7 @@ function formatDayShort(value: Date) {
 }
 
 function formatCurrencyShort(value: number) {
-  const abs = Math.abs(value);
-  if (abs >= 1000000) {
-    return `$${(value / 1000000).toLocaleString('es-CO', {
-      maximumFractionDigits: 1,
-    })}M`;
-  }
-  if (abs >= 1000) {
-    return `$${(value / 1000).toLocaleString('es-CO', {
-      maximumFractionDigits: 0,
-    })}K`;
-  }
-  return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+  return getFormatCurrencyShort(value);
 }
 
 function getFinancialSummaryErrorMessage(error: unknown) {
@@ -205,6 +193,14 @@ function getUtilidadAsistente(
 
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = useState(0);
+  useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

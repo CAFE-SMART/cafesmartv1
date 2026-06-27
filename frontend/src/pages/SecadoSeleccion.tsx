@@ -401,7 +401,7 @@ export default function SecadoSeleccion() {
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-sm font-extrabold">Iniciar secado</h1>
+          <h1 className="text-sm font-extrabold">Nuevo secado</h1>
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4 pb-3">

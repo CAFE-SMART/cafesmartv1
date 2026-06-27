@@ -115,3 +115,43 @@ export async function eliminarCompra(id: string) {
     method: 'DELETE',
   }) as Promise<void>;
 }
+
+export async function crearTipoCafe(nombre: string) {
+  return apiFetch('/compras/catalogos/tipo-cafe', {
+    method: 'POST',
+    body: JSON.stringify({ nombre }),
+  }) as Promise<CatalogoItem>;
+}
+
+export async function editarTipoCafe(id: string, nombre: string) {
+  return apiFetch(`/compras/catalogos/tipo-cafe/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  }) as Promise<CatalogoItem>;
+}
+
+export async function eliminarTipoCafe(id: string) {
+  return apiFetch(`/compras/catalogos/tipo-cafe/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
+}
+
+export async function crearCalidad(nombre: string) {
+  return apiFetch('/compras/catalogos/calidad', {
+    method: 'POST',
+    body: JSON.stringify({ nombre }),
+  }) as Promise<CatalogoItem>;
+}
+
+export async function editarCalidad(id: string, nombre: string) {
+  return apiFetch(`/compras/catalogos/calidad/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  }) as Promise<CatalogoItem>;
+}
+
+export async function eliminarCalidad(id: string) {
+  return apiFetch(`/compras/catalogos/calidad/${id}`, {
+    method: 'DELETE',
+  }) as Promise<void>;
+}

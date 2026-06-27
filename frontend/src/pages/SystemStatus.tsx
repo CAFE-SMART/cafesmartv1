@@ -35,7 +35,7 @@ type RegisterProcessState = {
   nombre: string;
   telefono: string;
   correo: string;
-  password: string;
+  password?: string;
 };
 
 const CONFIRMATION_DURATION_MS = 1700;
@@ -170,6 +170,16 @@ export default function SystemStatus() {
       try {
         let response: AuthResponse;
 
+        const tipoOrgMapped =
+          (processState.tipoOrganizacion as string) === 'PERSONALIZADO'
+            ? 'OTRO'
+            : (processState.tipoOrganizacion as 'COOPERATIVA' | 'COMPRAVENTA');
+
+        const otroTipoDetalleMapped =
+          (processState.tipoOrganizacion as string) === 'PERSONALIZADO'
+            ? processState.otroTipoDetalle
+            : undefined;
+
         if (processState.hasGoogleFlow && processState.googleToken) {
           response = await authService.registerWithGoogle({
             googleToken: processState.googleToken,
@@ -178,24 +188,18 @@ export default function SystemStatus() {
             telefono: processState.telefono,
             password: processState.password,
             nombreOrganizacion: processState.nombreOrganizacion,
-            tipoOrganizacion: processState.tipoOrganizacion,
-            otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+            tipoOrganizacion: tipoOrgMapped,
+            otroTipoDetalle: otroTipoDetalleMapped,
           });
         } else {
           response = await authService.register({
             nombreOrganizacion: processState.nombreOrganizacion,
-            tipoOrganizacion: processState.tipoOrganizacion,
-            otroTipoDetalle:
-              processState.tipoOrganizacion === 'OTRO'
-                ? processState.otroTipoDetalle
-                : undefined,
+            tipoOrganizacion: tipoOrgMapped,
+            otroTipoDetalle: otroTipoDetalleMapped,
             nombre: processState.nombre,
             telefono: processState.telefono,
             correo: processState.correo,
-            password: processState.password,
+            password: processState.password || '',
           });
         }
 

@@ -26,6 +26,7 @@ export type ConfiguracionBodega = {
   minPrecioVentaKg: number;
   maxPrecioVentaKg: number;
   updatedAt: string;
+  moneda: string | null;
 };
 
 @Injectable()
@@ -41,44 +42,46 @@ export class BodegaService {
   async obtenerConfiguracion(
     organizacionId: string,
   ): Promise<ConfiguracionBodega> {
-    const [
-      nombreBodega,
-      capacidadKgStr,
-      minPesoKgStr,
-      maxPesoKgStr,
-      minPrecioKgStr,
-      maxPrecioKgStr,
-      minPrecioVentaKgStr,
-      maxPrecioVentaKgStr,
-    ] = await Promise.all([
-      this.parametrosService.getParametroString(
-        'nombre_bodega',
+    const parametros = await this.prisma.parametroOrganizacion.findMany({
+      where: {
         organizacionId,
-        'Bodega principal',
-      ),
-      this.parametrosService.getParametroString(
-        'capacidad_bodega',
-        organizacionId,
-      ),
-      this.parametrosService.getParametroString('min_peso_kg', organizacionId),
-      this.parametrosService.getParametroString('max_peso_kg', organizacionId),
-      this.parametrosService.getParametroString(
-        'min_precio_kg',
-        organizacionId,
-      ),
-      this.parametrosService.getParametroString(
-        'max_precio_kg',
-        organizacionId,
-      ),
-      this.parametrosService.getParametroString(
-        'min_precio_venta_kg',
-        organizacionId,
-      ),
-      this.parametrosService.getParametroString(
-        'max_precio_venta_kg',
-        organizacionId,
-      ),
-    ]);
+        nombre: {
+          in: [
+            'nombre_bodega',
+            'capacidad_bodega',
+            'min_peso_kg',
+            'max_peso_kg',
+            'min_precio_kg',
+            'max_precio_kg',
+            'min_precio_venta_kg',
+            'max_precio_venta_kg',
+            'moneda',
+          ],
+        },
+      },
+    });
+
+    const paramMap = new Map(parametros.map((p) => [p.nombre, p.valor]));
+
+    let moneda = paramMap.get('moneda') || null;
+    if (!moneda) {
+      const count = await this.prisma.compra.count({ where: { organizacionId, deletedAt: null } });
+      const countVentas = await this.prisma.venta.count({ where: { organizacionId, deletedAt: null } });
+      const countGastos = await this.prisma.gastoOperativo.count({ where: { organizacionId, deletedAt: null } });
+      if (count > 0 || countVentas > 0 || countGastos > 0) {
+        await this.parametrosService.setParametro('moneda', 'COP', organizacionId);
+        moneda = 'COP';
+      }
+    }
+
+    const nombreBodega = paramMap.get('nombre_bodega') || 'Bodega principal';
+    const capacidadKgStr = paramMap.get('capacidad_bodega');
+    const minPesoKgStr = paramMap.get('min_peso_kg');
+    const maxPesoKgStr = paramMap.get('max_peso_kg');
+    const minPrecioKgStr = paramMap.get('min_precio_kg');
+    const maxPrecioKgStr = paramMap.get('max_precio_kg');
+    const minPrecioVentaKgStr = paramMap.get('min_precio_venta_kg');
+    const maxPrecioVentaKgStr = paramMap.get('max_precio_venta_kg');
 
     const parsed = Number(capacidadKgStr);
     const capacidadKg =
@@ -138,6 +141,7 @@ export class BodegaService {
       minPrecioVentaKg,
       maxPrecioVentaKg,
       updatedAt: new Date().toISOString(),
+      moneda,
     };
   }
 
@@ -306,5 +310,16 @@ export class BodegaService {
       minPrecioVentaKg,
       maxPrecioVentaKg,
     };
+  }
+
+  async actualizarMoneda(
+    organizacionId: string,
+    moneda: string,
+  ): Promise<void> {
+    await this.parametrosService.setParametro(
+      'moneda',
+      moneda,
+      organizacionId,
+    );
   }
 }
