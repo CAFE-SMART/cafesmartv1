@@ -17,6 +17,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
+  private resetTokens = new Map<string, { code: string; expiresAt: Date }>();
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
