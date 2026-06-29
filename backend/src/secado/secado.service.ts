@@ -14,6 +14,30 @@ import { apiError } from '../common/errors/api-error';
 import { CrearSecadoDto } from './dto/crear-secado.dto';
 import { SecadoResultsDto } from './dto/secado-results.dto';
 import { TransformarSecadoDto } from './dto/transformar-secado.dto';
+import { SaveSecadoDraftDto } from './dto/save-secado-draft.dto';
+import { EstadoSecado } from '@prisma/client';
+import { validarResultadosSecadoCriticos } from './secado-validations';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
+
+export const SECADO_SESSION_INCLUDE = {
+  tipoCafe: true,
+  calidad: true,
+  lote: true,
+  sublotes: {
+    include: {
+      sublote: {
+        include: {
+          tipoCafe: true,
+          calidad: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type SecadoSessionWithRelations = Prisma.SecadoSessionGetPayload<{
+  include: typeof SECADO_SESSION_INCLUDE;
+}>;
 
 type FuenteSecado = {
   id: string;
@@ -384,7 +408,9 @@ export class SecadoService {
             where: {
               id: fuente.id,
               deletedAt: null,
-              pesoActual: { gte: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)) },
+              pesoActual: {
+                gte: new Prisma.Decimal(fuenteInput.pesoKg.toFixed(2)),
+              },
             },
             data: {
               pesoActual: {
@@ -499,52 +525,582 @@ export class SecadoService {
   }
 
   async startSecado(
-    _userId: string,
-    _tipoCafeId: string,
-    _calidadId: string,
-    _subloteIds: string[],
-    _loteId?: string,
+    userId: string,
+    tipoCafeId: string,
+    calidadId: string,
+    subloteIds: string[],
+    pesos?: Record<string, number>,
   ) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
+    const organizacionId = await this.getOrganizacionId(userId);
+    const resultado = await this.prisma.$transaction(
+      async (tx) => {
+        const sublotes = await tx.sublote.findMany({
+          where: {
+            id: { in: subloteIds },
+            deletedAt: null,
+            compra: {
+              organizacionId,
+              deletedAt: null,
+            },
+          },
+        });
+
+        if (sublotes.length !== subloteIds.length) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SUBLOTE_ORIGEN_INVALIDO',
+              'Uno o varios sublotes origen no estan disponibles para secado.',
+            ),
+          );
+        }
+
+        let totalInputKg = 0;
+        for (const sublote of sublotes) {
+          const disponible = this.redondear(Number(sublote.pesoActual));
+          let pesoSecar = disponible;
+
+          if (pesos) {
+            const requested = pesos[sublote.id];
+            if (
+              requested === undefined ||
+              requested === null ||
+              !Number.isFinite(requested) ||
+              requested <= 0
+            ) {
+              throw new BadRequestException(
+                apiError(
+                  'SECADO_ENTRADA_INVALIDA',
+                  'La cantidad de entrada del secado debe ser mayor a 0.',
+                ),
+              );
+            }
+            if (requested > disponible) {
+              throw new BadRequestException(
+                apiError(
+                  'SECADO_ENTRADA_SUPERA_DISPONIBLE',
+                  'La cantidad a secar no puede superar el peso disponible.',
+                  {
+                    details: {
+                      subloteId: sublote.id,
+                      disponibleKg: disponible,
+                      solicitadoKg: requested,
+                    },
+                  },
+                ),
+              );
+            }
+            pesoSecar = requested;
+          } else {
+            if (disponible <= 0) {
+              throw new BadRequestException(
+                apiError(
+                  'SECADO_ENTRADA_INVALIDA',
+                  'El sublote origen no tiene peso disponible para secado.',
+                ),
+              );
+            }
+          }
+
+          totalInputKg += pesoSecar;
+        }
+
+        totalInputKg = this.redondear(totalInputKg);
+
+        for (const sublote of sublotes) {
+          const pesoSecar = pesos
+            ? pesos[sublote.id]!
+            : Number(sublote.pesoActual);
+          const updated = await tx.sublote.updateMany({
+            where: {
+              id: sublote.id,
+              deletedAt: null,
+              pesoActual: { gte: new Prisma.Decimal(pesoSecar.toFixed(2)) },
+            },
+            data: {
+              pesoActual: {
+                decrement: new Prisma.Decimal(pesoSecar.toFixed(2)),
+              },
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new ConflictException(
+              apiError(
+                'SECADO_INVENTARIO_INSUFICIENTE',
+                'No hay suficiente cafe verde para completar el secado.',
+              ),
+            );
+          }
+
+          await this.actualizarInventario(
+            tx,
+            organizacionId,
+            sublote.tipoCafeId,
+            sublote.calidadId,
+            -pesoSecar,
+          );
+        }
+
+        const session = await tx.secadoSession.create({
+          data: {
+            estado: EstadoSecado.IN_PROCESS,
+            loteId: sublotes[0].idLote,
+            tipoCafeId,
+            calidadId,
+            inputKg: totalInputKg,
+            organizacionId,
+          },
+        });
+
+        await tx.secadoSessionSublote.createMany({
+          data: sublotes.map((sublote) => {
+            const pesoAsignado = pesos
+              ? pesos[sublote.id]!
+              : Number(sublote.pesoActual);
+            return {
+              sessionId: session.id,
+              subloteId: sublote.id,
+              pesoAsignado,
+            };
+          }),
+        });
+
+        await tx.inventarioMovimiento.createMany({
+          data: sublotes.map((sublote) => {
+            const pesoAsignado = pesos
+              ? pesos[sublote.id]!
+              : Number(sublote.pesoActual);
+            return {
+              organizacionId,
+              usuarioId: userId,
+              tipoCafeId: sublote.tipoCafeId,
+              calidadId: sublote.calidadId,
+              subloteId: sublote.id,
+              cantidad: -pesoAsignado,
+              tipoMovimiento: TipoMovimientoInventario.SECADO,
+              referenciaTipo: TipoReferenciaInventario.SECADO,
+              referenciaId: session.id,
+            };
+          }),
+        });
+
+        const sessionConRelaciones = await tx.secadoSession.findUnique({
+          where: { id: session.id },
+          include: SECADO_SESSION_INCLUDE,
+        });
+
+        if (!sessionConRelaciones) {
+          throw new BadRequestException('Sesión de secado no encontrada.');
+        }
+
+        return this.mapSession(sessionConRelaciones);
+      },
+      { maxWait: 10000, timeout: 25000 },
     );
+
+    invalidarDashboardCache(organizacionId);
+    return resultado;
+  }
+
+  async saveSecadoDraft(
+    userId: string,
+    sessionId: string,
+    dto: SaveSecadoDraftDto,
+  ) {
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const session = await this.prisma.secadoSession.findFirst({
+      where: { id: sessionId, organizacionId },
+    });
+
+    if (!session) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SESSION_NO_ENCONTRADA',
+          'La sesion de secado no fue encontrada.',
+        ),
+      );
+    }
+
+    const updated = await this.prisma.secadoSession.update({
+      where: { id: sessionId },
+      data: {
+        draftStartDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        draftEndDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        draftBuenoKg:
+          dto.buenoKg !== undefined
+            ? new Prisma.Decimal(dto.buenoKg)
+            : undefined,
+        draftRegularKg:
+          dto.regularKg !== undefined
+            ? new Prisma.Decimal(dto.regularKg)
+            : undefined,
+        draftMaloKg:
+          dto.maloKg !== undefined ? new Prisma.Decimal(dto.maloKg) : undefined,
+      },
+      include: SECADO_SESSION_INCLUDE,
+    });
+
+    invalidarDashboardCache(organizacionId);
+    return this.mapSession(updated);
   }
 
   async saveSecadoResults(
-    _userId: string,
-    _sessionId: string,
-    _dto: SecadoResultsDto,
+    userId: string,
+    sessionId: string,
+    dto: SecadoResultsDto,
   ) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const session = await this.prisma.secadoSession.findFirst({
+      where: { id: sessionId, organizacionId },
+    });
+
+    if (!session) {
+      throw new BadRequestException(
+        apiError(
+          'SECADO_SESSION_NO_ENCONTRADA',
+          'La sesion de secado no fue encontrada.',
+        ),
+      );
+    }
+
+    try {
+      validarResultadosSecadoCriticos(Number(session.inputKg), dto);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message: string };
+      throw new BadRequestException(
+        apiError(err.code || 'SECADO_CANTIDAD_INVALIDA', err.message),
+      );
+    }
+
+    const totalSalida =
+      dto.outputBuenoKg + dto.outputRegularKg + (dto.outputMaloKg ?? 0);
+    const mermaKg = Math.max(0, Number(session.inputKg) - totalSalida);
+    const rendimientoPct =
+      Number(session.inputKg) > 0
+        ? (totalSalida / Number(session.inputKg)) * 100
+        : 0;
+
+    const updated = await this.prisma.secadoSession.update({
+      where: { id: sessionId },
+      data: {
+        estado: EstadoSecado.READY,
+        outputBuenoKg: dto.outputBuenoKg,
+        outputBuenoHumedad:
+          dto.outputBuenoHumedad !== undefined ? dto.outputBuenoHumedad : null,
+        outputRegularKg: dto.outputRegularKg,
+        outputRegularHumedad:
+          dto.outputRegularHumedad !== undefined
+            ? dto.outputRegularHumedad
+            : null,
+        outputMaloKg: dto.outputMaloKg !== undefined ? dto.outputMaloKg : 0,
+        outputMaloHumedad:
+          dto.outputMaloHumedad !== undefined ? dto.outputMaloHumedad : null,
+        mermaKg,
+        rendimientoPct,
+      },
+      include: SECADO_SESSION_INCLUDE,
+    });
+
+    invalidarDashboardCache(organizacionId);
+    return this.mapSession(updated);
+  }
+
+  async finalizeSecado(userId: string, sessionId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const resultado = await this.prisma.$transaction(
+      async (tx) => {
+        const session = await tx.secadoSession.findUnique({
+          where: { id: sessionId },
+          include: SECADO_SESSION_INCLUDE,
+        });
+
+        if (!session || session.organizacionId !== organizacionId) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SESSION_NO_ENCONTRADA',
+              'La sesion de secado no fue encontrada.',
+            ),
+          );
+        }
+
+        if (session.estado === EstadoSecado.COMPLETED) {
+          return this.mapSession(session);
+        }
+
+        if (session.estado !== EstadoSecado.READY) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SESSION_NO_LISTA',
+              'La sesion de secado no esta lista para ser finalizada.',
+            ),
+          );
+        }
+
+        const [tipoSeco, calidadBueno, calidadRegular, calidadMalo] =
+          await Promise.all([
+            tx.tipoCafe.findUnique({
+              where: { nombre: 'SECO' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'BUENO' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'REGULAR' },
+              select: { id: true },
+            }),
+            tx.calidad.findUnique({
+              where: { nombre: 'MALO' },
+              select: { id: true },
+            }),
+          ]);
+
+        if (!tipoSeco || !calidadBueno || !calidadRegular || !calidadMalo) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_CATALOGO_INVALIDO',
+              'No encontramos los catalogos necesarios para crear el cafe seco.',
+            ),
+          );
+        }
+
+        const sessionSublotes = session.sublotes;
+        if (sessionSublotes.length === 0) {
+          throw new BadRequestException(
+            apiError(
+              'SECADO_SESSION_SIN_SUBLOTES',
+              'La sesion no tiene sublotes asociados.',
+            ),
+          );
+        }
+
+        const compraId = sessionSublotes[0].sublote.compraId;
+        const deviceId = sessionSublotes[0].sublote.deviceId;
+
+        let costoTotalEntrada = 0;
+        let pesoTotalEntrada = 0;
+        for (const s of sessionSublotes) {
+          const pesoInicial = Number(s.sublote.pesoInicial);
+          const costoTotalFuente = Number(s.sublote.costoTotal);
+          const precioKg =
+            pesoInicial > 0 && costoTotalFuente > 0
+              ? costoTotalFuente / pesoInicial
+              : Number(s.sublote.precioKg);
+
+          const pesoAsignado = Number(s.pesoAsignado);
+          costoTotalEntrada += precioKg * pesoAsignado;
+          pesoTotalEntrada += pesoAsignado;
+        }
+
+        const precioPromedioKg =
+          pesoTotalEntrada > 0
+            ? this.redondear(costoTotalEntrada / pesoTotalEntrada)
+            : 0;
+
+        const outputsToCreate = [
+          {
+            qualityName: 'BUENO',
+            qualityId: calidadBueno.id,
+            peso: Number(session.outputBuenoKg),
+            humedad: session.outputBuenoHumedad,
+          },
+          {
+            qualityName: 'REGULAR',
+            qualityId: calidadRegular.id,
+            peso: Number(session.outputRegularKg),
+            humedad: session.outputRegularHumedad,
+          },
+          {
+            qualityName: 'MALO',
+            qualityId: calidadMalo.id,
+            peso: Number(session.outputMaloKg),
+            humedad: session.outputMaloHumedad,
+          },
+        ].filter((out) => out.peso > 0);
+
+        for (const out of outputsToCreate) {
+          const loteSalida = await this.asegurarLote(
+            tx,
+            organizacionId,
+            tipoSeco.id,
+            out.qualityId,
+            `SECO ${out.qualityName}`,
+          );
+
+          const subloteSeco = await tx.sublote.create({
+            data: {
+              compraId,
+              tipoCafeId: tipoSeco.id,
+              calidadId: out.qualityId,
+              idLote: loteSalida.id,
+              pesoInicial: out.peso,
+              pesoActual: out.peso,
+              precioKg: precioPromedioKg,
+              costoTotal: this.redondear(precioPromedioKg * out.peso),
+              humedad: out.humedad
+                ? new Prisma.Decimal(Number(out.humedad).toFixed(2))
+                : null,
+              deviceId,
+              localId: `secado:${session.id}:${out.qualityName.toLowerCase()}`,
+            },
+          });
+
+          await this.actualizarInventario(
+            tx,
+            organizacionId,
+            tipoSeco.id,
+            out.qualityId,
+            out.peso,
+          );
+
+          await tx.inventarioMovimiento.create({
+            data: {
+              organizacionId,
+              usuarioId: userId,
+              tipoCafeId: tipoSeco.id,
+              calidadId: out.qualityId,
+              subloteId: subloteSeco.id,
+              cantidad: out.peso,
+              tipoMovimiento: TipoMovimientoInventario.SECADO,
+              referenciaTipo: TipoReferenciaInventario.SECADO,
+              referenciaId: session.id,
+            },
+          });
+        }
+
+        const sessionActualizada = await tx.secadoSession.update({
+          where: { id: sessionId },
+          data: {
+            estado: EstadoSecado.COMPLETED,
+            completedAt: new Date(),
+          },
+          include: SECADO_SESSION_INCLUDE,
+        });
+
+        return this.mapSession(sessionActualizada);
+      },
+      { maxWait: 10000, timeout: 25000 },
     );
+
+    invalidarDashboardCache(organizacionId);
+    return resultado;
   }
 
-  async finalizeSecado(_userId: string, _sessionId: string) {
-    throw new BadRequestException(
-      apiError(
-        'SECADO_MODULO_NO_DISPONIBLE',
-        'El modulo de secado no esta disponible en la base de datos actual.',
-      ),
-    );
+  async getActiveSecado(userId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const activeSession = await this.prisma.secadoSession.findFirst({
+      where: {
+        organizacionId,
+        estado: { in: [EstadoSecado.IN_PROCESS, EstadoSecado.READY] },
+      },
+      orderBy: { startedAt: 'desc' },
+      include: SECADO_SESSION_INCLUDE,
+    });
+
+    if (!activeSession) return null;
+    return this.mapSession(activeSession);
   }
 
-  async getActiveSecado(_organizacionId: string) {
-    return null;
+  async getActiveSecadoForLote(userId: string, loteId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const activeSession = await this.prisma.secadoSession.findFirst({
+      where: {
+        organizacionId,
+        loteId,
+        estado: { in: [EstadoSecado.IN_PROCESS, EstadoSecado.READY] },
+      },
+      orderBy: { startedAt: 'desc' },
+      include: SECADO_SESSION_INCLUDE,
+    });
+
+    if (!activeSession) return null;
+    return this.mapSession(activeSession);
   }
 
-  async getActiveSecadoForLote(_userId: string, _loteId: string) {
-    return null;
+  async getSecadoSession(userId: string, sessionId: string) {
+    const organizacionId = await this.getOrganizacionId(userId);
+
+    const session = await this.prisma.secadoSession.findFirst({
+      where: {
+        id: sessionId,
+        organizacionId,
+      },
+      include: SECADO_SESSION_INCLUDE,
+    });
+
+    if (!session) return null;
+    return this.mapSession(session);
   }
 
-  async getSecadoSession(_organizacionId: string, _sessionId: string) {
-    return null;
+  private mapSession(session: SecadoSessionWithRelations) {
+    if (!session) return null;
+    return {
+      id: session.id,
+      estado: session.estado,
+      loteId: session.loteId,
+      loteCodigo: session.lote?.codigo || '',
+      tipoCafeId: session.tipoCafeId,
+      tipoCafe: session.tipoCafe.nombre,
+      calidadId: session.calidadId,
+      calidad: session.calidad.nombre,
+      subloteIds: session.sublotes.map((s) => s.subloteId),
+      inputKg: Number(session.inputKg),
+      outputBuenoKg: Number(session.outputBuenoKg),
+      outputBuenoHumedad: session.outputBuenoHumedad
+        ? Number(session.outputBuenoHumedad)
+        : null,
+      outputRegularKg: Number(session.outputRegularKg),
+      outputRegularHumedad: session.outputRegularHumedad
+        ? Number(session.outputRegularHumedad)
+        : null,
+      outputMaloKg: Number(session.outputMaloKg),
+      outputMaloHumedad: session.outputMaloHumedad
+        ? Number(session.outputMaloHumedad)
+        : null,
+      mermaKg: Number(session.mermaKg),
+      rendimientoPct: session.rendimientoPct
+        ? Number(session.rendimientoPct)
+        : null,
+      startedAt: session.startedAt.toISOString(),
+      updatedAt: session.updatedAt.toISOString(),
+      completedAt: session.completedAt
+        ? session.completedAt.toISOString()
+        : null,
+      draftStartDate: session.draftStartDate
+        ? session.draftStartDate.toISOString()
+        : null,
+      draftEndDate: session.draftEndDate
+        ? session.draftEndDate.toISOString()
+        : null,
+      draftBuenoKg: session.draftBuenoKg ? Number(session.draftBuenoKg) : null,
+      draftRegularKg: session.draftRegularKg
+        ? Number(session.draftRegularKg)
+        : null,
+      draftMaloKg: session.draftMaloKg ? Number(session.draftMaloKg) : null,
+      sublotes: session.sublotes.map((s, index) => {
+        const now = new Date();
+        const targetDate = new Date(s.sublote.creadoEn);
+        const diffTime = Math.max(0, now.getTime() - targetDate.getTime());
+        const diasEnBodega = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const etiqueta = `${s.sublote.tipoCafe.nombre.trim().charAt(0).toLowerCase()}${s.sublote.calidad.nombre.trim().charAt(0).toLowerCase()}-${index + 1}`;
+        return {
+          id: s.sublote.id,
+          etiqueta,
+          pesoActual: Number(s.pesoAsignado),
+          pesoDisponible: Number(s.sublote.pesoActual) + Number(s.pesoAsignado),
+          humedad: s.sublote.humedad ? Number(s.sublote.humedad) : null,
+          fechaIngreso: s.sublote.creadoEn.toISOString(),
+          diasEnBodega,
+          calidad: session.calidad.nombre,
+        };
+      }),
+    };
   }
 
   private async getOrganizacionId(userId: string): Promise<string> {

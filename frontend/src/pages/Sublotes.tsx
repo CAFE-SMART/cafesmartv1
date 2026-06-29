@@ -41,6 +41,7 @@ import {
 } from '../services/lotesService';
 import { applySecadoToDetalle } from '../utils/secadoFlow';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import { formatoMoneda } from '../utils/formatMoney';
 import {
   classifyHumidity,
   formatHumidityWithClassification,
@@ -443,9 +444,7 @@ function getDaysForSublote(sublote: {
 }
 
 function formatCurrency(value: number) {
-  return `$ ${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatoMoneda(value);
 }
 
 function formatPercent(value: number) {
@@ -501,6 +500,14 @@ function getSublotesGuidance(message: string): GuidedErrorMessage {
 
 export default function Sublotes() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = useState(0);
+  useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const locationState = (location.state ?? null) as { from?: string } | null;
@@ -515,7 +522,7 @@ export default function Sublotes() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [offlineNoticeVisible, setOfflineNoticeVisible] = useState(false);
+  const [, setOfflineNoticeVisible] = useState(false);
   const [factorNotice, setFactorNotice] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{
     field: EditField;
@@ -1081,15 +1088,7 @@ export default function Sublotes() {
     return getDaysForSublote(subloteActivo);
   }, [subloteActivo]);
 
-  const subloteActivoIndex = useMemo(() => {
-    if (!detalle || !subloteActivo) return -1;
-    return detalle.sublotes.findIndex(
-      (sublote) => sublote.id === subloteActivo.id,
-    );
-  }, [detalle, subloteActivo]);
-
-  const subloteActivoNombre =
-    subloteActivo?.etiqueta ?? 'Sublote';
+  const subloteActivoNombre = subloteActivo?.etiqueta ?? 'Sublote';
 
   const factorActivo = subloteActivo?.factor ?? null;
   const showFactor = shouldShowFactor(subloteActivo);
@@ -1268,6 +1267,12 @@ export default function Sublotes() {
                               {titleCase(sublote.calidad)} ·{' '}
                               {formatKg(sublote.pesoActual)}
                             </p>
+                            {(sublote.pesoEnSecado ?? 0) > 0 ? (
+                              <p className="mt-0.5 text-[0.75rem] font-semibold leading-4 text-amber-600">
+                                {formatKg(sublote.pesoDisponible ?? sublote.pesoActual)} disponible ·{' '}
+                                {formatKg(sublote.pesoEnSecado!)} en secado
+                              </p>
+                            ) : null}
                             <p className="mt-0.5 text-[0.78rem] font-medium leading-5 text-[#98a2b3]">
                               {formatDays(getDaysForSublote(sublote))} en bodega
                             </p>
@@ -1465,10 +1470,26 @@ export default function Sublotes() {
                     icon={<Coffee size={15} />}
                   />
                   <InfoField
-                    label="Peso"
+                    label="Peso total"
                     value={formatKg(subloteActivo.pesoActual)}
                     icon={<Scale size={15} />}
                   />
+                  {(subloteActivo.pesoEnSecado ?? 0) > 0 ? (
+                    <>
+                      <InfoField
+                        label="En bodega"
+                        value={formatKg(subloteActivo.pesoDisponible ?? subloteActivo.pesoActual)}
+                        icon={<Scale size={15} />}
+                        surface="blue"
+                      />
+                      <InfoField
+                        label="En secado"
+                        value={formatKg(subloteActivo.pesoEnSecado!)}
+                        icon={<Scale size={15} />}
+                        surface="amber"
+                      />
+                    </>
+                  ) : null}
                   <InfoField
                     label="Precio/kg"
                     value={formatPricePerKg(subloteActivo.precioKg)}

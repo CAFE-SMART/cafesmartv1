@@ -14,6 +14,9 @@ import {
   Truck,
   UtensilsCrossed,
   WalletCards,
+  CircleHelp,
+  Headset,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -37,6 +40,7 @@ import {
   validateBusinessDateRange,
 } from '../utils/date';
 import { UI_MESSAGES } from '../utils/uiMessages';
+import { formatearMonedaInput, formatoMoneda } from '../utils/formatMoney';
 
 type ModalState = 'none' | 'confirm' | 'error' | 'success';
 
@@ -89,14 +93,6 @@ function generarId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function formatoMoneda(valor: number) {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(valor);
-}
-
 function formatoMontoInput(valor: string) {
   const numero = Number(valor);
   return Number.isFinite(numero) && numero > 0
@@ -115,6 +111,15 @@ function resumenLote(lote: LoteResumen) {
 
 export default function Gastos() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = React.useState(0);
+  const [supportModal, setSupportModal] = React.useState<'help' | 'contact' | null>(null);
+  React.useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const [form, setForm] = React.useState<GastoForm>(FORM_INICIAL);
   const [modal, setModal] = React.useState<ModalState>('none');
   const [error, setError] = React.useState<string | null>(null);
@@ -233,21 +238,21 @@ export default function Gastos() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f2fb_100%)] px-4 py-5 pb-[150px] text-slate-900">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-5">
-        <header className="flex items-center justify-between gap-3">
+        <header className="relative flex min-h-[44px] items-center justify-center">
           <button
             type="button"
             onClick={() => navigate('/ajustes')}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
+            className="absolute left-0 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#102d92] shadow-sm"
             aria-label="Volver a ajustes"
           >
             <ArrowLeft size={18} />
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="text-center text-[1.1rem] font-black text-[#121826]">
-              Registro de Gastos
-            </p>
+          <h1 className="text-center text-[1.35rem] font-semibold text-slate-900">
+            Nuevo gasto
+          </h1>
+          <div className="absolute right-0">
+            <CloudStatusBadge compact className="max-w-[160px]" />
           </div>
-          <CloudStatusBadge compact className="max-w-[160px]" />
         </header>
 
         <section className="rounded-[24px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
@@ -299,17 +304,19 @@ export default function Gastos() {
                   Monto ($)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.monto}
-                  onChange={(event) =>
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={15}
+                  value={formatearMonedaInput(form.monto)}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/\D/g, '').slice(0, MONTO_MAX_LENGTH);
                     setForm((actual) => ({
                       ...actual,
-                      monto: event.target.value.slice(0, MONTO_MAX_LENGTH),
-                    }))
-                  }
-                  placeholder="$ 0.00"
+                      monto: raw,
+                    }));
+                  }}
+                  placeholder="ej. 14.000"
                   className="w-full rounded-[16px] border border-[#e1e5f0] bg-[#f7f8fd] px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2558e5]"
                 />
                 <p className="mt-2 text-xs font-semibold text-slate-500">
@@ -547,9 +554,21 @@ export default function Gastos() {
             >
               Cancelar
             </button>
+
+            <SupportLinks
+              onHelp={() => setSupportModal('help')}
+              onContact={() => setSupportModal('contact')}
+            />
           </div>
         </section>
       </div>
+
+      {supportModal ? (
+        <SupportModal
+          type={supportModal}
+          onClose={() => setSupportModal(null)}
+        />
+      ) : null}
 
       {modal !== 'none' ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-5 backdrop-blur-sm">
@@ -626,6 +645,123 @@ export default function Gastos() {
       ) : null}
 
       <AppBottomNav hidden={modal !== 'none'} />
+    </div>
+  );
+}
+
+function SupportLinks({
+  onHelp,
+  onContact,
+}: {
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <div className="pt-6 pb-2 text-center">
+      <p className="text-xs font-semibold text-[#73829a]">
+        ¿Necesitas ayuda?
+      </p>
+      <div className="mt-2.5 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onHelp}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <CircleHelp size={14} />
+          Ver ayuda
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <Headset size={14} />
+          Contactar soporte
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SupportModal({
+  type,
+  onClose,
+}: {
+  type: 'help' | 'contact';
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gastos-support-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[400px] overflow-y-auto rounded-[24px] border border-[#e6ebf3] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+              Soporte Café Smart
+            </p>
+            <h2
+              id="gastos-support-title"
+              className="mt-1 text-lg font-black text-[#111827]"
+            >
+              {type === 'help' ? 'Guía de gastos' : 'Soporte técnico'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            aria-label="Cerrar modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {type === 'help' ? (
+          <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
+            <p>
+              <strong>• Monto del gasto:</strong> Escribe el valor exacto del dinero gastado sin usar puntos ni comas para los miles.
+            </p>
+            <p>
+              <strong>• Concepto:</strong> Describe brevemente en qué se usó el dinero (ej. compra de abonos, pago de luz, jornales de cosecha).
+            </p>
+            <p>
+              <strong>• Asociar a sublote:</strong> Si el gasto corresponde a un sublote específico, selecciónalo para que el sistema calcule sus costos reales de forma exacta.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
+            <p className="text-slate-600">
+              ¿Tienes alguna duda con el registro de tus gastos operativos? Escríbenos directamente por WhatsApp.
+            </p>
+            <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
+              <Headset className="text-[#1D4ED8] mb-2" size={24} />
+              <p className="text-[0.68rem] text-slate-500 max-w-[280px]">
+                Horario de atención: Lunes a Sábado - 8:00 AM a 6:00 PM
+              </p>
+              <a
+                href="https://wa.me/573150518018"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#128C7E] transition active:scale-[0.98]"
+              >
+                Escribir al +57 315 051 80 18
+              </a>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 min-h-[46px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
+        >
+          Entendido
+        </button>
+      </div>
     </div>
   );
 }

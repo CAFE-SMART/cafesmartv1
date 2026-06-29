@@ -431,103 +431,107 @@ export default function Register() {
                   ) : null}
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="register-admin-password"
-                    className="mb-2 block text-xs font-black text-[#344054]"
-                  >
-                    Contrase&ntilde;a <RequiredMark />
-                  </label>
-                  <div
-                    className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
-                      stepTwoErrors.password
-                        ? 'border-rose-300 bg-rose-50/50'
-                        : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-                    }`}
-                  >
-                    <input
-                      id="register-admin-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(
-                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
-                        );
+                {!hasGoogleFlow ? (
+                  <>
+                    <div>
+                      <label
+                        htmlFor="register-admin-password"
+                        className="mb-2 block text-xs font-black text-[#344054]"
+                      >
+                        Contrase&ntilde;a <RequiredMark />
+                      </label>
+                      <div
+                        className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
+                          stepTwoErrors.password
+                            ? 'border-rose-300 bg-rose-50/50'
+                            : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                        }`}
+                      >
+                        <input
+                          id="register-admin-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(event) => {
+                            setPassword(
+                              event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                            );
+                            setStepTwoErrors((prev) => ({
+                              ...prev,
+                              password: undefined,
+                            }));
+                          }}
+                          onFocus={() => setPasswordFocused(true)}
+                          onBlur={() => setPasswordFocused(false)}
+                          placeholder="********"
+                          autoComplete="new-password"
+                          className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                          required
+                          minLength={6}
+                          maxLength={PASSWORD_MAX_LENGTH}
+                        />
+                        <button
+                          type="button"
+                          className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={
+                            showPassword
+                              ? 'Ocultar contraseña'
+                              : 'Mostrar contraseña'
+                          }
+                        >
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                      {stepTwoErrors.password ? (
+                        <FieldError message={stepTwoErrors.password} />
+                      ) : null}
+                      {!stepTwoErrors.password && showPasswordRequirements ? (
+                        <PasswordRequirements
+                          checks={passwordChecks}
+                          score={passwordStrength.score}
+                        />
+                      ) : null}
+                      {!stepTwoErrors.password && !showPasswordRequirements ? (
+                        <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
+                          Mínimo 6 caracteres con mayúscula, minúscula y número.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <TextInput
+                      id="register-admin-password-confirm"
+                      label="Confirma tu contraseña"
+                      value={confirmPassword}
+                      onChange={(value) => {
+                        setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
                         setStepTwoErrors((prev) => ({
                           ...prev,
-                          password: undefined,
+                          confirmPassword: undefined,
                         }));
                       }}
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => setPasswordFocused(false)}
-                      placeholder="********"
+                      placeholder="Vuelve a escribir tu contraseña"
+                      type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
-                      className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
-                      required
-                      minLength={6}
                       maxLength={PASSWORD_MAX_LENGTH}
+                      required
+                      helpText="Debe ser igual a la contraseña anterior."
+                      error={stepTwoErrors.confirmPassword}
+                      compactLabel
                     />
-                    <button
-                      type="button"
-                      className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={
-                        showPassword
-                          ? 'Ocultar contraseña'
-                          : 'Mostrar contraseña'
-                      }
-                    >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                  {stepTwoErrors.password ? (
-                    <FieldError message={stepTwoErrors.password} />
-                  ) : null}
-                  {!stepTwoErrors.password && showPasswordRequirements ? (
-                    <PasswordRequirements
-                      checks={passwordChecks}
-                      score={passwordStrength.score}
-                    />
-                  ) : null}
-                  {!stepTwoErrors.password && !showPasswordRequirements ? (
-                    <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
-                      Mínimo 6 caracteres con mayúscula, minúscula y número.
-                    </p>
-                  ) : null}
-                </div>
 
-                <TextInput
-                  id="register-admin-password-confirm"
-                  label="Confirma tu contraseña"
-                  value={confirmPassword}
-                  onChange={(value) => {
-                    setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
-                    setStepTwoErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: undefined,
-                    }));
-                  }}
-                  placeholder="Vuelve a escribir tu contraseña"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  maxLength={PASSWORD_MAX_LENGTH}
-                  required
-                  helpText="Debe ser igual a la contraseña anterior."
-                  error={stepTwoErrors.confirmPassword}
-                  compactLabel
-                />
-
-                {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
-                  <p
-                    className={`text-xs font-semibold ${
-                      passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
-                    }`}
-                  >
-                    {passwordsMatch
-                      ? 'Las contraseñas coinciden.'
-                      : 'Las contraseñas no coinciden.'}
-                  </p>
+                    {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
+                      <p
+                        className={`text-xs font-semibold ${
+                          passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {passwordsMatch
+                          ? 'Las contraseñas coinciden.'
+                          : 'Las contraseñas no coinciden.'}
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
 
                 <button
@@ -598,19 +602,19 @@ function RegisterHeader({
   labelledBy: string;
 }) {
   return (
-    <header className="border-b border-[#e6ebf3] bg-[#f7f8fb] px-4 py-3">
-      <div className="relative flex min-h-[28px] items-center justify-center">
+    <header className="border-b border-[#e6ebf3] bg-[#f7f8fb] px-4 py-4">
+      <div className="relative flex min-h-[36px] items-center justify-center">
         <button
           type="button"
           onClick={onBack}
-          className="absolute left-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[#536178] transition hover:bg-[#eef2f8] hover:text-[#111827]"
+          className="absolute left-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition hover:bg-[#eef2f8]"
           aria-label="Volver"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={22} />
         </button>
         <h1
           id={labelledBy}
-          className="text-center text-xs font-black text-[#111827]"
+          className="text-center text-[1.35rem] font-semibold text-slate-900"
         >
           {title}
         </h1>
@@ -789,24 +793,24 @@ function RegisterLinks({
 }) {
   return (
     <div className="pt-5 text-center">
-      <p className="text-[11px] font-medium text-[#73829a]">
-        &iquest;Dudas con los datos del registro?
+      <p className="text-xs font-semibold text-[#73829a]">
+        ¿Necesitas ayuda?
       </p>
-      <div className="mt-2 flex items-center justify-center gap-6">
+      <div className="mt-2.5 flex items-center justify-center gap-6">
         <button
           type="button"
           onClick={onHelp}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
         >
-          <CircleHelp size={13} />
+          <CircleHelp size={14} />
           Ver ayuda
         </button>
         <button
           type="button"
           onClick={onContact}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
         >
-          <Headset size={13} />
+          <Headset size={14} />
           Contactar soporte
         </button>
       </div>
@@ -854,25 +858,23 @@ function SupportModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-support-title"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-[430px] overflow-y-auto rounded-[14px] border border-[#e6ebf3] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[400px] overflow-y-auto rounded-[24px] border border-[#e6ebf3] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
-              Soporte
+              Soporte Café Smart
             </p>
             <h2
               id="register-support-title"
               className="mt-1 text-lg font-black text-[#111827]"
             >
-              {type === 'help'
-                ? 'Ayuda para crear la cuenta'
-                : 'Contacto de soporte'}
+              {type === 'help' ? 'Guía de registro' : 'Soporte técnico'}
             </h2>
           </div>
           <button
@@ -886,34 +888,43 @@ function SupportModal({
         </div>
 
         {type === 'help' ? (
-          <div className="space-y-3 text-sm leading-6 text-[#536178]">
+          <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
             <p>
-              Nombre del negocio: usa letras, espacios y máximo cinco números.
+              <strong>• Nombre de tu negocio:</strong> Escribe el nombre comercial con el que te conocen. Puedes usar letras, espacios y hasta 5 números.
             </p>
             <p>
-              Administrador: el nombre y los apellidos aceptan solo letras. El
-              teléfono debe tener 10 dígitos y empezar por 3.
+              <strong>• Datos personales:</strong> Ingresa tu nombre y apellidos sin números. Tu teléfono debe ser de 10 dígitos y empezar por 3 (ej: 3150518018).
             </p>
             <p>
-              Contraseña: combina mayúscula, minúscula y número para proteger el
-              acceso al inventario.
+              <strong>• Tu clave:</strong> Elige una contraseña segura que combine letras mayúsculas, minúsculas y números para mantener tu cuenta protegida.
             </p>
           </div>
         ) : (
-          <div className="space-y-3 text-sm leading-6 text-[#536178]">
-            <p>
-              Escríbenos qué paso no pudiste completar, qué mensaje viste y el
-              correo que intentas registrar.
+          <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
+            <p className="text-slate-600">
+              ¿Tienes algún problema o duda para registrarte? Escríbenos directamente por WhatsApp y te ayudaremos de inmediato.
             </p>
-            <p>Correo: soporte@cafesmart.com</p>
-            <p>Teléfono: +57 300 000 0000</p>
+            <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
+              <Headset className="text-[#1D4ED8] mb-2" size={24} />
+              <p className="text-[0.68rem] text-slate-500 max-w-[280px]">
+                Horario de atención: Lunes a Sábado - 8:00 AM a 6:00 PM
+              </p>
+              <a
+                href="https://wa.me/573150518018"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#128C7E] transition active:scale-[0.98]"
+              >
+                Escribir al +57 315 051 80 18
+              </a>
+            </div>
           </div>
         )}
 
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-[44px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
+          className="mt-6 min-h-[46px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
         >
           Entendido
         </button>

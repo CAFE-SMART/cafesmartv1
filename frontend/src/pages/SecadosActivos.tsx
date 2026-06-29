@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,10 +9,13 @@ import {
   Package2,
   Scale,
 } from 'lucide-react';
-import { getActiveSecadoSessions } from '../utils/secadoFlow';
+import {
+  getActiveSecadoSessions,
+  type SecadoSession,
+} from '../utils/secadoFlow';
 import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
 
-type ActiveSecadoSession = ReturnType<typeof getActiveSecadoSessions>[number];
+type ActiveSecadoSession = SecadoSession;
 
 function kg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -80,14 +83,37 @@ export default function SecadosActivos() {
   const location = useLocation();
   const locationState = (location.state ?? null) as { from?: string } | null;
   const [showAll, setShowAll] = useState(false);
-  const sessions = useMemo(
-    () =>
-      [...getActiveSecadoSessions()].sort(
-        (a, b) =>
-          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-      ),
-    [],
-  );
+  const [sessions, setSessions] = useState<ActiveSecadoSession[]>([]);
+  const [, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const fetchSessions = async () => {
+      try {
+        const data = await getActiveSecadoSessions();
+        if (active) {
+          setSessions(
+            [...data].sort(
+              (a, b) =>
+                new Date(b.startedAt).getTime() -
+                new Date(a.startedAt).getTime(),
+            ),
+          );
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+    void fetchSessions();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleSessions = showAll ? sessions : sessions.slice(0, 3);
   const hiddenCount = Math.max(0, sessions.length - visibleSessions.length);
   const totalKg = sessions.reduce(

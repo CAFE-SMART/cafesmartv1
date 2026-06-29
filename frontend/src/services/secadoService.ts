@@ -23,6 +23,7 @@ export type SecadoSession = {
 
 export type StartSecadoPayload = {
   subloteIds: string[];
+  pesos?: Record<string, number>;
 };
 
 export type SecadoResultsPayload = {
@@ -30,6 +31,8 @@ export type SecadoResultsPayload = {
   outputBuenoHumedad?: number;
   outputRegularKg: number;
   outputRegularHumedad?: number;
+  outputMaloKg?: number;
+  outputMaloHumedad?: number;
 };
 
 export type TransformarSecadoPayload = {
@@ -141,4 +144,22 @@ export async function getSecadoSession(
   sessionId: string,
 ): Promise<SecadoSession> {
   return apiFetch(`/secado/${sessionId}`);
+}
+
+export type SaveSecadoDraftPayload = {
+  startDate?: string;
+  endDate?: string;
+  buenoKg?: number;
+  regularKg?: number;
+  maloKg?: number;
+};
+
+export async function saveSecadoDraft(
+  sessionId: string,
+  payload: SaveSecadoDraftPayload,
+): Promise<SecadoSession> {
+  return apiFetch(`/secado/${sessionId}/draft`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }

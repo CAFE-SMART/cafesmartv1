@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  calcularGastosPorSubloteHelper,
+  SublotePesable,
+  GastoSubloteLink,
+} from '../common/utils/financiero';
 
 export type SubloteFinanciero = {
   costoTotal: number;
@@ -30,6 +35,8 @@ export type LoteResponseItem = {
   sublotesConHumedad: number;
   pesoInicial: number;
   pesoActual: number;
+  pesoDisponible: number;
+  pesoEnSecado: number;
   precioPromedioKg: number;
   humedadPromedio: number | null;
   fecha: string;
@@ -55,6 +62,8 @@ export type LoteSubloteResponseItem = {
   calidad: string;
   pesoInicial: number;
   pesoActual: number;
+  pesoDisponible: number;
+  pesoEnSecado: number;
   precioKg: number;
   humedad: number | null;
   factor: number | null;
@@ -79,6 +88,8 @@ type LoteAcumulado = {
   sublotesConHumedad: number;
   pesoInicial: number;
   pesoActual: number;
+  pesoDisponible: number;
+  pesoEnSecado: number;
   precioPonderado: number;
   humedadPonderada: number;
   pesoConHumedad: number;
@@ -181,7 +192,7 @@ type SubloteFinancieroInput = {
 
 @Injectable()
 export class LotesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   private calcularFinancieroSublote(
     sublote: SubloteFinancieroInput,
@@ -254,56 +265,15 @@ export class LotesService {
   }
 
   private calcularGastosPorSublote(
-    gastosSublote: Array<{
-      gastoOperativoId: string;
-      subloteId: string;
-      gastoOperativo: { montoGasto: Prisma.Decimal | number };
-    }>,
-    sublotes: InventarioSublote[],
+    gastosSublote: GastoSubloteLink[],
+    sublotes: SublotePesable[],
     ventasPorSublote: Map<string, VentaResumen>,
   ): Map<string, number> {
-    const pesoBasePorSublote = new Map<string, number>();
-
-    for (const sublote of sublotes) {
-      const venta = ventasPorSublote.get(sublote.id);
-      pesoBasePorSublote.set(
-        sublote.id,
-        Number(sublote.pesoActual) + (venta?.pesoVendido ?? 0),
-      );
-    }
-
-    const linksPorGasto = new Map<string, typeof gastosSublote>();
-
-    for (const link of gastosSublote) {
-      const current = linksPorGasto.get(link.gastoOperativoId) ?? [];
-      current.push(link);
-      linksPorGasto.set(link.gastoOperativoId, current);
-    }
-
-    const gastosPorSublote = new Map<string, number>();
-
-    for (const links of linksPorGasto.values()) {
-      const montoGasto = Number(links[0]?.gastoOperativo.montoGasto ?? 0);
-      const pesoBaseTotal = links.reduce(
-        (sum, link) => sum + (pesoBasePorSublote.get(link.subloteId) ?? 0),
-        0,
-      );
-
-      for (const link of links) {
-        const pesoBase = pesoBasePorSublote.get(link.subloteId) ?? 0;
-        const gastoAsignado =
-          pesoBaseTotal > 0
-            ? (pesoBase / pesoBaseTotal) * montoGasto
-            : montoGasto / links.length;
-
-        gastosPorSublote.set(
-          link.subloteId,
-          (gastosPorSublote.get(link.subloteId) ?? 0) + gastoAsignado,
-        );
-      }
-    }
-
-    return gastosPorSublote;
+    return calcularGastosPorSubloteHelper(
+      gastosSublote,
+      sublotes,
+      ventasPorSublote,
+    );
   }
 
   private calcularGastosGeneralesPorSublote(
@@ -407,10 +377,34 @@ export class LotesService {
 
   async findAll(userId: string): Promise<LoteResponseItem[]> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    // Build a map of subloteId -> kg currently in active drying sessions
+    const sesionesActivas = await this.prisma.secadoSession.findMany({
+      where: {
+        organizacionId,
+        estado: { in: ['IN_PROCESS', 'READY'] },
+      },
+      select: {
+        sublotes: {
+          select: { subloteId: true, pesoAsignado: true },
+        },
+      },
+    });
+    const pesoEnSecadoPorSublote = new Map<string, number>();
+    for (const sesion of sesionesActivas) {
+      for (const item of sesion.sublotes) {
+        const prev = pesoEnSecadoPorSublote.get(item.subloteId) ?? 0;
+        pesoEnSecadoPorSublote.set(
+          item.subloteId,
+          prev + Number(item.pesoAsignado),
+        );
+      }
+    }
+
+    // Fetch all non-deleted sublotes for the org (no pesoActual filter here)
     const sublotes = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
-        pesoActual: { gt: 0 },
         compra: {
           deletedAt: null,
           organizacionId,
@@ -420,17 +414,26 @@ export class LotesService {
       orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
     });
 
-    if (sublotes.length === 0) {
+    // Filter sublotes that have any real stock (in bodega or in drying)
+    const sublotesConStock = sublotes.filter((s) => {
+      const pesoDisponible = Number(s.pesoActual);
+      const enSecado = pesoEnSecadoPorSublote.get(s.id) ?? 0;
+      return pesoDisponible + enSecado > 0;
+    });
+
+    if (sublotesConStock.length === 0) {
       return [];
     }
 
     const lotesAgrupados = new Map<string, LoteAcumulado>();
 
-    for (const sublote of sublotes) {
+    for (const sublote of sublotesConStock) {
       const claveCompuesta = `${sublote.tipoCafeId}::${sublote.calidadId}`;
       const clave = sublote.idLote ?? claveCompuesta;
       const pesoInicial = Number(sublote.pesoInicial);
-      const pesoActual = Number(sublote.pesoActual);
+      const pesoDisponible = Number(sublote.pesoActual);
+      const enSecado = pesoEnSecadoPorSublote.get(sublote.id) ?? 0;
+      const pesoTotal = pesoDisponible + enSecado;
       const precioKg = Number(sublote.precioKg);
       const humedad = this.normalizarNumeroNullable(sublote.humedad);
       const fechaIngreso = sublote.compra.fecha;
@@ -448,13 +451,15 @@ export class LotesService {
           calidadId: sublote.calidadId,
           calidad: sublote.calidad.nombre,
           sublotes: 1,
-          sublotesConHumedad: humedad !== null && pesoActual > 0 ? 1 : 0,
+          sublotesConHumedad: humedad !== null && pesoTotal > 0 ? 1 : 0,
           pesoInicial,
-          pesoActual,
+          pesoActual: pesoTotal,
+          pesoDisponible,
+          pesoEnSecado: enSecado,
           precioPonderado: precioKg * pesoInicial,
           humedadPonderada:
-            humedad !== null && pesoActual > 0 ? humedad * pesoActual : 0,
-          pesoConHumedad: humedad !== null && pesoActual > 0 ? pesoActual : 0,
+            humedad !== null && pesoTotal > 0 ? humedad * pesoTotal : 0,
+          pesoConHumedad: humedad !== null && pesoTotal > 0 ? pesoTotal : 0,
           fecha: fechaIngreso,
           fechaPrimerIngreso: fechaIngreso,
           fechaUltimoIngreso: fechaIngreso,
@@ -470,13 +475,15 @@ export class LotesService {
 
       actual.sublotes += 1;
       actual.pesoInicial += pesoInicial;
-      actual.pesoActual += pesoActual;
+      actual.pesoActual += pesoTotal;
+      actual.pesoDisponible += pesoDisponible;
+      actual.pesoEnSecado += enSecado;
       actual.precioPonderado += precioKg * pesoInicial;
 
-      if (humedad !== null && pesoActual > 0) {
+      if (humedad !== null && pesoTotal > 0) {
         actual.sublotesConHumedad += 1;
-        actual.humedadPonderada += humedad * pesoActual;
-        actual.pesoConHumedad += pesoActual;
+        actual.humedadPonderada += humedad * pesoTotal;
+        actual.pesoConHumedad += pesoTotal;
       }
 
       if (fechaIngreso > actual.fecha) actual.fecha = fechaIngreso;
@@ -509,13 +516,15 @@ export class LotesService {
         sublotesConHumedad: lote.sublotesConHumedad,
         pesoInicial: lote.pesoInicial,
         pesoActual: lote.pesoActual,
+        pesoDisponible: lote.pesoDisponible,
+        pesoEnSecado: lote.pesoEnSecado,
         precioPromedioKg:
           lote.pesoInicial > 0 ? lote.precioPonderado / lote.pesoInicial : 0,
         humedadPromedio:
           lote.pesoConHumedad > 0
             ? this.redondearUnDecimal(
-              lote.humedadPonderada / lote.pesoConHumedad,
-            )
+                lote.humedadPonderada / lote.pesoConHumedad,
+              )
             : null,
         fecha: lote.fecha.toISOString(),
         fechaPrimerIngreso: lote.fechaPrimerIngreso.toISOString(),
@@ -537,10 +546,34 @@ export class LotesService {
     calidadId: string,
   ): Promise<LoteDetalleResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+
+    // Build a map of subloteId -> kg currently in active drying sessions
+    const sesionesActivas = await this.prisma.secadoSession.findMany({
+      where: {
+        organizacionId,
+        estado: { in: ['IN_PROCESS', 'READY'] },
+      },
+      select: {
+        sublotes: {
+          select: { subloteId: true, pesoAsignado: true },
+        },
+      },
+    });
+    const pesoEnSecadoPorSublote = new Map<string, number>();
+    for (const sesion of sesionesActivas) {
+      for (const item of sesion.sublotes) {
+        const prev = pesoEnSecadoPorSublote.get(item.subloteId) ?? 0;
+        pesoEnSecadoPorSublote.set(
+          item.subloteId,
+          prev + Number(item.pesoAsignado),
+        );
+      }
+    }
+
+    // Fetch sublotes for this lote (no pesoActual filter - include those in drying)
     const sublotes = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
-        pesoActual: { gt: 0 },
         tipoCafeId,
         calidadId,
         compra: {
@@ -574,14 +607,20 @@ export class LotesService {
       orderBy: [{ compra: { fecha: 'asc' } }, { creadoEn: 'asc' }],
     });
 
-    if (sublotes.length === 0) {
+    // Filter to only sublotes that have stock (in bodega or in drying)
+    const sublotesFiltrados = sublotes.filter((s) => {
+      const pesoDisponible = Number(s.pesoActual);
+      const enSecado = pesoEnSecadoPorSublote.get(s.id) ?? 0;
+      return pesoDisponible + enSecado > 0;
+    });
+
+    if (sublotesFiltrados.length === 0) {
       throw new NotFoundException('No se encontraron sublotes para ese lote');
     }
 
     const sublotesOrganizacion = await this.prisma.sublote.findMany({
       where: {
         deletedAt: null,
-        pesoActual: { gt: 0 },
         compra: {
           deletedAt: null,
           organizacionId,
@@ -589,7 +628,13 @@ export class LotesService {
       },
       select: SUBLOTE_INVENTARIO_SELECT,
     });
-    const sublotesOrganizacionIds = sublotesOrganizacion.map(
+    // For financial calculations, use all sublotes that have any stock
+    const sublotesOrganizacionConStock = sublotesOrganizacion.filter((s) => {
+      const pesoDisponible = Number(s.pesoActual);
+      const enSecado = pesoEnSecadoPorSublote.get(s.id) ?? 0;
+      return pesoDisponible + enSecado > 0;
+    });
+    const sublotesOrganizacionIds = sublotesOrganizacionConStock.map(
       (sublote) => sublote.id,
     );
     const [detallesVentaOrganizacion, gastosGenerales] =
@@ -630,13 +675,15 @@ export class LotesService {
 
     const gastosGeneralesPorSublote = this.calcularGastosGeneralesPorSublote(
       gastosGenerales,
-      sublotesOrganizacion,
+      sublotesOrganizacionConStock,
       ventasOrganizacionPorSublote,
     );
 
-    const primerSublote = sublotes[0];
+    const primerSublote = sublotesFiltrados[0];
     let pesoInicial = 0;
     let pesoActual = 0;
+    let pesoDisponibleLote = 0;
+    let pesoEnSecadoLote = 0;
     let precioPonderado = 0;
     let humedadPonderada = 0;
     let pesoConHumedad = 0;
@@ -652,9 +699,11 @@ export class LotesService {
     let mermaValor = 0;
     let mermaKg = 0;
 
-    const detalleSublotes = sublotes.map((sublote, index) => {
+    const detalleSublotes = sublotesFiltrados.map((sublote, index) => {
       const pesoInicialSublote = Number(sublote.pesoInicial);
-      const pesoActualSublote = Number(sublote.pesoActual);
+      const pesoDisponibleSublote = Number(sublote.pesoActual);
+      const enSecadoSublote = pesoEnSecadoPorSublote.get(sublote.id) ?? 0;
+      const pesoTotalSublote = pesoDisponibleSublote + enSecadoSublote;
       const precioKg = Number(sublote.precioKg);
       const humedad = this.normalizarNumeroNullable(sublote.humedad);
       const factor = this.normalizarNumeroNullable(sublote.factor);
@@ -671,13 +720,15 @@ export class LotesService {
       mermaKg += financiero.mermaKg;
 
       pesoInicial += pesoInicialSublote;
-      pesoActual += pesoActualSublote;
+      pesoActual += pesoTotalSublote;
+      pesoDisponibleLote += pesoDisponibleSublote;
+      pesoEnSecadoLote += enSecadoSublote;
       precioPonderado += precioKg * pesoInicialSublote;
 
-      if (humedad !== null && pesoActualSublote > 0) {
+      if (humedad !== null && pesoTotalSublote > 0) {
         sublotesConHumedad += 1;
-        humedadPonderada += humedad * pesoActualSublote;
-        pesoConHumedad += pesoActualSublote;
+        humedadPonderada += humedad * pesoTotalSublote;
+        pesoConHumedad += pesoTotalSublote;
       }
 
       if (fechaIngreso < fechaPrimerIngreso) fechaPrimerIngreso = fechaIngreso;
@@ -693,7 +744,9 @@ export class LotesService {
         calidadId: sublote.calidad.id,
         calidad: sublote.calidad.nombre,
         pesoInicial: pesoInicialSublote,
-        pesoActual: pesoActualSublote,
+        pesoActual: pesoTotalSublote,
+        pesoDisponible: pesoDisponibleSublote,
+        pesoEnSecado: enSecadoSublote,
         precioKg,
         humedad,
         factor,
@@ -718,6 +771,8 @@ export class LotesService {
         sublotesConHumedad,
         pesoInicial,
         pesoActual,
+        pesoDisponible: pesoDisponibleLote,
+        pesoEnSecado: pesoEnSecadoLote,
         precioPromedioKg: pesoInicial > 0 ? precioPonderado / pesoInicial : 0,
         humedadPromedio:
           pesoConHumedad > 0

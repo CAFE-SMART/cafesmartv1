@@ -7,11 +7,10 @@ import {
   type GastoEstadoPago,
   type GastoItem,
 } from '../services/gastosService';
+import { formatoMoneda } from '../utils/formatMoney';
 
 function formatCurrency(value: number) {
-  return `$ ${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatoMoneda(value);
 }
 
 function formatDate(value: string) {
@@ -61,6 +60,14 @@ function shouldShowExpenseType(gasto: GastoItem) {
 
 export default function GastosListado() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = useState(0);
+  useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const [searchParams] = useSearchParams();
   const subloteId = searchParams.get('subloteId') ?? undefined;
   const [gastos, setGastos] = useState<GastoItem[]>([]);

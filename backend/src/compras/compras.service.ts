@@ -13,7 +13,9 @@ import {
   TipoMovimientoInventario,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { aCentiUnidades, desdeCentiUnidades } from '../common/utils/math';
 import { apiError } from '../common/errors/api-error';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
 import { CreateCompraDto } from './dto/crear-compra.dto';
 import {
   CompraProcesada,
@@ -187,6 +189,196 @@ export class ComprasService {
     };
   }
 
+  async crearTipoCafe(nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre del tipo de café es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre del tipo de café no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.tipoCafe.findFirst({
+      where: {
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('Este tipo de café ya está registrado.');
+    }
+
+    return this.prisma.tipoCafe.create({
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async editarTipoCafe(id: string, nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre del tipo de café es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre del tipo de café no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.tipoCafe.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('El tipo de café no existe.');
+    }
+
+    if (TIPOS_CAFE_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden modificar los tipos de café base del sistema.');
+    }
+
+    const duplicate = await this.prisma.tipoCafe.findFirst({
+      where: {
+        id: { not: id },
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException('Ya existe otro tipo de café con este nombre.');
+    }
+
+    return this.prisma.tipoCafe.update({
+      where: { id },
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async eliminarTipoCafe(id: string, userId: string): Promise<void> {
+    const existing = await this.prisma.tipoCafe.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('El tipo de café no existe.');
+    }
+
+    if (TIPOS_CAFE_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden eliminar los tipos de café base del sistema.');
+    }
+
+    const lotesCount = await this.prisma.lote.count({ where: { tipoCafeId: id } });
+    const sublotesCount = await this.prisma.sublote.count({ where: { tipoCafeId: id, deletedAt: null } });
+    if (lotesCount > 0 || sublotesCount > 0) {
+      throw new BadRequestException('No se puede eliminar el tipo de café porque tiene lotes o sublotes activos asociados.');
+    }
+
+    try {
+      await this.prisma.tipoCafe.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('No se puede eliminar el tipo de café porque está en uso en transacciones del sistema.');
+      }
+      throw error;
+    }
+  }
+
+  async crearCalidad(nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre de la calidad es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre de la calidad no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.calidad.findFirst({
+      where: {
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('Esta calidad ya está registrada.');
+    }
+
+    return this.prisma.calidad.create({
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async editarCalidad(id: string, nombre: string, userId: string): Promise<CatalogoItem> {
+    if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
+      throw new BadRequestException('El nombre de la calidad es obligatorio.');
+    }
+    const cleanNombre = nombre.trim();
+    if (cleanNombre.length > 50) {
+      throw new BadRequestException('El nombre de la calidad no puede superar los 50 caracteres.');
+    }
+
+    const existing = await this.prisma.calidad.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('La calidad no existe.');
+    }
+
+    if (CALIDADES_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden modificar las calidades base del sistema.');
+    }
+
+    const duplicate = await this.prisma.calidad.findFirst({
+      where: {
+        id: { not: id },
+        nombre: {
+          equals: cleanNombre,
+          mode: 'insensitive',
+        },
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException('Ya existe otra calidad con este nombre.');
+    }
+
+    return this.prisma.calidad.update({
+      where: { id },
+      data: { nombre: cleanNombre },
+      select: { id: true, nombre: true },
+    });
+  }
+
+  async eliminarCalidad(id: string, userId: string): Promise<void> {
+    const existing = await this.prisma.calidad.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('La calidad no existe.');
+    }
+
+    if (CALIDADES_BASE.includes(existing.nombre.toUpperCase())) {
+      throw new BadRequestException('No se pueden eliminar las calidades base del sistema.');
+    }
+
+    const lotesCount = await this.prisma.lote.count({ where: { calidadId: id } });
+    const sublotesCount = await this.prisma.sublote.count({ where: { calidadId: id, deletedAt: null } });
+    if (lotesCount > 0 || sublotesCount > 0) {
+      throw new BadRequestException('No se puede eliminar la calidad porque tiene lotes o sublotes activos asociados.');
+    }
+
+    try {
+      await this.prisma.calidad.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('No se puede eliminar la calidad porque está en uso en transacciones del sistema.');
+      }
+      throw error;
+    }
+  }
+
   async crearCompra(
     input: CreateCompraDto,
     userId: string,
@@ -216,7 +408,7 @@ export class ComprasService {
        * Ejecuta la compra como una sola unidad de trabajo:
        * crea la compra, crea sublotes, actualiza el agregado y registra trazabilidad.
        */
-      return await this.prisma.$transaction(
+      const resultado = await this.prisma.$transaction(
         async (tx) => {
           const organizacionIdFinal = await this.obtenerOrganizacionId(
             tx,
@@ -243,51 +435,56 @@ export class ComprasService {
             input.productorId,
           );
 
-          const [minPesoStr, maxPesoStr, minPrecioStr, maxPrecioStr] = tx.parametroOrganizacion
-            ? await Promise.all([
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'min_peso_kg',
+          const [minPesoStr, maxPesoStr, minPrecioStr, maxPrecioStr] =
+            tx.parametroOrganizacion
+              ? await Promise.all([
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'min_peso_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'max_peso_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'max_peso_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'min_precio_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'min_precio_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-                tx.parametroOrganizacion.findUnique({
-                  where: {
-                    organizacionId_nombre: {
-                      organizacionId: organizacionIdFinal,
-                      nombre: 'max_precio_kg',
+                    select: { valor: true },
+                  }),
+                  tx.parametroOrganizacion.findUnique({
+                    where: {
+                      organizacionId_nombre: {
+                        organizacionId: organizacionIdFinal,
+                        nombre: 'max_precio_kg',
+                      },
                     },
-                  },
-                  select: { valor: true },
-                }),
-              ])
-            : [null, null, null, null];
+                    select: { valor: true },
+                  }),
+                ])
+              : [null, null, null, null];
 
           const minPeso = minPesoStr?.valor ? Number(minPesoStr.valor) : 5;
           const maxPeso = maxPesoStr?.valor ? Number(maxPesoStr.valor) : 99999;
-          const minPrecio = minPrecioStr?.valor ? Number(minPrecioStr.valor) : 1000;
-          const maxPrecio = maxPrecioStr?.valor ? Number(maxPrecioStr.valor) : 100000;
+          const minPrecio = minPrecioStr?.valor
+            ? Number(minPrecioStr.valor)
+            : 1000;
+          const maxPrecio = maxPrecioStr?.valor
+            ? Number(maxPrecioStr.valor)
+            : 100000;
 
           for (const [index, sublote] of input.sublotes.entries()) {
             if (sublote.pesoInicial < minPeso) {
@@ -314,34 +511,6 @@ export class ComprasService {
           }
 
           const compraProcesada = procesarCompra(input, contextoCapacidad);
-
-          if (compraProcesada.capacidad.nivel === 'requiere_configuracion') {
-            throw new BadRequestException(
-              apiError(
-                'COMPRA_CAPACIDAD_REQUERIDA',
-                compraProcesada.capacidad.mensaje,
-                {
-                  details: {
-                    capacidad: compraProcesada.capacidad,
-                  },
-                },
-              ),
-            );
-          }
-
-          if (compraProcesada.capacidad.nivel === 'exceso') {
-            throw new BadRequestException(
-              apiError(
-                'COMPRA_CAPACIDAD_EXCEDIDA',
-                compraProcesada.capacidad.mensaje,
-                {
-                  details: {
-                    capacidad: compraProcesada.capacidad,
-                  },
-                },
-              ),
-            );
-          }
 
           const lotesCompra = await this.asegurarLotesCompra(
             tx,
@@ -416,6 +585,9 @@ export class ComprasService {
         },
         { maxWait: 10000, timeout: 25000 },
       );
+
+      invalidarDashboardCache(organizacionIdCapacidad);
+      return resultado;
     } catch (error) {
       if (error instanceof CompraValidacionCriticaError) {
         throw new BadRequestException(
@@ -1000,14 +1172,12 @@ export class ComprasService {
           calidadId: movimiento.calidadId,
           tipoMovimiento: movimiento.tipoMovimiento,
           referenciaTipo: movimiento.referenciaTipo,
-          cantidadCenti: this.aCentiUnidades(movimiento.cantidad),
+          cantidadCenti: aCentiUnidades(movimiento.cantidad),
         });
         continue;
       }
 
-      movimientoActual.cantidadCenti += this.aCentiUnidades(
-        movimiento.cantidad,
-      );
+      movimientoActual.cantidadCenti += aCentiUnidades(movimiento.cantidad);
     }
 
     return [...acumulados.values()].map((movimiento) => ({
@@ -1015,7 +1185,7 @@ export class ComprasService {
       calidadId: movimiento.calidadId,
       tipoMovimiento: movimiento.tipoMovimiento,
       referenciaTipo: movimiento.referenciaTipo,
-      cantidad: this.desdeCentiUnidades(movimiento.cantidadCenti),
+      cantidad: desdeCentiUnidades(movimiento.cantidadCenti),
     }));
   }
 
@@ -1122,7 +1292,7 @@ export class ComprasService {
       input.localId,
     );
 
-    if (compraEliminada?.deletedAt !== null) {
+    if (compraEliminada && compraEliminada.deletedAt !== null) {
       throw new ConflictException(
         apiError(
           'COMPRA_SYNC_ELIMINADA',
@@ -1136,7 +1306,7 @@ export class ComprasService {
       input,
     );
 
-    if (subloteExistente?.deletedAt !== null) {
+    if (subloteExistente && subloteExistente.deletedAt !== null) {
       throw new ConflictException(
         apiError(
           'COMPRA_SUBLOTE_SYNC_ELIMINADO',
@@ -1170,16 +1340,5 @@ export class ComprasService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     );
-  }
-
-  /**
-   * Utilidades de conversion para operar cantidades monetarias y de peso con dos decimales.
-   */
-  private aCentiUnidades(valor: number): number {
-    return Math.round((valor + Number.EPSILON) * 100);
-  }
-
-  private desdeCentiUnidades(valor: number): number {
-    return valor / 100;
   }
 }

@@ -15,15 +15,18 @@ import {
   Pencil,
   Plus,
   Search,
-  Save,
   ShoppingBag,
   Smile,
+  Star,
   SunMedium,
   Trash2,
   User,
   UserPlus,
   Warehouse,
   X,
+  Info,
+  CircleHelp,
+  Headset,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
 import {
@@ -39,6 +42,7 @@ import {
   validateBusinessDateRange,
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
+import { formatearMonedaInput, formatoMoneda, setActiveCurrency, CURRENCIES, getActiveCurrency } from '../utils/formatMoney';
 import { formatCoffeeLabel } from '../utils/uiMessages';
 import { ApiRequestError } from '../services/apiService';
 import {
@@ -125,15 +129,15 @@ const ORDEN_TIPOS = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'];
 const ORDEN_CALIDADES = ['BUENO', 'REGULAR', 'MALO'];
 const PRODUCTOR_GENERAL: ProductorOption = {
   id: 'general',
-  nombre: 'Productor Generico',
+  nombre: 'Productor Genérico',
   tipoDocumento: null,
-  documento: 'Compra rapida',
+  documento: '',
   detalle:
     'Para compras rápidas o productores ocasionales no registrados en el sistema.',
   createdAt: '',
   rapido: true,
 };
-const LIMITE_PRODUCTORES_RECIENTES = 2;
+const LIMITE_PRODUCTORES_RECIENTES = 3;
 const LIMITE_PRODUCTORES_MODAL = 100;
 const CAPACIDAD_BODEGA_MAX_KG = 999999;
 const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
@@ -146,9 +150,9 @@ const TIPOS_DOCUMENTO_PRODUCTOR: Array<{
   value: DocumentType;
   label: string;
 }> = [
-    { value: 'CC', label: 'Cédula de ciudadanía' },
-    { value: 'NIT', label: 'NIT' },
-  ];
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
 
 const PRODUCTOR_FORM_INICIAL: ProductorForm = {
   nombre: '',
@@ -171,6 +175,19 @@ function normalizeSearchText(value: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+}
+
+function obtenerIniciales(nombre: string) {
+  const palabras = nombre.trim().split(/\s+/);
+  if (palabras.length === 0) return '';
+  if (palabras.length === 1) return palabras[0].substring(0, 2).toUpperCase();
+  return (palabras[0][0] + palabras[1][0]).toUpperCase();
+}
+
+function formatNombreTipo(nombre: string) {
+  if (!nombre) return '';
+  const lower = nombre.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 function soloDigitos(value: string) {
@@ -203,13 +220,6 @@ function formatoFecha(fechaIso: string) {
   return formatDateLabel(fechaIso);
 }
 
-function formatoMoneda(valor: number) {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(valor);
-}
 
 function formatoKg(valor: number) {
   return `${new Intl.NumberFormat('es-CO', {
@@ -316,15 +326,22 @@ function isSubloteCompletado(
   minPrecioKg: number,
   maxPrecioKg: number,
 ) {
-  const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
+  const errors = getSubloteFieldErrors(
+    sublote,
+    minPesoKg,
+    maxPesoKg,
+    minPrecioKg,
+    maxPrecioKg,
+  );
   return countSubloteErrors(errors) === 0;
 }
 
 function productorFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition ${hasError
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition ${
+    hasError
       ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
       : 'border-[#dde4f1] focus:border-[#173ea6]'
-    }`;
+  }`;
 }
 
 function ProducerFieldError({ message }: { message: string }) {
@@ -576,11 +593,20 @@ function visualCalidad(nombre: string) {
       texto: 'text-[#b45309]',
     };
   }
+  if (calidad === 'MALO') {
+    return {
+      icono: <Frown size={16} />,
+      fondo: 'bg-[#fef2f2] text-[#b91c1c]',
+      borde: 'border-[#b91c1c]',
+      texto: 'text-[#b91c1c]',
+    };
+  }
+  // Fallback para calidades creadas de forma dinámica (por el usuario)
   return {
-    icono: <Frown size={16} />,
-    fondo: 'bg-[#fef2f2] text-[#b91c1c]',
-    borde: 'border-[#b91c1c]',
-    texto: 'text-[#b91c1c]',
+    icono: <Star size={16} />,
+    fondo: 'bg-[#f5f3ff] text-[#6d28d9]',
+    borde: 'border-[#6d28d9]',
+    texto: 'text-[#6d28d9]',
   };
 }
 
@@ -732,7 +758,7 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
       message,
       'Falta seleccionar el productor.',
       'Debemos saber a quién corresponde la compra.',
-      'Selecciona Productor Generico o uno de la lista.',
+      'Selecciona Productor Genérico o uno de la lista.',
     );
   }
 
@@ -746,6 +772,15 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
 
 export default function Compras() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = useState(0);
+  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
+  useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const savingRef = useRef(false);
   const compraLocalIdRef = useRef<string | null>(null);
   const [catalogos, setCatalogos] = useState<CatalogosCompra>({
@@ -805,6 +840,9 @@ export default function Compras() {
   const [mostrarModalAlerta80, setMostrarModalAlerta80] = useState(false);
   const [mostrarModalConfigurarCapacidad, setMostrarModalConfigurarCapacidad] =
     useState(false);
+  const [mostrarModalConfigurarMoneda, setMostrarModalConfigurarMoneda] =
+    useState(false);
+  const [selectedMoneda, setSelectedMoneda] = useState(() => getActiveCurrency());
   const [nombreBodegaNueva, setNombreBodegaNueva] =
     useState('Bodega principal');
   const [capacidadNuevaKg, setCapacidadNuevaKg] = useState('');
@@ -857,8 +895,8 @@ export default function Compras() {
         const pesoMaximoConfig = Number(bodegaConfig.maxPesoKg);
         const maximoConfigurado =
           Number.isFinite(pesoMaximoConfig) &&
-            pesoMaximoConfig > 0 &&
-            pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
+          pesoMaximoConfig > 0 &&
+          pesoMaximoConfig <= MAX_PESO_ENTRADA_KG
             ? pesoMaximoConfig
             : MAX_PESO_OPERATIVO_DEFAULT_KG;
         setMinPesoKg(bodegaConfig.minPesoKg ?? PESO_MINIMO_KG);
@@ -943,7 +981,14 @@ export default function Compras() {
         precio <= maxPrecioKg
       );
     });
-  }, [fechaCompraValidacion.isValid, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg, sublotes]);
+  }, [
+    fechaCompraValidacion.isValid,
+    minPesoKg,
+    maxPesoKg,
+    minPrecioKg,
+    maxPrecioKg,
+    sublotes,
+  ]);
   const puedeRegistrarCompra =
     Boolean(productorSeleccionado) &&
     paso2Completo &&
@@ -1051,7 +1096,13 @@ export default function Compras() {
     sublotes[sublotes.length - 1] ??
     null;
   const subloteActualListo = subloteActual
-    ? isSubloteCompletado(subloteActual, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg)
+    ? isSubloteCompletado(
+        subloteActual,
+        minPesoKg,
+        maxPesoKg,
+        minPrecioKg,
+        maxPrecioKg,
+      )
     : false;
   const sublotesVisibles = sublotes;
   const sublotesAgregados = sublotesVisibles.filter(
@@ -1083,7 +1134,9 @@ export default function Compras() {
   ) => {
     setMostrarErrorFormulario(false);
     setError(null);
-    invalidarValidacionCapacidad();
+    if (campo === 'pesoInicial') {
+      invalidarValidacionCapacidad();
+    }
     setSublotes((actual) =>
       actual.map((sublote) =>
         sublote.id === id ? { ...sublote, [campo]: valor } : sublote,
@@ -1501,7 +1554,13 @@ export default function Compras() {
     }
 
     for (const [index, sublote] of sublotes.entries()) {
-      const errors = getSubloteFieldErrors(sublote, minPesoKg, maxPesoKg, minPrecioKg, maxPrecioKg);
+      const errors = getSubloteFieldErrors(
+        sublote,
+        minPesoKg,
+        maxPesoKg,
+        minPrecioKg,
+        maxPrecioKg,
+      );
       const errorCount = countSubloteErrors(errors);
 
       if (errorCount === 1) {
@@ -1602,7 +1661,7 @@ export default function Compras() {
       cancelado = true;
       window.clearTimeout(timer);
     };
-  }, [fecha, paso2Completo, resumen.totalKg, step, sublotes]);
+  }, [fecha, paso2Completo, resumen.totalKg, step, sublotes.length]);
 
   const validarCapacidadBodega = async (): Promise<boolean> => {
     try {
@@ -1621,16 +1680,28 @@ export default function Compras() {
 
       const capacidadKg = capacidad.capacidadBodegaKg ?? 0;
       const inventarioActual = capacidad.inventarioActualKg ?? 0;
+      const nuevoTotal = inventarioActual + resumen.totalKg;
+      const porcentaje =
+        capacidadKg > 0 ? Math.round((nuevoTotal / capacidadKg) * 100) : 0;
 
       if (capacidad.nivel === 'exceso') {
-        const disponibleActual = Math.max(0, capacidadKg - inventarioActual);
-        setError(
-          disponibleActual <= 0
-            ? 'Bodega llena. Vende cafe para seguir comprando.'
-            : `La compra supera el espacio disponible. Hay ${formatoKg(disponibleActual)} libres. Reduce kilos o vende cafe para continuar.`,
-        );
-        setMostrarErrorFormulario(true);
-        setMostrarModalCapacidad(false);
+        setDatosCapacidad({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+        });
+        setMostrarModalCapacidad(true);
+        return false;
+      }
+
+      if (porcentaje >= 80) {
+        setDatosAlerta80({
+          capacidadKg,
+          inventarioActual,
+          nuevoTotal,
+          porcentaje,
+        });
+        setMostrarModalAlerta80(true);
         return false;
       }
 
@@ -1657,6 +1728,22 @@ export default function Compras() {
       setMostrarModalCapacidad(false);
       return true;
     }
+  };
+
+  const guardarMonedaInicial = () => {
+    setActiveCurrency(selectedMoneda);
+    setMostrarModalConfigurarMoneda(false);
+    void (async () => {
+      setCheckingConfirmacion(true);
+      try {
+        const puedeContinuar = await validarCapacidadBodega();
+        if (puedeContinuar) {
+          setMostrarModalConfirmar(true);
+        }
+      } finally {
+        setCheckingConfirmacion(false);
+      }
+    })();
   };
 
   const guardarCapacidadDesdeCompra = async () => {
@@ -1727,6 +1814,11 @@ export default function Compras() {
     if (mensajeValidacion) {
       setMostrarErrorFormulario(true);
       setError(mensajeValidacion);
+      return;
+    }
+
+    if (!localStorage.getItem('cafesmart_moneda_configurada')) {
+      setMostrarModalConfigurarMoneda(true);
       return;
     }
 
@@ -1846,7 +1938,7 @@ export default function Compras() {
             </div>
 
             {compraGuardada.capacidad &&
-              compraGuardada.capacidad.nivel !== 'normal' ? (
+            compraGuardada.capacidad.nivel !== 'normal' ? (
               <section
                 className={`mt-6 rounded-[16px] border p-4 ${estiloCapacidad(compraGuardada.capacidad).contenedor}`}
               >
@@ -1936,8 +2028,8 @@ export default function Compras() {
           >
             <ArrowLeft size={22} />
           </button>
-          <h1 className="text-[1.35rem] font-semibold text-slate-900">
-            Registro de Compra
+          <h1 className="text-center text-[1.35rem] font-semibold text-slate-900">
+            Nueva compra
           </h1>
         </div>
 
@@ -1960,191 +2052,167 @@ export default function Compras() {
       <main className="mx-auto flex w-full max-w-[430px] flex-col gap-5 py-2">
         {step === 1 ? (
           <section className="flex flex-col gap-4">
-            <button
-              type="button"
-              onClick={seleccionarBusqueda}
-              className={`w-full rounded-[20px] border bg-white px-4 py-3.5 text-left transition ${
-                productorSelectionMode === 'buscar'
-                  ? 'border-[#1D4ED8]'
-                  : 'border-[#e3e7f3]'
-                }`}
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    productorSelectionMode === 'buscar'
-                      ? 'bg-[#1D4ED8] text-white'
-                      : 'bg-[#eef2f7] text-slate-500'
-                    }`}
-                >
-                  <Search size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[0.95rem] font-medium text-slate-900">
-                    Buscar productor
-                  </p>
-                  <p className="text-[0.82rem] text-slate-400">
-                    Selecciona un productor registrado
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                    productorSelectionMode === 'buscar'
-                      ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
-                      : 'border-[#cad2e2] bg-white text-transparent'
-                    }`}
-                >
-                  <Check size={12} />
-                </span>
-              </div>
-            </button>
-
-            {/* Panel de búsqueda — animación suave de expansión */}
-            <div
-              className="overflow-hidden transition-all duration-300 ease-in-out"
-              style={{
-                maxHeight:
-                  productorSelectionMode === 'buscar' ? '420px' : '0px',
-                opacity: productorSelectionMode === 'buscar' ? 1 : 0,
-                marginTop: productorSelectionMode === 'buscar' ? '12px' : '0px',
-              }}
-            >
-              <div className="space-y-2.5 px-1 pt-1">
-                <p className="px-1 text-xs font-bold text-slate-500">
-                  Recientes
-                </p>
-
-                {productoresFiltrados.length === 0 &&
-                sinProductoresRegistrados ? (
-                  <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-5 text-center text-sm text-slate-500">
-                    <p className="font-medium text-slate-600">
-                      Aún no tienes productores registrados.
-                    </p>
-                    <p className="mt-1 text-[0.82rem]">
-                      Registra uno para iniciar la compra.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {productoresFiltrados.map((productor) => {
-                      const activo = productorSeleccionado?.id === productor.id;
-                      return (
-                        <button
-                          key={productor.id}
-                          type="button"
-                          onClick={() => seleccionarProductor(productor)}
-                          className={`flex w-full flex-col rounded-[14px] border px-3 py-2.5 text-left transition ${
-                            activo
-                              ? 'border-[#1D4ED8] bg-[#f4f7ff]'
-                              : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
-                          }`}
-                        >
-                          <p className="truncate text-[0.88rem] font-medium text-slate-900">
-                            {productor.nombre}
-                          </p>
-                          <p className="mt-0.5 truncate text-[0.75rem] text-slate-400">
-                            {productor.documento}
-                          </p>
-                          {activo ? (
-                            <span className="mt-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
-                              <Check size={10} />
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={abrirSelectorProductor}
-                  className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] border border-[#dbe2f0] bg-white px-4 text-[0.82rem] font-medium text-[#1D4ED8]"
-                >
-                  Ver más productores
-                </button>
-              </div>
+            {/* Barra de búsqueda */}
+            <div className="relative w-full">
+              <Search
+                size={18}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="text"
+                value={busquedaProductor}
+                onChange={(e) => {
+                  setBusquedaProductor(e.target.value);
+                  if (productorSelectionMode !== 'buscar') {
+                    setProductorSelectionMode('buscar');
+                  }
+                }}
+                placeholder="Buscar productor por nombre o cédula..."
+                className="w-full rounded-[20px] border border-[#dde4f1] bg-[#f7f9fd] pl-11 pr-4 py-3.5 text-[0.95rem] text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#1D4ED8] focus:bg-white"
+              />
             </div>
 
-            <button
-              type="button"
-              onClick={seleccionarGenerico}
-              className={`w-full rounded-[20px] border px-4 py-3.5 text-left transition ${
-                productorSelectionMode === 'generico'
-                  ? 'border-[#1D4ED8] bg-[#f4f7ff]'
-                  : 'border-[#e3e7f3] bg-white'
-                }`}
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    productorSelectionMode === 'generico'
-                      ? 'bg-[#1D4ED8] text-white'
-                      : 'bg-[#eef2f7] text-slate-500'
-                    }`}
-                >
-                  <User size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[0.95rem] font-medium text-slate-900">
-                    Productor genérico
-                  </p>
-                  <p className="text-[0.82rem] text-slate-400">
-                    Compra rápida sin registrar productor
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                    productorSelectionMode === 'generico'
-                      ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
-                      : 'border-[#cad2e2] bg-white text-transparent'
-                    }`}
-                >
-                  <Check size={12} />
-                </span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={abrirModalProductor}
-              className="w-full rounded-[20px] border border-[#e3e7f3] bg-white px-4 py-3.5 text-left transition hover:border-[#ccd6ea]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-slate-500">
+            {/* Botones de acción lateral: Registrar nuevo y Productor genérico */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Botón Registrar nuevo */}
+              <button
+                type="button"
+                onClick={abrirModalProductor}
+                className="flex flex-col items-start justify-between rounded-[20px] border border-[#dde4f1] bg-white p-4 text-left transition hover:border-[#ccd6ea] hover:shadow-sm h-[130px]"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2f7] text-[#1D4ED8]">
                   <UserPlus size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[0.95rem] font-medium text-slate-900">
-                    Registrar productor
-                  </p>
-                  <p className="text-[0.82rem] text-slate-400">
+                </div>
+                <div className="mt-auto">
+                  <span className="block text-[0.9rem] font-bold text-slate-800 leading-tight">
+                    Registrar nuevo
+                  </span>
+                  <span className="block mt-1 text-[0.7rem] text-slate-400 leading-normal">
                     Crear un nuevo productor
+                  </span>
+                </div>
+              </button>
+
+              {/* Botón Productor genérico */}
+              <button
+                type="button"
+                onClick={seleccionarGenerico}
+                className={`flex flex-col items-start justify-between rounded-[20px] border p-4 text-left transition hover:shadow-sm h-[130px] ${
+                  productorSelectionMode === 'generico'
+                    ? 'border-[#1D4ED8] bg-[#f4f7ff]'
+                    : 'border-[#dde4f1] bg-white hover:border-[#ccd6ea]'
+                }`}
+              >
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                  productorSelectionMode === 'generico'
+                    ? 'bg-[#1D4ED8] text-white'
+                    : 'bg-[#eef2f7] text-[#1D4ED8]'
+                }`}>
+                  <User size={18} />
+                </div>
+                <div className="mt-auto">
+                  <span className="block text-[0.9rem] font-bold text-slate-800 leading-tight">
+                    Productor genérico
+                  </span>
+                  <span className="block mt-1 text-[0.7rem] text-slate-400 leading-normal">
+                    Compra rápida sin registrar
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            {/* Listado de Productores Recientes */}
+            <div className="space-y-2.5 px-1 pt-1">
+              <p className="px-1 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Recientes
+              </p>
+
+              {productoresFiltrados.length === 0 && sinProductoresRegistrados ? (
+                <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-5 text-center text-sm text-slate-500">
+                  <p className="font-medium text-slate-600">
+                    Aún no tienes productores registrados.
+                  </p>
+                  <p className="mt-1 text-[0.82rem]">
+                    Registra uno para iniciar la compra.
                   </p>
                 </div>
-              </div>
-            </button>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {productoresFiltrados.map((productor) => {
+                    const activo = productorSeleccionado?.id === productor.id;
+                    const iniciales = obtenerIniciales(productor.nombre);
+                    return (
+                      <button
+                        key={productor.id}
+                        type="button"
+                        onClick={() => seleccionarProductor(productor)}
+                        className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-2.5 text-left transition ${
+                          activo
+                            ? 'border-[#1D4ED8] bg-[#f4f7ff]'
+                            : 'border-[#e6ebf5] bg-white hover:border-[#ccd6ea]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                            activo ? 'bg-[#1D4ED8] text-white' : 'bg-[#eef2f7] text-[#1D4ED8]'
+                          }`}>
+                            {iniciales}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-[0.88rem] font-semibold text-slate-900 leading-tight">
+                              {productor.nombre}
+                            </p>
+                            <p className="mt-0.5 truncate text-[0.75rem] text-slate-500 leading-none">
+                              {productor.documento}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                            activo
+                              ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
+                              : 'border-[#cad2e2] bg-white text-transparent'
+                          }`}
+                        >
+                          {activo ? <Check size={11} strokeWidth={3} /> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={abrirSelectorProductor}
+                className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] border border-[#dbe2f0] bg-white px-4 text-[0.82rem] font-semibold text-[#1D4ED8] transition hover:bg-slate-50"
+              >
+                Ver más productores
+              </button>
+            </div>
 
             {/* ── Zona de acción: separada visualmente de las opciones ── */}
-            <div className="mt-6 rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
+            <div className="mt-4 rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
               {productorSeleccionado ? (
-                <div className="mb-4 flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
-                    <User size={17} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-500">
-                      Productor seleccionado
-                    </p>
-                    <p className="truncate text-[0.98rem] font-semibold text-slate-900">
-                      {productorSeleccionado.nombre}
-                    </p>
-                    <p className="text-[0.82rem] text-slate-500">
-                      {productorSeleccionado.rapido
-                        ? 'Compra rápida'
-                        : productorSeleccionado.documento}
-                    </p>
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-[16px] border border-[#e2e8f0] bg-slate-50/50 p-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">
+                      <User size={15} />
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider block">
+                        Productor Seleccionado
+                      </span>
+                      <p className="truncate text-[0.92rem] font-black text-slate-900 leading-tight">
+                        {productorSeleccionado.nombre}
+                      </p>
+                    </div>
                   </div>
+                  {productorSeleccionado.id !== 'general' && productorSeleccionado.documento && (
+                    <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
+                      {productorSeleccionado.documento}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="mb-4 rounded-[12px] border border-dashed border-[#d8dfee] px-4 py-3 text-center text-[0.88rem] text-slate-400">
@@ -2164,9 +2232,10 @@ export default function Compras() {
                 <button
                   type="button"
                   onClick={irSiguientePaso}
-                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99]"
+                  className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99]"
                 >
                   Siguiente paso
+                  <ArrowRight size={18} />
                 </button>
                 <button
                   type="button"
@@ -2182,35 +2251,55 @@ export default function Compras() {
 
         {step === 2 ? (
           <section className="space-y-4">
-            <div className="rounded-[24px] border border-[#dce4f5] bg-white px-5 py-4 shadow-[0_4px_12px_rgba(20,35,85,0.03)]">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <CalendarDays size={15} className="shrink-0 text-slate-400" />
-                  <span className="text-[0.85rem] font-semibold text-slate-800">
-                    Fecha de compra
-                  </span>
-                </div>
-                <input
-                  type="date"
-                  value={fecha}
-                  min={BUSINESS_MIN_DATE_VALUE}
-                  max={hoyLocal()}
-                  onChange={(event) => {
-                    setFecha(event.target.value);
-                    invalidarValidacionCapacidad();
-                  }}
-                  className="bg-transparent text-[0.95rem] font-semibold text-slate-900 outline-none"
-                />
-              </div>
-              {mostrarErrorFormulario &&
-                step === 2 &&
-                !fechaCompraValidacion.isValid ? (
-                <p className="mt-2 text-[0.85rem] font-semibold text-rose-500">
-                  {fechaCompraValidacion.message ??
-                    'Selecciona la fecha de compra.'}
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              {/* Columna 1: Productor Seleccionado */}
+              <div className="rounded-[18px] border border-[#dce4f5] bg-[#f7f8fe] p-3.5 flex flex-col justify-center min-w-0">
+                <p className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider">
+                  Productor
                 </p>
-              ) : null}
+                <p className="mt-0.5 text-[0.85rem] font-bold text-slate-800 truncate">
+                  {productorSeleccionado?.nombre ?? 'Sin productor'}
+                </p>
+                {productorSeleccionado?.id !== 'general' ? (
+                  <p className="text-[0.72rem] text-slate-500 truncate mt-0.5">
+                    {productorSeleccionado?.documento ?? 'Doc. pendiente'}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Columna 2: Selector de Fecha (Clickeable) */}
+              <label className="group relative flex flex-col justify-center rounded-[18px] border border-[#dce4f5] bg-white p-3.5 hover:border-[#1D4ED8] hover:bg-[#eef2ff]/20 cursor-pointer transition-all duration-200 shadow-sm active:scale-[0.98]">
+                <span className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 group-hover:text-[#1D4ED8] transition-colors">
+                  Fecha de compra
+                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CalendarDays
+                    size={14}
+                    className="shrink-0 text-slate-400 group-hover:text-[#1D4ED8] transition-colors"
+                  />
+                  <input
+                    type="date"
+                    value={fecha}
+                    min={BUSINESS_MIN_DATE_VALUE}
+                    max={hoyLocal()}
+                    onChange={(event) => {
+                      setFecha(event.target.value);
+                      invalidarValidacionCapacidad();
+                    }}
+                    className="w-full bg-transparent text-[0.82rem] font-bold text-slate-800 outline-none cursor-pointer focus:text-[#1D4ED8]"
+                  />
+                </div>
+              </label>
             </div>
+
+            {mostrarErrorFormulario &&
+            step === 2 &&
+            !fechaCompraValidacion.isValid ? (
+              <p className="mt-1.5 px-1 text-[0.85rem] font-semibold text-rose-500">
+                {fechaCompraValidacion.message ??
+                  'Selecciona la fecha de compra.'}
+              </p>
+            ) : null}
 
             {sublotesAgregados.length > 0 ? (
               <section className="rounded-[20px] border border-[#dce4f5] bg-white p-3 shadow-sm">
@@ -2442,32 +2531,48 @@ export default function Compras() {
                     <p className="mb-2 text-[0.85rem] font-semibold text-slate-800">
                       Tipo de café
                     </p>
-                    <div className="relative">
-                      <select
-                        value={sublote.tipoCafeId}
-                        onChange={(event) =>
-                          actualizarSublote(
-                            sublote.id,
-                            'tipoCafeId',
-                            event.target.value,
-                          )
-                        }
-                        className={`w-full appearance-none rounded-[18px] border bg-white px-4 py-4 pr-12 text-base outline-none transition focus:border-[#173ea6] ${sublote.tipoCafeId
-                            ? 'border-[#dfe5f2] font-semibold text-slate-900'
-                            : 'border-[#dfe5f2] font-medium text-slate-400'
-                          }`}
-                      >
-                        <option value="">Seleccionar tipo de café</option>
-                        {tiposCafe.map((tipoCafe) => (
-                          <option key={tipoCafe.id} value={tipoCafe.id}>
-                            {tipoCafe.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      <ArrowRight
-                        size={18}
-                        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-slate-400"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      {tiposCafe.map((tipoCafe) => {
+                        const activo = sublote.tipoCafeId === tipoCafe.id;
+                        const visual = iconoTipoCafe(tipoCafe.nombre);
+                        return (
+                          <button
+                            key={tipoCafe.id}
+                            type="button"
+                            onClick={() =>
+                              actualizarSublote(
+                                sublote.id,
+                                'tipoCafeId',
+                                tipoCafe.id,
+                              )
+                            }
+                            className={`rounded-[18px] border-2 px-3 py-3 transition ${
+                              activo
+                                ? 'border-[#1D4ED8] text-[#1D4ED8] bg-white shadow-sm'
+                                : 'border-[#dfe5f2] bg-white text-slate-700 hover:border-slate-400'
+                            }`}
+                          >
+                            <span className="flex flex-col items-center gap-1.5">
+                              <span
+                                className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
+                                  activo
+                                    ? 'bg-[#f4f7ff] text-[#1D4ED8]'
+                                    : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {visual.icono}
+                              </span>
+                              <span
+                                className={`text-[13px] font-semibold ${
+                                  activo ? 'text-[#1D4ED8]' : 'text-slate-800'
+                                }`}
+                              >
+                                {formatNombreTipo(tipoCafe.nombre)}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                     {tipoCafeError ? (
                       <p className="mt-1.5 text-[0.8rem] font-semibold text-rose-500">
@@ -2493,7 +2598,7 @@ export default function Compras() {
                                 sublote.id,
                                 'calidadId',
                                 calidad.id,
-                                )
+                              )
                             }
                             className={`rounded-[18px] border-2 px-2 py-3 text-sm font-semibold transition ${
                               activo
@@ -2557,7 +2662,8 @@ export default function Compras() {
                             }
                             actualizarSublote(sublote.id, 'pesoInicial', raw);
                           }}
-                          className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${pesoError
+                          className={`mt-2.5 w-full rounded-[18px] border bg-[#fbfcff] px-4 py-4 text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300 ${
+                            pesoError
                               ? 'border-rose-400 focus:border-rose-500'
                               : 'border-[#e4e8f3] focus:border-[#1D4ED8]'
                           }`}
@@ -2585,8 +2691,8 @@ export default function Compras() {
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            maxLength={6}
-                            value={sublote.precioKg}
+                            maxLength={10}
+                            value={formatearMonedaInput(sublote.precioKg)}
                             onChange={(event) => {
                               const digits = soloDigitos(event.target.value);
                               const numeric = Number(digits);
@@ -2600,7 +2706,7 @@ export default function Compras() {
                               actualizarSublote(sublote.id, 'precioKg', digits);
                             }}
                             className="w-full bg-transparent text-[1.6rem] font-semibold text-slate-900 outline-none placeholder:text-slate-300"
-                            placeholder="ej. 14000"
+                            placeholder="ej. 14.000"
                           />
                         </div>
                         <p className="mt-1 text-[0.62rem] font-semibold text-slate-400">
@@ -2675,196 +2781,169 @@ export default function Compras() {
               </article>
             ) : null}
 
-            <article className="rounded-[18px] border border-[#d6e2ff] bg-[#eef3ff] p-4 text-[#1D4ED8] shadow-sm">
-              <p className="text-[0.85rem] font-semibold text-[#1e3a8a]">
-                Resumen de peso
+            {/* Tarjeta Unificada de Totales y Acciones */}
+            <div className="rounded-[24px] border border-[#d6e2ff] bg-white p-5 shadow-sm">
+              <p className="text-sm font-bold text-slate-800">
+                Resumen de sublotes
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#d6e2ff] pt-3">
-                <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5">
-                  <p className="text-[0.76rem] font-semibold text-slate-800">
+              
+              <div className="mt-3 grid grid-cols-2 gap-3 border-b border-slate-100 pb-4">
+                <div className="rounded-[16px] bg-[#f7f9fd] px-3.5 py-3 border border-[#e8edf7]">
+                  <p className="text-[0.76rem] font-bold text-slate-500 uppercase tracking-wider">
                     Total kg
                   </p>
-                  <p
-                    className={`mt-1 max-w-full overflow-hidden whitespace-nowrap font-bold leading-[1.1] text-[#1D4ED8] ${claseValorResumen(
-                      formatoKg(resumen.totalKg),
-                    )}`}
-                  >
+                  <p className="mt-1.5 text-lg font-black text-slate-800 leading-none">
                     {formatoKg(resumen.totalKg)}
                   </p>
                 </div>
-                <div className="min-w-0 rounded-[14px] bg-white/50 px-3 py-2.5 text-right">
-                  <p className="text-[0.76rem] font-semibold text-slate-800">
+                <div className="rounded-[16px] bg-[#f7f9fd] px-3.5 py-3 border border-[#e8edf7] text-right">
+                  <p className="text-[0.76rem] font-bold text-slate-500 uppercase tracking-wider">
                     Total estimado
                   </p>
-                  <p
-                    className={`mt-1 max-w-full overflow-hidden whitespace-nowrap font-bold leading-[1.1] text-[#1D4ED8] ${claseValorResumen(
-                      formatoMoneda(resumen.totalCompra),
-                    )}`}
-                  >
+                  <p className="mt-1.5 text-lg font-black text-[#1D4ED8] leading-none">
                     {formatoMoneda(resumen.totalCompra)}
                   </p>
                 </div>
               </div>
-            </article>
 
-            <div className="grid gap-3">
-              <button
-                type="button"
-                onClick={irSiguientePaso}
-                className="inline-flex min-h-[56px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99]"
-              >
-                Siguiente paso
-              </button>
-              <button
-                type="button"
-                onClick={irPasoAnterior}
-                className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Regresar
-              </button>
+              <div className="grid gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={irSiguientePaso}
+                  className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99]"
+                >
+                  Siguiente paso
+                  <ArrowRight size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={irPasoAnterior}
+                  className="inline-flex min-h-[46px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[0.95rem] font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Regresar
+                </button>
+              </div>
             </div>
           </section>
         ) : null}
 
         {step === 3 ? (
           <section className="space-y-4">
-            <article className="rounded-[24px] border border-[#e2e8f4] bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-2 text-sm font-bold text-[#5b6f9d]">
-                <CalendarDays size={14} />
-                <span>Datos de la compra</span>
-              </div>
-              <div className="space-y-4 rounded-[16px] border border-[#e6eaf3] bg-[#fbfcff] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-slate-500">
-                    Productor
-                  </span>
-                  <span className="text-[1.05rem] font-semibold text-slate-900">
-                    {productorSeleccionado?.nombre ?? 'Sin productor'}
-                  </span>
+            <div className="rounded-[26px] border border-[#e2e8f4] bg-white p-5 shadow-sm">
+              {/* Encabezado: Productor y Fecha */}
+              <div className="flex items-center justify-between gap-4">
+                {/* Productor */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef2f7] text-[#1D4ED8]">
+                    <User size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Productor
+                    </p>
+                    <p className="truncate text-sm font-bold text-slate-800 leading-tight mt-0.5">
+                      {productorSeleccionado?.nombre ?? 'Sin productor'}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-slate-500">
+
+                {/* Fecha */}
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                     Fecha
-                  </span>
-                  <span className="text-[1.05rem] font-semibold text-slate-900">
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">
                     {formatoFecha(fecha)}
-                  </span>
+                  </p>
                 </div>
               </div>
-            </article>
 
-            <section>
-              <div className="mb-2 flex items-center gap-2 px-1 text-sm font-bold text-[#5b6f9d]">
-                <ShoppingBag size={14} />
-                <span>Historial de la compra</span>
-              </div>
-              <p className="px-1 text-[0.85rem] text-slate-500">
-                Si necesitas editar la información de un sublote, regresa al
-                paso anterior
-              </p>
-              <div className="mt-3 max-h-[330px] space-y-2 overflow-y-auto pr-[6px] [scrollbar-color:#c5ccda_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-[8px] [&::-webkit-scrollbar-thumb]:bg-[#c5ccda]">
-                {sublotes.map((sublote) => {
-                  const tipoCafe =
-                    nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
-                  const calidad =
-                    nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
-                  const peso =
-                    Number(sublote.pesoInicial.replace(',', '.')) || 0;
-                  const totalItem = peso * Number(sublote.precioKg || 0);
-                  const visual = iconoTipoCafe(tipoCafe);
+              {/* Separador */}
+              <div className="border-t border-[#eef2f7] my-4" />
 
-                  return (
-                    <article
-                      key={sublote.id}
-                      className="rounded-[18px] border border-[#e6e8f3] bg-white px-3 py-3 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex items-start gap-3">
-                          <div
-                            className={`shrink-0 rounded-xl p-2.5 ${visual.fondo}`}
-                          >
+              {/* Detalle de Cafés */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                  Detalle de cafés
+                </p>
+                
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  {sublotes.map((sublote) => {
+                    const tipoCafe =
+                      nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Café';
+                    const calidad =
+                      nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad';
+                    const peso =
+                      Number(sublote.pesoInicial.replace(',', '.')) || 0;
+                    const totalItem = peso * Number(sublote.precioKg || 0);
+                    const visual = iconoTipoCafe(tipoCafe);
+
+                    return (
+                      <div
+                        key={sublote.id}
+                        className="flex items-center justify-between gap-3 rounded-[16px] border border-[#f1f4fb] bg-[#f8fafc] p-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Icono de Café */}
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${visual.fondo}`}>
                             {visual.icono}
                           </div>
+                          {/* Información */}
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1D4ED8]">
-                              {formatCoffeeLabel(tipoCafe)}
+                            <p className="truncate text-sm font-bold text-slate-800 leading-tight">
+                              {formatNombreTipo(tipoCafe)}
                             </p>
-                            <p className="mt-1 truncate text-[1rem] font-semibold leading-tight text-slate-900">
+                            <p className="text-[11px] text-slate-500 mt-0.5">
                               Calidad: {calidad}
-                            </p>
-                            <p className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-700">
-                              Peso:{' '}
-                              {peso.toLocaleString('es-CO', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 2,
-                              })}{' '}
-                              kg
-                            </p>
-                            <p className="mt-1 overflow-hidden whitespace-nowrap text-sm font-semibold text-slate-700">
-                              Total: {formatoMoneda(totalItem)}
                             </p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              editarSubloteDesdeRevision(sublote.id)
-                            }
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef2ff] text-[#173ea6]"
-                            title="Editar producto"
-                            aria-label={`Editar ${tipoCafe}`}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          {sublotes.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                eliminarSubloteDesdeRevision(sublote.id)
-                              }
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a]"
-                              title="Eliminar producto"
-                              aria-label={`Eliminar ${tipoCafe}`}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+
+                        {/* Peso y Precio */}
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-800 leading-tight">
+                            {peso.toLocaleString('es-CO', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            kg
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {formatoMoneda(totalItem)}
+                          </p>
                         </div>
                       </div>
-                    </article>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </section>
 
-            <article className="rounded-[24px] border border-[#d9e2f5] bg-white p-5 shadow-sm">
-              <p className="text-sm font-bold text-[#5b6f9d]">
-                Resumen de compra
-              </p>
-              <div className="mt-4 space-y-4 rounded-[16px] bg-[#f7f8ff] px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-slate-600">
-                    Total kg
-                  </span>
-                  <span className="text-[2rem] font-bold text-[#173ea6]">
+              {/* Separador */}
+              <div className="border-t border-[#eef2f7] my-4" />
+
+              {/* Pie de Tarjeta: Total a Pagar y Peso Total */}
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Total a pagar
+                  </p>
+                  <p className="text-xs font-semibold text-slate-600 mt-1">
+                    Peso total:{' '}
                     {resumen.totalKg.toLocaleString('es-CO', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 2,
                     })}{' '}
                     kg
-                  </span>
+                  </p>
                 </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold text-slate-600">
-                    Total a pagar
-                  </span>
-                  <span className="text-[2rem] font-bold text-[#173ea6]">
+
+                <div className="text-right">
+                  <span className="text-2xl font-black text-[#1D4ED8]">
                     {formatoMoneda(resumen.totalCompra)}
                   </span>
                 </div>
               </div>
-            </article>
+            </div>
 
             {error && mostrarErrorFormulario ? (
               <p className="rounded-[12px] border border-rose-200 bg-rose-50 px-3 py-2 text-[0.82rem] font-semibold leading-5 text-rose-600">
@@ -2872,12 +2951,13 @@ export default function Compras() {
               </p>
             ) : null}
 
+            {/* Acciones */}
             <div className="grid gap-3">
               <button
                 type="button"
                 onClick={() => void abrirConfirmacionCompra()}
                 disabled={saving || checkingConfirmacion || loading}
-                className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-semibold text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {checkingConfirmacion ? (
                   <LoaderCircle size={18} className="animate-spin" />
@@ -2889,14 +2969,26 @@ export default function Compras() {
               <button
                 type="button"
                 onClick={() => setMostrarModalCancelar(true)}
-                className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Cancelar
               </button>
             </div>
           </section>
         ) : null}
+
+        <SupportLinks
+          onHelp={() => setSupportModal('help')}
+          onContact={() => setSupportModal('contact')}
+        />
       </main>
+
+      {supportModal ? (
+        <SupportModal
+          type={supportModal}
+          onClose={() => setSupportModal(null)}
+        />
+      ) : null}
 
       {mostrarModalCancelar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
@@ -2929,6 +3021,66 @@ export default function Compras() {
                 className="inline-flex min-h-[54px] items-center justify-center rounded-[14px] px-5 py-3 text-[1.15rem] font-semibold text-[#1f56dd]"
               >
                 Seguir editando
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mostrarModalConfigurarMoneda ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[24px] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto h-2 w-16 rounded-full bg-[#d7deeb]" />
+            <div className="mt-5 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef3ff] text-[#1D4ED8]">
+                <Info size={24} />
+              </div>
+              <h2 className="mt-5 text-[1.5rem] font-semibold leading-tight text-slate-900">
+                Elige la moneda de tu negocio
+              </h2>
+              <p className="mt-3 text-[0.88rem] leading-6 text-slate-500">
+                Todos los precios, ventas y reportes de tu negocio se calcularán con esta moneda.
+              </p>
+              <p className="mt-2 text-[0.78rem] leading-5 text-amber-600 font-semibold bg-[#fffbeb] p-3 rounded-[12px] border border-amber-100 text-center">
+                ⚠️ Solo se elige una vez. Cuando registres tu primera compra, venta o gasto, esta moneda quedará fija para evitar errores en tus cuentas.
+              </p>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {Object.values(CURRENCIES).map((curr) => {
+                const isSelected = selectedMoneda === curr.code;
+                return (
+                  <button
+                    key={curr.code}
+                    type="button"
+                    onClick={() => setSelectedMoneda(curr.code)}
+                    className={`flex w-full items-center justify-between rounded-[16px] border p-4 transition-all ${
+                      isSelected
+                        ? 'border-[#1D4ED8] bg-[#eef2ff] text-[#1D4ED8] shadow-[0_4px_10px_rgba(29,78,216,0.08)]'
+                        : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-700 hover:bg-[#f3f6ff]'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <p className="text-[0.95rem] font-bold">{curr.label}</p>
+                      <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                    </div>
+                    {isSelected ? (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={guardarMonedaInicial}
+                className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-4 py-3 text-[0.95rem] font-bold text-white transition active:scale-[0.98] shadow-md hover:bg-[#173ea6]"
+              >
+                Confirmar y continuar
               </button>
             </div>
           </div>
@@ -3312,7 +3464,7 @@ export default function Compras() {
                           activo
                             ? 'bg-white text-[#1D4ED8] shadow-[0_6px_14px_rgba(31,63,167,0.12)]'
                             : 'text-slate-500'
-                          }`}
+                        }`}
                       >
                         {orden.label}
                       </button>
@@ -3349,7 +3501,7 @@ export default function Compras() {
               }}
             >
               {cargandoProductoresSelector &&
-                productoresSelectorVisibles.length === 0 ? (
+              productoresSelectorVisibles.length === 0 ? (
                 <div className="rounded-[16px] border border-[#e6ebf5] bg-[#fafbff] px-4 py-8 text-center">
                   <LoaderCircle
                     size={24}
@@ -3418,14 +3570,14 @@ export default function Compras() {
                             activo
                               ? 'border-[#1D4ED8] bg-[#f4f7ff]'
                               : 'border-[#e6ebf5] bg-white hover:border-[#cbd7ef] hover:bg-[#fbfcff]'
-                            }`}
+                          }`}
                         >
                           <span
                             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                               activo
                                 ? 'border-[#1D4ED8] bg-[#1D4ED8] text-white'
                                 : 'border-[#aebbd1] bg-white text-transparent'
-                              }`}
+                            }`}
                             aria-hidden="true"
                           >
                             {activo ? (
@@ -3570,7 +3722,7 @@ export default function Compras() {
                     type="text"
                     inputMode={
                       productorForm.tipoDocumento === 'CC' ||
-                        productorForm.tipoDocumento === 'NIT'
+                      productorForm.tipoDocumento === 'NIT'
                         ? 'numeric'
                         : 'text'
                     }
@@ -3747,6 +3899,123 @@ export default function Compras() {
           mostrarModalSelectorProductor || mostrarModalProductor || step >= 1
         }
       />
+    </div>
+  );
+}
+
+function SupportLinks({
+  onHelp,
+  onContact,
+}: {
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <div className="pt-6 pb-2 text-center">
+      <p className="text-xs font-semibold text-[#73829a]">
+        ¿Necesitas ayuda?
+      </p>
+      <div className="mt-2.5 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onHelp}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <CircleHelp size={14} />
+          Ver ayuda
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <Headset size={14} />
+          Contactar soporte
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SupportModal({
+  type,
+  onClose,
+}: {
+  type: 'help' | 'contact';
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="compras-support-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[400px] overflow-y-auto rounded-[24px] border border-[#e6ebf3] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+              Soporte Café Smart
+            </p>
+            <h2
+              id="compras-support-title"
+              className="mt-1 text-lg font-black text-[#111827]"
+            >
+              {type === 'help' ? 'Guía de compras' : 'Soporte técnico'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            aria-label="Cerrar modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {type === 'help' ? (
+          <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
+            <p>
+              <strong>• Productor:</strong> Selecciona el caficultor que te vende el café. Si no está en la lista, puedes presionar el botón "+" para registrarlo en segundos.
+            </p>
+            <p>
+              <strong>• Registro de café:</strong> Ingresa el peso en kilos (debe ser mayor a 10 kg), el precio pactado por kilo, el tipo de café (verde, seco o pasilla) y la calidad.
+            </p>
+            <p>
+              <strong>• Capacidad de bodega:</strong> El sistema calculará el peso de tus sublotes y validará de forma automática que no superes el límite configurado para tu bodega.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
+            <p className="text-slate-600">
+              ¿Tienes alguna duda con el registro de tus compras de café? Escríbenos directamente por WhatsApp.
+            </p>
+            <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
+              <Headset className="text-[#1D4ED8] mb-2" size={24} />
+              <p className="text-[0.68rem] text-slate-500 max-w-[280px]">
+                Horario de atención: Lunes a Sábado - 8:00 AM a 6:00 PM
+              </p>
+              <a
+                href="https://wa.me/573150518018"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#128C7E] transition active:scale-[0.98]"
+              >
+                Escribir al +57 315 051 80 18
+              </a>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 min-h-[46px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
+        >
+          Entendido
+        </button>
+      </div>
     </div>
   );
 }

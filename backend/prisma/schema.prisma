@@ -28,6 +28,7 @@ enum TipoMovimientoInventario {
   VENTA
   SECADO
   MEZCLA
+  MERMA_SECADO
 }
 
 enum TipoReferenciaInventario {
@@ -62,6 +63,7 @@ model TipoCafe {
   sublotes      Sublote[]
   inventarios   Inventario[]
   movimientos   InventarioMovimiento[]
+  secadoSessions SecadoSession[]
 
   @@map("tipo_cafe")
 }
@@ -76,6 +78,7 @@ model Calidad {
   sublotes      Sublote[]
   inventarios   Inventario[]
   movimientos   InventarioMovimiento[]
+  secadoSessions SecadoSession[]
 
   @@map("calidad")
 }
@@ -98,6 +101,7 @@ model Organization {
   inventarios      Inventario[]
   movimientos      InventarioMovimiento[]
   gastosOperativos GastoOperativo[]
+  secadoSessions   SecadoSession[]
 
   @@map("organizacion")
 }
@@ -119,7 +123,16 @@ model Cliente {
 
   ventas Venta[]
 
+  @@index([organizacionId, deletedAt])
   @@map("cliente")
+}
+
+model PasswordResetToken {
+  email     String   @id @map("email")
+  code      String   @map("code")
+  expiresAt DateTime @map("expires_at")
+
+  @@map("password_reset_token")
 }
 
 model Productor {
@@ -217,6 +230,7 @@ model Sublote {
   lote                  Lote?                @relation(fields: [idLote], references: [id])
   movimientosInventario InventarioMovimiento[]
   gastosOperativos      GastoSublote[]
+  secadoSessions        SecadoSessionSublote[]
 
   @@unique([deviceId, localId])
   @@index([compraId])
@@ -292,6 +306,7 @@ model Lote {
   calidad   Calidad @relation(fields: [calidadId], references: [id])
 
   sublotes Sublote[]
+  secadoSessions SecadoSession[]
 
   @@unique([organizacionId, tipoCafeId, calidadId])
   @@map("lote")
@@ -423,4 +438,69 @@ model GastoSublote {
   @@unique([gastoOperativoId, subloteId])
   @@index([subloteId])
   @@map("gasto_sublote")
+}
+
+// ============================================================
+// SECADO
+// ============================================================
+
+enum EstadoSecado {
+  IN_PROCESS
+  READY
+  COMPLETED
+}
+
+model SecadoSession {
+  id                 String       @id @default(uuid()) @map("id_secado_session")
+  estado             EstadoSecado @default(IN_PROCESS) @map("estado")
+  
+  loteId             String?      @map("id_lote")
+  lote               Lote?        @relation(fields: [loteId], references: [id])
+  
+  tipoCafeId         String       @map("id_tipo_cafe")
+  tipoCafe           TipoCafe     @relation(fields: [tipoCafeId], references: [id])
+  
+  calidadId          String       @map("id_calidad")
+  calidad            Calidad      @relation(fields: [calidadId], references: [id])
+  
+  inputKg            Decimal      @map("input_kg") @db.Decimal(12, 2)
+  outputBuenoKg      Decimal      @default(0) @map("output_bueno_kg") @db.Decimal(12, 2)
+  outputBuenoHumedad Decimal?     @map("output_bueno_humedad") @db.Decimal(5, 2)
+  outputRegularKg    Decimal      @default(0) @map("output_regular_kg") @db.Decimal(12, 2)
+  outputRegularHumedad Decimal?   @map("output_regular_humedad") @db.Decimal(5, 2)
+  outputMaloKg       Decimal      @default(0) @map("output_malo_kg") @db.Decimal(12, 2)
+  outputMaloHumedad  Decimal?     @map("output_malo_humedad") @db.Decimal(5, 2)
+  
+  mermaKg            Decimal      @default(0) @map("merma_kg") @db.Decimal(12, 2)
+  rendimientoPct     Decimal      @default(0) @map("rendimiento_pct") @db.Decimal(5, 2)
+  
+  // Borradores / Drafts
+  draftStartDate     DateTime?    @map("draft_start_date")
+  draftEndDate       DateTime?    @map("draft_end_date")
+  draftBuenoKg       Decimal?     @map("draft_bueno_kg") @db.Decimal(12, 2)
+  draftRegularKg     Decimal?     @map("draft_regular_kg") @db.Decimal(12, 2)
+  draftMaloKg        Decimal?     @map("draft_malo_kg") @db.Decimal(12, 2)
+  
+  startedAt          DateTime     @default(now()) @map("started_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  completedAt        DateTime?    @map("completed_at")
+  
+  organizacionId     String       @map("id_organizacion")
+  organizacion       Organization @relation(fields: [organizacionId], references: [id])
+  
+  sublotes           SecadoSessionSublote[]
+
+  @@map("secado_session")
+}
+
+model SecadoSessionSublote {
+  id              String        @id @default(uuid()) @map("id_secado_sublote")
+  sessionId       String        @map("id_secado_session")
+  session         SecadoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subloteId       String        @map("id_sublote")
+  sublote         Sublote       @relation(fields: [subloteId], references: [id])
+  pesoAsignado    Decimal       @map("peso_asignado") @db.Decimal(10, 2)
+  
+  @@unique([sessionId, subloteId])
+  @@map("secado_session_sublote")
 }

@@ -65,6 +65,18 @@ export class BodegaController {
     );
   }
 
+  @Post('moneda')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async actualizarMoneda(
+    @Body() body: { moneda: string },
+    @Req() req: { user: { sub: string } },
+  ) {
+    const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
+    await this.bodegaService.actualizarMoneda(organizacionId, body.moneda);
+    return { success: true };
+  }
+
   private async obtenerOrganizacionId(userId: string): Promise<string> {
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },

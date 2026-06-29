@@ -31,6 +31,7 @@ import {
   saveSecadoDraft,
   startSecadoWithWeights,
   SecadoValidationError,
+  type SecadoSession,
 } from '../utils/secadoFlow';
 import {
   BUSINESS_MIN_DATE_VALUE,
@@ -188,36 +189,72 @@ export default function SecadoProceso() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(
     sessionId ?? null,
   );
-  const session = activeSessionId ? getSecadoSession(activeSessionId) : null;
-  const [step, setStep] = useState<'config' | 'active' | 'finish'>(
-    searchParams.get('step') === 'finish' || session?.estado === 'READY'
-      ? 'finish'
-      : 'config',
-  );
-  const [startDate, setStartDate] = useState(
-    session
-      ? dateInput(session.draftStartDate ?? session.startedAt)
-      : dateInput(''),
-  );
-  const [endDate, setEndDate] = useState(
-    session?.draftEndDate ?? getTodayLocalDateValue(),
-  );
-  const [buenoKg, setBuenoKg] = useState(
-    (session?.draftBuenoKg ?? session?.outputBuenoKg)
-      ? String(session?.draftBuenoKg ?? session?.outputBuenoKg)
-      : '',
-  );
-  const [regularKg, setRegularKg] = useState(
-    (session?.draftRegularKg ?? session?.outputRegularKg)
-      ? String(session?.draftRegularKg ?? session?.outputRegularKg)
-      : '',
-  );
-  const [maloKg, setMaloKg] = useState(
-    (session?.draftMaloKg ?? session?.outputMaloKg)
-      ? String(session?.draftMaloKg ?? session?.outputMaloKg)
-      : '',
-  );
+  const [session, setSession] = useState<SecadoSession | null>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [step, setStep] = useState<'config' | 'active' | 'finish'>('config');
+
+  const [startDate, setStartDate] = useState(dateInput(''));
+  const [endDate, setEndDate] = useState(getTodayLocalDateValue());
+  const [buenoKg, setBuenoKg] = useState('');
+  const [regularKg, setRegularKg] = useState('');
+  const [maloKg, setMaloKg] = useState('');
   const [withExpense, setWithExpense] = useState(false);
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      setSession(null);
+      setLoadingSession(false);
+      return;
+    }
+    let active = true;
+    const fetchSession = async () => {
+      setLoadingSession(true);
+      try {
+        const data = await getSecadoSession(activeSessionId);
+        if (active) {
+          setSession(data);
+          if (data) {
+            setStartDate(dateInput(data.draftStartDate ?? data.startedAt));
+            setEndDate(data.draftEndDate ?? getTodayLocalDateValue());
+            setBuenoKg(
+              (data.draftBuenoKg ?? data.outputBuenoKg)
+                ? String(data.draftBuenoKg ?? data.outputBuenoKg)
+                : '',
+            );
+            setRegularKg(
+              (data.draftRegularKg ?? data.outputRegularKg)
+                ? String(data.draftRegularKg ?? data.outputRegularKg)
+                : '',
+            );
+            setMaloKg(
+              (data.draftMaloKg ?? data.outputMaloKg)
+                ? String(data.draftMaloKg ?? data.outputMaloKg)
+                : '',
+            );
+
+            if (
+              searchParams.get('step') === 'finish' ||
+              data.estado === 'READY'
+            ) {
+              setStep('finish');
+            } else {
+              setStep('config');
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (active) {
+          setLoadingSession(false);
+        }
+      }
+    };
+    void fetchSession();
+    return () => {
+      active = false;
+    };
+  }, [activeSessionId, searchParams]);
   const [secadoExpenses, setSecadoExpenses] = useState<GastoItem[]>([]);
   const [loadingSecadoExpenses, setLoadingSecadoExpenses] = useState(false);
   const [showExpenseWarning, setShowExpenseWarning] = useState(false);
@@ -238,7 +275,10 @@ export default function SecadoProceso() {
   const totalEntrada = useMemo(
     () =>
       session
-        ? session.sublotes.reduce((sum, sublote) => sum + sublote.pesoActual, 0)
+        ? session.sublotes.reduce(
+            (sum: number, sublote) => sum + sublote.pesoActual,
+            0,
+          )
         : pendingTotalEntrada,
     [pendingTotalEntrada, session],
   );
@@ -341,11 +381,11 @@ export default function SecadoProceso() {
 
   const tieneGastoSecado = secadoExpenses.length > 0;
 
-  const confirmarInicioSecado = () => {
+  const confirmarInicioSecado = async () => {
     if (!pendingData) return;
 
     try {
-      const created = startSecadoWithWeights(
+      const created = await startSecadoWithWeights(
         pendingData.detalle,
         pendingData.selectedWeights,
       );
@@ -366,11 +406,11 @@ export default function SecadoProceso() {
     }
   };
 
-  const guardarResultadoSecado = () => {
+  const guardarResultadoSecado = async () => {
     if (!activeSessionId || !session) return;
 
     try {
-      saveSecadoResults(activeSessionId, {
+      await saveSecadoResults(activeSessionId, {
         outputBuenoKg: bueno,
         outputBuenoHumedad: null,
         outputRegularKg: regular,
@@ -422,7 +462,7 @@ export default function SecadoProceso() {
       return;
     }
 
-    guardarResultadoSecado();
+    void guardarResultadoSecado();
   };
 
   const registrarGastoSecado = () => {
@@ -446,17 +486,21 @@ export default function SecadoProceso() {
     });
   };
 
-  const handleExpenseYes = () => {
+  const handleExpenseYes = async () => {
     setWithExpense(true);
 
     if (activeSessionId) {
-      saveSecadoDraft(activeSessionId, {
-        startDate,
-        endDate,
-        buenoKg: bueno,
-        regularKg: regular,
-        maloKg: malo,
-      });
+      try {
+        await saveSecadoDraft(activeSessionId, {
+          startDate,
+          endDate,
+          buenoKg: bueno,
+          regularKg: regular,
+          maloKg: malo,
+        });
+      } catch (err) {
+        console.error('Failed to save draft:', err);
+      }
     }
 
     if (tieneGastoSecado) {
@@ -482,6 +526,16 @@ export default function SecadoProceso() {
   };
   const fechaSecadoError = error?.includes('fecha') ? error : null;
   const resultadoSecadoError = fechaSecadoError ? null : error;
+
+  if (loadingSession && !isNewFlow) {
+    return (
+      <div className="min-h-screen bg-[#f6f6f6] px-4 py-6 text-slate-950 flex items-center justify-center">
+        <div className="text-sm font-bold text-slate-500">
+          Cargando secado...
+        </div>
+      </div>
+    );
+  }
 
   if (!session && !isNewFlow) {
     return (
@@ -516,7 +570,7 @@ export default function SecadoProceso() {
           </button>
           <h1 className="text-sm font-extrabold">
             {step === 'config'
-              ? 'Fecha de inicio'
+              ? 'Nuevo secado'
               : step === 'active'
                 ? 'Secado en proceso'
                 : 'Finalizar el secado'}

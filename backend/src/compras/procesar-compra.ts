@@ -65,20 +65,11 @@ export class CompraValidacionCriticaError extends Error {
   }
 }
 
-/**
- * Utilidades numericas para operar montos y pesos con precision estable a dos decimales.
- */
-function aCentiUnidades(valor: number): number {
-  return Math.round((valor + Number.EPSILON) * 100);
-}
-
-function desdeCentiUnidades(valor: number): number {
-  return valor / 100;
-}
-
-function normalizarADosDecimales(valor: number): number {
-  return desdeCentiUnidades(aCentiUnidades(valor));
-}
+import {
+  aCentiUnidades,
+  desdeCentiUnidades,
+  normalizarADosDecimales,
+} from '../common/utils/math';
 
 function resolverFechaCompra(fecha?: string): string {
   const texto = fecha?.trim();
@@ -306,9 +297,8 @@ export function crearCapacidadSinValidacion(): EstadoCapacidadCompra {
 export function crearCapacidadRequerida(): EstadoCapacidadCompra {
   return {
     validada: false,
-    nivel: 'requiere_configuracion',
-    mensaje:
-      'Antes de registrar una compra, configura la capacidad total de la bodega.',
+    nivel: 'normal',
+    mensaje: 'Capacidad de bodega no configurada.',
   };
 }
 

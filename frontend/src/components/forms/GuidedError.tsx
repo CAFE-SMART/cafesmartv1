@@ -29,6 +29,19 @@ export function createGuidedError(
   return { what, why, how, action };
 }
 
+export function createGuidedErrorFromUi(uiMessage: {
+  titulo: string;
+  mensaje: string;
+  accion?: string;
+}): GuidedErrorMessage {
+  return {
+    what: uiMessage.titulo,
+    why: uiMessage.mensaje,
+    how: uiMessage.accion ?? '',
+    action: uiMessage.accion ?? '',
+  };
+}
+
 export function InlineGuidedError({
   id,
   message,

@@ -22,6 +22,7 @@ import {
 import {
   applySecadoToLots,
   getActiveSecadoSessions,
+  type SecadoSession,
 } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
@@ -255,47 +256,8 @@ function CapacityRing({
   capacityKg: number | null;
   onAdjust: () => void;
 }) {
-  if (!capacityKg) {
-    return (
-      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-        <p
-          className="text-[0.95rem] font-extrabold text-black"
-          style={{ fontWeight: 900 }}
-        >
-          Resumen de Inventario
-        </p>
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div>
-            <p
-              className="text-[2.1rem] font-extrabold leading-none text-[#1D4ED8]"
-              style={{ fontWeight: 900 }}
-            >
-              {formatNumber(totalKg)} kg
-            </p>
-            <p
-              className="mt-1 text-sm font-semibold text-slate-600"
-              style={{ fontWeight: 700 }}
-            >
-              Configura la capacidad para calcular la ocupación.
-            </p>
-          </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#eef2ff] bg-white text-[#1D4ED8] shadow-sm">
-            <Coffee size={18} />
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onAdjust}
-          className="mt-3 text-[0.72rem] font-black text-[#1D4ED8]"
-        >
-          Ajustar bodega
-        </button>
-      </section>
-    );
-  }
-
-  const safeCapacity = Math.max(1, capacityKg);
-  const rawPercentage = Math.max(0, (totalKg / safeCapacity) * 100);
+  const safeCapacity = capacityKg && capacityKg > 0 ? capacityKg : null;
+  const rawPercentage = safeCapacity ? Math.max(0, (totalKg / safeCapacity) * 100) : 0;
   const displayPercentage =
     rawPercentage === 0
       ? '0'
@@ -303,87 +265,99 @@ function CapacityRing({
         ? rawPercentage.toFixed(1)
         : rawPercentage.toFixed(0);
   const ringPercentage =
-    totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
+    safeCapacity && totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
   const tone = getCapacityTone(rawPercentage);
-  const circumference = 2 * Math.PI * 58;
+  
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
   const offset = circumference - (ringPercentage / 100) * circumference;
 
   return (
-    <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <section
+      onClick={onAdjust}
+      className="cursor-pointer relative overflow-hidden rounded-[22px] border border-[#e6e8f3] bg-white p-4 shadow-sm transition hover:border-[#1D4ED8]"
+      style={{
+        backgroundImage: 'radial-gradient(#e2e8f0 1.2px, transparent 1.2px)',
+        backgroundSize: '16px 16px',
+      }}
+    >
+      <div className="relative z-10">
+        <div className="flex items-center justify-between">
           <p
-            className="text-[0.9rem] font-extrabold text-black"
-            style={{ fontWeight: 900 }}
+            className="text-[0.88rem] font-extrabold text-[#2d231d] tracking-wide"
+            style={{ fontWeight: 800 }}
           >
-            Resumen de Inventario
+            Ocupación de Bodega
           </p>
-          <div className="mt-3 flex min-w-0 items-baseline gap-1.5">
-            <p
-              className={`text-[1.35rem] font-extrabold leading-none ${tone.text}`}
-              style={{ fontWeight: 900 }}
-            >
-              {formatNumber(totalKg)}
-            </p>
+          {safeCapacity && (
             <span
-              className={`text-[1.35rem] font-extrabold leading-none ${tone.text}`}
-              style={{ fontWeight: 900 }}
+              className={`rounded-full px-2 py-0.5 text-[0.55rem] font-black uppercase tracking-wider ${tone.chip}`}
             >
-              kg
+              {tone.label}
             </span>
-            <span className="text-[0.9rem] font-black leading-none text-slate-400">
-              / {formatNumber(safeCapacity)}
-            </span>
-          </div>
+          )}
         </div>
 
-        <div className="-mt-1 flex shrink-0 flex-col items-center gap-1 self-start">
-          <div className="relative flex h-[58px] w-[58px] items-center justify-center">
-            <svg viewBox="0 0 140 140" className="h-[58px] w-[58px] -rotate-90">
+        <div className="mt-3 flex items-center justify-center">
+          <div className="relative flex h-[115px] w-[115px] items-center justify-center">
+            <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
               <circle
-                cx="70"
-                cy="70"
-                r="58"
-                stroke="#edf1fa"
-                strokeWidth="12"
+                cx="60"
+                cy="60"
+                r={radius}
+                stroke="#f6f3ed"
+                strokeWidth="10"
                 fill="none"
               />
               <circle
-                cx="70"
-                cy="70"
-                r="58"
-                stroke={tone.color}
-                strokeWidth="12"
+                cx="60"
+                cy="60"
+                r={radius}
+                stroke={safeCapacity ? tone.color : '#cbd5e1'}
+                strokeWidth="10"
                 fill="none"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={offset}
+                className="transition-all duration-500 ease-out"
               />
             </svg>
-            <div
-              className={`absolute flex h-7 w-7 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm ${tone.text}`}
-            >
-              <Coffee size={11} />
+            <div className="absolute flex flex-col items-center justify-center text-center">
+              <span className="text-[1.5rem] font-black text-slate-900 leading-none">
+                {safeCapacity ? `${displayPercentage}%` : '0%'}
+              </span>
+              <span className="text-[0.6rem] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">
+                {safeCapacity ? 'Capacidad' : 'Sin definir'}
+              </span>
             </div>
           </div>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[0.56rem] font-black ${tone.chip}`}
-          >
-            {tone.label}
-          </span>
         </div>
-      </div>
-      <div className="mt-3 flex items-end justify-between gap-3 border-t border-[#eef2f8] pt-2">
-        <p className={`text-[0.72rem] font-black ${tone.softText}`}>
-          Capacidad usada: {displayPercentage}%
-        </p>
-        <button
-          type="button"
-          onClick={onAdjust}
-          className="text-right text-[0.68rem] font-black text-slate-400 transition hover:text-[#1D4ED8]"
-        >
-          Ajustar bodega
-        </button>
+
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[#eef2f8] pt-3.5 text-center">
+          <div className="relative">
+            <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-[0.06em]">
+              Total Kg
+            </p>
+            <p className="mt-1 text-[1.3rem] font-black text-slate-900 leading-none">
+              {formatNumber(totalKg)}
+            </p>
+            <div className="absolute right-0 top-1/2 h-6 w-[1px] -translate-y-1/2 bg-[#e2e8f0]" />
+          </div>
+          <div>
+            <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-[0.06em]">
+              Bultos
+            </p>
+            <p className="mt-1 text-[1.3rem] font-black text-slate-900 leading-none">
+              {new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Math.round(totalKg / BULTO_KG))}
+            </p>
+          </div>
+        </div>
+
+        {!safeCapacity && (
+          <p className="mt-2.5 text-center text-[0.65rem] font-bold text-[#1D4ED8]">
+            Toca aquí para definir la capacidad máxima de tu bodega.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -427,10 +401,11 @@ function TypeSummaryCard({
 
         <div className="flex items-center gap-2">
           <span
-            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${isProcess
-              ? 'bg-[#fff2cc] text-[#946200]'
-              : 'bg-[#f2f3f7] text-slate-700'
-              }`}
+            className={`whitespace-nowrap rounded-[12px] px-3 py-2 text-[0.78rem] font-semibold ${
+              isProcess
+                ? 'bg-[#fff2cc] text-[#946200]'
+                : 'bg-[#f2f3f7] text-slate-700'
+            }`}
           >
             {isProcess ? 'Ver secado' : sublotesLabel}
           </span>
@@ -478,6 +453,11 @@ function QualityLotCard({
             <p className="mt-0.5 text-[0.72rem] font-semibold text-slate-500">
               {formatNumber(lot.pesoActual)} kg
             </p>
+            {(lot.pesoEnSecado ?? 0) > 0 ? (
+              <p className="mt-0.5 text-[0.72rem] font-semibold text-amber-600">
+                {formatNumber(lot.pesoDisponible ?? lot.pesoActual)} kg disponible · {formatNumber(lot.pesoEnSecado!)} kg en secado
+              </p>
+            ) : null}
             <p className="mt-1 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-slate-500">
               <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
               {lotDays} días
@@ -506,7 +486,7 @@ function SecadoProcessCard({
   session,
   onOpen,
 }: {
-  session: ReturnType<typeof getActiveSecadoSessions>[number];
+  session: SecadoSession;
   onOpen: () => void;
 }) {
   const totalKg = session.sublotes.reduce(
@@ -518,10 +498,10 @@ function SecadoProcessCard({
   const fecha = Number.isNaN(startedAt.getTime())
     ? 'Hoy'
     : startedAt.toLocaleDateString('es-CO', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
 
   return (
     <button
@@ -589,17 +569,29 @@ export default function Inventario() {
   const [capacidadBodegaForm, setCapacidadBodegaForm] = useState('');
   const [guardandoBodega, setGuardandoBodega] = useState(false);
   const [errorBodega, setErrorBodega] = useState<string | null>(null);
+  const [activeSecadoSessions, setActiveSecadoSessions] = useState<
+    SecadoSession[]
+  >([]);
 
   const loadLots = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [data, config] = await Promise.all([
+      const [data, config, sessions] = await Promise.all([
         obtenerLotes(),
         obtenerConfiguracionBodega(),
+        ENABLE_SECADO_PROTOTYPE
+          ? getActiveSecadoSessions()
+          : Promise.resolve([]),
       ]);
 
+      setActiveSecadoSessions(
+        [...sessions].sort(
+          (a, b) =>
+            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        ),
+      );
       setLots(ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data);
       setBodegaConfig({
         nombreBodega: config.nombreBodega,
@@ -798,16 +790,7 @@ export default function Inventario() {
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
     [lots],
   );
-  const activeSecadoSessions = useMemo(
-    () =>
-      ENABLE_SECADO_PROTOTYPE
-        ? [...getActiveSecadoSessions()].sort(
-          (a, b) =>
-            new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
-        )
-        : [],
-    [lots],
-  );
+  // activeSecadoSessions is now loaded as state in loadLots
 
   const isGreenInventoryView = isVerdeType(typeKey);
 
@@ -819,21 +802,33 @@ export default function Inventario() {
 
   return (
     <div
-      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
-        }`}
+      className={`min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 ${
+        showGlobalEmptyState ? 'pb-[112px]' : 'pb-[150px]'
+      }`}
     >
       <main
-        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${showGlobalEmptyState
-          ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
-          : 'flex-col gap-5'
-          }`}
+        className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
+          showGlobalEmptyState
+            ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
+            : 'flex-col gap-5'
+        }`}
       >
         {!showGlobalEmptyState ? (
-          <CapacityRing
-            totalKg={totalKg}
-            capacityKg={bodegaConfig.capacidadKg}
-            onAdjust={abrirModalBodega}
-          />
+          <>
+            <header className="mb-2">
+              <h1 className="text-[1.8rem] font-black text-[#121826] leading-tight">
+                Tu café en bodega
+              </h1>
+              <p className="mt-1 text-sm font-semibold text-slate-500 leading-relaxed">
+                Este es todo el café que tienes almacenado actualmente.
+              </p>
+            </header>
+            <CapacityRing
+              totalKg={totalKg}
+              capacityKg={bodegaConfig.capacidadKg}
+              onAdjust={abrirModalBodega}
+            />
+          </>
         ) : null}
 
         {!showGlobalEmptyState ? (
@@ -859,10 +854,11 @@ export default function Inventario() {
 
                       setTypeKey(item.key);
                     }}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${active
-                      ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
-                      : 'border-[#d8deea] bg-white text-slate-600'
-                      }`}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-[#111827] bg-[#111827] text-white shadow-sm'
+                        : 'border-[#d8deea] bg-white text-slate-600'
+                    }`}
                   >
                     {displayCoffeeName(item.label)}
                   </button>
@@ -1035,10 +1031,10 @@ export default function Inventario() {
         ) : null}
 
         {!loading &&
-          !error &&
-          typeKey !== '' &&
-          typeKey !== 'EN SECADO' &&
-          orderedLots.length > 0 ? (
+        !error &&
+        typeKey !== '' &&
+        typeKey !== 'EN SECADO' &&
+        orderedLots.length > 0 ? (
           <section className={inventoryListClass(orderedLots.length)}>
             {orderedLots.map((lot) => (
               <QualityLotCard

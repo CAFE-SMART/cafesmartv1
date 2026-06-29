@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -26,13 +26,12 @@ import {
 } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import { ApiRequestError } from '../services/apiService';
+import { formatoMoneda, formatCurrencyShort as getFormatCurrencyShort } from '../utils/formatMoney';
 
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 
 function formatCurrency(value: number) {
-  return `$ ${new Intl.NumberFormat('es-CO', {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+  return formatoMoneda(value);
 }
 
 function formatKg(value: number) {
@@ -60,18 +59,7 @@ function formatDayShort(value: Date) {
 }
 
 function formatCurrencyShort(value: number) {
-  const abs = Math.abs(value);
-  if (abs >= 1000000) {
-    return `$${(value / 1000000).toLocaleString('es-CO', {
-      maximumFractionDigits: 1,
-    })}M`;
-  }
-  if (abs >= 1000) {
-    return `$${(value / 1000).toLocaleString('es-CO', {
-      maximumFractionDigits: 0,
-    })}K`;
-  }
-  return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+  return getFormatCurrencyShort(value);
 }
 
 function getFinancialSummaryErrorMessage(error: unknown) {
@@ -205,6 +193,14 @@ function getUtilidadAsistente(
 
 export default function ResumenFinanciero() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = useState(0);
+  useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -289,8 +285,7 @@ export default function ResumenFinanciero() {
     month: 'short',
     year: 'numeric',
   });
-  const periodoLabel =
-    periodo === 'DIARIO' ? 'hoy' : 'en los últimos 7 días';
+  const periodoLabel = periodo === 'DIARIO' ? 'hoy' : 'en los últimos 7 días';
   const movimientosDelPeriodo = useMemo(() => {
     const ahora = new Date();
     const inicio = new Date(ahora);
@@ -532,7 +527,9 @@ export default function ResumenFinanciero() {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-label={
+                  showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                }
               >
                 {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -558,7 +555,11 @@ export default function ResumenFinanciero() {
                 type="button"
                 onClick={() => setShowConfirmPassword((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label={showConfirmPassword ? 'Ocultar confirmación' : 'Mostrar confirmación'}
+                aria-label={
+                  showConfirmPassword
+                    ? 'Ocultar confirmación'
+                    : 'Mostrar confirmación'
+                }
               >
                 {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -646,7 +647,8 @@ export default function ResumenFinanciero() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[0.62rem] font-black uppercase tracking-[0.08em] text-white/80">
-                    Utilidad estimada {periodo === 'DIARIO' ? 'de hoy' : 'últimos 7 días'}
+                    Utilidad estimada{' '}
+                    {periodo === 'DIARIO' ? 'de hoy' : 'últimos 7 días'}
                   </p>
                   <p className="mt-2 text-[1.7rem] font-black leading-none tracking-normal">
                     {loading ? '...' : formatCurrency(utilidadEstimada)}
@@ -955,7 +957,8 @@ export default function ResumenFinanciero() {
                   if (e.target === e.currentTarget) setHistorialAbierto(false);
                 }}
               >
-                <section className="flex w-full max-w-[430px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.22)] sm:rounded-[18px] sm:mx-4"
+                <section
+                  className="flex w-full max-w-[430px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.22)] sm:rounded-[18px] sm:mx-4"
                   style={{ maxHeight: '88vh' }}
                 >
                   {/* Header del modal */}

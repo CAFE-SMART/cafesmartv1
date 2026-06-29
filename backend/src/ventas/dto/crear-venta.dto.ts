@@ -13,7 +13,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  PESO_MINIMO_KG,
   PRECIO_MAXIMO_KG,
   PRECIO_MINIMO_KG,
 } from '../../common/business-rules';

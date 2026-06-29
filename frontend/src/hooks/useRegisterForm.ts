@@ -217,22 +217,24 @@ export function useRegisterForm({
       }
     }
 
-    const checks = getPasswordChecks(password);
-    if (
-      password.length > PASSWORD_MAX_LENGTH ||
-      !checks.minLength ||
-      !checks.hasLower ||
-      !checks.hasUpper ||
-      !checks.hasNumber
-    ) {
-      nextErrors.password =
-        'Mínimo 6 caracteres, minúscula, mayúscula y número.';
-    }
+    if (!hasGoogleFlow) {
+      const checks = getPasswordChecks(password);
+      if (
+        password.length > PASSWORD_MAX_LENGTH ||
+        !checks.minLength ||
+        !checks.hasLower ||
+        !checks.hasUpper ||
+        !checks.hasNumber
+      ) {
+        nextErrors.password =
+          'Mínimo 6 caracteres, minúscula, mayúscula y número.';
+      }
 
-    if (!confirmPassword.trim()) {
-      nextErrors.confirmPassword = 'Confirma tu contraseña.';
-    } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'No coinciden.';
+      if (!confirmPassword.trim()) {
+        nextErrors.confirmPassword = 'Confirma tu contraseña.';
+      } else if (confirmPassword !== password) {
+        nextErrors.confirmPassword = 'No coinciden.';
+      }
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -261,7 +263,7 @@ export function useRegisterForm({
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
         telefono,
         correo,
-        password,
+        password: hasGoogleFlow ? undefined : password,
       },
     });
   };

@@ -4,6 +4,7 @@ import {
   BadgeDollarSign,
   Coffee,
   CalendarDays,
+  CircleDashed,
   Leaf,
   LoaderCircle,
   LogOut,
@@ -28,6 +29,10 @@ import {
   guardarConfiguracionBodega,
   obtenerConfiguracionBodega,
 } from '../services/bodegaApi';
+import {
+  getActiveSecadoSessions,
+  type SecadoSession,
+} from '../utils/secadoFlow';
 
 const sectionTitleClass = 'text-[0.9rem] font-semibold text-slate-800';
 const cardClass =
@@ -319,6 +324,7 @@ export default function Inicio() {
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<DashboardInicio | null>(null);
+  const [activeSecadoSessions, setActiveSecadoSessions] = useState<SecadoSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -336,13 +342,18 @@ export default function Inicio() {
     }
 
     try {
-      const dashboardResult = await obtenerDashboardInicio();
+      const [dashboardResult, sessions] = await Promise.all([
+        obtenerDashboardInicio(),
+        getActiveSecadoSessions(),
+      ]);
 
       setSummary(dashboardResult);
+      setActiveSecadoSessions(sessions);
       setError(null);
     } catch (err) {
       setError(resolveDashboardErrorMessage(err));
       setSummary(null);
+      setActiveSecadoSessions([]);
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -351,6 +362,13 @@ export default function Inicio() {
       }
     }
   }, []);
+
+  const kgEnSecado = useMemo(() => {
+    return activeSecadoSessions.reduce((sum, session) => {
+      const entrada = session.sublotes.reduce((s, sub) => s + sub.pesoActual, 0);
+      return sum + entrada;
+    }, 0);
+  }, [activeSecadoSessions]);
 
   useEffect(() => {
     void cargarDashboard();
@@ -553,29 +571,19 @@ export default function Inicio() {
               <div className={`mt-3 ${cardClass}`}>
                 <div className="grid grid-cols-2 gap-2">
                   <SummaryMetricCard
-                    label="Compras"
+                    label="Café en secado"
+                    icon={<SunMedium size={16} />}
+                    tone="amber"
+                    value={formatMetric(
+                      loading,
+                      kgEnSecado,
+                      formatKg,
+                    )}
+                  />
+                  <SummaryMetricCard
+                    label="Comprado hoy"
                     icon={<ShoppingCart size={16} />}
                     tone="blue"
-                    value={formatMetric(
-                      loading,
-                      summary?.comprasHoy ?? null,
-                      formatInteger,
-                    )}
-                  />
-                  <SummaryMetricCard
-                    label="Ventas"
-                    icon={<BadgeDollarSign size={16} />}
-                    tone="green"
-                    value={formatMetric(
-                      loading,
-                      summary?.ventasHoy ?? null,
-                      formatInteger,
-                    )}
-                  />
-                  <SummaryMetricCard
-                    label="Kg comprados"
-                    icon={<PackageCheck size={16} />}
-                    tone="amber"
                     value={formatMetric(
                       loading,
                       summary?.kgCompradosHoy ?? null,
@@ -583,13 +591,23 @@ export default function Inicio() {
                     )}
                   />
                   <SummaryMetricCard
-                    label="Productores"
-                    icon={<UserRound size={16} />}
+                    label="Café en bodega"
+                    icon={<Leaf size={16} />}
+                    tone="green"
+                    value={formatMetric(
+                      loading,
+                      summary?.kgActual ?? null,
+                      formatKg,
+                    )}
+                  />
+                  <SummaryMetricCard
+                    label="Secados activos"
+                    icon={<CircleDashed size={16} />}
                     tone="slate"
                     value={formatMetric(
                       loading,
-                      summary?.totalProductores ?? null,
-                      formatInteger,
+                      activeSecadoSessions.length,
+                      (v) => `${v} proceso${v === 1 ? '' : 's'}`,
                     )}
                   />
                 </div>

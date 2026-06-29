@@ -9,11 +9,12 @@ import {
   ReceiptText,
   RefreshCw,
   Search,
-  Scale,
   Trash2,
   User,
   X,
   Check,
+  CircleHelp,
+  Headset,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -56,6 +57,7 @@ import {
   validateBusinessDateRange,
 } from '../utils/date';
 import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
+import { formatearMonedaInput, formatoMoneda } from '../utils/formatMoney';
 import {
   type DocumentType,
   PERSON_NAME_MAX_LENGTH,
@@ -121,10 +123,10 @@ const LIMITE_CLIENTES_MODAL = 100;
 
 const CLIENTE_GENERAL: ClienteOption = {
   id: 'general',
-  nombre: 'Cliente General',
-  documento: 'Venta rapida',
+  nombre: 'Cliente Genérico',
+  documento: '',
   detalle:
-    'Para ventas rapidas o clientes ocasionales no registrados en el sistema.',
+    'Para ventas rápidas o clientes ocasionales no registrados en el sistema.',
   createdAt: '',
   rapido: true,
 };
@@ -132,9 +134,9 @@ const TIPOS_DOCUMENTO_CLIENTE: Array<{
   value: DocumentType;
   label: string;
 }> = [
-    { value: 'CC', label: 'Cédula de ciudadanía' },
-    { value: 'NIT', label: 'NIT' },
-  ];
+  { value: 'CC', label: 'Cédula de ciudadanía' },
+  { value: 'NIT', label: 'NIT' },
+];
 const CLIENTE_FORM_INICIAL: ClienteForm = {
   nombre: '',
   tipoDocumento: 'CC',
@@ -144,8 +146,7 @@ const CLIENTE_FORM_INICIAL: ClienteForm = {
 
 const kg = (v: number) =>
   `${v.toLocaleString('es-CO', { maximumFractionDigits: 2 })} kg`;
-const money = (v: number) =>
-  `$${v.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+const money = (v: number) => formatoMoneda(v);
 const toNum = (v: string) => {
   const n = Number(v.replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -159,10 +160,11 @@ const norm = (v: string) =>
 const keyOf = (v: string) => v.trim().toUpperCase();
 
 function personFieldClass(hasError?: boolean) {
-  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${hasError
-    ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
-    : 'border-[#dde4f1] focus:border-[#173ea6]'
-    }`;
+  return `w-full rounded-[14px] border bg-[#f7f9fd] px-4 py-3 text-[0.95rem] font-semibold text-slate-900 outline-none transition ${
+    hasError
+      ? 'border-rose-300 bg-rose-50/40 focus:border-rose-400'
+      : 'border-[#dde4f1] focus:border-[#173ea6]'
+  }`;
 }
 
 function PersonFieldError({ message }: { message: string }) {
@@ -194,23 +196,6 @@ function isSecadoProcessLot(lote: LoteResumen | LoteVenta) {
 
 function coffeeWithQuality(tipoCafe: string, calidad: string) {
   return `${formatCoffeeLabel(tipoCafe)} - ${formatDisplayLabel(calidad)}`;
-}
-
-function mkLotes(lotes: LoteResumen[]): LoteVenta[] {
-  return lotes
-    .filter((l) => l.pesoActual > 0)
-    .map((l) => ({
-      id: l.id,
-      codigo: l.codigo,
-      tipoCafeId: l.tipoCafeId,
-      tipoCafe: l.tipoCafe,
-      calidadId: l.calidadId,
-      calidad: l.calidad,
-      disponibleKg: l.pesoActual,
-      cantidadKg: '',
-      precioKg: '',
-      pesoVerificadoKg: '',
-    }));
 }
 
 const uid = () =>
@@ -375,30 +360,6 @@ function pesoVerificadoInvalido(lote: LoteVenta) {
   );
 }
 
-function distribuirPesoVerificado(
-  pool: Array<{ subloteId: string; disponibleKg: number }>,
-  pesoVerificado: number,
-) {
-  const totalActual = round2(
-    pool.reduce((sum, item) => sum + item.disponibleKg, 0),
-  );
-  if (pesoVerificado >= totalActual || totalActual <= 0) return pool;
-
-  let acumulado = 0;
-  return pool.map((item, index) => {
-    const disponibleKg =
-      index === pool.length - 1
-        ? round2(Math.max(0, pesoVerificado - acumulado))
-        : round2((item.disponibleKg / totalActual) * pesoVerificado);
-    acumulado = round2(acumulado + disponibleKg);
-
-    return {
-      ...item,
-      disponibleKg,
-    };
-  });
-}
-
 function datosPasoVenta(step: Step) {
   if (step === 1) {
     return {
@@ -418,7 +379,11 @@ function datosPasoVenta(step: Step) {
   };
 }
 
-function getVentasGuidance(message: string, minPrecio: number, maxPrecio: number): GuidedErrorMessage {
+function getVentasGuidance(
+  message: string,
+  minPrecio: number,
+  maxPrecio: number,
+): GuidedErrorMessage {
   if (message.includes('nombre')) {
     return createGuidedError(
       message,
@@ -487,7 +452,7 @@ function getVentasGuidance(message: string, minPrecio: number, maxPrecio: number
       message,
       'Selecciona un cliente',
       'No elegiste a quien registrar la venta.',
-      'Usa Cliente General o busca uno.',
+      'Usa Cliente Genérico o busca uno.',
     );
   }
 
@@ -701,6 +666,15 @@ function getPrecioTipoGuidance(
 
 export default function Ventas() {
   const navigate = useNavigate();
+  const [, setCurrencyTick] = React.useState(0);
+  const [supportModal, setSupportModal] = React.useState<'help' | 'contact' | null>(null);
+  React.useEffect(() => {
+    const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
+    window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    return () => {
+      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+    };
+  }, []);
   const [cargando, setCargando] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guardandoVenta, setGuardandoVenta] = React.useState(false);
@@ -728,9 +702,7 @@ export default function Ventas() {
     sublotes: 0,
     kg: 0,
   });
-  const [loteAjustandoId, setLoteAjustandoId] = React.useState<string | null>(
-    null,
-  );
+
   const [clientes, setClientes] = React.useState<ClienteOption[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] =
     React.useState<ClienteOption | null>(null);
@@ -792,7 +764,7 @@ export default function Ventas() {
         ? applySecadoToLots(lotes, { includeGeneratedOutputs: false })
         : lotes;
       const secadosActivos = ENABLE_SECADO_PROTOTYPE
-        ? getActiveSecadoSessions()
+        ? await getActiveSecadoSessions()
         : [];
       setSecadoExcluidoVenta({
         sublotes: secadosActivos.reduce(
@@ -811,11 +783,13 @@ export default function Ventas() {
           ),
         ),
       });
-      const lotesFiltrados = lotesDisponibles.filter((lote) => !isSecadoProcessLot(lote));
+      const lotesFiltrados = lotesDisponibles.filter(
+        (lote) => !isSecadoProcessLot(lote),
+      );
       const lotesDetalles = await Promise.all(
         lotesFiltrados.map((lote) =>
-          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).catch(() => null)
-        )
+          obtenerDetalleLote(lote.tipoCafeId, lote.calidadId).catch(() => null),
+        ),
       );
 
       const list: LoteVenta[] = [];
@@ -825,9 +799,9 @@ export default function Ventas() {
         if (!detail) continue;
 
         const sublotesList = ENABLE_SECADO_PROTOTYPE
-          ? applySecadoToDetalle(detail, lote.tipoCafeId, lote.calidadId, {
+          ? (applySecadoToDetalle(detail, lote.tipoCafeId, lote.calidadId, {
               includeGeneratedOutputs: false,
-            })?.sublotes ?? []
+            })?.sublotes ?? [])
           : detail.sublotes;
 
         for (const sub of sublotesList) {
@@ -839,7 +813,7 @@ export default function Ventas() {
               tipoCafe: sub.tipoCafe,
               calidadId: sub.calidadId,
               calidad: sub.calidad,
-              disponibleKg: sub.pesoActual,
+              disponibleKg: sub.pesoDisponible ?? sub.pesoActual,
               cantidadKg: '',
               precioKg: '',
               pesoVerificadoKg: '',
@@ -956,7 +930,12 @@ export default function Ventas() {
     }
 
     return invalidos;
-  }, [minPrecioVentaKg, precioMaximoVentaPermitido, preciosVentaTotal, resumenDisponiblePorTipo]);
+  }, [
+    minPrecioVentaKg,
+    precioMaximoVentaPermitido,
+    preciosVentaTotal,
+    resumenDisponiblePorTipo,
+  ]);
   const preciosVentaTotalFaltantes = React.useMemo(
     () =>
       resumenDisponiblePorTipo.some(
@@ -1255,16 +1234,16 @@ export default function Ventas() {
         const normalizado =
           campo === 'precioKg'
             ? sanitizeIntegerVentaInput(
-              valor,
-              precioMaximoVentaPermitido,
-              l.precioKg,
-            )
+                valor,
+                precioMaximoVentaPermitido,
+                l.precioKg,
+              )
             : sanitizeDecimalVentaInput(
-              valor,
-              campo === 'pesoVerificadoKg'
-                ? l.disponibleKg
-                : getDisponibleVenta(l),
-            );
+                valor,
+                campo === 'pesoVerificadoKg'
+                  ? l.disponibleKg
+                  : getDisponibleVenta(l),
+              );
 
         const updatedLote = { ...l, [campo]: normalizado };
 
@@ -1283,24 +1262,6 @@ export default function Ventas() {
 
         return updatedLote;
       }),
-    );
-  };
-
-  const usarPesoRegistrado = (lote: LoteVenta) => {
-    setLoteAjustandoId(null);
-    setLotesVenta((prev) =>
-      prev.map((item) =>
-        item.id === lote.id
-          ? {
-            ...item,
-            pesoVerificadoKg: '',
-            cantidadKg:
-              modoVenta === 'PARCIAL'
-                ? String(round2(lote.disponibleKg))
-                : item.cantidadKg,
-          }
-          : item,
-      ),
     );
   };
 
@@ -1685,8 +1646,8 @@ export default function Ventas() {
             >
               <ArrowLeft size={22} />
             </button>
-            <h1 className="text-[1.35rem] font-semibold text-slate-900">
-              Registro de Venta
+            <h1 className="text-center text-[1.35rem] font-semibold text-slate-900">
+              Nueva venta
             </h1>
           </div>
 
@@ -1736,56 +1697,58 @@ export default function Ventas() {
             {paso === 2 ? (
               <div className="flex flex-col gap-4">
                 <section className="rounded-[22px] border border-[#e5e7f2] bg-white p-4 shadow-sm">
-                  <div className="mt-3 rounded-[14px] border border-[#dbe1f1] bg-[#f7f8fe] p-3">
-                    <p className="text-xs font-medium text-slate-500">
-                      Cliente seleccionado
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
-                      {clienteSeleccionado?.nombre ?? 'Sin cliente'}
-                    </p>
-                    {clienteSeleccionado?.id !== 'general' && (
-                      <p className="text-xs text-slate-600">
-                        {clienteSeleccionado?.documento ??
-                          'Selección pendiente'}
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {/* Columna 1: Cliente Seleccionado */}
+                    <div className="rounded-[18px] border border-[#dbe1f1] bg-[#f7f8fe] p-3.5 flex flex-col justify-center min-w-0">
+                      <p className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider">
+                        Cliente
                       </p>
-                    )}
+                      <p className="mt-0.5 text-[0.85rem] font-bold text-slate-800 truncate">
+                        {clienteSeleccionado?.nombre ?? 'Sin cliente'}
+                      </p>
+                      {clienteSeleccionado?.id !== 'general' ? (
+                        <p className="text-[0.72rem] text-slate-500 truncate mt-0.5">
+                          {clienteSeleccionado?.documento ?? 'Doc. pendiente'}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* Columna 2: Selector de Fecha (Clickeable) */}
+                    <label className="group relative flex flex-col justify-center rounded-[18px] border border-[#dbe1f1] bg-white p-3.5 hover:border-[#1D4ED8] hover:bg-[#eef2ff]/20 cursor-pointer transition-all duration-200 shadow-[0_4px_12px_rgba(20,35,85,0.02)] active:scale-[0.98]">
+                      <span className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider block mb-0.5 group-hover:text-[#1D4ED8] transition-colors">
+                        Fecha de venta
+                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CalendarDays
+                          size={14}
+                          className="shrink-0 text-slate-400 group-hover:text-[#1D4ED8] transition-colors"
+                        />
+                        <input
+                          type="date"
+                          value={fechaVenta}
+                          min={BUSINESS_MIN_DATE_VALUE}
+                          max={getTodayLocalDateValue()}
+                          onChange={(event) => {
+                            setFechaVenta(event.target.value);
+                            setSubmitError(null);
+                          }}
+                          className="w-full bg-transparent text-[0.82rem] font-bold text-slate-800 outline-none cursor-pointer focus:text-[#1D4ED8]"
+                        />
+                      </div>
+                    </label>
                   </div>
 
-                  <div className="mt-4 rounded-[18px] border border-[#dbe1f1] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(20,35,85,0.02)]">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays
-                          size={15}
-                          className="shrink-0 text-slate-400"
-                        />
-                        <span className="text-[0.85rem] font-semibold text-slate-800">
-                          Fecha de venta
-                        </span>
-                      </div>
-                      <input
-                        type="date"
-                        value={fechaVenta}
-                        min={BUSINESS_MIN_DATE_VALUE}
-                        max={getTodayLocalDateValue()}
-                        onChange={(event) => {
-                          setFechaVenta(event.target.value);
-                          setSubmitError(null);
-                        }}
-                        className="bg-transparent text-[0.95rem] font-semibold text-slate-900 outline-none"
-                      />
-                    </div>
-                    {fechaVentaInvalida ? (
-                      <InlineGuidedError
-                        message={getVentasGuidance(
-                          fechaVentaValidacion.message ??
-                            'Selecciona la fecha de venta.',
-                          minPrecioVentaKg,
-                          precioMaximoVentaPermitido,
-                        )}
-                        className="mt-2"
-                      />
-                    ) : null}
-                  </div>
+                  {fechaVentaInvalida ? (
+                    <InlineGuidedError
+                      message={getVentasGuidance(
+                        fechaVentaValidacion.message ??
+                          'Selecciona la fecha de venta.',
+                        minPrecioVentaKg,
+                        precioMaximoVentaPermitido,
+                      )}
+                      className="mt-2"
+                    />
+                  ) : null}
 
                   <h2 className="mt-5 text-[1.12rem] font-semibold text-slate-900">
                     ¿Cómo deseas realizar la venta?
@@ -1960,8 +1923,8 @@ export default function Ventas() {
                                     type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
-                                    maxLength={6}
-                                    value={precioTipo}
+                                    maxLength={10}
+                                    value={formatearMonedaInput(precioTipo)}
                                     onChange={(event) => {
                                       const raw = sanitizeIntegerVentaInput(
                                         event.target.value,
@@ -1973,12 +1936,13 @@ export default function Ventas() {
                                         [item.tipoCafeId]: raw,
                                       }));
                                     }}
-                                    placeholder="Ej. 14500"
+                                    placeholder="Ej. 14.500"
                                     className="w-full bg-transparent text-xl font-black text-slate-950 outline-none placeholder:text-slate-300"
                                   />
                                 </label>
                                 <p className="mt-1 text-right text-[0.62rem] font-semibold text-slate-400">
-                                  Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                  Rango: {money(minPrecioVentaKg)} -{' '}
+                                  {money(precioMaximoVentaPermitido)}/kg
                                 </p>
                                 {precioTipoInvalido ? (
                                   <InlineGuidedError
@@ -2014,12 +1978,10 @@ export default function Ventas() {
                         const cantidadIngresada = lote.cantidadKg.trim() !== '';
                         const precioIngresado = lote.precioKg.trim() !== '';
                         const disponibleVenta = getDisponibleVenta(lote);
-                        // Desactivados para no mostrar en la UI de Ajuste de Peso
-                        const ajustePesoKg = 0;
-                        const pesoVerificadoError = false;
-                        const estaAjustandoPeso = false;
+
                         // El sublote está "activo" si el usuario llenó al menos uno de los campos
-                        const subloteActivo = cantidadIngresada || precioIngresado;
+                        const subloteActivo =
+                          cantidadIngresada || precioIngresado;
                         // Si el usuario intentó avanzar Y el sublote está activo, validar ambos campos
                         // Si solo uno está lleno, mostrar error en el faltante inmediatamente
                         const cantidadFalta =
@@ -2063,94 +2025,7 @@ export default function Ventas() {
                                     Registrado: {kg(lote.disponibleKg)}
                                   </p>
                                 </div>
-                                {/* El botón Ajustar y su panel fueron desactivados y comentados
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-[12px] bg-slate-100 px-3 text-[0.72rem] font-black text-slate-400 opacity-50 cursor-not-allowed"
-                                  aria-expanded={estaAjustandoPeso}
-                                >
-                                  <Scale size={14} />
-                                  Ajustar
-                                </button>
-                                */}
                               </div>
-                              {/* 
-                              {estaAjustandoPeso ? (
-                                <div className="mt-3 rounded-[12px] border border-[#dce5f6] bg-[#f8faff] p-3">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <label
-                                      className="text-xs font-black text-slate-600"
-                                      htmlFor={`peso-${lote.id}`}
-                                    >
-                                      Peso total actual
-                                    </label>
-                                    <button
-                                      type="button"
-                                      onClick={() => usarPesoRegistrado(lote)}
-                                      className="rounded-full bg-white px-3 py-1.5 text-[0.65rem] font-black text-[#1D4ED8] shadow-sm"
-                                    >
-                                      Usar registrado
-                                    </button>
-                                  </div>
-                                  <input
-                                    id={`peso-${lote.id}`}
-                                    type="range"
-                                    min={0}
-                                    max={lote.disponibleKg}
-                                    step="0.01"
-                                    value={lote.pesoVerificadoKg === '' ? 0 : disponibleVenta}
-                                    onChange={(event) =>
-                                      updateLote(
-                                        lote.id,
-                                        'pesoVerificadoKg',
-                                        event.target.value,
-                                      )
-                                    }
-                                    className="mt-3 w-full accent-[#102d92]"
-                                  />
-                                  <label className="mt-3 flex min-h-[48px] items-center gap-3 rounded-[12px] border border-[#d7dcec] bg-white px-3">
-                                    <Scale
-                                      size={16}
-                                      className="shrink-0 text-[#1D4ED8]"
-                                    />
-                                    <input
-                                      type="text"
-                                      inputMode="decimal"
-                                      maxLength={12}
-                                      value={lote.pesoVerificadoKg}
-                                      onChange={(event) =>
-                                        updateLote(
-                                          lote.id,
-                                          'pesoVerificadoKg',
-                                          event.target.value,
-                                        )
-                                      }
-                                      placeholder={`Actual: ${kg(lote.disponibleKg)}`}
-                                      className={`w-full bg-transparent text-sm font-semibold outline-none ${
-                                        pesoVerificadoError
-                                          ? 'text-[#b42318]'
-                                          : 'text-slate-900'
-                                      }`}
-                                    />
-                                    <span className="text-xs font-black text-slate-400">
-                                      kg
-                                    </span>
-                                  </label>
-                                </div>
-                              ) : null}
-                              {pesoVerificadoError ? (
-                                <p className="mt-2 text-xs font-semibold text-[#b42318]">
-                                  El peso verificado debe estar entre 0 y{' '}
-                                  {kg(lote.disponibleKg)}.
-                                </p>
-                              ) : ajustePesoKg > 0 ? (
-                                <p className="mt-2 text-xs font-semibold text-[#8a5b10]">
-                                  Peso ajustado: se vendera sobre{' '}
-                                  {kg(disponibleVenta)}.
-                                </p>
-                              ) : null}
-                              */}
                             </div>
 
                             {modoVenta === 'PARCIAL' ? (
@@ -2179,8 +2054,8 @@ export default function Ventas() {
                                     type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
-                                    maxLength={6}
-                                    value={lote.precioKg}
+                                    maxLength={10}
+                                    value={formatearMonedaInput(lote.precioKg)}
                                     onChange={(event) =>
                                       updateLote(
                                         lote.id,
@@ -2221,7 +2096,8 @@ export default function Ventas() {
                                 <div className="mt-1 grid grid-cols-2 gap-2 text-[0.6rem] font-semibold text-slate-400">
                                   <p className="pl-1">Máx. disponible</p>
                                   <p className="pr-1 text-right">
-                                    Rango: {money(minPrecioVentaKg)} - {money(precioMaximoVentaPermitido)}/kg
+                                    Rango: {money(minPrecioVentaKg)} -{' '}
+                                    {money(precioMaximoVentaPermitido)}/kg
                                   </p>
                                 </div>
                               </>
@@ -2246,7 +2122,10 @@ export default function Ventas() {
                       className="mt-2"
                     />
                   ) : null}
-                  {intentoPaso2 && totalKg < PESO_MINIMO_KG && modoVenta === 'PARCIAL' && hayCantidadParcial ? (
+                  {intentoPaso2 &&
+                  totalKg < PESO_MINIMO_KG &&
+                  modoVenta === 'PARCIAL' &&
+                  hayCantidadParcial ? (
                     <InlineGuidedError
                       message={createGuidedError(
                         'La cantidad total de venta debe ser mínimo 5 kg.',
@@ -2257,7 +2136,9 @@ export default function Ventas() {
                       className="mt-2"
                     />
                   ) : null}
-                  {intentoPaso2 && totalDisponibleVenta < PESO_MINIMO_KG && modoVenta === 'TOTAL' ? (
+                  {intentoPaso2 &&
+                  totalDisponibleVenta < PESO_MINIMO_KG &&
+                  modoVenta === 'TOTAL' ? (
                     <InlineGuidedError
                       message={createGuidedError(
                         'La cantidad total disponible debe ser mínimo 5 kg.',
@@ -2504,23 +2385,25 @@ export default function Ventas() {
                 {/* ── Zona de acción: separada visualmente de las opciones ── */}
                 <div className="mt-6 rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
                   {clienteSeleccionado ? (
-                    <div className="mb-4 flex items-center gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
-                        <User size={17} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[0.85rem] font-semibold text-slate-800">
-                          Cliente seleccionado
-                        </p>
-                        <p className="truncate text-[0.98rem] font-semibold text-slate-900">
-                          {clienteSeleccionado.nombre}
-                        </p>
-                        <p className="text-[0.82rem] text-slate-500">
-                          {clienteSeleccionado.rapido
-                            ? 'Venta rápida'
-                            : clienteSeleccionado.documento}
-                        </p>
+                    <div className="mb-4 flex items-center justify-between gap-3 rounded-[16px] border border-[#e2e8f0] bg-slate-50/50 p-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">
+                          <User size={15} />
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[0.7rem] font-bold text-slate-400 uppercase tracking-wider block">
+                            Cliente Seleccionado
+                          </span>
+                          <p className="truncate text-[0.92rem] font-black text-slate-900 leading-tight">
+                            {clienteSeleccionado.nombre}
+                          </p>
+                        </div>
                       </div>
+                      {clienteSeleccionado.id !== 'general' && clienteSeleccionado.documento && (
+                        <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
+                          {clienteSeleccionado.documento}
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <div className="mb-4 rounded-[12px] border border-dashed border-[#d8dfee] px-4 py-3 text-center text-[0.88rem] text-slate-400">
@@ -2677,7 +2560,19 @@ export default function Ventas() {
             ) : null}
           </>
         )}
+
+        <SupportLinks
+          onHelp={() => setSupportModal('help')}
+          onContact={() => setSupportModal('contact')}
+        />
       </div>
+
+      {supportModal ? (
+        <SupportModal
+          type={supportModal}
+          onClose={() => setSupportModal(null)}
+        />
+      ) : null}
 
       {mostrarModalSelectorCliente ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 px-4 pb-4 pt-8 backdrop-blur-sm sm:items-center">
@@ -3121,7 +3016,11 @@ export default function Ventas() {
 
                 {clienteFormError ? (
                   <InlineGuidedError
-                    message={getVentasGuidance(clienteFormError, minPrecioVentaKg, precioMaximoVentaPermitido)}
+                    message={getVentasGuidance(
+                      clienteFormError,
+                      minPrecioVentaKg,
+                      precioMaximoVentaPermitido,
+                    )}
                   />
                 ) : null}
               </div>
@@ -3170,6 +3069,123 @@ export default function Ventas() {
       <AppBottomNav
         hidden={mostrarModal || mostrarModalSelectorCliente || paso >= 1}
       />
+    </div>
+  );
+}
+
+function SupportLinks({
+  onHelp,
+  onContact,
+}: {
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <div className="pt-6 pb-2 text-center">
+      <p className="text-xs font-semibold text-[#73829a]">
+        ¿Necesitas ayuda?
+      </p>
+      <div className="mt-2.5 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onHelp}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <CircleHelp size={14} />
+          Ver ayuda
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <Headset size={14} />
+          Contactar soporte
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SupportModal({
+  type,
+  onClose,
+}: {
+  type: 'help' | 'contact';
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ventas-support-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[400px] overflow-y-auto rounded-[24px] border border-[#e6ebf3] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+              Soporte Café Smart
+            </p>
+            <h2
+              id="ventas-support-title"
+              className="mt-1 text-lg font-black text-[#111827]"
+            >
+              {type === 'help' ? 'Guía de ventas' : 'Soporte técnico'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            aria-label="Cerrar modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {type === 'help' ? (
+          <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
+            <p>
+              <strong>• Cliente:</strong> Selecciona el comprador al que le vendes el café. Si no está en la lista, puedes presionar el botón "+" para registrarlo en el instante.
+            </p>
+            <p>
+              <strong>• Tipo de venta:</strong> Puedes vender un sublote completo (Venta Total) o transferir solo una parte del peso disponible (Venta Parcial).
+            </p>
+            <p>
+              <strong>• Control de stock:</strong> El sistema validará automáticamente que tengas suficiente cantidad de café registrado en tu inventario antes de permitirte completar la venta.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
+            <p className="text-slate-600">
+              ¿Tienes alguna duda con el registro de tus ventas de café? Escríbenos directamente por WhatsApp.
+            </p>
+            <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
+              <Headset className="text-[#1D4ED8] mb-2" size={24} />
+              <p className="text-[0.68rem] text-slate-500 max-w-[280px]">
+                Horario de atención: Lunes a Sábado - 8:00 AM a 6:00 PM
+              </p>
+              <a
+                href="https://wa.me/573150518018"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#128C7E] transition active:scale-[0.98]"
+              >
+                Escribir al +57 315 051 80 18
+              </a>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 min-h-[46px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
+        >
+          Entendido
+        </button>
+      </div>
     </div>
   );
 }

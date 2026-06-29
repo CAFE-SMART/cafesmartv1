@@ -11,6 +11,8 @@ export type LoteResumen = {
   sublotesConHumedad: number;
   pesoInicial: number;
   pesoActual: number;
+  pesoDisponible?: number;
+  pesoEnSecado?: number;
   precioPromedioKg: number;
   humedadPromedio: number | null;
   fecha: string;
@@ -35,6 +37,8 @@ export type SubloteDetalle = {
   calidad: string;
   pesoInicial: number;
   pesoActual: number;
+  pesoDisponible?: number;
+  pesoEnSecado?: number;
   precioKg: number;
   humedad: number | null;
   factor: number | null;

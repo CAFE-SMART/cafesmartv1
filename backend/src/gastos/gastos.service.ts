@@ -9,6 +9,7 @@ import { EstadoPago, Prisma, TipoGasto } from '@prisma/client';
 import { apiError } from '../common/errors/api-error';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearGastoDto } from './dto/crear-gasto.dto';
+import { invalidarDashboardCache } from '../dashboard/dashboard.service';
 
 // ─── Include reutilizable (definido aquí para que typeof funcione) ────────────
 const INCLUDE_SUBLOTES = {
@@ -128,6 +129,7 @@ export class GastosService {
       { maxWait: 10000, timeout: 25000 },
     );
 
+    invalidarDashboardCache(organizacionId);
     return this.formatearGasto(gasto, esGastoGeneral);
   }
 

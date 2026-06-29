@@ -186,7 +186,7 @@ export default function LogoutStatus() {
 
       <section className="relative z-10 flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[430px] flex-col items-center pb-28 text-center">
         <div className="animate-[cafesmartFadeScale_300ms_ease-out_both]">
-          <CafeSmartLogo size="sm" compact />
+          <CafeSmartLogo compact />
         </div>
 
         <div className="relative mt-8 animate-[cafesmartFadeUp_420ms_ease-out_100ms_both]">
@@ -198,7 +198,7 @@ export default function LogoutStatus() {
                 <AlertTriangle size={42} strokeWidth={2.4} />
               </div>
             ) : (
-              <CafeSmartLogo size="md" showText={false} showSubtitle={false} />
+              <CafeSmartLogo />
             )}
           </div>
         </div>

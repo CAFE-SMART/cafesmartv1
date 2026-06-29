@@ -32,6 +32,7 @@ import {
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
 import { formatCoffeeLabel, formatDisplayLabel } from '../utils/uiMessages';
+import { formatearMonedaInput } from '../utils/formatMoney';
 
 type TipoGastoValue =
   | 'TRANSPORTE'
@@ -58,8 +59,6 @@ const MONTO_MAXIMO_GASTO = 99999999;
 const CONCEPTO_MAX_LENGTH = 60;
 const DESCRIPCION_MAX_LENGTH = 200;
 const CONCEPTO_VALIDO_REGEX = /^[\p{L}\s]+$/u;
-const CONCEPTO_TIENE_LETRA_REGEX = /\p{L}/u;
-const CONCEPTO_SOLO_NUMEROS_REGEX = /^\d+(?:\s+\d+)*$/;
 
 const BACKEND_FIELD_MAP: Record<string, FieldKey> = {
   conceptoGasto: 'concepto',
@@ -80,10 +79,10 @@ function generarId() {
 }
 
 function getInputClassName(hasError: boolean, extraClasses = '') {
-  return `w-full rounded-[8px] border bg-white outline-none transition ${extraClasses} ${
+  return `w-full rounded-[14px] border outline-none transition ${extraClasses} ${
     hasError
-      ? 'border-rose-300 bg-rose-50/60 text-rose-950 placeholder:text-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200'
-      : 'border-slate-200 focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#102d92]/20'
+      ? 'border-rose-300 bg-rose-50/40 text-rose-950 placeholder:text-rose-300 focus:border-rose-400 focus:ring-1 focus:ring-rose-200'
+      : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-900 focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#1D4ED8]/20'
   }`;
 }
 
@@ -335,14 +334,6 @@ export default function GastosOperativos() {
     }, 80);
   };
 
-  const formatearMonedaInput = (valor: string) => {
-    const numeros = valor.replace(/\D/g, '');
-    if (!numeros) {
-      return '';
-    }
-
-    return new Intl.NumberFormat('es-CO').format(Number(numeros));
-  };
 
   const validarFormulario = (): FormErrors => {
     const errors: FormErrors = {};
@@ -561,23 +552,26 @@ export default function GastosOperativos() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-[#f8f6f6] px-4 py-5 pb-24 font-sans text-slate-900">
-      <main className="mx-auto max-w-[430px] space-y-4">
-        <div className="relative min-h-[32px]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-5 pb-24 font-sans text-slate-900">
+      <main className="mx-auto max-w-[430px] space-y-5">
+        <header className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={volverAlOrigen}
-            className="absolute left-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition hover:bg-white"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1D4ED8] shadow-sm"
             aria-label="Volver"
           >
-            <ArrowLeft size={18} className="text-[#334155]" />
+            <ArrowLeft size={18} />
           </button>
-          <h1 className="text-center text-[0.95rem] font-black text-[#111827]">
-            Registro de Gastos
-          </h1>
-        </div>
+          <div className="min-w-0 flex-1 text-center">
+            <h1 className="text-[1.1rem] font-black text-[#121826]">
+              Nuevo gasto
+            </h1>
+          </div>
+          <div className="w-11" />
+        </header>
 
-        <div className="space-y-4">
+        <div className="space-y-4 rounded-[18px] border border-[#e6e8f3] bg-white p-4 shadow-sm">
           <div ref={conceptoSectionRef} className="space-y-1.5">
             <label className="ml-1 text-[0.72rem] font-black text-slate-700">
               Concepto del gasto
@@ -589,7 +583,7 @@ export default function GastosOperativos() {
               maxLength={CONCEPTO_MAX_LENGTH}
               className={getInputClassName(
                 Boolean(fieldErrors.concepto),
-                'h-10 px-3 text-sm font-semibold',
+                'py-3 px-4 text-sm font-semibold',
               )}
               value={concepto}
               aria-invalid={Boolean(fieldErrors.concepto)}
@@ -630,7 +624,7 @@ export default function GastosOperativos() {
               maxLength={DESCRIPCION_MAX_LENGTH}
               className={getInputClassName(
                 false,
-                'min-h-[68px] resize-none px-3 py-3 text-sm font-semibold',
+                'min-h-[80px] resize-none px-4 py-3 text-sm font-semibold',
               )}
               value={descripcion}
               onChange={(event) =>
@@ -650,7 +644,7 @@ export default function GastosOperativos() {
                 Monto ($)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[0.7rem] font-bold text-slate-400">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[0.78rem] font-bold text-slate-400">
                   $
                 </span>
                 <input
@@ -659,7 +653,7 @@ export default function GastosOperativos() {
                   placeholder="0.00"
                   className={getInputClassName(
                     Boolean(fieldErrors.monto),
-                    'h-10 pl-6 pr-3 text-sm font-semibold',
+                    'py-3 pl-8 pr-4 text-sm font-semibold',
                   )}
                   value={formatearMonedaInput(montoStr)}
                   aria-invalid={Boolean(fieldErrors.monto)}
@@ -691,7 +685,7 @@ export default function GastosOperativos() {
                   max={getTodayLocalDateValue()}
                   className={getInputClassName(
                     Boolean(fieldErrors.fecha),
-                    'h-10 appearance-none pl-3 pr-7 text-sm font-semibold',
+                    'py-3 appearance-none pl-4 pr-9 text-sm font-semibold',
                   )}
                   value={fecha}
                   aria-invalid={Boolean(fieldErrors.fecha)}
@@ -702,8 +696,8 @@ export default function GastosOperativos() {
                   }}
                 />
                 <Calendar
-                  size={13}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={14}
+                  className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                 />
               </div>
               {fieldErrors.fecha ? (
@@ -729,16 +723,16 @@ export default function GastosOperativos() {
                     key={opcion.value}
                     type="button"
                     onClick={() => setTipoGasto(opcion.value)}
-                    className={`flex min-h-[62px] flex-col items-center justify-center gap-1.5 rounded-[8px] border p-2 transition-colors ${
+                    className={`flex min-h-[66px] flex-col items-center justify-center gap-1.5 rounded-[14px] border p-2 transition-colors ${
                       isSelected
-                        ? 'border-[#1f62ff] bg-[#eef4ff] text-[#1f62ff] shadow-[0_6px_14px_rgba(31,98,255,0.12)]'
-                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                        ? 'border-[#1D4ED8] bg-[#eef2ff] text-[#1D4ED8] shadow-[0_4px_10px_rgba(29,78,216,0.08)]'
+                        : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-500 hover:bg-[#f3f6ff]'
                     }`}
                   >
                     <Icon
                       size={16}
                       className={
-                        isSelected ? 'text-[#1f62ff]' : 'text-slate-500'
+                        isSelected ? 'text-[#1D4ED8]' : 'text-slate-500'
                       }
                     />
                     <span className="text-[0.58rem] font-black uppercase tracking-normal">
@@ -754,13 +748,13 @@ export default function GastosOperativos() {
             <label className="ml-1 text-[0.72rem] font-black text-slate-700">
               Estado de pago
             </label>
-            <div className="flex rounded-[8px] bg-[#e8eef6] p-1">
+            <div className="flex rounded-[14px] bg-[#f0f4ff] p-1">
               <button
                 type="button"
                 onClick={() => setEstadoPago('PAGADO')}
-                className={`flex-1 rounded-[6px] py-2 text-[0.72rem] font-black transition-all ${
+                className={`flex-1 rounded-[10px] py-2 text-[0.72rem] font-black transition-all ${
                   estadoPago === 'PAGADO'
-                    ? 'bg-white text-[#1f62ff] shadow-sm'
+                    ? 'bg-white text-[#1D4ED8] shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -769,9 +763,9 @@ export default function GastosOperativos() {
               <button
                 type="button"
                 onClick={() => setEstadoPago('PENDIENTE')}
-                className={`flex-1 rounded-[6px] py-2 text-[0.72rem] font-black transition-all ${
+                className={`flex-1 rounded-[10px] py-2 text-[0.72rem] font-black transition-all ${
                   estadoPago === 'PENDIENTE'
-                    ? 'bg-white text-[#1f62ff] shadow-sm'
+                    ? 'bg-white text-[#1D4ED8] shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -791,16 +785,16 @@ export default function GastosOperativos() {
                   setAplicaA('GENERAL');
                   limpiarErrorCampo('sublotes');
                 }}
-                className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
+                className={`flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[14px] border p-2 transition-colors ${
                   aplicaA === 'GENERAL'
-                    ? 'border-[#1f62ff] bg-[#eef4ff] text-[#1f62ff] shadow-[0_6px_14px_rgba(31,98,255,0.12)]'
-                    : 'border-slate-200 bg-white text-slate-500'
+                    ? 'border-[#1D4ED8] bg-[#eef2ff] text-[#1D4ED8] shadow-[0_4px_10px_rgba(29,78,216,0.08)]'
+                    : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-500 hover:bg-[#f3f6ff]'
                 }`}
               >
                 <Wallet
                   size={16}
                   className={
-                    aplicaA === 'GENERAL' ? 'text-[#1f62ff]' : 'text-slate-500'
+                    aplicaA === 'GENERAL' ? 'text-[#1D4ED8]' : 'text-slate-500'
                   }
                 />
                 <span className="text-[0.58rem] font-black uppercase tracking-normal">
@@ -811,16 +805,16 @@ export default function GastosOperativos() {
               <button
                 type="button"
                 onClick={() => setAplicaA('SUBLOTES')}
-                className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[8px] border p-2 transition-colors ${
+                className={`flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[14px] border p-2 transition-colors ${
                   aplicaA === 'SUBLOTES'
-                    ? 'border-[#1f62ff] bg-[#eef4ff] text-[#1f62ff] shadow-[0_6px_14px_rgba(31,98,255,0.12)]'
-                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                    ? 'border-[#1D4ED8] bg-[#eef2ff] text-[#1D4ED8] shadow-[0_4px_10px_rgba(29,78,216,0.08)]'
+                    : 'border-[#dde4f1] bg-[#f7f9fd] text-slate-500 hover:bg-[#f3f6ff]'
                 }`}
               >
                 <Layers
                   size={16}
                   className={
-                    aplicaA === 'SUBLOTES' ? 'text-[#1f62ff]' : 'text-slate-500'
+                    aplicaA === 'SUBLOTES' ? 'text-[#1D4ED8]' : 'text-slate-500'
                   }
                 />
                 <span className="text-[0.58rem] font-black uppercase tracking-normal">
@@ -855,10 +849,10 @@ export default function GastosOperativos() {
                 }}
                 aria-invalid={Boolean(fieldErrors.sublotes)}
                 aria-describedby={undefined}
-                className={`w-full rounded-[8px] px-3 py-2.5 text-left shadow-sm transition ${
+                className={`w-full rounded-[14px] border px-4 py-3 text-left transition ${
                   fieldErrors.sublotes
-                    ? 'border border-rose-300 bg-rose-50/60 hover:border-rose-400'
-                    : 'border border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border border-rose-300 bg-rose-50/40 hover:border-rose-400'
+                    : 'border border-[#dde4f1] bg-[#f7f9fd] hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -886,7 +880,7 @@ export default function GastosOperativos() {
               </p>
 
               {showSublotesSelector ? (
-                <div className="max-h-[180px] w-full overflow-y-auto rounded-[8px] border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
+                <div className="max-h-[180px] w-full overflow-y-auto rounded-[14px] border border-[#dde4f1] bg-white shadow-sm animate-in fade-in slide-in-from-top-2">
                   {todosSublotes.length === 0 && !loading ? (
                     <div className="p-4 text-center text-sm text-slate-500">
                       No hay sublotes disponibles en el sistema.

@@ -242,7 +242,7 @@ export const authService = {
     tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
     otroTipoDetalle?: string;
     telefono: string;
-    password: string;
+    password?: string;
   }): Promise<AuthResponse> {
     return postAuth<AuthResponse>(
       '/register/google',
