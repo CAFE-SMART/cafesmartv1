@@ -75,7 +75,6 @@ export class RegisterGoogleDto {
   })
   telefono: string;
 
-  @ValidateIf((o) => o.password !== undefined)
   @IsString({ message: 'La contrasena es obligatoria.' })
   @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
   @MinLength(6, { message: 'La contrasena debe tener al menos 6 caracteres.' })
@@ -84,5 +83,5 @@ export class RegisterGoogleDto {
     message:
       'La contrasena debe incluir al menos una minuscula y una mayuscula.',
   })
-  password?: string;
+  password: string;
 }

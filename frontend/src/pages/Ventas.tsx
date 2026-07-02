@@ -15,6 +15,7 @@ import {
   Check,
   CircleHelp,
   Headset,
+  LoaderCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -1175,8 +1176,10 @@ export default function Ventas() {
           subtotal: item.cantidad * item.precio,
         })),
       });
+      setMostrarModalConfirmar(false);
       void cargarLotes();
     } catch (error) {
+      setMostrarModalConfirmar(false);
       const mensaje = getVentaSubmitMessage(error);
 
       if (esErrorGeneralGuardadoVenta(error)) {
@@ -2792,15 +2795,37 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={() => {
-                  setMostrarModalConfirmar(false);
                   void confirmar();
                 }}
                 disabled={guardandoVenta || botonConfirmarPresionado}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="relative overflow-hidden inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {guardandoVenta || botonConfirmarPresionado
-                  ? 'Guardando venta...'
-                  : 'Confirmar venta'}
+                {(guardandoVenta || botonConfirmarPresionado) && (
+                  <>
+                    <style>{`
+                      @keyframes progressLoading {
+                        0% { width: 0%; }
+                        100% { width: 100%; }
+                      }
+                    `}</style>
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
+                      style={{ 
+                        animation: 'progressLoading 2s ease-in-out infinite' 
+                      }} 
+                    />
+                  </>
+                )}
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {guardandoVenta || botonConfirmarPresionado ? (
+                    <>
+                      <LoaderCircle size={20} className="animate-spin" />
+                      Guardando venta...
+                    </>
+                  ) : (
+                    'Confirmar venta'
+                  )}
+                </span>
               </button>
               <button
                 type="button"
@@ -2851,10 +2876,10 @@ export default function Ventas() {
 
       {mostrarModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
-          <div className="flex max-h-[78vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
-            <div className="shrink-0 px-4 pb-3 pt-3">
+          <div className="flex max-h-[82vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
+            <div className="shrink-0 px-5 pb-3.5 pt-4">
               <div className="mx-auto h-1 w-9 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="mt-3.5 flex items-center justify-between gap-3">
                 <h2 className="text-[1.05rem] font-semibold leading-tight text-[#111827]">
                   Registrar cliente
                 </h2>
@@ -2868,8 +2893,8 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="space-y-3">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
                     Tipo de documento
@@ -2899,7 +2924,7 @@ export default function Ventas() {
                       }));
                       setClienteFormError(null);
                     }}
-                    className={personFieldClass(false)}
+                    className={`${personFieldClass(false)} h-[50px] py-0`}
                   >
                     {TIPOS_DOCUMENTO_CLIENTE.map((tipo) => (
                       <option
@@ -3026,7 +3051,7 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-4 py-3">
+            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
               <button
                 type="button"
                 onClick={guardarCliente}
@@ -3046,25 +3071,7 @@ export default function Ventas() {
         </div>
       ) : null}
 
-      {guardandoVenta || botonConfirmarPresionado ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">
-          <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
-            <RefreshCw
-              size={28}
-              className="mx-auto animate-spin text-[#1D4ED8]"
-            />
-            <p className="mt-2 text-sm font-black text-slate-900">
-              Guardando venta
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Actualizando inventario...
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1D4ED8]" />
-            </div>
-          </div>
-        </div>
-      ) : null}
+
 
       <AppBottomNav
         hidden={mostrarModal || mostrarModalSelectorCliente || paso >= 1}

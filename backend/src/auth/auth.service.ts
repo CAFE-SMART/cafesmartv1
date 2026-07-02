@@ -4,7 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as crypto from 'crypto';
+
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -129,8 +129,7 @@ export class AuthService {
       return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
     }
 
-    const rawPassword = dto.password || crypto.randomBytes(32).toString('hex');
-    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
     let user;
     try {
       user = await this.usersService.createAdminWithOrganization({

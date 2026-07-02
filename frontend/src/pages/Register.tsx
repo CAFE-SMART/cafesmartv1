@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -127,6 +128,8 @@ export default function Register() {
     goBackToStep1,
     handleSubmit,
     validateEmailAvailability,
+    emailConflict,
+    setEmailConflict,
   } = useRegisterForm({
     hasGoogleFlow,
     routeState: googleRouteState,
@@ -179,7 +182,13 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
       <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb]">
-        {step === 1 ? (
+        {emailConflict ? (
+          <EmailConflictView
+            data={emailConflict}
+            onBackToRegister={() => setEmailConflict(null)}
+            onGoToLogin={goToLogin}
+          />
+        ) : step === 1 ? (
           <section
             className="flex min-h-screen flex-col"
             aria-labelledby="register-business-title"
@@ -431,107 +440,103 @@ export default function Register() {
                   ) : null}
                 </div>
 
-                {!hasGoogleFlow ? (
-                  <>
-                    <div>
-                      <label
-                        htmlFor="register-admin-password"
-                        className="mb-2 block text-xs font-black text-[#344054]"
-                      >
-                        Contrase&ntilde;a <RequiredMark />
-                      </label>
-                      <div
-                        className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
-                          stepTwoErrors.password
-                            ? 'border-rose-300 bg-rose-50/50'
-                            : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-                        }`}
-                      >
-                        <input
-                          id="register-admin-password"
-                          name="password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(event) => {
-                            setPassword(
-                              event.target.value.slice(0, PASSWORD_MAX_LENGTH),
-                            );
-                            setStepTwoErrors((prev) => ({
-                              ...prev,
-                              password: undefined,
-                            }));
-                          }}
-                          onFocus={() => setPasswordFocused(true)}
-                          onBlur={() => setPasswordFocused(false)}
-                          placeholder="********"
-                          autoComplete="new-password"
-                          className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
-                          required
-                          minLength={6}
-                          maxLength={PASSWORD_MAX_LENGTH}
-                        />
-                        <button
-                          type="button"
-                          className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                          onClick={() => setShowPassword(!showPassword)}
-                          aria-label={
-                            showPassword
-                              ? 'Ocultar contraseña'
-                              : 'Mostrar contraseña'
-                          }
-                        >
-                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                        </button>
-                      </div>
-                      {stepTwoErrors.password ? (
-                        <FieldError message={stepTwoErrors.password} />
-                      ) : null}
-                      {!stepTwoErrors.password && showPasswordRequirements ? (
-                        <PasswordRequirements
-                          checks={passwordChecks}
-                          score={passwordStrength.score}
-                        />
-                      ) : null}
-                      {!stepTwoErrors.password && !showPasswordRequirements ? (
-                        <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
-                          Mínimo 6 caracteres con mayúscula, minúscula y número.
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <TextInput
-                      id="register-admin-password-confirm"
-                      label="Confirma tu contraseña"
-                      value={confirmPassword}
-                      onChange={(value) => {
-                        setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
+                <div>
+                  <label
+                    htmlFor="register-admin-password"
+                    className="mb-2 block text-xs font-black text-[#344054]"
+                  >
+                    Contrase&ntilde;a <RequiredMark />
+                  </label>
+                  <div
+                    className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
+                      stepTwoErrors.password
+                        ? 'border-rose-300 bg-rose-50/50'
+                        : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                    }`}
+                  >
+                    <input
+                      id="register-admin-password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(
+                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                        );
                         setStepTwoErrors((prev) => ({
                           ...prev,
-                          confirmPassword: undefined,
+                          password: undefined,
                         }));
                       }}
-                      placeholder="Vuelve a escribir tu contraseña"
-                      type={showPassword ? 'text' : 'password'}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
+                      placeholder="********"
                       autoComplete="new-password"
-                      maxLength={PASSWORD_MAX_LENGTH}
+                      className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
                       required
-                      helpText="Debe ser igual a la contraseña anterior."
-                      error={stepTwoErrors.confirmPassword}
-                      compactLabel
+                      minLength={6}
+                      maxLength={PASSWORD_MAX_LENGTH}
                     />
+                    <button
+                      type="button"
+                      className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={
+                        showPassword
+                          ? 'Ocultar contraseña'
+                          : 'Mostrar contraseña'
+                      }
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  {stepTwoErrors.password ? (
+                    <FieldError message={stepTwoErrors.password} />
+                  ) : null}
+                  {!stepTwoErrors.password && showPasswordRequirements ? (
+                    <PasswordRequirements
+                      checks={passwordChecks}
+                      score={passwordStrength.score}
+                    />
+                  ) : null}
+                  {!stepTwoErrors.password && !showPasswordRequirements ? (
+                    <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
+                      Mínimo 6 caracteres con mayúscula, minúscula y número.
+                    </p>
+                  ) : null}
+                </div>
 
-                    {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
-                      <p
-                        className={`text-xs font-semibold ${
-                          passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
-                        }`}
-                      >
-                        {passwordsMatch
-                          ? 'Las contraseñas coinciden.'
-                          : 'Las contraseñas no coinciden.'}
-                      </p>
-                    ) : null}
-                  </>
+                <TextInput
+                  id="register-admin-password-confirm"
+                  label="Confirma tu contraseña"
+                  value={confirmPassword}
+                  onChange={(value) => {
+                    setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
+                    setStepTwoErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: undefined,
+                    }));
+                  }}
+                  placeholder="Vuelve a escribir tu contraseña"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  maxLength={PASSWORD_MAX_LENGTH}
+                  required
+                  helpText="Debe ser igual a la contraseña anterior."
+                  error={stepTwoErrors.confirmPassword}
+                  compactLabel
+                />
+
+                {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
+                  <p
+                    className={`text-xs font-semibold ${
+                      passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                    }`}
+                  >
+                    {passwordsMatch
+                      ? 'Las contraseñas coinciden.'
+                      : 'Las contraseñas no coinciden.'}
+                  </p>
                 ) : null}
 
                 <button
@@ -986,5 +991,80 @@ function PasswordRequirements({
         ))}
       </ul>
     </div>
+  );
+}
+
+interface EmailConflictViewProps {
+  data: {
+    correo: string;
+    nombreOrganizacion: string;
+    tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+    otroTipoDetalle?: string;
+  };
+  onBackToRegister: () => void;
+  onGoToLogin: () => void;
+}
+
+function EmailConflictView({ data, onBackToRegister, onGoToLogin }: EmailConflictViewProps) {
+  const tipoOrganizacionTexto = useMemo(() => {
+    if (data.tipoOrganizacion === 'COMPRAVENTA') return 'Compraventa';
+    if (data.tipoOrganizacion === 'COOPERATIVA') return 'Cooperativa';
+    return data.otroTipoDetalle || 'Otro negocio';
+  }, [data]);
+
+  return (
+    <section className="flex min-h-screen flex-col px-5 pt-8 justify-between pb-8">
+      <div className="space-y-6 pt-10 text-center animate-fadeIn">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500 shadow-sm">
+          <AlertTriangle size={32} />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-[1.38rem] font-black text-slate-900">
+            Correo ya registrado
+          </h2>
+          <p className="text-sm font-medium text-slate-500">
+            Esta cuenta ya tiene un negocio configurado.
+          </p>
+        </div>
+
+        <div className="rounded-[22px] border border-[#e2e8f0] bg-white p-5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
+          <div className="space-y-4">
+            <p className="text-sm font-semibold leading-6 text-slate-700">
+              La cuenta para el negocio <span className="font-extrabold text-slate-900">"{data.nombreOrganizacion}" ({tipoOrganizacionTexto})</span> ya ha sido creada anteriormente con el correo electrónico <span className="font-extrabold text-slate-900">{data.correo}</span>.
+            </p>
+            
+            <div className="h-px bg-slate-100" />
+            
+            <div className="space-y-2 text-xs font-semibold text-slate-500 leading-5">
+              <p>
+                • Si eres el administrador o colaborador de este negocio, puedes iniciar sesión directamente con tus credenciales.
+              </p>
+              <p>
+                • Si quieres registrar un negocio u organización diferente, debes usar un correo electrónico distinto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-6 w-full">
+        <button
+          type="button"
+          onClick={onGoToLogin}
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
+        >
+          Iniciar sesión
+        </button>
+
+        <button
+          type="button"
+          onClick={onBackToRegister}
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:bg-[#f8fafc]"
+        >
+          Volver a registrar con otro correo
+        </button>
+      </div>
+    </section>
   );
 }

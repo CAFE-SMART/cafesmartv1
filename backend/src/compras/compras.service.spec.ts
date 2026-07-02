@@ -19,6 +19,9 @@ describe('ComprasService', () => {
 
   it('incluye cafe trillado en los catalogos de compras para cuentas nuevas', async () => {
     const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ organizacionId: 'org-1' }),
+      },
       tipoCafe: {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([

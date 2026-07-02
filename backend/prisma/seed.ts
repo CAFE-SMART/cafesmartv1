@@ -7,22 +7,28 @@ async function main() {
   // ── 1. Catálogos: TipoCafe ──
   const tiposCafe = ['VERDE', 'SECO', 'PASILLA', 'TRILLADO'];
   for (const nombre of tiposCafe) {
-    await prisma.tipoCafe.upsert({
-      where: { nombre },
-      update: {},
-      create: { nombre },
+    const existing = await prisma.tipoCafe.findFirst({
+      where: { nombre, organizacionId: null },
     });
+    if (!existing) {
+      await prisma.tipoCafe.create({
+        data: { nombre },
+      });
+    }
   }
   console.log('Tipos de café creados:', tiposCafe.join(', '));
 
   // ── 2. Catálogos: Calidad ──
   const calidades = ['BUENO', 'REGULAR', 'MALO'];
   for (const nombre of calidades) {
-    await prisma.calidad.upsert({
-      where: { nombre },
-      update: {},
-      create: { nombre },
+    const existing = await prisma.calidad.findFirst({
+      where: { nombre, organizacionId: null },
     });
+    if (!existing) {
+      await prisma.calidad.create({
+        data: { nombre },
+      });
+    }
   }
   console.log('Calidades creadas:', calidades.join(', '));
 

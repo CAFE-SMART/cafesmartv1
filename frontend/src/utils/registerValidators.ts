@@ -12,6 +12,7 @@ export type RegisterLocationState = {
     tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO';
     otroTipoDetalle?: string;
     nombre?: string;
+    apellidos?: string;
     telefono?: string;
     correo?: string;
     password?: string;
