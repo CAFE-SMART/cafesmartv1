@@ -361,6 +361,7 @@ export default function Ajustes() {
   const [guardandoCalidad, setGuardandoCalidad] = useState(false);
   const [showNoActiveSecadoModal, setShowNoActiveSecadoModal] = useState(false);
   const [showNoPurchasesModal, setShowNoPurchasesModal] = useState(false);
+  const [loadingProcess, setLoadingProcess] = useState<'secado' | 'gastos' | null>(null);
 
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -1006,6 +1007,8 @@ export default function Ajustes() {
       icon: Droplets,
       iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
       onClick: async () => {
+        if (loadingProcess) return;
+        setLoadingProcess('secado');
         try {
           const lotes = await obtenerLotes();
           const greenLot = lotes.find((l) => {
@@ -1023,6 +1026,8 @@ export default function Ajustes() {
           }
         } catch {
           setShowNoActiveSecadoModal(true);
+        } finally {
+          setLoadingProcess(null);
         }
       },
     },
@@ -1033,6 +1038,8 @@ export default function Ajustes() {
       icon: Wallet,
       iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
       onClick: async () => {
+        if (loadingProcess) return;
+        setLoadingProcess('gastos');
         try {
           const summary = await obtenerDashboardSummary();
           const totalPurchases = summary.totalComprasAcumulado ?? 0;
@@ -1043,6 +1050,8 @@ export default function Ajustes() {
           }
         } catch {
           setShowNoPurchasesModal(true);
+        } finally {
+          setLoadingProcess(null);
         }
       },
     },
@@ -1243,25 +1252,33 @@ export default function Ajustes() {
           </p>
           <div className="grid grid-cols-2 gap-2">
             {procesosOperativos.map((item) => {
+              const isLoading = loadingProcess === item.id;
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm"
+                  disabled={loadingProcess !== null}
+                  className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition ${
+                    loadingProcess !== null ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 >
                   <span
                     className={`inline-flex shrink-0 rounded-lg p-2 ${item.iconStyle}`}
                   >
-                    <Icon size={14} />
+                    {isLoading ? (
+                      <LoaderCircle size={14} className="animate-spin" />
+                    ) : (
+                      <Icon size={14} />
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-slate-900">
-                      {item.title}
+                      {isLoading ? 'Cargando...' : item.title}
                     </span>
                     <span className="block truncate text-[11px] text-slate-500">
-                      {item.description}
+                      {isLoading ? 'Consultando datos...' : item.description}
                     </span>
                   </span>
                 </button>
