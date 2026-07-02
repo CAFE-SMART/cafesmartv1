@@ -241,7 +241,9 @@ export default function Login() {
     try {
       await authService.forgotPassword(email);
       setSuccessMessage(
-        'Código de verificación enviado. Revisa tu bandeja de entrada o la consola del backend.',
+        import.meta.env.DEV
+          ? 'Código de verificación enviado. Revisa tu bandeja de entrada o la consola del backend.'
+          : 'Código de verificación enviado. Revisa tu bandeja de entrada.',
       );
       setMode('reset');
       setCode('');
