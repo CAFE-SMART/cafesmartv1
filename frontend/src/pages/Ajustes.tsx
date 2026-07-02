@@ -360,6 +360,7 @@ export default function Ajustes() {
   const [errorCalidadForm, setErrorCalidadForm] = useState<string | null>(null);
   const [guardandoCalidad, setGuardandoCalidad] = useState(false);
   const [showNoActiveSecadoModal, setShowNoActiveSecadoModal] = useState(false);
+  const [showNoPurchasesModal, setShowNoPurchasesModal] = useState(false);
 
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -1018,10 +1019,10 @@ export default function Ajustes() {
               `/inventario/${greenLot.tipoCafeId}/${greenLot.calidadId}/secado`,
             );
           } else {
-            navigate('/inventario');
+            setShowNoActiveSecadoModal(true);
           }
         } catch {
-          navigate('/inventario');
+          setShowNoActiveSecadoModal(true);
         }
       },
     },
@@ -1031,7 +1032,19 @@ export default function Ajustes() {
       description: 'Control de egresos',
       icon: Wallet,
       iconStyle: 'bg-[#eef2ff] text-[#1D4ED8]',
-      onClick: () => navigate('/gastos'),
+      onClick: async () => {
+        try {
+          const summary = await obtenerDashboardSummary();
+          const totalPurchases = summary.totalComprasAcumulado ?? 0;
+          if (totalPurchases > 0 || summary.totalProductores > 0) {
+            navigate('/gastos');
+          } else {
+            setShowNoPurchasesModal(true);
+          }
+        } catch {
+          setShowNoPurchasesModal(true);
+        }
+      },
     },
   ] as const;
 
@@ -2141,25 +2154,24 @@ export default function Ajustes() {
       {showNoActiveSecadoModal ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
           <div
-            className="w-full max-w-[430px] rounded-[22px] border border-[#dbe5ff] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            className="w-full max-w-[430px] rounded-[22px] border border-[#ffebeb] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="no-active-secado-title"
           >
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef2ff] text-[#1D4ED8]">
-                <CircleDashed size={22} />
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={22} />
               </span>
               <div>
                 <h3
                   id="no-active-secado-title"
                   className="text-[1.1rem] font-semibold leading-tight text-[#111827]"
                 >
-                  No hay secados activos
+                  Café verde requerido
                 </h3>
                 <p className="mt-2 text-sm leading-5 text-slate-500">
-                  En este momento no tienes café pendiente por finalizar. Puedes
-                  iniciar un nuevo secado desde los lotes verdes disponibles.
+                  Para iniciar un proceso de secado, debes registrar primero al menos una compra de **café verde** para tener inventario disponible que secar.
                 </p>
               </div>
             </div>
@@ -2169,20 +2181,66 @@ export default function Ajustes() {
                 type="button"
                 onClick={() => {
                   setShowNoActiveSecadoModal(false);
-                  navigate('/inventario', {
-                    state: { preferredTypeKey: 'VERDE' },
-                  });
+                  navigate('/compras');
                 }}
                 className="inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white"
               >
-                Iniciar secado
+                Registrar compra
               </button>
               <button
                 type="button"
                 onClick={() => setShowNoActiveSecadoModal(false)}
                 className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white px-4 text-sm font-semibold text-slate-600"
               >
-                Seguir navegando
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showNoPurchasesModal ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm">
+          <div
+            className="w-full max-w-[430px] rounded-[22px] border border-[#ffebeb] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="no-purchases-title"
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#fff7ed] text-[#ea580c]">
+                <AlertTriangle size={22} />
+              </span>
+              <div>
+                <h3
+                  id="no-purchases-title"
+                  className="text-[1.1rem] font-semibold leading-tight text-[#111827]"
+                >
+                  Compra requerida
+                </h3>
+                <p className="mt-2 text-sm leading-5 text-slate-500">
+                  Para registrar un gasto de operación, debes registrar primero al menos una compra en la plataforma para asociar los movimientos de tu negocio.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoPurchasesModal(false);
+                  navigate('/compras');
+                }}
+                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-semibold text-white"
+              >
+                Registrar compra
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNoPurchasesModal(false)}
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] border border-[#dbe2f0] bg-white px-4 text-sm font-semibold text-slate-600"
+              >
+                Entendido
               </button>
             </div>
           </div>

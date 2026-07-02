@@ -8,11 +8,13 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { BodegaService } from './bodega.service';
 import { ActualizarBodegaDto } from './dto/actualizar-bodega.dto';
 
+@ApiTags('Bodega')
 @Controller('bodega')
 export class BodegaController {
   constructor(
@@ -22,6 +24,7 @@ export class BodegaController {
 
   @Get('configuracion')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Obtener configuración de capacidad y nombre de la bodega' })
   async obtenerConfiguracion(@Req() req: { user: { sub: string } }) {
     const organizacionId = await this.obtenerOrganizacionId(req.user.sub);
     return this.bodegaService.obtenerConfiguracion(organizacionId);
@@ -30,6 +33,7 @@ export class BodegaController {
   @Post('configuracion')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar capacidad y nombre de la bodega' })
   async actualizarConfiguracion(
     @Body() dto: ActualizarBodegaDto,
     @Req() req: { user: { sub: string } },
@@ -41,6 +45,7 @@ export class BodegaController {
   @Post('limites')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar límites de advertencia de peso y precio' })
   async actualizarLimites(
     @Body()
     body: {
@@ -68,6 +73,7 @@ export class BodegaController {
   @Post('moneda')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar tipo de moneda de la organización' })
   async actualizarMoneda(
     @Body() body: { moneda: string },
     @Req() req: { user: { sub: string } },

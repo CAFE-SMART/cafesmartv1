@@ -17,6 +17,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterGoogleDto } from './dto/register-google.dto';
@@ -29,6 +30,7 @@ import { UsersService } from '../users/users.service';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { JwtAuthGuard } from './jwt.guard';
 
+@ApiTags('Autenticación')
 @Controller('auth')
 @UseGuards(AuthRateLimitGuard)
 export class AuthController {
@@ -39,30 +41,35 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Registrar un nuevo administrador y su organización' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('register/google')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Registrar administrador y organización usando Google OAuth' })
   registerGoogle(@Body() dto: RegisterGoogleDto) {
     return this.authService.registerGoogle(dto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Iniciar sesión con correo y contraseña' })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto.email, loginDto.password);
   }
 
   @Post('login/google')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Iniciar sesión usando Google OAuth' })
   loginWithGoogle(@Body() googleLoginDto: GoogleLoginDto) {
     return this.authService.loginWithGoogle(googleLoginDto);
   }
 
   @Post('check-email')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verificar si un correo electrónico ya está registrado' })
   async checkEmail(@Body() dto: CheckEmailDto) {
     const user = await this.usersService.findByEmail(
       dto.correo.trim().toLowerCase(),
@@ -82,6 +89,7 @@ export class AuthController {
   @Post('verify-password')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Validar la contraseña actual de un usuario autenticado' })
   verifyPassword(
     @Body() dto: { password?: string },
     @Req() req: { user: { sub: string } },
@@ -94,12 +102,14 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Solicitar código de recuperación de contraseña' })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Restablecer contraseña con el código de recuperación' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.code, dto.password);
   }
