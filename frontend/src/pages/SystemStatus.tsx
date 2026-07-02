@@ -36,7 +36,7 @@ type RegisterProcessState = {
   apellidos?: string;
   telefono: string;
   correo: string;
-  password: string;
+  password?: string;
 };
 
 const CONFIRMATION_DURATION_MS = 1700;
@@ -202,7 +202,7 @@ export default function SystemStatus() {
             nombre: fullName,
             telefono: processState.telefono,
             correo: processState.correo,
-            password: processState.password,
+            password: processState.password || '',
           });
         }
 

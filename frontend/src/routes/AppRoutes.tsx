@@ -39,6 +39,11 @@ export default function AppRoutes() {
         {ENABLE_SECADO_PROTOTYPE ? (
           <>
             <Route path="/inventario/secados" element={<SecadosActivos />} />
+            <Route path="/inventario/secado-inicio" element={<SecadoInicio />} />
+            <Route
+              path="/inventario/secado-inicio"
+              element={<SecadoInicio />}
+            />
             <Route
               path="/inventario/secado-inicio"
               element={<SecadoInicio />}

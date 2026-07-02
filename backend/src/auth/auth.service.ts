@@ -17,6 +17,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
+  private resetTokens = new Map<string, { code: string; expiresAt: Date }>();
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -129,7 +131,8 @@ export class AuthService {
       return this.buildAuthResponse(linkedUser, 'Cuenta vinculada con Google');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const rawPassword = dto.password || crypto.randomBytes(32).toString('hex');
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
     let user;
     try {
       user = await this.usersService.createAdminWithOrganization({

@@ -440,103 +440,107 @@ export default function Register() {
                   ) : null}
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="register-admin-password"
-                    className="mb-2 block text-xs font-black text-[#344054]"
-                  >
-                    Contrase&ntilde;a <RequiredMark />
-                  </label>
-                  <div
-                    className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
-                      stepTwoErrors.password
-                        ? 'border-rose-300 bg-rose-50/50'
-                        : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
-                    }`}
-                  >
-                    <input
-                      id="register-admin-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(
-                          event.target.value.slice(0, PASSWORD_MAX_LENGTH),
-                        );
+                {!hasGoogleFlow ? (
+                  <>
+                    <div>
+                      <label
+                        htmlFor="register-admin-password"
+                        className="mb-2 block text-xs font-black text-[#344054]"
+                      >
+                        Contrase&ntilde;a <RequiredMark />
+                      </label>
+                      <div
+                        className={`flex min-h-[50px] items-center rounded-[10px] border bg-white px-4 transition ${
+                          stepTwoErrors.password
+                            ? 'border-rose-300 bg-rose-50/50'
+                            : 'border-[#dfe5f1] focus-within:border-[#1D4ED8] focus-within:ring-2 focus-within:ring-[#274ab8]/10'
+                        }`}
+                      >
+                        <input
+                          id="register-admin-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(event) => {
+                            setPassword(
+                              event.target.value.slice(0, PASSWORD_MAX_LENGTH),
+                            );
+                            setStepTwoErrors((prev) => ({
+                              ...prev,
+                              password: undefined,
+                            }));
+                          }}
+                          onFocus={() => setPasswordFocused(true)}
+                          onBlur={() => setPasswordFocused(false)}
+                          placeholder="********"
+                          autoComplete="new-password"
+                          className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
+                          required
+                          minLength={6}
+                          maxLength={PASSWORD_MAX_LENGTH}
+                        />
+                        <button
+                          type="button"
+                          className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={
+                            showPassword
+                              ? 'Ocultar contraseña'
+                              : 'Mostrar contraseña'
+                          }
+                        >
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                      {stepTwoErrors.password ? (
+                        <FieldError message={stepTwoErrors.password} />
+                      ) : null}
+                      {!stepTwoErrors.password && showPasswordRequirements ? (
+                        <PasswordRequirements
+                          checks={passwordChecks}
+                          score={passwordStrength.score}
+                        />
+                      ) : null}
+                      {!stepTwoErrors.password && !showPasswordRequirements ? (
+                        <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
+                          Mínimo 6 caracteres con mayúscula, minúscula y número.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <TextInput
+                      id="register-admin-password-confirm"
+                      label="Confirma tu contraseña"
+                      value={confirmPassword}
+                      onChange={(value) => {
+                        setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
                         setStepTwoErrors((prev) => ({
                           ...prev,
-                          password: undefined,
+                          confirmPassword: undefined,
                         }));
                       }}
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => setPasswordFocused(false)}
-                      placeholder="********"
+                      placeholder="Vuelve a escribir tu contraseña"
+                      type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
-                      className="min-w-0 flex-1 bg-transparent py-3 text-sm font-semibold text-slate-900 outline-none placeholder:text-[#a8b4c5]"
-                      required
-                      minLength={6}
                       maxLength={PASSWORD_MAX_LENGTH}
+                      required
+                      helpText="Debe ser igual a la contraseña anterior."
+                      error={stepTwoErrors.confirmPassword}
+                      compactLabel
                     />
-                    <button
-                      type="button"
-                      className="ml-3 shrink-0 text-[#9aa8bc] transition-colors hover:text-[#536178]"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={
-                        showPassword
-                          ? 'Ocultar contraseña'
-                          : 'Mostrar contraseña'
-                      }
-                    >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                  {stepTwoErrors.password ? (
-                    <FieldError message={stepTwoErrors.password} />
-                  ) : null}
-                  {!stepTwoErrors.password && showPasswordRequirements ? (
-                    <PasswordRequirements
-                      checks={passwordChecks}
-                      score={passwordStrength.score}
-                    />
-                  ) : null}
-                  {!stepTwoErrors.password && !showPasswordRequirements ? (
-                    <p className="mt-1.5 text-[0.68rem] font-semibold leading-4 text-[#73829a]">
-                      Mínimo 6 caracteres con mayúscula, minúscula y número.
-                    </p>
-                  ) : null}
-                </div>
 
-                <TextInput
-                  id="register-admin-password-confirm"
-                  label="Confirma tu contraseña"
-                  value={confirmPassword}
-                  onChange={(value) => {
-                    setConfirmPassword(value.slice(0, PASSWORD_MAX_LENGTH));
-                    setStepTwoErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: undefined,
-                    }));
-                  }}
-                  placeholder="Vuelve a escribir tu contraseña"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  maxLength={PASSWORD_MAX_LENGTH}
-                  required
-                  helpText="Debe ser igual a la contraseña anterior."
-                  error={stepTwoErrors.confirmPassword}
-                  compactLabel
-                />
-
-                {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
-                  <p
-                    className={`text-xs font-semibold ${
-                      passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
-                    }`}
-                  >
-                    {passwordsMatch
-                      ? 'Las contraseñas coinciden.'
-                      : 'Las contraseñas no coinciden.'}
-                  </p>
+                    {!stepTwoErrors.confirmPassword && hasStartedConfirming ? (
+                      <p
+                        className={`text-xs font-semibold ${
+                          passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {passwordsMatch
+                          ? 'Las contraseñas coinciden.'
+                          : 'Las contraseñas no coinciden.'}
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
 
                 <button
