@@ -16,6 +16,7 @@ import {
   Truck,
   Utensils,
   Wallet,
+  LoaderCircle,
 } from 'lucide-react';
 import { InlineGuidedError } from '../components/forms/GuidedError';
 import { ApiRequestError } from '../services/apiService';
@@ -939,28 +940,30 @@ export default function GastosOperativos() {
           ) : null}
         </div>
 
-        <div className="space-y-3 pt-3">
-          <button
-            type="button"
-            disabled={saving || botonGuardarPresionado}
-            onClick={handleConfirmar}
-            className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {saving || botonGuardarPresionado ? (
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            ) : (
-              'Guardar gasto'
-            )}
-          </button>
+        <div className="rounded-[20px] border border-[#e4e9f5] bg-white p-4 shadow-[0_4px_14px_rgba(20,35,85,0.05)]">
+          <div className="grid gap-2.5">
+            <button
+              type="button"
+              disabled={saving || botonGuardarPresionado}
+              onClick={handleConfirmar}
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 py-4 text-[1rem] font-medium text-white shadow-[0_8px_20px_rgba(29,78,216,0.22)] transition hover:bg-[#1e40af] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {saving || botonGuardarPresionado ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                'Guardar gasto'
+              )}
+            </button>
 
-          <button
-            type="button"
-            disabled={saving}
-            onClick={volverAlOrigen}
-            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[1rem] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            Regresar
-          </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={volverAlOrigen}
+              className="inline-flex min-h-[46px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-[0.95rem] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Regresar
+            </button>
+          </div>
         </div>
       </main>
 
@@ -981,11 +984,34 @@ export default function GastosOperativos() {
                 type="button"
                 disabled={saving || botonGuardarPresionado}
                 onClick={() => void handleGuardar()}
-                className="w-full rounded-full bg-[#1D4ED8] py-3 text-[0.85rem] font-semibold text-white shadow-[0_8px_16px_rgba(29,78,216,0.16)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="relative overflow-hidden w-full rounded-full bg-[#1D4ED8] py-3 text-[0.85rem] font-semibold text-white shadow-[0_8px_16px_rgba(29,78,216,0.16)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving || botonGuardarPresionado
-                  ? 'Guardando gasto...'
-                  : 'Registrar gasto'}
+                {(saving || botonGuardarPresionado) && (
+                  <>
+                    <style>{`
+                      @keyframes progressLoading {
+                        0% { width: 0%; }
+                        100% { width: 100%; }
+                      }
+                    `}</style>
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
+                      style={{ 
+                        animation: 'progressLoading 2s ease-in-out infinite' 
+                      }} 
+                    />
+                  </>
+                )}
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {saving || botonGuardarPresionado ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin" />
+                      Guardando gasto...
+                    </>
+                  ) : (
+                    'Registrar gasto'
+                  )}
+                </span>
               </button>
               <button
                 type="button"

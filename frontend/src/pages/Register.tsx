@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -127,6 +128,8 @@ export default function Register() {
     goBackToStep1,
     handleSubmit,
     validateEmailAvailability,
+    emailConflict,
+    setEmailConflict,
   } = useRegisterForm({
     hasGoogleFlow,
     routeState: googleRouteState,
@@ -179,7 +182,13 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
       <main className="mx-auto min-h-screen w-full max-w-[430px] bg-[#f7f8fb]">
-        {step === 1 ? (
+        {emailConflict ? (
+          <EmailConflictView
+            data={emailConflict}
+            onBackToRegister={() => setEmailConflict(null)}
+            onGoToLogin={goToLogin}
+          />
+        ) : step === 1 ? (
           <section
             className="flex min-h-screen flex-col"
             aria-labelledby="register-business-title"
@@ -986,5 +995,80 @@ function PasswordRequirements({
         ))}
       </ul>
     </div>
+  );
+}
+
+interface EmailConflictViewProps {
+  data: {
+    correo: string;
+    nombreOrganizacion: string;
+    tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+    otroTipoDetalle?: string;
+  };
+  onBackToRegister: () => void;
+  onGoToLogin: () => void;
+}
+
+function EmailConflictView({ data, onBackToRegister, onGoToLogin }: EmailConflictViewProps) {
+  const tipoOrganizacionTexto = useMemo(() => {
+    if (data.tipoOrganizacion === 'COMPRAVENTA') return 'Compraventa';
+    if (data.tipoOrganizacion === 'COOPERATIVA') return 'Cooperativa';
+    return data.otroTipoDetalle || 'Otro negocio';
+  }, [data]);
+
+  return (
+    <section className="flex min-h-screen flex-col px-5 pt-8 justify-between pb-8">
+      <div className="space-y-6 pt-10 text-center animate-fadeIn">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 text-rose-500 shadow-sm">
+          <AlertTriangle size={32} />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-[1.38rem] font-black text-slate-900">
+            Correo ya registrado
+          </h2>
+          <p className="text-sm font-medium text-slate-500">
+            Esta cuenta ya tiene un negocio configurado.
+          </p>
+        </div>
+
+        <div className="rounded-[22px] border border-[#e2e8f0] bg-white p-5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
+          <div className="space-y-4">
+            <p className="text-sm font-semibold leading-6 text-slate-700">
+              La cuenta para el negocio <span className="font-extrabold text-slate-900">"{data.nombreOrganizacion}" ({tipoOrganizacionTexto})</span> ya ha sido creada anteriormente con el correo electrónico <span className="font-extrabold text-slate-900">{data.correo}</span>.
+            </p>
+            
+            <div className="h-px bg-slate-100" />
+            
+            <div className="space-y-2 text-xs font-semibold text-slate-500 leading-5">
+              <p>
+                • Si eres el administrador o colaborador de este negocio, puedes iniciar sesión directamente con tus credenciales.
+              </p>
+              <p>
+                • Si quieres registrar un negocio u organización diferente, debes usar un correo electrónico distinto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-6 w-full">
+        <button
+          type="button"
+          onClick={onGoToLogin}
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
+        >
+          Iniciar sesión
+        </button>
+
+        <button
+          type="button"
+          onClick={onBackToRegister}
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:bg-[#f8fafc]"
+        >
+          Volver a registrar con otro correo
+        </button>
+      </div>
+    </section>
   );
 }

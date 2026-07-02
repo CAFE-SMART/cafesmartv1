@@ -15,6 +15,7 @@ import {
   Check,
   CircleHelp,
   Headset,
+  LoaderCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -1175,8 +1176,10 @@ export default function Ventas() {
           subtotal: item.cantidad * item.precio,
         })),
       });
+      setMostrarModalConfirmar(false);
       void cargarLotes();
     } catch (error) {
+      setMostrarModalConfirmar(false);
       const mensaje = getVentaSubmitMessage(error);
 
       if (esErrorGeneralGuardadoVenta(error)) {
@@ -2792,15 +2795,37 @@ export default function Ventas() {
               <button
                 type="button"
                 onClick={() => {
-                  setMostrarModalConfirmar(false);
                   void confirmar();
                 }}
                 disabled={guardandoVenta || botonConfirmarPresionado}
-                className="inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
+                className="relative overflow-hidden inline-flex min-h-[54px] items-center justify-center rounded-full bg-[#1D4ED8] px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {guardandoVenta || botonConfirmarPresionado
-                  ? 'Guardando venta...'
-                  : 'Confirmar venta'}
+                {(guardandoVenta || botonConfirmarPresionado) && (
+                  <>
+                    <style>{`
+                      @keyframes progressLoading {
+                        0% { width: 0%; }
+                        100% { width: 100%; }
+                      }
+                    `}</style>
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
+                      style={{ 
+                        animation: 'progressLoading 2s ease-in-out infinite' 
+                      }} 
+                    />
+                  </>
+                )}
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {guardandoVenta || botonConfirmarPresionado ? (
+                    <>
+                      <LoaderCircle size={20} className="animate-spin" />
+                      Guardando venta...
+                    </>
+                  ) : (
+                    'Confirmar venta'
+                  )}
+                </span>
               </button>
               <button
                 type="button"
@@ -2851,10 +2876,10 @@ export default function Ventas() {
 
       {mostrarModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/55 px-5 py-6 backdrop-blur-sm">
-          <div className="flex max-h-[78vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
-            <div className="shrink-0 px-4 pb-3 pt-3">
+          <div className="flex max-h-[82vh] w-full max-w-[360px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_56px_rgba(15,23,42,0.26)]">
+            <div className="shrink-0 px-5 pb-3.5 pt-4">
               <div className="mx-auto h-1 w-9 rounded-full bg-[#cfd8e6]" />
-              <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="mt-3.5 flex items-center justify-between gap-3">
                 <h2 className="text-[1.05rem] font-semibold leading-tight text-[#111827]">
                   Registrar cliente
                 </h2>
@@ -2868,8 +2893,8 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="space-y-3">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pr-[10px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-[0.78rem] font-semibold text-slate-900">
                     Tipo de documento
@@ -2899,7 +2924,7 @@ export default function Ventas() {
                       }));
                       setClienteFormError(null);
                     }}
-                    className={personFieldClass(false)}
+                    className={`${personFieldClass(false)} h-[50px] py-0`}
                   >
                     {TIPOS_DOCUMENTO_CLIENTE.map((tipo) => (
                       <option
@@ -3026,7 +3051,7 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-4 py-3">
+            <div className="shrink-0 border-t border-[#eef2f7] bg-[#fbfcff] px-5 py-4">
               <button
                 type="button"
                 onClick={guardarCliente}
@@ -3046,29 +3071,128 @@ export default function Ventas() {
         </div>
       ) : null}
 
-      {guardandoVenta || botonConfirmarPresionado ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 px-4">
-          <div className="w-full max-w-[300px] rounded-[18px] bg-white px-5 py-4 text-center shadow-[0_18px_42px_rgba(15,23,42,0.22)]">
-            <RefreshCw
-              size={28}
-              className="mx-auto animate-spin text-[#1D4ED8]"
-            />
-            <p className="mt-2 text-sm font-black text-slate-900">
-              Guardando venta
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Actualizando inventario...
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#dbe4f3]">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-[#1D4ED8]" />
-            </div>
-          </div>
-        </div>
-      ) : null}
+
 
       <AppBottomNav
         hidden={mostrarModal || mostrarModalSelectorCliente || paso >= 1}
       />
+    </div>
+  );
+}
+
+function SupportLinks({
+  onHelp,
+  onContact,
+}: {
+  onHelp: () => void;
+  onContact: () => void;
+}) {
+  return (
+    <div className="pt-6 pb-2 text-center">
+      <p className="text-xs font-semibold text-[#73829a]">
+        ¿Necesitas ayuda?
+      </p>
+      <div className="mt-2.5 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          onClick={onHelp}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <CircleHelp size={14} />
+          Ver ayuda
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#536178] transition hover:text-[#1D4ED8]"
+        >
+          <Headset size={14} />
+          Contactar soporte
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SupportModal({
+  type,
+  onClose,
+}: {
+  type: 'help' | 'contact';
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ventas-support-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[400px] overflow-y-auto rounded-[24px] border border-[#e6ebf3] bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.24)]"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+              Soporte Café Smart
+            </p>
+            <h2
+              id="ventas-support-title"
+              className="mt-1 text-lg font-black text-[#111827]"
+            >
+              {type === 'help' ? 'Guía de ventas' : 'Soporte técnico'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#64748b] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
+            aria-label="Cerrar modal"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {type === 'help' ? (
+          <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
+            <p>
+              <strong>• Cliente:</strong> Selecciona el comprador al que le vendes el café. Si no está en la lista, puedes presionar el botón "+" para registrarlo en el instante.
+            </p>
+            <p>
+              <strong>• Tipo de venta:</strong> Puedes vender un sublote completo (Venta Total) o transferir solo una parte del peso disponible (Venta Parcial).
+            </p>
+            <p>
+              <strong>• Control de stock:</strong> El sistema validará automáticamente que tengas suficiente cantidad de café registrado en tu inventario antes de permitirte completar la venta.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
+            <p className="text-slate-600">
+              ¿Tienes alguna duda con el registro de tus ventas de café? Escríbenos directamente por WhatsApp.
+            </p>
+            <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
+              <Headset className="text-[#1D4ED8] mb-2" size={24} />
+              <p className="text-[0.68rem] text-slate-500 max-w-[280px]">
+                Horario de atención: Lunes a Sábado - 8:00 AM a 6:00 PM
+              </p>
+              <a
+                href="https://wa.me/573150518018"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#128C7E] transition active:scale-[0.98]"
+              >
+                Escribir al +57 315 051 80 18
+              </a>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 min-h-[46px] w-full rounded-full bg-[#1D4ED8] px-4 text-sm font-black text-white transition hover:bg-[#1e40af]"
+        >
+          Entendido
+        </button>
+      </div>
     </div>
   );
 }

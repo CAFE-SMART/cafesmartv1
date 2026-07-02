@@ -45,6 +45,10 @@ export default function AppRoutes() {
               element={<SecadoInicio />}
             />
             <Route
+              path="/inventario/secado-inicio"
+              element={<SecadoInicio />}
+            />
+            <Route
               path="/inventario/:tipoCafeId/:calidadId/secado"
               element={<SecadoSeleccion />}
             />

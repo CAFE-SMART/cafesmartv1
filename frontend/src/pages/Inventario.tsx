@@ -793,7 +793,6 @@ export default function Inventario() {
   // activeSecadoSessions is now loaded as state in loadLots
 
   const isGreenInventoryView = isVerdeType(typeKey);
-
   const secadoTarget =
     ENABLE_SECADO_PROTOTYPE && isGreenInventoryView && orderedLots.length > 0
       ? orderedLots[0]
@@ -809,7 +808,7 @@ export default function Inventario() {
       <main
         className={`mx-auto flex w-full max-w-[430px] px-4 py-6 ${
           showGlobalEmptyState
-            ? 'max-w-none min-h-[calc(100vh-112px)] px-0 py-0 items-center justify-center'
+            ? 'min-h-[calc(100vh-112px)] flex-col items-center justify-center gap-0'
             : 'flex-col gap-5'
         }`}
       >
@@ -884,34 +883,43 @@ export default function Inventario() {
         ) : null}
 
         {showGlobalEmptyState ? (
-          <section className="px-1 pt-4">
-            <div className="mx-auto max-w-[360px] rounded-[22px] border border-[#e1e8f3] bg-white px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
-              <div className="relative mx-auto h-[96px] w-[96px]">
-                <div className="absolute inset-0 rotate-3 rounded-[24px] bg-[#f6f8fc]" />
-                <div className="absolute inset-[22px] flex items-center justify-center rounded-[16px] bg-[#eef3f8] text-slate-300">
-                  <Package2 size={28} />
+          <section className="w-full px-1">
+            {/* Icon */}
+            <div className="mb-6 flex justify-center">
+              <div className="relative h-[110px] w-[110px]">
+                <div className="absolute inset-0 rotate-3 rounded-[28px] bg-[#f0f4fb]" />
+                <div className="absolute inset-[24px] flex items-center justify-center rounded-[18px] bg-[#e8eef8] text-slate-300">
+                  <Package2 size={32} />
                 </div>
-                <div className="absolute -right-1 bottom-2 flex h-10 w-10 rotate-[-9deg] items-center justify-center rounded-[13px] bg-[#ff7a10] text-white shadow-[0_8px_14px_rgba(255,122,16,0.35)]">
-                  <Coffee size={17} />
+                <div className="absolute -right-2 bottom-1 flex h-11 w-11 rotate-[-8deg] items-center justify-center rounded-[14px] bg-[#ff7a10] text-white shadow-[0_8px_18px_rgba(255,122,16,0.38)]">
+                  <Coffee size={19} />
                 </div>
               </div>
-
-              <h2 className="mt-4 text-[1.25rem] font-black leading-tight text-[#1f2432]">
-                Aún no hay café en inventario
-              </h2>
-              <p className="mx-auto mt-2 max-w-[260px] text-[0.84rem] font-medium leading-5 text-slate-500">
-                Registra tu primera compra para empezar.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => navigate('/compras')}
-                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#2f64db] px-5 text-[0.95rem] font-black text-white shadow-[0_12px_24px_rgba(47,100,219,0.22)]"
-              >
-                <ShoppingCart size={18} />
-                Registrar compra
-              </button>
             </div>
+
+            {/* Text */}
+            <div className="mb-7 text-center">
+              <h1 className="text-[1.55rem] font-black leading-tight text-[#1f2432]">
+                Tu bodega está vacía
+              </h1>
+              <p className="mx-auto mt-3 max-w-[280px] text-[0.9rem] font-medium leading-[1.55] text-slate-500">
+                Aún no has registrado compras de café.{' '}
+                <span className="font-semibold text-slate-700">
+                  Empieza registrando tu primera compra
+                </span>{' '}
+                y aquí podrás ver todo tu inventario.
+              </p>
+            </div>
+
+            {/* CTA */}
+            <button
+              type="button"
+              onClick={() => navigate('/compras')}
+              className="inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full bg-[#1D4ED8] px-5 text-[1rem] font-black text-white shadow-[0_12px_28px_rgba(29,78,216,0.24)] transition hover:bg-[#1e40af] active:scale-[0.99]"
+            >
+              <ShoppingCart size={19} />
+              Registrar primera compra
+            </button>
           </section>
         ) : null}
 

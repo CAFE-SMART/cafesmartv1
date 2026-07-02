@@ -126,12 +126,18 @@ export class SecadoService {
         }
 
         const [tipoSeco, calidadSalida] = await Promise.all([
-          tx.tipoCafe.findUnique({
-            where: { nombre: 'SECO' },
+          tx.tipoCafe.findFirst({
+            where: { nombre: 'SECO', organizacionId: null },
             select: { id: true },
           }),
-          tx.calidad.findUnique({
-            where: { nombre: dto.calidadSalida },
+          tx.calidad.findFirst({
+            where: {
+              nombre: dto.calidadSalida,
+              OR: [
+                { organizacionId: null },
+                { organizacionId },
+              ],
+            },
             select: { id: true, nombre: true },
           }),
         ]);
@@ -368,13 +374,17 @@ export class SecadoService {
         }
 
         const [tipoSeco, calidades] = await Promise.all([
-          tx.tipoCafe.findUnique({
-            where: { nombre: 'SECO' },
+          tx.tipoCafe.findFirst({
+            where: { nombre: 'SECO', organizacionId: null },
             select: { id: true },
           }),
           tx.calidad.findMany({
             where: {
               nombre: { in: dto.salidas.map((salida) => salida.calidad) },
+              OR: [
+                { organizacionId: null },
+                { organizacionId },
+              ],
             },
             select: { id: true, nombre: true },
           }),
@@ -841,20 +851,20 @@ export class SecadoService {
 
         const [tipoSeco, calidadBueno, calidadRegular, calidadMalo] =
           await Promise.all([
-            tx.tipoCafe.findUnique({
-              where: { nombre: 'SECO' },
+            tx.tipoCafe.findFirst({
+              where: { nombre: 'SECO', organizacionId: null },
               select: { id: true },
             }),
-            tx.calidad.findUnique({
-              where: { nombre: 'BUENO' },
+            tx.calidad.findFirst({
+              where: { nombre: 'BUENO', organizacionId: null },
               select: { id: true },
             }),
-            tx.calidad.findUnique({
-              where: { nombre: 'REGULAR' },
+            tx.calidad.findFirst({
+              where: { nombre: 'REGULAR', organizacionId: null },
               select: { id: true },
             }),
-            tx.calidad.findUnique({
-              where: { nombre: 'MALO' },
+            tx.calidad.findFirst({
+              where: { nombre: 'MALO', organizacionId: null },
               select: { id: true },
             }),
           ]);

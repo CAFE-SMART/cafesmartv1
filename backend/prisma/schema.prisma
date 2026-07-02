@@ -54,32 +54,38 @@ enum EstadoPago {
 }
 
 model TipoCafe {
-  id            String                @id @default(uuid()) @map("id_tipo_cafe")
-  nombre        String                @unique @map("nombre")
-  creadoEn      DateTime              @default(now()) @map("created_at")
-  actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
+  id             String                 @id @default(uuid()) @map("id_tipo_cafe")
+  nombre         String                 @map("nombre")
+  organizacionId String?                @map("id_organizacion")
+  creadoEn       DateTime               @default(now()) @map("created_at")
+  actualizadoEn  DateTime               @default(now()) @updatedAt @map("updated_at")
 
-  lotes         Lote[]
-  sublotes      Sublote[]
-  inventarios   Inventario[]
-  movimientos   InventarioMovimiento[]
+  lotes          Lote[]
+  sublotes       Sublote[]
+  inventarios    Inventario[]
+  movimientos    InventarioMovimiento[]
   secadoSessions SecadoSession[]
+  organization   Organization?          @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
+  @@unique([nombre, organizacionId])
   @@map("tipo_cafe")
 }
 
 model Calidad {
-  id            String                @id @default(uuid()) @map("id_calidad")
-  nombre        String                @unique @map("nombre")
-  creadoEn      DateTime              @default(now()) @map("created_at")
-  actualizadoEn DateTime              @default(now()) @updatedAt @map("updated_at")
+  id             String                 @id @default(uuid()) @map("id_calidad")
+  nombre         String                 @map("nombre")
+  organizacionId String?                @map("id_organizacion")
+  creadoEn       DateTime               @default(now()) @map("created_at")
+  actualizadoEn  DateTime               @default(now()) @updatedAt @map("updated_at")
 
-  lotes         Lote[]
-  sublotes      Sublote[]
-  inventarios   Inventario[]
-  movimientos   InventarioMovimiento[]
+  lotes          Lote[]
+  sublotes       Sublote[]
+  inventarios    Inventario[]
+  movimientos    InventarioMovimiento[]
   secadoSessions SecadoSession[]
+  organization   Organization?          @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
 
+  @@unique([nombre, organizacionId])
   @@map("calidad")
 }
 
@@ -102,6 +108,8 @@ model Organization {
   movimientos      InventarioMovimiento[]
   gastosOperativos GastoOperativo[]
   secadoSessions   SecadoSession[]
+  tiposCafe        TipoCafe[]
+  calidades        Calidad[]
 
   @@map("organizacion")
 }

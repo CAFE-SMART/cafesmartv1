@@ -32,28 +32,48 @@ export function useRegisterForm({
   routeState,
   navigate,
 }: UseRegisterFormParams) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(routeState.registerDraft ? 2 : 1);
 
-  const [nombreOrganizacion, setNombreOrganizacion] = useState('');
-  const [tipoOrganizacion, setTipoOrganizacion] =
-    useState<TipoOrgSelection>('');
-  const [otroTipoDetalle, setOtroTipoDetalle] = useState('');
+  const [nombreOrganizacion, setNombreOrganizacion] = useState(
+    routeState.registerDraft?.nombreOrganizacion || '',
+  );
+  const [tipoOrganizacion, setTipoOrganizacion] = useState<TipoOrgSelection>(
+    routeState.registerDraft?.tipoOrganizacion || '',
+  );
+  const [otroTipoDetalle, setOtroTipoDetalle] = useState(
+    routeState.registerDraft?.otroTipoDetalle || '',
+  );
   const [stepOneErrors, setStepOneErrors] = useState<StepOneErrors>({});
 
   const [nombre, setNombre] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
+    routeState.registerDraft?.nombre ||
+      normalizePossiblyMojibake(routeState.googlePrefill?.nombre || ''),
   );
   const [apellidos, setApellidos] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
+    routeState.registerDraft?.apellidos ||
+      normalizePossiblyMojibake(routeState.googlePrefill?.apellidos || ''),
   );
-  const [telefono, setTelefono] = useState('');
+  const [telefono, setTelefono] = useState(
+    routeState.registerDraft?.telefono || '',
+  );
   const [correo, setCorreo] = useState(
-    normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
+    routeState.registerDraft?.correo ||
+      normalizePossiblyMojibake(routeState.googlePrefill?.correo || ''),
   );
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState(
+    routeState.registerDraft?.password || '',
+  );
+  const [confirmPassword, setConfirmPassword] = useState(
+    routeState.registerDraft?.password || '',
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>({});
+  const [emailConflict, setEmailConflict] = useState<{
+    correo: string;
+    nombreOrganizacion: string;
+    tipoOrganizacion: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+    otroTipoDetalle?: string;
+  } | null>(null);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,10 +118,20 @@ export function useRegisterForm({
 
     setIsCheckingEmail(true);
     try {
-      const exists = await authService.checkEmailExists(
+      const result = await authService.checkEmailExists(
         correoValue.trim().toLowerCase(),
       );
-      return exists ? 'Este correo ya está registrado.' : null;
+      if (result.exists) {
+        setEmailConflict({
+          correo: correoValue.trim().toLowerCase(),
+          nombreOrganizacion: result.organizacion?.nombre || 'Mi Negocio',
+          tipoOrganizacion: result.organizacion?.tipo || 'OTRO',
+          otroTipoDetalle: result.organizacion?.otroTipoDetalle,
+        });
+        return 'Este correo ya está registrado.';
+      }
+      setEmailConflict(null);
+      return null;
     } catch {
       return null;
     } finally {
@@ -260,7 +290,8 @@ export function useRegisterForm({
           tipoOrganizacion === 'PERSONALIZADO' && otroTipoDetalle.trim()
             ? otroTipoDetalle.trim()
             : undefined,
-        nombre: `${nombre.trim()} ${apellidos.trim()}`,
+        nombre: nombre.trim(),
+        apellidos: apellidos.trim(),
         telefono,
         correo,
         password: hasGoogleFlow ? undefined : password,
@@ -300,5 +331,7 @@ export function useRegisterForm({
     goBackToStep1,
     handleSubmit,
     validateEmailAvailability,
+    emailConflict,
+    setEmailConflict,
   };
 }

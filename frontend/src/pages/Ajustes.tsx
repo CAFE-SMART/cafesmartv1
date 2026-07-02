@@ -456,7 +456,6 @@ export default function Ajustes() {
         const totalExpenses = summary.totalGastosAcumulado ?? 0;
         if (totalPurchases > 0 || totalSales > 0 || totalExpenses > 0) {
           setHasTransactions(true);
-          localStorage.setItem('cafesmart_moneda_configurada', 'true');
         }
       } catch (error) {
         console.error('Error al validar historial de transacciones:', error);

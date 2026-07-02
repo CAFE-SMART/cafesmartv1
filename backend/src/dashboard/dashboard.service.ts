@@ -86,6 +86,7 @@ type DashboardInicioResponse = Pick<
 > & {
   inventarioBodega: DashboardInicioBodegaItem[];
   sublotesAntiguos: DashboardInicioSubloteAntiguo[];
+  totalComprasHistorico: number;
 };
 
 const LIMITE_MOVIMIENTOS_RECIENTES = 50;
@@ -180,7 +181,6 @@ export class DashboardService {
       this.prisma.sublote.aggregate({
         _sum: { pesoInicial: true },
         where: {
-          deletedAt: null,
           compra: {
             deletedAt: null,
             organizacionId,
@@ -450,6 +450,7 @@ export class DashboardService {
       gastosAggregate,
       kgCompradosHoy,
       totalProductores,
+      totalComprasHistoricoAggregate,
       resumenInventario,
       kgCapacidad,
       inventarioBodega,
@@ -485,7 +486,6 @@ export class DashboardService {
       this.prisma.sublote.aggregate({
         _sum: { pesoInicial: true },
         where: {
-          deletedAt: null,
           compra: {
             deletedAt: null,
             organizacionId,
@@ -498,6 +498,10 @@ export class DashboardService {
           organizacionId,
           deletedAt: null,
         },
+      }),
+      // Conteo histórico total de compras (sin filtro de fecha) para detectar usuario nuevo
+      this.prisma.compra.count({
+        where: { organizacionId, deletedAt: null },
       }),
       this.obtenerResumenInventario(organizacionId),
       this.obtenerCapacidadBodegaKg(organizacionId),
@@ -514,6 +518,7 @@ export class DashboardService {
       totalVentasHoy: Number(ventasAggregate._sum.totalVenta ?? 0),
       totalGastosHoy: Number(gastosAggregate._sum.montoGasto ?? 0),
       totalProductores,
+      totalComprasHistorico: totalComprasHistoricoAggregate,
       kgActual: resumenInventario.kgActual,
       kgCapacidad,
       inventarioPorTipo: resumenInventario.inventarioPorTipo,

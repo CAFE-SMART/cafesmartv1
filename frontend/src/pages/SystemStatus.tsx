@@ -33,6 +33,7 @@ type RegisterProcessState = {
   tipoOrganizacion: TipoOrg;
   otroTipoDetalle?: string;
   nombre: string;
+  apellidos?: string;
   telefono: string;
   correo: string;
   password?: string;
@@ -180,11 +181,13 @@ export default function SystemStatus() {
             ? processState.otroTipoDetalle
             : undefined;
 
+        const fullName = `${processState.nombre} ${processState.apellidos || ''}`.trim();
+
         if (processState.hasGoogleFlow && processState.googleToken) {
           response = await authService.registerWithGoogle({
             googleToken: processState.googleToken,
             correo: processState.correo,
-            nombre: processState.nombre,
+            nombre: fullName,
             telefono: processState.telefono,
             password: processState.password,
             nombreOrganizacion: processState.nombreOrganizacion,
@@ -196,7 +199,7 @@ export default function SystemStatus() {
             nombreOrganizacion: processState.nombreOrganizacion,
             tipoOrganizacion: tipoOrgMapped,
             otroTipoDetalle: otroTipoDetalleMapped,
-            nombre: processState.nombre,
+            nombre: fullName,
             telefono: processState.telefono,
             correo: processState.correo,
             password: processState.password || '',
@@ -294,13 +297,44 @@ export default function SystemStatus() {
             <p className="mt-1 text-[0.68rem] leading-5 text-slate-600">
               {errorMessage}
             </p>
-            <button
-              type="button"
-              onClick={() => void executeRegistration(true)}
-              className="mt-4 inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#eef0fb] px-4 py-2 text-[0.68rem] font-black text-[#1D4ED8]"
-            >
-              Reintentar
-            </button>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => void executeRegistration(true)}
+                className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-[#1D4ED8] bg-[#1D4ED8] px-4 py-2 text-[0.68rem] font-black text-white shadow-sm hover:bg-[#1e40af]"
+              >
+                Reintentar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!processState) return;
+                  navigate('/crear-empresa', {
+                    state: {
+                      googleToken: processState.googleToken,
+                      googlePrefill: processState.hasGoogleFlow ? {
+                        correo: processState.correo,
+                        nombre: processState.nombre,
+                        apellidos: processState.apellidos,
+                      } : undefined,
+                      registerDraft: {
+                        nombreOrganizacion: processState.nombreOrganizacion,
+                        tipoOrganizacion: processState.tipoOrganizacion === 'OTRO' ? 'PERSONALIZADO' : processState.tipoOrganizacion,
+                        otroTipoDetalle: processState.otroTipoDetalle,
+                        nombre: processState.nombre,
+                        apellidos: processState.apellidos,
+                        telefono: processState.telefono,
+                        correo: processState.correo,
+                        password: processState.password,
+                      }
+                    }
+                  });
+                }}
+                className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#f8fafc] px-4 py-2 text-[0.68rem] font-black text-[#475569] hover:bg-[#f1f5f9]"
+              >
+                Volver a editar datos
+              </button>
+            </div>
           </>
         )}
       </div>

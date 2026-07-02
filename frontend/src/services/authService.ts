@@ -179,14 +179,28 @@ async function postAuth<TResponse>(
 }
 
 export const authService = {
-  async checkEmailExists(correo: string): Promise<boolean> {
-    const data = await postAuth<{ exists: boolean }>(
+  async checkEmailExists(correo: string): Promise<{
+    exists: boolean;
+    organizacion: {
+      nombre: string;
+      tipo: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+      otroTipoDetalle?: string;
+    } | null;
+  }> {
+    const data = await postAuth<{
+      exists: boolean;
+      organizacion: {
+        nombre: string;
+        tipo: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
+        otroTipoDetalle?: string;
+      } | null;
+    }>(
       '/check-email',
       { correo },
       'No se pudo validar el correo',
       { enabled: false },
     );
-    return Boolean(data.exists);
+    return data;
   },
 
   register(data: {

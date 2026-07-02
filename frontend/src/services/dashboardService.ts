@@ -73,6 +73,7 @@ export type DashboardInicio = Pick<
 > & {
   inventarioBodega: DashboardInicioBodegaItem[];
   sublotesAntiguos?: DashboardInicioSubloteAntiguo[];
+  totalComprasHistorico: number;
 };
 
 export async function obtenerDashboardSummary() {

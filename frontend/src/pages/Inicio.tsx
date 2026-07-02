@@ -286,6 +286,50 @@ function BodegaCoffeeRow({
   );
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="animate-pulse px-5 space-y-5 pt-3">
+      {/* Resumen del día skeleton */}
+      <div className="space-y-3">
+        <div className="flex items-end justify-between">
+          <div className="space-y-1.5">
+            <div className="h-4 w-32 rounded-[6px] bg-slate-200" />
+            <div className="h-3 w-48 rounded-[6px] bg-slate-200" />
+          </div>
+          <div className="h-5 w-12 rounded-full bg-slate-200" />
+        </div>
+        <div className="rounded-[18px] border border-[#dbe2ee] bg-white p-4 space-y-4 shadow-sm">
+          <div className="grid grid-cols-2 gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-[76px] rounded-[16px] bg-slate-100" />
+            ))}
+          </div>
+          <div className="h-11 w-full rounded-[14px] bg-slate-100" />
+        </div>
+      </div>
+
+      {/* Capacidad en bodega skeleton */}
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <div className="h-4 w-40 rounded-[6px] bg-slate-200" />
+          <div className="h-3 w-64 rounded-[6px] bg-slate-200" />
+        </div>
+        <div className="rounded-[18px] border border-[#dbe2ee] bg-white p-4 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-28 rounded-[6px] bg-slate-200" />
+            <div className="h-5 w-10 rounded-[6px] bg-slate-200" />
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-slate-100" />
+          <div className="flex items-center justify-between">
+            <div className="h-3.5 w-16 rounded-[4px] bg-slate-200" />
+            <div className="h-3.5 w-16 rounded-[4px] bg-slate-200" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmptyDashboardState({
   onRegisterPurchase,
 }: {
@@ -296,19 +340,37 @@ function EmptyDashboardState({
       <div className="rounded-[28px] border border-[#e1e8f3] bg-white px-6 py-9 text-center shadow-[0_18px_44px_rgba(15,23,42,0.09)]">
         <img
           src="/imagenes-de-proyecto/granito-inteligente.png"
-          alt=""
+          alt="Grano de café inteligente"
           className="mx-auto h-14 w-14 object-contain"
         />
-        <h2 className="mt-5 text-[1.18rem] font-black text-[#101828]">
-          Registra tu primera compra
+        <h2 className="mt-5 text-[1.28rem] font-black text-[#101828]">
+          ¡Bienvenido a Café Smart!
         </h2>
-        <p className="mx-auto mt-2 max-w-[270px] text-[0.84rem] font-semibold leading-6 text-[#52627a]">
-          Para ver tu inventario y empezar a vender.
+        <p className="mx-auto mt-2.5 max-w-[280px] text-[0.82rem] font-semibold leading-5 text-slate-500">
+          Para empezar a administrar tu negocio, te recomendamos:
         </p>
+        <ul className="mx-auto mt-4 max-w-[280px] text-left space-y-2 text-[0.8rem] font-semibold text-slate-600">
+          <li className="flex items-start gap-2">
+            <span className="text-[#1D4ED8] font-bold">✓</span>
+            <span>Registrar tu primera compra de café.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-[#1D4ED8] font-bold">✓</span>
+            <span>Controlar tus procesos de secado.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-[#1D4ED8] font-bold">✓</span>
+            <span>Consultar el inventario disponible.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-[#1D4ED8] font-bold">✓</span>
+            <span>Registrar tus ventas y ver tu utilidad.</span>
+          </li>
+        </ul>
         <button
           type="button"
           onClick={onRegisterPurchase}
-          className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-[16px] bg-[#173b9c] px-4 text-[0.84rem] font-black text-white shadow-[0_12px_24px_rgba(23,59,156,0.22)]"
+          className="mt-7 inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#1D4ED8] px-4 text-[0.84rem] font-black text-white shadow-[0_14px_26px_rgba(40,75,193,0.18)] transition hover:bg-[#1e40af]"
         >
           Registrar compra
         </button>
@@ -320,7 +382,7 @@ function EmptyDashboardState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
-  const { logout } = useUser();
+  const { logout, user } = useUser();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<DashboardInicio | null>(null);
@@ -469,13 +531,7 @@ export default function Inicio() {
     !loading &&
     !error &&
     summary !== null &&
-    summary.comprasHoy === 0 &&
-    summary.ventasHoy === 0 &&
-    summary.gastosHoy === 0 &&
-    summary.totalVentasHoy === 0 &&
-    summary.totalGastosHoy === 0 &&
-    summary.kgActual === 0 &&
-    sublotesAntiguos.length === 0;
+    summary.totalComprasHistorico === 0;
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] pb-32 text-slate-900">
@@ -489,7 +545,7 @@ export default function Inicio() {
                   <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-[#d8e3d7] bg-[#f7fbf5] text-[#37624b] shadow-inner">
                     <Coffee size={24} strokeWidth={2.1} />
                   </span>
-                  <h1 className="text-[1.48rem] font-semibold leading-tight text-[#24372e]">
+                  <h1 className="text-[1.48rem] font-normal leading-tight text-[#24372e]">
                     Caf&eacute; Smart
                   </h1>
                 </div>
@@ -549,7 +605,9 @@ export default function Inicio() {
           </section>
         ) : null}
 
-        {isEmptyDashboard ? (
+        {loading && !refreshing ? (
+          <DashboardSkeleton />
+        ) : isEmptyDashboard ? (
           <EmptyDashboardState
             onRegisterPurchase={() => navigate('/compras')}
           />

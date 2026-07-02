@@ -67,7 +67,16 @@ export class AuthController {
     const user = await this.usersService.findByEmail(
       dto.correo.trim().toLowerCase(),
     );
-    return { exists: Boolean(user) };
+    return {
+      exists: Boolean(user),
+      organizacion: user?.organizacion
+        ? {
+            nombre: user.organizacion.nombre,
+            tipo: user.organizacion.tipo,
+            otroTipoDetalle: user.organizacion.otroTipoDetalle,
+          }
+        : null,
+    };
   }
 
   @Post('verify-password')

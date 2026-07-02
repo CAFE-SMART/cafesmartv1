@@ -35,9 +35,13 @@ describe('SecadoService - POST /secado', () => {
       },
       tipoCafe: {
         findUnique: jest.fn().mockResolvedValue({ id: 'tipo-seco' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'tipo-seco' }),
       },
       calidad: {
         findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'calidad-regular', nombre: 'REGULAR' }),
+        findFirst: jest
           .fn()
           .mockResolvedValue({ id: 'calidad-regular', nombre: 'REGULAR' }),
       },
