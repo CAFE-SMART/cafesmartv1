@@ -309,7 +309,7 @@ export default function SystemStatus() {
                 type="button"
                 onClick={() => {
                   if (!processState) return;
-                  navigate('/crear-cuenta', {
+                  navigate('/crear-empresa', {
                     state: {
                       googleToken: processState.googleToken,
                       googlePrefill: processState.hasGoogleFlow ? {
