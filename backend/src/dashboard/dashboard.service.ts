@@ -95,9 +95,19 @@ const dashboardInicioCache = new Map<
   string,
   { expiresAt: number; data: DashboardInicioResponse }
 >();
+const dashboardSummaryCache = new Map<
+  string,
+  { expiresAt: number; data: DashboardSummaryResponse }
+>();
 
 export function invalidarDashboardCache(organizacionId: string): void {
   dashboardInicioCache.delete(organizacionId);
+  dashboardSummaryCache.delete(organizacionId);
+}
+
+export function clearAllDashboardCaches(): void {
+  dashboardInicioCache.clear();
+  dashboardSummaryCache.clear();
 }
 
 @Injectable()
@@ -126,6 +136,24 @@ export class DashboardService {
 
   async obtenerResumen(userId: string): Promise<DashboardSummaryResponse> {
     const organizacionId = await this.obtenerOrganizacionId(userId);
+    const cached = dashboardSummaryCache.get(organizacionId);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const data = await this.calcularResumen(organizacionId);
+    dashboardSummaryCache.set(organizacionId, {
+      data,
+      expiresAt: Date.now() + DASHBOARD_INICIO_CACHE_MS,
+    });
+
+    return data;
+  }
+
+  private async calcularResumen(
+    organizacionId: string,
+  ): Promise<DashboardSummaryResponse> {
     const { inicioDia, finDia } = this.obtenerRangoHoyBogota();
     const { inicioSemana, finSemana } = this.obtenerRangoSemanaBogota();
 

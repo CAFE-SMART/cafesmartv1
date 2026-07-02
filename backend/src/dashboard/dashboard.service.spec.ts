@@ -1,6 +1,9 @@
-import { DashboardService } from './dashboard.service';
+import { DashboardService, clearAllDashboardCaches } from './dashboard.service';
 
 describe('DashboardService', () => {
+  beforeEach(() => {
+    clearAllDashboardCaches();
+  });
   function crearServicioConMocks() {
     const prisma = {
       $transaction: jest.fn((operations: Array<Promise<unknown>>) =>
@@ -147,6 +150,7 @@ describe('DashboardService', () => {
       .mockResolvedValueOnce([]);
 
     const inicial = await service.obtenerResumen('user-1');
+    clearAllDashboardCaches();
     const actualizado = await service.obtenerResumen('user-1');
 
     expect(inicial).toMatchObject({

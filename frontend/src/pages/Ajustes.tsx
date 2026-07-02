@@ -1010,6 +1010,20 @@ export default function Ajustes() {
         if (loadingProcess) return;
         setLoadingProcess('secado');
         try {
+          const summary = await obtenerDashboardSummary();
+          const tieneCafeVerde = summary.inventarioPorTipo.some((inv) => {
+            const key = inv.tipoCafe.trim().toUpperCase();
+            return (
+              (key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE')) &&
+              inv.kgDisponible > 0
+            );
+          });
+
+          if (!tieneCafeVerde) {
+            setShowNoActiveSecadoModal(true);
+            return;
+          }
+
           const lotes = await obtenerLotes();
           const greenLot = lotes.find((l) => {
             const key = l.tipoCafe.trim().toUpperCase();
