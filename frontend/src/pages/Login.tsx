@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Mail, Lock, Eye, EyeOff, LogIn, Loader } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  LogIn,
+  Loader,
+} from 'lucide-react';
 import type { CredentialResponse } from '@react-oauth/google';
 
 import {
@@ -95,7 +104,9 @@ function FieldMessage({
         ? ({ role: 'alert', 'aria-live': 'assertive' } as const)
         : ({ role: 'status', 'aria-live': 'polite' } as const))}
       className={`mt-2 flex items-start gap-1.5 rounded-lg px-1 text-sm font-semibold leading-5 ${
-        isError ? 'text-red-600 dark:text-red-300' : 'text-slate-600 dark:text-slate-300'
+        isError
+          ? 'text-red-600 dark:text-red-300'
+          : 'text-slate-600 dark:text-slate-300'
       }`}
     >
       <AlertCircle
@@ -240,20 +251,23 @@ function getSpecificLoginErrorMessage(error: AuthError) {
     return 'No encontramos una cuenta con este correo.';
   }
 
-  if (error.code === 'OFFLINE' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+  if (
+    error.code === 'OFFLINE' ||
+    (typeof navigator !== 'undefined' && !navigator.onLine)
+  ) {
     return 'No tienes conexión. Revisa tu internet e intenta nuevamente.';
   }
 
   if (error.code === 'TIMEOUT') {
-    return 'La conexión está tardando demasiado. Intenta nuevamente.';
+    return AUTH_MESSAGES.cloudTimeout;
   }
 
   if (error.code === 'CORS_OR_NETWORK' || error.status === 0) {
-    return 'No pudimos conectar con el servidor. Intenta nuevamente en unos momentos.';
+    return AUTH_MESSAGES.cloudTryAgain;
   }
 
   if ((error.status ?? 0) >= 500) {
-    return 'No pudimos conectar con el servidor. Intenta nuevamente en unos momentos.';
+    return AUTH_MESSAGES.cloudTryAgain;
   }
 
   return message || 'No pudimos iniciar sesión. Intenta nuevamente.';
@@ -266,7 +280,7 @@ function withLoginSafetyTimeout<T>(operation: Promise<T>): Promise<T> {
 
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = window.setTimeout(() => {
-      logLoginDebug('timeout', { timeoutMs: 17_000 });
+      logLoginDebug('timeout', { timeoutMs: 32_000 });
       reject({
         message: AUTH_MESSAGES.cloudTimeout,
         field: null,
@@ -274,7 +288,7 @@ function withLoginSafetyTimeout<T>(operation: Promise<T>): Promise<T> {
         code: 'TIMEOUT',
         status: 0,
       } satisfies AuthError);
-    }, 17_000);
+    }, 32_000);
   });
 
   return Promise.race([operation, timeout]).finally(() => {
@@ -284,22 +298,38 @@ function withLoginSafetyTimeout<T>(operation: Promise<T>): Promise<T> {
   });
 }
 
+function isOfflineRecoverableAuthError(error: AuthError) {
+  return (
+    error.code === 'TIMEOUT' ||
+    error.code === 'CORS_OR_NETWORK' ||
+    error.code === 'OFFLINE' ||
+    error.status === 0 ||
+    (error.status ?? 0) >= 500
+  );
+}
+
 export default function Login() {
-  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
+  const googleClientId =
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() ?? '';
   const isGoogleAuthEnabled = Boolean(googleClientId);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
-  const [emailFieldTone, setEmailFieldTone] = useState<FieldMessageTone>('assist');
-  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(null);
+  const [emailFieldTone, setEmailFieldTone] =
+    useState<FieldMessageTone>('assist');
+  const [passwordFieldError, setPasswordFieldError] = useState<string | null>(
+    null,
+  );
   const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedAccountName, setRememberedAccountName] = useState('');
   const [offlineSessionAvailable, setOfflineSessionAvailable] = useState(false);
+  const [offlineLoginActionVisible, setOfflineLoginActionVisible] =
+    useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
   const restoredLoginDraftRef = useRef(false);
@@ -356,7 +386,9 @@ export default function Login() {
     void loadRememberedAccount();
 
     if (typeof window !== 'undefined') {
-      const expiredMessage = window.sessionStorage.getItem(SESSION_EXPIRED_MESSAGE_KEY);
+      const expiredMessage = window.sessionStorage.getItem(
+        SESSION_EXPIRED_MESSAGE_KEY,
+      );
       if (expiredMessage) {
         setError(expiredMessage);
         setPassword('');
@@ -456,7 +488,11 @@ export default function Login() {
 
     const params = new URLSearchParams(hash.replace(/^#/, ''));
     const idToken = params.get('id_token');
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.search,
+    );
 
     if (idToken) {
       void handleGoogleSuccess({ credential: idToken });
@@ -509,16 +545,22 @@ export default function Login() {
         'No detectamos internet disponible en este dispositivo.',
         offlineSessionAvailable
           ? 'Puedes entrar con tu sesión guardada.'
-          : 'Conéctate a internet para iniciar sesión por primera vez.',
+          : 'Para usar el modo offline, primero inicia sesión con internet al menos una vez.',
       );
     }
 
-    if (message === AUTH_MESSAGES.cloudUnavailable) {
+    if (
+      message === AUTH_MESSAGES.cloudUnavailable ||
+      message === AUTH_MESSAGES.cloudTimeout ||
+      message === AUTH_MESSAGES.cloudTryAgain
+    ) {
       return createGuidedError(
         message,
-        'Conexión inestable.',
-        'Puede ser internet, CORS o que Render todavía no responda.',
-        'Revisa tu conexión e intenta de nuevo.',
+        'La nube está tardando.',
+        'Tu internet puede estar disponible, pero Render no respondió a tiempo.',
+        offlineSessionAvailable
+          ? 'Puedes reintentar o entrar con tu sesión guardada.'
+          : 'Para usar el modo offline, primero inicia sesión con internet al menos una vez.',
       );
     }
 
@@ -530,7 +572,10 @@ export default function Login() {
     );
   };
 
-  const syncRememberedAccount = async (account: { email: string; name?: string | null }) => {
+  const syncRememberedAccount = async (account: {
+    email: string;
+    name?: string | null;
+  }) => {
     if (rememberMe) {
       await saveRememberedAccount(account);
       setRememberedAccountName(account.name ?? '');
@@ -542,6 +587,7 @@ export default function Login() {
   };
 
   const enterOfflineMode = async () => {
+    setOfflineLoginActionVisible(false);
     const offlineEntry = await authSessionService.canEnterOffline(email);
 
     if (import.meta.env.DEV) {
@@ -559,11 +605,17 @@ export default function Login() {
       if (offlineEntry.reason === 'missing') {
         setError(AUTH_MESSAGES.offlineFirstLogin);
       } else if (offlineEntry.reason === 'email_mismatch') {
-        setError('Esta cuenta no tiene una sesión guardada en este dispositivo.');
+        setError(
+          'Esta cuenta no tiene una sesión guardada en este dispositivo.',
+        );
       } else if (offlineEntry.reason === 'disabled') {
-        setError('Conéctate a internet para iniciar sesión nuevamente.');
+        setError(
+          'Para usar el modo offline, primero inicia sesión con internet al menos una vez.',
+        );
       } else {
-        setError('No pudimos validar tu sesión guardada. Conéctate a internet para iniciar sesión nuevamente.');
+        setError(
+          'No pudimos validar tu sesión guardada. Conéctate a internet para iniciar sesión nuevamente.',
+        );
       }
       setPassword('');
       return false;
@@ -650,8 +702,11 @@ export default function Login() {
         backendReachable,
         apiMode: import.meta.env.MODE,
       });
-      const data = await withLoginSafetyTimeout(authService.login(email, password));
-      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+      const data = await withLoginSafetyTimeout(
+        authService.login(email, password),
+      );
+      const nextHasCompany =
+        data.hasCompany || Boolean(data.user.organizacionId);
       const userSession = {
         id: data.user.id,
         email: data.user.email,
@@ -659,7 +714,9 @@ export default function Login() {
         organizacionId: data.user.organizacionId ?? null,
         organizacion: data.user.organizacion ?? null,
         nombreOrganizacion:
-          data.user.nombreOrganizacion ?? data.user.organizacion?.nombre ?? null,
+          data.user.nombreOrganizacion ??
+          data.user.organizacion?.nombre ??
+          null,
         tipoOrganizacion: normalizeTipoOrganizacion(
           data.user.tipoOrganizacion ?? data.user.organizacion?.tipo,
         ),
@@ -677,14 +734,15 @@ export default function Login() {
         hasCompany: nextHasCompany,
         persist: true,
       });
-      const reactivatedSession = await authSessionService.reactivateOfflineAccess({
-        accessToken: data.access_token,
-        user: userSession,
-        hasCompany: nextHasCompany,
-        lastLoginAt: Date.now(),
-        offlineAllowed: true,
-        loggedOutManually: false,
-      });
+      const reactivatedSession =
+        await authSessionService.reactivateOfflineAccess({
+          accessToken: data.access_token,
+          user: userSession,
+          hasCompany: nextHasCompany,
+          lastLoginAt: Date.now(),
+          offlineAllowed: true,
+          loggedOutManually: false,
+        });
       if (import.meta.env.DEV) {
         console.info('[offline-login] session saved', {
           email: userSession.email.trim().toLowerCase(),
@@ -712,7 +770,8 @@ export default function Login() {
           typeof navigator === 'undefined' ? null : navigator.onLine,
       });
       const field = (authError.field || '').toLowerCase();
-      const message = authError.message || 'No pudimos iniciar sesión en este momento.';
+      const message =
+        authError.message || 'No pudimos iniciar sesión en este momento.';
       const specificLoginMessage = getSpecificLoginErrorMessage(authError);
       const details = authError.details ?? {};
       const isCredentialError =
@@ -721,7 +780,12 @@ export default function Login() {
         field === 'correo' ||
         field === 'password' ||
         field === 'contrasena' ||
-        Boolean(details.email?.[0] || details.correo?.[0] || details.password?.[0] || details.contrasena?.[0]);
+        Boolean(
+          details.email?.[0] ||
+          details.correo?.[0] ||
+          details.password?.[0] ||
+          details.contrasena?.[0],
+        );
 
       const emailDetail = details.email?.[0] || details.correo?.[0];
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
@@ -730,39 +794,30 @@ export default function Login() {
         setPasswordFieldError(passwordDetail || specificLoginMessage);
         setPassword('');
         setError(specificLoginMessage);
-      } else if (isCredentialError && (field === 'email' || field === 'correo')) {
+      } else if (
+        isCredentialError &&
+        (field === 'email' || field === 'correo')
+      ) {
         setEmailFieldTone('error');
         setEmailFieldError(specificLoginMessage);
         setError(specificLoginMessage);
-      } else if (isCredentialError && (field === 'password' || field === 'contrasena')) {
+      } else if (
+        isCredentialError &&
+        (field === 'password' || field === 'contrasena')
+      ) {
         setPasswordFieldError(specificLoginMessage);
         setPassword('');
         setError(specificLoginMessage);
-      } else if (
-        authError.code === 'TIMEOUT' ||
-        authError.code === 'CORS_OR_NETWORK'
-      ) {
-        setError(specificLoginMessage);
-        setPasswordFieldError(null);
-      } else if (
-        authError.code === 'OFFLINE' ||
-        authError.status === 0 ||
-        (typeof navigator !== 'undefined' && !navigator.onLine)
-      ) {
-        const browserOffline =
-          typeof navigator !== 'undefined' && navigator.onLine === false;
-
-        if (browserOffline) {
-          const enteredOffline = await enterOfflineMode();
-          if (!enteredOffline) {
-            setPasswordFieldError(null);
-          }
-        } else {
-          setError(specificLoginMessage);
-          setPasswordFieldError(null);
-        }
-      } else if ((authError.status ?? 0) >= 500) {
-        setError(specificLoginMessage);
+      } else if (isOfflineRecoverableAuthError(authError)) {
+        const offlineEntry = await authSessionService.canEnterOffline(email);
+        const hasOfflineSession = offlineEntry.canEnter;
+        setOfflineSessionAvailable(hasOfflineSession);
+        setOfflineLoginActionVisible(hasOfflineSession);
+        setError(
+          hasOfflineSession
+            ? specificLoginMessage
+            : AUTH_MESSAGES.offlineFirstLogin,
+        );
         setPasswordFieldError(null);
       } else {
         setError(specificLoginMessage);
@@ -782,7 +837,9 @@ export default function Login() {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccess = async (
+    credentialResponse: CredentialResponse,
+  ) => {
     setError(null);
     setEmailFieldError(null);
     setEmailFieldTone('assist');
@@ -791,7 +848,8 @@ export default function Login() {
 
     const idToken = credentialResponse?.credential;
     if (!idToken) {
-      const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.';
+      const message =
+        'No se pudo iniciar sesión con Google. Intenta nuevamente.';
       setError(message);
       setGoogleLoading(false);
       return;
@@ -799,7 +857,8 @@ export default function Login() {
 
     try {
       const data = await authService.loginWithGoogle(idToken);
-      const nextHasCompany = data.hasCompany || Boolean(data.user.organizacionId);
+      const nextHasCompany =
+        data.hasCompany || Boolean(data.user.organizacionId);
       const userSession = {
         id: data.user.id,
         email: data.user.email,
@@ -807,7 +866,9 @@ export default function Login() {
         organizacionId: data.user.organizacionId ?? null,
         organizacion: data.user.organizacion ?? null,
         nombreOrganizacion:
-          data.user.nombreOrganizacion ?? data.user.organizacion?.nombre ?? null,
+          data.user.nombreOrganizacion ??
+          data.user.organizacion?.nombre ??
+          null,
         tipoOrganizacion: normalizeTipoOrganizacion(
           data.user.tipoOrganizacion ?? data.user.organizacion?.tipo,
         ),
@@ -825,14 +886,15 @@ export default function Login() {
         hasCompany: nextHasCompany,
         persist: true,
       });
-      const reactivatedSession = await authSessionService.reactivateOfflineAccess({
-        accessToken: data.access_token,
-        user: userSession,
-        hasCompany: nextHasCompany,
-        lastLoginAt: Date.now(),
-        offlineAllowed: true,
-        loggedOutManually: false,
-      });
+      const reactivatedSession =
+        await authSessionService.reactivateOfflineAccess({
+          accessToken: data.access_token,
+          user: userSession,
+          hasCompany: nextHasCompany,
+          lastLoginAt: Date.now(),
+          offlineAllowed: true,
+          loggedOutManually: false,
+        });
       if (import.meta.env.DEV) {
         console.info('[offline-login] session saved', {
           email: userSession.email.trim().toLowerCase(),
@@ -863,7 +925,8 @@ export default function Login() {
         return;
       }
 
-      const message = loginError.message || 'No se pudo iniciar sesión con Google.';
+      const message =
+        loginError.message || 'No se pudo iniciar sesión con Google.';
       if (
         loginError.code === 'OFFLINE' ||
         loginError.status === 0 ||
@@ -906,14 +969,29 @@ export default function Login() {
           </div>
 
           <div className="animate-[cafesmartFadeUp_380ms_ease-out_120ms_both]">
-<h2 className="mb-2 text-center text-2xl font-bold text-[#0f172a] sm:text-3xl dark:text-slate-100">Iniciar sesión</h2>
+            <h2 className="mb-2 text-center text-2xl font-bold text-[#0f172a] sm:text-3xl dark:text-slate-100">
+              Iniciar sesión
+            </h2>
             <p className="mx-auto mb-5 max-w-[300px] text-center text-sm text-gray-500 sm:mb-8 dark:text-slate-300">
               Bienvenido de nuevo a la gestión inteligente de CaféSmart
             </p>
           </div>
 
           {error ? (
-            <InlineGuidedError message={getGlobalGuidance(error)} className="mb-6" />
+            <InlineGuidedError
+              message={getGlobalGuidance(error)}
+              className="mb-6"
+            />
+          ) : null}
+
+          {offlineLoginActionVisible ? (
+            <button
+              type="button"
+              onClick={() => void enterOfflineMode()}
+              className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-950 transition hover:bg-amber-100 focus:outline-none focus:ring-4 focus:ring-amber-300/40 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25"
+            >
+              Entrar en modo offline
+            </button>
           ) : null}
 
           {isOffline ? (
@@ -926,7 +1004,7 @@ export default function Login() {
               <p className="font-medium">
                 {offlineSessionAvailable
                   ? 'Puedes ingresar con tu sesión guardada en este dispositivo.'
-                  : 'Conéctate a internet para iniciar sesión por primera vez.'}
+                  : 'Para usar el modo offline, primero inicia sesión con internet al menos una vez.'}
               </p>
             </div>
           ) : null}
@@ -939,7 +1017,8 @@ export default function Login() {
             >
               <p className="font-bold">Conectando con la nube</p>
               <p className="font-medium">
-                Estamos conectando con la nube. Esto puede tardar unos segundos.
+                La nube está tardando en responder. El login seguirá intentando
+                conectar.
               </p>
             </div>
           ) : null}
@@ -952,7 +1031,9 @@ export default function Login() {
             >
               <p className="font-bold">Nube no disponible</p>
               <p className="font-medium">
-                Conexión inestable. Puedes intentar iniciar sesión de todas formas.
+                La nube está tardando en responder. Puedes reintentar o entrar
+                en modo offline si ya habías iniciado sesión en este
+                dispositivo.
               </p>
             </div>
           ) : null}
@@ -983,10 +1064,7 @@ export default function Login() {
             className="space-y-4 sm:space-y-6 animate-[cafesmartFadeUp_420ms_ease-out_220ms_both]"
           >
             <div>
-              <label
-                htmlFor="login-email"
-                className={fieldLabelClass}
-              >
+              <label htmlFor="login-email" className={fieldLabelClass}>
                 Correo electrónico
               </label>
               <div className="relative">
@@ -998,20 +1076,22 @@ export default function Login() {
                   id="login-email"
                   type="email"
                   autoComplete="email"
-                  aria-describedby={emailFieldError ? 'login-email-error' : undefined}
-
-
+                  aria-describedby={
+                    emailFieldError ? 'login-email-error' : undefined
+                  }
                   className={`${fieldInputClass} login-credential-input py-3 pl-10 pr-9 caret-[#1e3a8a] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
                     emailFieldError && emailFieldTone === 'error'
                       ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
                       : ''
                   }`}
-
                   placeholder="ejemplo@correo.com"
                   value={email}
                   onBlur={() => {
                     setEmailTouched(true);
-                    const nextEmailError = getProgressiveEmailError(email, 'blur');
+                    const nextEmailError = getProgressiveEmailError(
+                      email,
+                      'blur',
+                    );
                     setEmailFieldTone(nextEmailError ? 'error' : 'assist');
                     setEmailFieldError(nextEmailError);
                   }}
@@ -1020,13 +1100,17 @@ export default function Login() {
                     setEmail(nextEmail);
                     setEmailTouched(true);
                     setError(null);
+                    setOfflineLoginActionVisible(false);
                     setEmailFieldTone('assist');
                     setEmailFieldError(null);
                   }}
                 />
                 {emailFieldError && emailFieldTone === 'error' ? (
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                    <AlertCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
+                    <AlertCircle
+                      className="h-4 w-4 text-red-500"
+                      aria-hidden="true"
+                    />
                   </div>
                 ) : null}
               </div>
@@ -1071,10 +1155,9 @@ export default function Login() {
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-
-
-                  aria-describedby={passwordFieldError ? 'login-password-error' : undefined}
-
+                  aria-describedby={
+                    passwordFieldError ? 'login-password-error' : undefined
+                  }
                   className={`${fieldInputClass} login-credential-input py-3 pl-10 pr-11 caret-[#1e3a8a] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
                     passwordFieldError
                       ? 'border-red-400 bg-red-50/70 text-red-950 focus:border-red-500 focus:ring-red-200 dark:border-red-400/70 dark:bg-red-500/15 dark:text-red-100 dark:focus:border-red-300 dark:focus:ring-red-400/25'
@@ -1085,24 +1168,21 @@ export default function Login() {
                   onChange={(e) => {
                     setPassword(e.target.value);
                     setPasswordFieldError(null);
+                    setOfflineLoginActionVisible(false);
                   }}
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-1 text-slate-500 shadow-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400/40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-label={
+                    showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                  }
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff
-                      className="h-5 w-5"
-                      aria-hidden="true"
-                    />
+                    <EyeOff className="h-5 w-5" aria-hidden="true" />
                   ) : (
-                    <Eye
-                      className="h-5 w-5"
-                      aria-hidden="true"
-                    />
+                    <Eye className="h-5 w-5" aria-hidden="true" />
                   )}
                 </button>
               </div>
@@ -1125,11 +1205,9 @@ export default function Login() {
               }`}
               aria-label="Recordar cuenta en este dispositivo"
             >
-
-
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all ${
-                rememberMe
+                  rememberMe
                     ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white dark:border-blue-500 dark:bg-blue-500'
                     : 'border-slate-300 bg-white text-transparent dark:border-slate-600 dark:bg-slate-800'
                 }`}
@@ -1148,7 +1226,9 @@ export default function Login() {
               </span>
               <span
                 className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-all ${
-                  rememberMe ? 'bg-[#1e3a8a] dark:bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
+                  rememberMe
+                    ? 'bg-[#1e3a8a] dark:bg-blue-500'
+                    : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
                 <span
@@ -1220,7 +1300,13 @@ export default function Login() {
           {!isGoogleAuthEnabled && (
             <AppFeedbackMessage
               variant="warning"
-              description={<>El acceso con Google no está disponible porque falta configurar<strong> VITE_GOOGLE_CLIENT_ID </strong>en el frontend.</>}
+              description={
+                <>
+                  El acceso con Google no está disponible porque falta
+                  configurar<strong> VITE_GOOGLE_CLIENT_ID </strong>en el
+                  frontend.
+                </>
+              }
               className="mt-1 animate-[cafesmartFadeUp_420ms_ease-out_340ms_both]"
             />
           )}

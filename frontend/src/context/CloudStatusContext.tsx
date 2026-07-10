@@ -118,7 +118,11 @@ async function pingBackend(
         url,
         status: response.status,
         browserOnline,
-        issue: ok ? null : response.status >= 500 ? 'server_error' : 'unreachable',
+        issue: ok
+          ? null
+          : response.status >= 500
+            ? 'server_error'
+            : 'unreachable',
       };
 
       if (SHOULD_LOG_API_DEBUG) {
@@ -417,7 +421,8 @@ export function CloudStatusProvider({
       return {
         tone: 'checking',
         title: 'Conectando con la nube',
-        detail: 'Estamos conectando con la nube. Esto puede tardar unos segundos.',
+        detail:
+          'Estamos conectando con la nube. Esto puede tardar unos segundos.',
         isOnline,
         backendReachable,
         backendIssue,
@@ -432,9 +437,9 @@ export function CloudStatusProvider({
     if (!backendReachable) {
       return {
         tone: 'degraded',
-        title: 'Conectando con la nube',
+        title: 'La nube está tardando',
         detail:
-          'Estamos conectando con la nube. Esto puede tardar unos segundos.',
+          'Con internet. La nube no respondió todavía; puedes seguir usando datos guardados si ya iniciaste sesión antes.',
         isOnline,
         backendReachable,
         backendIssue,

@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -67,7 +67,7 @@ export class AuthService {
     const descripcionOrganizacion =
       dto.descripcionOrganizacion ?? dto.descripcion ?? undefined;
     console.log('[CafeSmart][register] etapa 1: payload recibido', {
-      correo: dto.correo,
+      correoHash: this.hashLogValue(dto.correo),
       nombrePresent: Boolean(dto.nombre?.trim()),
       telefonoPresent: Boolean(dto.telefono?.trim()),
       nombreOrganizacionPresent: Boolean(dto.nombreOrganizacion?.trim()),
@@ -759,6 +759,59 @@ export class AuthService {
         field: 'google',
       });
     }
+  }
+
+  private logRegisterPrismaError(error: unknown, stage: string) {
+    if (!this.isPrismaLikeError(error)) {
+      this.logger.error('[CafeSmart][register] error no Prisma', { stage });
+      return;
+    }
+
+    const meta = this.getPrismaErrorMeta(error.meta);
+    this.logger.error('[CafeSmart][register] prisma error', {
+      stage,
+      code: error.code,
+      model: meta.modelName,
+      column: meta.column,
+      target: meta.target,
+    });
+  }
+
+  private isPrismaLikeError(
+    error: unknown,
+  ): error is { code?: string; meta?: unknown } {
+    return Boolean(
+      error &&
+        typeof error === 'object' &&
+        ('code' in error || 'meta' in error),
+    );
+  }
+
+  private getPrismaErrorMeta(meta: unknown) {
+    if (!meta || typeof meta !== 'object') {
+      return { modelName: undefined, column: undefined, target: undefined };
+    }
+
+    const record = meta as Record<string, unknown>;
+    return {
+      modelName: this.safeLogValue(record.modelName),
+      column: this.safeLogValue(record.column),
+      target: Array.isArray(record.target)
+        ? record.target.map((value) => this.safeLogValue(value)).filter(Boolean)
+        : this.safeLogValue(record.target),
+    };
+  }
+
+  private safeLogValue(value: unknown) {
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  private hashLogValue(value: string | null | undefined) {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+    return createHash('sha256').update(normalized).digest('hex').slice(0, 12);
   }
 
   private async buildAuthResponse(

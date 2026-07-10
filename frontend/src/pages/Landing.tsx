@@ -1,228 +1,521 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  Coffee,
+  DollarSign,
+  PackageCheck,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  UsersRound,
+} from 'lucide-react';
+
+const featureCards = [
+  {
+    icon: PackageCheck,
+    title: 'Inventario por estado',
+    description:
+      'Controla café pergamino, verde, en secado y almacenado con movimientos trazables.',
+  },
+  {
+    icon: Activity,
+    title: 'Secado sin confusiones',
+    description:
+      'Haz seguimiento a sublotes, humedad, mermas y avance del proceso en una vista clara.',
+  },
+  {
+    icon: DollarSign,
+    title: 'Compras, ventas y gastos',
+    description:
+      'Registra operaciones económicas y entiende mejor el flujo diario del negocio cafetero.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Reportes accionables',
+    description:
+      'Consulta rendimiento, utilidad, compras y ventas con datos organizados para decidir mejor.',
+  },
+];
+
+const workflowSteps = [
+  'Registra entradas, ventas, gastos y procesos desde el celular o computador.',
+  'Consulta inventario y secados activos sin revisar cuadernos ni hojas sueltas.',
+  'Usa reportes y alertas para tomar decisiones con más contexto operativo.',
+];
+
+const metrics = [
+  { label: 'Inventario total', value: '4.850 kg', tone: 'text-emerald-700' },
+  { label: 'Secados activos', value: '2 lotes', tone: 'text-amber-700' },
+  { label: 'Ventas del mes', value: '$18.6M', tone: 'text-blue-700' },
+];
+
+function PhonePreview() {
+  return (
+    <div className="relative mx-auto w-[min(72vw,248px)] rounded-[2.15rem] border-[8px] border-slate-950 bg-slate-950 p-2 shadow-2xl shadow-slate-950/25 sm:w-[260px] lg:w-[252px] xl:w-[276px]">
+      <div className="absolute left-1/2 top-4 z-20 h-4 w-24 -translate-x-1/2 rounded-full bg-slate-950" />
+      <div className="relative aspect-[9/18.6] overflow-hidden rounded-[1.55rem] bg-[#f7faf9]">
+        <div className="flex h-full flex-col">
+          <div className="bg-white px-3 pb-3 pt-7 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#176b55] text-white">
+                  <Coffee size={15} aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black leading-none text-slate-950">
+                    Cafe Smart
+                  </p>
+                  <p className="mt-1 text-[8px] font-bold text-slate-400">
+                    Hoy, 8:30 a.m.
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[8px] font-black text-[#176b55]">
+                Activo
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-2.5 overflow-hidden px-3 py-3">
+            <div className="rounded-2xl bg-[#176b55] p-3 text-white shadow-lg shadow-emerald-900/15">
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} aria-hidden="true" />
+                <p className="text-[9px] font-black uppercase tracking-wide text-emerald-50">
+                  Asistente cafetero
+                </p>
+              </div>
+              <p className="mt-2 text-[11px] font-bold leading-4">
+                Dos sublotes están cerca del punto ideal de humedad.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                  Inventario
+                </p>
+                <p className="mt-1 text-base font-black text-slate-950">
+                  4.850 kg
+                </p>
+                <p className="text-[9px] font-bold text-emerald-600">
+                  +12% semana
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                  Ventas
+                </p>
+                <p className="mt-1 text-base font-black text-slate-950">
+                  $4.9M
+                </p>
+                <p className="text-[9px] font-bold text-blue-600">
+                  3 registros
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Activity
+                    size={13}
+                    className="text-amber-600"
+                    aria-hidden="true"
+                  />
+                  <p className="text-[10px] font-black text-slate-800">
+                    Secado 3B
+                  </p>
+                </div>
+                <p className="rounded-full bg-amber-50 px-2 py-1 text-[8px] font-black text-amber-700">
+                  12.4%
+                </p>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-4/5 rounded-full bg-amber-500" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                Operaciones recientes
+              </p>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                <p className="text-[10px] font-bold text-slate-700">
+                  Compra pergamino
+                </p>
+                <p className="text-[10px] font-black text-emerald-700">
+                  +180 kg
+                </p>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                <p className="text-[10px] font-bold text-slate-700">
+                  Venta café verde
+                </p>
+                <p className="text-[10px] font-black text-blue-700">$4.960k</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 border-t border-slate-200 bg-white px-2 pb-3 pt-2 text-slate-400">
+            <div className="flex flex-col items-center gap-1 text-[#176b55]">
+              <Coffee size={13} aria-hidden="true" />
+              <span className="text-[7px] font-black">Inicio</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <ClipboardList size={13} aria-hidden="true" />
+              <span className="text-[7px] font-black">Compras</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <TrendingUp size={13} aria-hidden="true" />
+              <span className="text-[7px] font-black">Ventas</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <ShieldCheck size={13} aria-hidden="true" />
+              <span className="text-[7px] font-black">Datos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DesktopPreview() {
+  return (
+    <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+      <div className="absolute -inset-6 rounded-[2.5rem] bg-emerald-200/40 blur-3xl" />
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur lg:p-5 xl:p-6">
+        <div className="mb-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#176b55]">
+              Panel operativo
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-500">
+              Vista resumida del negocio cafetero
+            </p>
+          </div>
+          <span className="hidden rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-[#176b55] sm:inline-flex">
+            En línea
+          </span>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="order-2 grid content-start gap-4 lg:order-1">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+              {metrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                    {metric.label}
+                  </p>
+                  <p className={`mt-2 text-2xl font-black ${metric.tone}`}>
+                    {metric.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">
+                    Secado activo: Sublote 3B
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Humedad estimada 12.4%, avance alto
+                  </p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
+                  Prioridad
+                </span>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-4/5 rounded-full bg-amber-500" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#143f35] p-4 text-white shadow-lg shadow-emerald-950/15">
+              <div className="flex items-start gap-3">
+                <Sparkles
+                  className="mt-0.5 shrink-0"
+                  size={18}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-sm font-black">Asistente Cafe Smart</p>
+                  <p className="mt-1 text-sm leading-6 text-emerald-50">
+                    Recomienda revisar el secado 3B antes de registrar nuevas
+                    entradas al inventario.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="order-1 lg:order-2">
+            <PhonePreview />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <header className="container mx-auto px-6 py-6">
-        <nav className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#1e3a8a] text-white p-3 rounded-xl">
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-              </svg>
-            </div>
-            <h1 className="text-2xl font-black text-[#0f172a]">Cafe Smart</h1>
-          </div>
+    <div className="min-h-screen overflow-x-hidden bg-[#f6faf8] text-slate-950 selection:bg-emerald-100 selection:text-emerald-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <Link
-            to="/login"
-            className="px-8 py-3 bg-[#1e3a8a] text-white font-semibold rounded-xl hover:bg-[#1e40af] transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+            to="/"
+            className="inline-flex items-center gap-3 rounded-full text-left focus:outline-none focus:ring-4 focus:ring-emerald-200"
+            aria-label="Cafe Smart inicio"
           >
-            Iniciar Sesión
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#143f35] text-white shadow-lg shadow-emerald-950/10">
+              <Coffee size={22} aria-hidden="true" />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-lg font-black tracking-tight sm:text-xl">
+                Cafe Smart
+              </span>
+              <span className="hidden text-xs font-semibold text-slate-500 sm:block">
+                Gestión cafetera simple
+              </span>
+            </span>
           </Link>
-        </nav>
-      </header>
 
-      <main className="container mx-auto px-6 pb-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center pt-20">
-          <div>
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#1e3a8a] bg-clip-text text-transparent mb-8 leading-tight">
-              Cafe Smart
-            </h1>
-            <p className="text-2xl md:text-3xl text-gray-700 mb-8 max-w-lg leading-relaxed font-light">
-              Gestión inteligente para el negocio cafetero del siglo XXI
-            </p>
-            <div className="grid md:grid-cols-2 gap-4 mb-12">
-              <div className="flex items-start gap-4 p-6 bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-xl hover:shadow-2xl transition-all">
-                <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <svg
-                    className="w-6 h-6 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl text-gray-900 mb-1">
-                    Preciso
-                  </h3>
-                  <p className="text-gray-600">
-                    Control total de inventarios y trazabilidad completa
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-6 bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-xl hover:shadow-2xl transition-all">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <svg
-                    className="w-6 h-6 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl text-gray-900 mb-1">
-                    Rápido
-                  </h3>
-                  <p className="text-gray-600">
-                    Interfaz optimizada para uso diario sin complicaciones
-                  </p>
-                </div>
-              </div>
-            </div>
-            <Link
-              to="/register"
-              className="inline-flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-[#1e3a8a] to-[#1e40af] text-white font-bold text-lg rounded-2xl hover:from-[#1e40af] hover:to-[#1e3a8a] shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:-translate-y-1 w-fit"
+          <nav
+            className="flex items-center gap-2 sm:gap-3"
+            aria-label="Principal"
+          >
+            <a
+              href="#que-puedes-hacer"
+              className="hidden min-h-11 items-center rounded-full px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-slate-200 md:inline-flex"
             >
-              Comenzar Gratis
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 8l4 4m0 0l-4 4m4-4H3"
-                />
-              </svg>
-            </Link>
-          </div>
-
-          <div className="relative">
-            <div className="relative z-10 bg-white/80 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/50">
-              <img
-                src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDU2IiBoZWlnaHQ9IjI4NCIgdmlld0JveD0iMCAwIDQ1NiAyODQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0NTYiIGhlaWdodD0iMjg0IiBmeD0iMCIgZnk9IjAiIGZpbGw9IiNGRkZGRkYiLz4KPHBhdGggZD0iTTM0LjcgMjE1LjZDNS4MyAyMTUuNiAyNS44IDIzMiAxNTAgMjMyQzI3NC4yIDIzMiAzOTUuNyAyMTUuNiAzOTUuNyAyMTUuNkM0MDIuMiAyMTUuNiA0MDUuMSAyMDguMiA0MDUuMSAyMDEuNUM0MDUuMSAxOTQuNyA0MDIuMiAxODcuNCAzOTUuNyAxODcuNEgzOS4zTDE1MCAxODcuNEwxNSAwTDE1MCAxODcuNEw0MTYuNyAxODcuNEw0MTYuNyAyMTUuNkMzOTUuNyAyMTUuNiAzNDcuMiAyMTUuNiAzNC43IDIxNS42WiIgZmlsbD0iIzFEM0E4QSIvPgo8cGF0aCBkPSJNMzQ3LjIgMjE1LjZDNS4MyAyMTUuNiAyNS44IDIzMiAxNTAgMjMyQzI3NC4yIDIzMiAzOTUuNyAyMTUuNiAzOTUuNyAyMTUuNkM0MDIuMiAyMTUuNiA0MDUuMSAyMDguMiA0MDUuMSAyMDEuNUM0MDUuMSAxOTQuNyA0MDIuMiAxODcuNCAzOTUuNyAxODcuNEgzOS4zTDE1MCAxODcuNEwxNSAwTDE1MCAxODcuNEw0MTYuNyAxODcuNEw0MTYuNyAyMTUuNkMzOTUuNyAyMTUuNiAzNDcuMiAyMTUuNiAzNDcuMiAyMTUuNloiIGZpbGw9IiMxRTNBOGEiIGZpbGgtb3BhY2l0eT0iMC43NSIvPgo8L3N2Zz4K"
-                alt="Dashboard Preview"
-                className="w-full h-96 object-contain rounded-2xl shadow-2xl"
-              />
-            </div>
-            <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-3xl blur-xl"></div>
-          </div>
-        </div>
-
-        <div className="mt-32 grid md:grid-cols-3 gap-8">
-          <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl border border-white/50 shadow-xl hover:shadow-2xl transition-all group">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2h10a2 2 0 012 2v2M8 7v2m6-2v2m-3 5v4m-3-4h6"
-                />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Inventario Total
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Control preciso de café en todas las etapas: beneficiado,
-              almacenamiento y secado
-            </p>
-          </div>
-          <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl border border-white/50 shadow-xl hover:shadow-2xl transition-all group">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Reportes IA
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Análisis inteligente de rendimiento y recomendaciones automáticas
-            </p>
-          </div>
-          <div className="text-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl border border-white/50 shadow-xl hover:shadow-2xl transition-all group">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Seguridad Total
-            </h3>
-            <p className="text-gray-600 leading-relaxed">
-              Protección avanzada de datos con backups automáticos en la nube
-            </p>
-          </div>
-        </div>
-      </main>
-
-      <footer className="border-t border-gray-200 mt-32 pt-12">
-        <div className="container mx-auto px-6 text-center">
-          <p className="text-lg font-semibold text-gray-900 mb-4">
-            Listo para transformar tu negocio cafetero?
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-2xl mx-auto">
-            <Link
-              to="/register"
-              className="px-10 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-lg rounded-2xl hover:from-emerald-600 hover:to-teal-700 shadow-xl hover:shadow-2xl transition-all w-full sm:w-auto text-center"
-            >
-              Crear Cuenta Gratis
-            </Link>
+              Cómo funciona
+            </a>
             <Link
               to="/login"
-              className="px-10 py-4 border-2 border-gray-200 text-gray-900 font-bold text-lg rounded-2xl hover:bg-gray-50 hover:border-gray-300 transition-all w-full sm:w-auto text-center"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#143f35] px-5 text-sm font-black text-white shadow-lg shadow-emerald-950/10 transition hover:bg-[#0f3028] focus:outline-none focus:ring-4 focus:ring-emerald-200 sm:px-6"
             >
-              Ver Demo
+              Iniciar sesión
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-emerald-50 via-white to-transparent" />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:gap-16 lg:px-8 lg:py-24 xl:py-28">
+            <div className="max-w-3xl text-center lg:text-left">
+              <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#176b55] shadow-sm lg:mx-0">
+                <Sparkles size={14} aria-hidden="true" />
+                Control operativo para café
+              </div>
+
+              <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl xl:text-7xl">
+                Controla tu negocio cafetero{' '}
+                <span className="text-[#176b55]">desde el celular</span>
+              </h1>
+
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg lg:mx-0 xl:text-xl xl:leading-9">
+                Cafe Smart reúne inventario, compras, ventas, gastos, secado y
+                reportes en una experiencia clara para administrar mejor cada
+                movimiento del negocio cafetero.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
+                <Link
+                  to="/register"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#176b55] px-7 text-sm font-black text-white shadow-xl shadow-emerald-900/15 transition hover:bg-[#125642] focus:outline-none focus:ring-4 focus:ring-emerald-200 sm:w-auto"
+                >
+                  Comenzar gratis
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+                <a
+                  href="#que-puedes-hacer"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-slate-300 bg-white px-7 text-sm font-black text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 sm:w-auto"
+                >
+                  Ver cómo funciona
+                </a>
+              </div>
+
+              <div className="mt-8 grid gap-3 text-left sm:grid-cols-3 lg:max-w-2xl">
+                {workflowSteps.map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-sm"
+                  >
+                    <CheckCircle2
+                      size={18}
+                      className="mt-0.5 shrink-0 text-[#176b55]"
+                      aria-hidden="true"
+                    />
+                    <p className="text-sm font-semibold leading-6 text-slate-600">
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <DesktopPreview />
+          </div>
+        </section>
+
+        <section
+          id="que-puedes-hacer"
+          className="border-y border-slate-200 bg-white py-14 sm:py-16 lg:py-20"
+        >
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#176b55]">
+                Cómo funciona
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+                Un panel amplio para administrar lo importante
+              </h2>
+              <p className="mt-4 text-base leading-8 text-slate-600 sm:text-lg">
+                La experiencia está pensada para trabajar bien en computador,
+                tablet y celular, con módulos claros para cada operación del
+                negocio cafetero.
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {featureCards.map(({ icon: Icon, title, description }) => (
+                <article
+                  key={title}
+                  className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-950/5"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-[#176b55]">
+                    <Icon size={23} aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-black text-slate-950">
+                    {title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {description}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#f6faf8] py-14 sm:py-16 lg:py-20">
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#176b55]">
+                Decisiones con datos
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+                Menos desorden, más control y mejores decisiones
+              </h2>
+              <p className="mt-4 text-base leading-8 text-slate-600 sm:text-lg">
+                Cafe Smart está pensado para negocios cafeteros que necesitan
+                registrar rápido, consultar fácil y mantener la información
+                lista para actuar.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <UsersRound
+                  size={24}
+                  className="text-[#176b55]"
+                  aria-hidden="true"
+                />
+                <h3 className="mt-4 text-2xl font-black text-slate-950">
+                  Equipo alineado
+                </h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  Datos compartidos para dueños, administradores y operación.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <Activity
+                  size={24}
+                  className="text-[#176b55]"
+                  aria-hidden="true"
+                />
+                <h3 className="mt-4 text-2xl font-black text-slate-950">
+                  Flujo diario
+                </h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  Registros rápidos para compras, ventas, gastos y secado.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <ShieldCheck
+                  size={24}
+                  className="text-[#176b55]"
+                  aria-hidden="true"
+                />
+                <h3 className="mt-4 text-2xl font-black text-slate-950">
+                  Datos seguros
+                </h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  Información organizada y disponible cuando se necesita.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-14 sm:px-6 sm:pb-16 lg:px-8">
+          <div className="mx-auto grid max-w-7xl items-center gap-8 overflow-hidden rounded-[2rem] bg-[#143f35] px-6 py-10 text-white shadow-2xl shadow-emerald-950/20 sm:px-10 sm:py-12 lg:grid-cols-[1fr_auto] lg:text-left">
+            <div className="text-center lg:text-left">
+              <h2 className="mx-auto max-w-3xl text-3xl font-black tracking-tight sm:text-4xl lg:mx-0">
+                Empieza a organizar tu negocio cafetero hoy
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-emerald-50 lg:mx-0">
+                Crea tu cuenta y empieza a centralizar inventario, operaciones y
+                reportes desde una interfaz hecha para trabajar en cualquier
+                pantalla.
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <Link
+                to="/register"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-black text-[#143f35] shadow-lg transition hover:bg-emerald-50 focus:outline-none focus:ring-4 focus:ring-white/30 sm:w-auto"
+              >
+                Comenzar gratis
+                <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 text-center sm:px-6 md:flex-row md:text-left lg:px-8">
+          <p className="text-sm font-semibold text-slate-500">
+            © {new Date().getFullYear()} Cafe Smart. Todos los derechos
+            reservados.
+          </p>
+          <div className="flex items-center gap-4 text-sm font-bold text-slate-600">
+            <Link
+              to="/login"
+              className="hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-slate-200"
+            >
+              Iniciar sesión
+            </Link>
+            <Link
+              to="/register"
+              className="hover:text-slate-950 focus:outline-none focus:ring-4 focus:ring-slate-200"
+            >
+              Crear cuenta
             </Link>
           </div>
-          <p className="text-sm text-gray-500 mt-8">
-            © 2024 Cafe Smart Inc. Todos los derechos reservados.
-          </p>
         </div>
       </footer>
     </div>

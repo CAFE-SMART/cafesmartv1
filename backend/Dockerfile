@@ -5,7 +5,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install
 COPY . .
-RUN npx prisma generate
+RUN pnpm exec prisma generate
 RUN pnpm build
 EXPOSE 3000
-CMD ["pnpm", "start:prod"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm start:prod"]

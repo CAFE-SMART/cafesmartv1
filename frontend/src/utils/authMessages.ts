@@ -11,18 +11,17 @@ export const AUTH_MESSAGES = {
   invalidPassword: 'La contraseña no coincide.',
   googleGeneric:
     'No pudimos entrar con Google. Revisa tu conexión e intenta de nuevo.',
-  googleNeedsRegister:
-    'No encontramos una cuenta con este correo.',
+  googleNeedsRegister: 'No encontramos una cuenta con este correo.',
   offlineFirstLogin:
-    'Sin conexión. Conéctate a internet para iniciar sesión por primera vez.',
+    'No pudimos conectar con la nube. Para entrar sin conexión, primero debes haber iniciado sesión antes en este dispositivo.',
   cloudWaking:
     'Estamos conectando con la nube. Esto puede tardar unos segundos.',
   cloudUnavailable:
     'Conexión inestable. Puedes seguir usando los datos guardados.',
   cloudTimeout:
-    'Conexión inestable. Intenta nuevamente.',
+    'La nube está tardando en responder. Puedes reintentar o entrar en modo offline si ya habías iniciado sesión en este dispositivo.',
   cloudTryAgain:
-    'Conexión inestable. Intenta nuevamente en unos segundos.',
+    'La nube está tardando en responder. Puedes reintentar o entrar en modo offline si ya habías iniciado sesión en este dispositivo.',
   invalidCredentials: 'Correo o contraseña incorrectos.',
 } as const;
 
@@ -55,7 +54,10 @@ export function mapFriendlyAuthMessage(
 
   if (endpoint === '/login') {
     if (field === 'email' || field === 'correo') {
-      const rawMessage = normalizeMessage(data.message, AUTH_MESSAGES.invalidEmail);
+      const rawMessage = normalizeMessage(
+        data.message,
+        AUTH_MESSAGES.invalidEmail,
+      );
       const lowerMessage = rawMessage.toLowerCase();
 
       if (

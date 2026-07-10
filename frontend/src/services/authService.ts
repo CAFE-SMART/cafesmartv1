@@ -1,4 +1,4 @@
-﻿import {
+import {
   AUTH_MESSAGES,
   buildOfflineAuthError,
   mapFriendlyAuthMessage,
@@ -32,7 +32,12 @@ export type AuthResponse = {
       descripcion?: string | null;
     } | null;
     nombreOrganizacion?: string | null;
-    tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+    tipoOrganizacion?:
+      | 'COOPERATIVA'
+      | 'COMPRAVENTA'
+      | 'PERSONALIZADO'
+      | 'OTRO'
+      | null;
     otroTipoDetalle?: string | null;
     descripcionOrganizacion?: string | null;
     avatarUrl?: string | null;
@@ -59,7 +64,7 @@ type CloudTrackingConfig = {
   successMessage?: string;
 };
 
-const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+const AUTH_REQUEST_TIMEOUT_MS = 30_000;
 
 function isNetworkFetchError(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
@@ -181,7 +186,9 @@ async function postAuth<TResponse>(
 
       try {
         if (SHOULD_LOG_API_DEBUG) {
-          console.info(`[CafeSmart][auth-fetch] request method=POST url=${url}`);
+          console.info(
+            `[CafeSmart][auth-fetch] request method=POST url=${url}`,
+          );
           logDebugLine('[CafeSmart][auth-fetch] request', {
             method: 'POST',
             url,
@@ -228,18 +235,24 @@ async function postAuth<TResponse>(
           });
           logLoginAuth(
             'respuesta recibida',
-            summarizeAuthResponse(data as RawApiError & Record<string, unknown>),
+            summarizeAuthResponse(
+              data as RawApiError & Record<string, unknown>,
+            ),
           );
           console.log('[login] status:', response.status);
           console.log(
             '[login] response:',
-            summarizeAuthResponse(data as RawApiError & Record<string, unknown>),
+            summarizeAuthResponse(
+              data as RawApiError & Record<string, unknown>,
+            ),
           );
         }
 
         if (!response.ok) {
           if (shouldLogLogin && response.status === 401) {
-            logLoginAuth('credenciales incorrectas', { status: response.status });
+            logLoginAuth('credenciales incorrectas', {
+              status: response.status,
+            });
           }
           if (shouldLogLogin) {
             console.log('[login] error:', {

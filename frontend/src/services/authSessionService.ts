@@ -24,7 +24,12 @@ type CachedUser = {
     descripcion?: string | null;
   } | null;
   nombreOrganizacion?: string | null;
-  tipoOrganizacion?: 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO' | null;
+  tipoOrganizacion?:
+    | 'COOPERATIVA'
+    | 'COMPRAVENTA'
+    | 'PERSONALIZADO'
+    | 'OTRO'
+    | null;
   otroTipoDetalle?: string | null;
   descripcionOrganizacion?: string | null;
   avatarUrl?: string | null;
@@ -42,9 +47,10 @@ export type CachedAuthSession = {
 
 type StoredSessionSource = 'indexeddb' | 'preferences';
 
-type StoredSessionRead =
-  | { session: Partial<CachedAuthSession>; source: StoredSessionSource }
-  | null;
+type StoredSessionRead = {
+  session: Partial<CachedAuthSession>;
+  source: StoredSessionSource;
+} | null;
 
 export type CachedSessionResult =
   | { session: CachedAuthSession; reason: 'valid' }
@@ -189,19 +195,24 @@ async function readStoredSession(): Promise<StoredSessionRead> {
   let preferencesSession: Partial<CachedAuthSession> | null = null;
   try {
     const raw = await getAuthStorageValue(AUTH_STORAGE_KEYS.lastSession);
-    preferencesSession = raw ? (JSON.parse(raw) as Partial<CachedAuthSession>) : null;
+    preferencesSession = raw
+      ? (JSON.parse(raw) as Partial<CachedAuthSession>)
+      : null;
   } catch {
     preferencesSession = null;
   }
 
   if (indexedDbSession && preferencesSession) {
-    return getSessionFreshness(preferencesSession) > getSessionFreshness(indexedDbSession)
+    return getSessionFreshness(preferencesSession) >
+      getSessionFreshness(indexedDbSession)
       ? { session: preferencesSession, source: 'preferences' }
       : { session: indexedDbSession, source: 'indexeddb' };
   }
 
-  if (indexedDbSession) return { session: indexedDbSession, source: 'indexeddb' };
-  if (preferencesSession) return { session: preferencesSession, source: 'preferences' };
+  if (indexedDbSession)
+    return { session: indexedDbSession, source: 'indexeddb' };
+  if (preferencesSession)
+    return { session: preferencesSession, source: 'preferences' };
   return null;
 }
 
@@ -322,7 +333,10 @@ export const authSessionService = {
         session = repaired.session;
       }
 
-      if (session.offlineAllowed !== true || session.loggedOutManually === true) {
+      if (
+        session.offlineAllowed !== true ||
+        session.loggedOutManually === true
+      ) {
         return { session: null, reason: 'disabled' };
       }
 
@@ -390,7 +404,9 @@ export const authSessionService = {
     if (storedSession && hasMinimumSessionData(storedSession)) {
       let session = normalizeSession(storedSession as CachedAuthSession);
       const cachedEmail = normalizeEmail(session.user.email);
-      const emailMatches = Boolean(requestedEmail && requestedEmail === cachedEmail);
+      const emailMatches = requestedEmail
+        ? requestedEmail === cachedEmail
+        : true;
 
       if (await shouldRepairDisabledSession(session)) {
         const repaired = await this.saveLastSession({
@@ -420,7 +436,10 @@ export const authSessionService = {
         };
       }
 
-      if (session.offlineAllowed !== true || session.loggedOutManually === true) {
+      if (
+        session.offlineAllowed !== true ||
+        session.loggedOutManually === true
+      ) {
         return {
           canEnter: false,
           reason: 'disabled',

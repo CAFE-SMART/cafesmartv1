@@ -4,6 +4,7 @@ import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 
+const Landing = lazy(() => import('../pages/Landing'));
 const Login = lazy(() => import('../pages/Login'));
 const RecuperarPassword = lazy(() => import('../pages/RecuperarPassword'));
 const RestablecerPassword = lazy(() => import('../pages/RestablecerPassword'));
@@ -32,7 +33,8 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={<AppLoadingScreen />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/recuperar" element={<RecuperarPassword />} />
         <Route path="/recuperar-password" element={<RecuperarPassword />} />
@@ -51,7 +53,10 @@ export default function AppRoutes() {
           {ENABLE_SECADO_PROTOTYPE ? (
             <>
               <Route path="/inventario/secados" element={<SecadosActivos />} />
-              <Route path="/inventario/secado/inicio" element={<SecadoInicio />} />
+              <Route
+                path="/inventario/secado/inicio"
+                element={<SecadoInicio />}
+              />
               <Route
                 path="/inventario/:tipoCafeId/:calidadId/secado"
                 element={<SecadoSeleccion />}
@@ -73,7 +78,10 @@ export default function AppRoutes() {
           <Route path="/gastos" element={<GastosListado />} />
           <Route path="/gastos/registro" element={<GastosOperativos />} />
           <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
-          <Route path="/resumen-financiero/acceso" element={<ResumenFinanciero />} />
+          <Route
+            path="/resumen-financiero/acceso"
+            element={<ResumenFinanciero />}
+          />
           <Route path="/asistente" element={<AsistenteIA />} />
           <Route
             path="/resumen-financiero/analisis-inteligente"
