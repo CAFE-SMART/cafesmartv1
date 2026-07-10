@@ -165,6 +165,8 @@ export default function Register() {
   const canRenderGoogleAuth =
     isGoogleAuthEnabled && Capacitor.getPlatform() !== 'android';
   const [googleLoading, setGoogleLoading] = useState(false);
+  const googleButtonContainerRef = useRef<HTMLDivElement | null>(null);
+  const [googleButtonWidth, setGoogleButtonWidth] = useState(320);
   const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
     null,
   );
@@ -228,7 +230,6 @@ export default function Register() {
     goToStep2,
     goBackToStep1,
     handleSubmit,
-    validateEmailAvailability,
   } = useRegisterForm({
     hasGoogleFlow,
     routeState: googleRouteState,
@@ -333,6 +334,35 @@ export default function Register() {
     setPasswordLimitWarningVisible(true);
     setPasswordLimitWarningExiting(false);
   };
+
+  useEffect(() => {
+    if (!canRenderGoogleAuth) {
+      return undefined;
+    }
+
+    const updateGoogleButtonWidth = () => {
+      const containerWidth = googleButtonContainerRef.current?.clientWidth ?? 320;
+      setGoogleButtonWidth(Math.min(Math.max(Math.floor(containerWidth), 240), 360));
+    };
+
+    updateGoogleButtonWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateGoogleButtonWidth);
+      return () => {
+        window.removeEventListener('resize', updateGoogleButtonWidth);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(updateGoogleButtonWidth);
+    if (googleButtonContainerRef.current) {
+      resizeObserver.observe(googleButtonContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [canRenderGoogleAuth]);
 
   useEffect(() => {
     if (!passwordLimitWarningVisible) {
@@ -635,16 +665,6 @@ export default function Register() {
                             correo: undefined,
                           }));
                         }}
-                        onBlur={async () => {
-                          const emailExistsError =
-                            await validateEmailAvailability(correo);
-                          if (emailExistsError) {
-                            setStepTwoErrors((prev) => ({
-                              ...prev,
-                              correo: emailExistsError,
-                            }));
-                          }
-                        }}
                         placeholder="admin@empresa.com"
                         autoComplete="email"
                         error={stepTwoErrors.correo}
@@ -811,7 +831,10 @@ export default function Register() {
                           </p>
                         </div>
                       ) : (
-                        <div className="group relative mx-auto flex h-11 w-full max-w-[360px] items-center justify-center overflow-hidden rounded-lg focus-within:ring-4 focus-within:ring-[#274ab8]/15 dark:focus-within:ring-blue-400/25">
+                        <div
+                          ref={googleButtonContainerRef}
+                          className="group relative mx-auto flex h-11 w-full max-w-[360px] items-center justify-center overflow-hidden rounded-lg focus-within:ring-4 focus-within:ring-[#274ab8]/15 dark:focus-within:ring-blue-400/25"
+                        >
                           <button
                             type="button"
                             tabIndex={-1}
@@ -836,7 +859,7 @@ export default function Register() {
                             text="continue_with"
                             theme="outline"
                             size="large"
-                            width="100%"
+                            width={String(googleButtonWidth)}
                           />
                           </div>
                         </div>

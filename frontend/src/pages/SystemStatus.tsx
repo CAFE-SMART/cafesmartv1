@@ -150,9 +150,9 @@ export default function SystemStatus() {
           '[CafeSmart][register-submit] payload:',
           JSON.stringify(
             {
-              email: processState.correo,
-              nombre: processState.nombre,
-              telefono: processState.telefono,
+              emailHash: processState.correo ? 'present' : 'empty',
+              nombrePresent: Boolean(processState.nombre),
+              telefonoPresent: Boolean(processState.telefono),
               tipoOrganizacion: toAuthTipoOrganizacion(
                 processState.tipoOrganizacion,
               ),
@@ -259,15 +259,42 @@ export default function SystemStatus() {
         });
 
         registrationStartedRef.current = false;
-        setStatus('error');
-        setSuccessStage('confirm');
 
         if (field === 'email' || field === 'correo') {
-          setErrorTitle('No se pudo crear la cuenta');
-        } else {
-          setErrorTitle('No pudimos crear la cuenta');
+          const nameParts = processState.nombre
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+          navigate('/crear-empresa', {
+            replace: true,
+            state: {
+              registerError: {
+                field: 'email',
+                code: authError.apiCode ?? authError.code,
+                message:
+                  authError.message ||
+                  'Ya existe una cuenta registrada con este correo.',
+              },
+              registerDraft: {
+                authMode: 'register',
+                currentStep: 2,
+                nombreOrganizacion: processState.nombreOrganizacion,
+                descripcionOrganizacion: processState.descripcionOrganizacion,
+                tipoOrganizacion: processState.tipoOrganizacion,
+                otroTipoDetalle: processState.otroTipoDetalle,
+                nombre: nameParts.slice(0, 1).join(' '),
+                apellidos: nameParts.slice(1).join(' '),
+                telefono: processState.telefono,
+                correo: processState.correo,
+              },
+            },
+          });
+          return;
         }
 
+        setStatus('error');
+        setSuccessStage('confirm');
+        setErrorTitle('No pudimos crear la cuenta');
         setErrorMessage(
           authError.message ||
             'No pudimos procesar tu solicitud. Revisa tu conexión e inténtalo nuevamente.',

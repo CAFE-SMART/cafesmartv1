@@ -79,15 +79,9 @@ export class AuthService {
     console.log('[CafeSmart][register] etapa 2: validando email');
     const normalizedEmail = dto.correo.trim().toLowerCase();
     console.log('[CafeSmart][register] etapa 3: validando duplicado');
-    const existingUser = await this.usersService.findByEmail(normalizedEmail);
-    if (existingUser) {
-      throw new HttpException(
-        {
-          message: 'Ya existe una cuenta registrada con este correo.',
-          field: 'email',
-        },
-        HttpStatus.CONFLICT,
-      );
+    const availability = await this.checkEmailAvailability(normalizedEmail);
+    if (!availability.available) {
+      throw this.buildEmailAlreadyExistsError();
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -112,18 +106,7 @@ export class AuthService {
         organizacionId: user.organizacionId,
       });
     } catch (error) {
-      console.error('[CafeSmart][register] error real:', error);
-      if (
-        typeof error === 'object' &&
-        error &&
-        ('code' in error || 'meta' in error)
-      ) {
-        console.error('[CafeSmart][register] prisma error:', {
-          code: (error as { code?: string }).code,
-          message: error instanceof Error ? error.message : String(error),
-          meta: (error as { meta?: unknown }).meta,
-        });
-      }
+      this.logRegisterPrismaError(error, 'create_admin_with_organization');
       this.throwIfUniqueConstraint(error);
       throw error;
     }
@@ -131,6 +114,55 @@ export class AuthService {
     return this.buildAuthResponse(user, 'Registro exitoso');
   }
 
+  async checkEmailAvailability(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existsInUserTable = Boolean(
+      await this.usersService.findByEmail(normalizedEmail),
+    );
+    const existsInSupabaseAuth = await this.existsInSupabaseAuth(normalizedEmail);
+
+    if (existsInUserTable || existsInSupabaseAuth) {
+      return {
+        available: false,
+        field: 'email',
+        code: 'EMAIL_ALREADY_EXISTS',
+        message: 'Ya existe una cuenta registrada con este correo.',
+      };
+    }
+
+    return { available: true };
+  }
+
+  private async existsInSupabaseAuth(email: string) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
+        'SELECT EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = lower($1)) AS exists',
+        email,
+      );
+      return Boolean(rows[0]?.exists);
+    } catch (error) {
+      this.logger.warn('[CafeSmart][check-email] no se pudo consultar Supabase Auth', {
+        correoHash: this.hashLogValue(email),
+        code:
+          typeof error === 'object' && error && 'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : undefined,
+      });
+      return false;
+    }
+  }
+
+  private buildEmailAlreadyExistsError() {
+    return new HttpException(
+      {
+        statusCode: HttpStatus.CONFLICT,
+        code: 'EMAIL_ALREADY_EXISTS',
+        field: 'email',
+        message: 'Ya existe una cuenta registrada con este correo.',
+      },
+      HttpStatus.CONFLICT,
+    );
+  }
   /**
    * Registra o vincula una cuenta usando el token emitido por Google.
    */
@@ -726,13 +758,7 @@ export class AuthService {
         : [];
 
     if (targets.some((target) => target.includes('correo'))) {
-      throw new HttpException(
-        {
-          message: 'El correo ya esta registrado',
-          field: 'email',
-        },
-        HttpStatus.CONFLICT,
-      );
+      throw this.buildEmailAlreadyExistsError();
     }
 
     if (targets.some((target) => target.includes('google'))) {

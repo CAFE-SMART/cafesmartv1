@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { authService } from '../services/authService';
 import {
@@ -29,6 +29,8 @@ type UseRegisterFormParams = {
   routeState: RegisterLocationState;
   navigate: NavigateFunction;
 };
+
+const EMAIL_EXISTS_MESSAGE = 'Ya existe una cuenta registrada con este correo.';
 
 function scrollToFirstInvalidField(fieldIds: string[]) {
   if (typeof window === 'undefined') return;
@@ -89,9 +91,24 @@ export function useRegisterForm({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>({});
+  const [stepTwoErrors, setStepTwoErrors] = useState<StepTwoErrors>(() => {
+    const registerErrorField = routeState.registerError?.field?.toLowerCase();
+    if (registerErrorField === 'email' || registerErrorField === 'correo') {
+      return { correo: routeState.registerError?.message };
+    }
+    return {};
+  });
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const emailCheckCacheRef = useRef<{
+    email: string;
+    error: string | null;
+  } | null>(null);
+  const emailCheckInFlightRef = useRef<{
+    email: string;
+    controller: AbortController;
+    promise: Promise<string | null>;
+  } | null>(null);
 
   useEffect(() => {
     if (hasGoogleFlow && routeState.googlePrefill) {
@@ -128,22 +145,106 @@ export function useRegisterForm({
   }, [hasGoogleFlow, routeState.googlePrefill]);
 
   const validateEmailAvailability = async (correoValue: string) => {
-    if (!EMAIL_REGEX.test(correoValue.trim())) {
+    const normalizedEmail = correoValue.trim().toLowerCase();
+
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       return null;
     }
 
-    setIsCheckingEmail(true);
-    try {
-      const exists = await authService.checkEmailExists(
-        correoValue.trim().toLowerCase(),
-      );
-      return exists ? 'Este correo ya esta registrado.' : null;
-    } catch {
-      return null;
-    } finally {
-      setIsCheckingEmail(false);
+    if (emailCheckCacheRef.current?.email === normalizedEmail) {
+      return emailCheckCacheRef.current.error;
     }
+
+    if (emailCheckInFlightRef.current?.email === normalizedEmail) {
+      return emailCheckInFlightRef.current.promise;
+    }
+
+    emailCheckInFlightRef.current?.controller.abort();
+
+    const controller = new AbortController();
+    setIsCheckingEmail(true);
+
+    const promise = authService
+      .checkEmailExists(normalizedEmail, controller.signal)
+      .then((exists) => {
+        if (import.meta.env.DEV) {
+          console.info('[CafeSmart][check-email]', {
+            available: !exists,
+            code: exists ? 'EMAIL_ALREADY_EXISTS' : undefined,
+          });
+        }
+
+        const result = exists ? EMAIL_EXISTS_MESSAGE : null;
+        emailCheckCacheRef.current = {
+          email: normalizedEmail,
+          error: result,
+        };
+        return result;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (emailCheckInFlightRef.current?.controller === controller) {
+          emailCheckInFlightRef.current = null;
+          setIsCheckingEmail(false);
+        }
+      });
+
+    emailCheckInFlightRef.current = {
+      email: normalizedEmail,
+      controller,
+      promise,
+    };
+
+    return promise;
   };
+
+  useEffect(() => {
+    const normalizedEmail = correo.trim().toLowerCase();
+
+    if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
+      emailCheckInFlightRef.current?.controller.abort();
+      emailCheckInFlightRef.current = null;
+      setIsCheckingEmail(false);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void validateEmailAvailability(normalizedEmail).then((emailExistsError) => {
+        if (correo.trim().toLowerCase() !== normalizedEmail) {
+          return;
+        }
+
+        setStepTwoErrors((prev) => {
+          if (emailExistsError) {
+            return {
+              ...prev,
+              correo: emailExistsError,
+            };
+          }
+
+          if (prev.correo === EMAIL_EXISTS_MESSAGE) {
+            return {
+              ...prev,
+              correo: undefined,
+            };
+          }
+
+          return prev;
+        });
+      });
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [correo]);
+
+  useEffect(
+    () => () => {
+      emailCheckInFlightRef.current?.controller.abort();
+    },
+    [],
+  );
 
   const goToStep2 = () => {
     setError(null);
@@ -374,6 +475,5 @@ export function useRegisterForm({
     goToStep2,
     goBackToStep1,
     handleSubmit,
-    validateEmailAvailability,
   };
 }

@@ -232,8 +232,17 @@ function maskEmailForLog(value: string) {
 function getSpecificLoginErrorMessage(error: AuthError) {
   const code = (error.apiCode || error.code || '').toUpperCase();
   const message = error.message || '';
+  const field = (error.field || '').toLowerCase();
 
-  if (
+  if (field === 'password' || field === 'contrasena') {
+    return AUTH_MESSAGES.invalidPassword;
+  }
+
+  if (field === 'email' || field === 'correo') {
+    return AUTH_MESSAGES.invalidEmail;
+  }
+
+if (
     error.status === 401 ||
     code.includes('INVALID') ||
     code.includes('CREDENTIAL') ||
@@ -790,24 +799,35 @@ export default function Login() {
       const emailDetail = details.email?.[0] || details.correo?.[0];
       const passwordDetail = details.password?.[0] || details.contrasena?.[0];
 
-      if (isCredentialError && (emailDetail || passwordDetail)) {
+      const focusPasswordField = () => {
+        window.setTimeout(() => {
+          passwordInputRef.current?.focus();
+          passwordInputRef.current?.select();
+        }, 0);
+      };
+
+      if (isCredentialError && emailDetail) {
+        setEmailFieldTone('error');
+        setEmailFieldError(emailDetail || specificLoginMessage);
+        setError(null);
+      } else if (
+        isCredentialError &&
+        (passwordDetail || field === 'password' || field === 'contrasena')
+      ) {
         setPasswordFieldError(passwordDetail || specificLoginMessage);
-        setPassword('');
-        setError(specificLoginMessage);
+        setError(null);
+        focusPasswordField();
       } else if (
         isCredentialError &&
         (field === 'email' || field === 'correo')
       ) {
         setEmailFieldTone('error');
         setEmailFieldError(specificLoginMessage);
-        setError(specificLoginMessage);
-      } else if (
-        isCredentialError &&
-        (field === 'password' || field === 'contrasena')
-      ) {
+        setError(null);
+      } else if (isCredentialError && authError.status === 401) {
         setPasswordFieldError(specificLoginMessage);
-        setPassword('');
-        setError(specificLoginMessage);
+        setError(null);
+        focusPasswordField();
       } else if (isOfflineRecoverableAuthError(authError)) {
         const offlineEntry = await authSessionService.canEnterOffline(email);
         const hasOfflineSession = offlineEntry.canEnter;
@@ -1138,7 +1158,8 @@ export default function Login() {
                       state: {
                         returnTo: '/login',
                         returnLabel: 'Volver al login',
-                      },
+                        email: email.trim(),
+},
                     })
                   }
                   className="text-sm font-bold text-[#102d92] underline-offset-4 transition hover:underline focus:outline-none focus:ring-4 focus:ring-blue-400/20 dark:text-blue-300"
@@ -1154,6 +1175,7 @@ export default function Login() {
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
+                  ref={passwordInputRef}
                   autoComplete="current-password"
                   aria-describedby={
                     passwordFieldError ? 'login-password-error' : undefined

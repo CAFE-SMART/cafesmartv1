@@ -94,6 +94,7 @@ export default function RecuperarPassword() {
     returnTo?: string;
     returnLabel?: string;
     finalBackTo?: string;
+    email?: string;
   } | null;
   const returnTo =
     typeof recoveryState?.returnTo === 'string' && recoveryState.returnTo.startsWith('/')
@@ -107,6 +108,8 @@ export default function RecuperarPassword() {
         : 'Volver al login';
   const resetOrigin =
     recoveryState?.origin === 'financial-access' ? 'financial-access' : 'login';
+  const initialEmail =
+    typeof recoveryState?.email === 'string' ? recoveryState.email : '';
   const handleBack = () => {
     navigate(returnTo, {
       replace: true,
@@ -132,7 +135,7 @@ export default function RecuperarPassword() {
     handleSubmit,
     reenviarEnlace,
     usarOtroCorreo,
-  } = useResetPassword({ origin: resetOrigin });
+  } = useResetPassword({ origin: resetOrigin, initialEmail });
 
   const header = (
     <header className="flex items-center gap-3">

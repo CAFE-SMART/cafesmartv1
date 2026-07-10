@@ -27,17 +27,13 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { UsersService } from '../users/users.service';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { JwtAuthGuard } from './jwt.guard';
 
 @Controller('auth')
 @UseGuards(AuthRateLimitGuard)
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -66,10 +62,7 @@ export class AuthController {
   @Post('check-email')
   @HttpCode(HttpStatus.OK)
   async checkEmail(@Body() dto: CheckEmailDto) {
-    const user = await this.usersService.findByEmail(
-      dto.correo.trim().toLowerCase(),
-    );
-    return { exists: Boolean(user) };
+    return this.authService.checkEmailAvailability(dto.correo);
   }
 
   @Post('forgot-password')

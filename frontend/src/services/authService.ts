@@ -62,6 +62,7 @@ type CloudTrackingConfig = {
   source?: 'login' | 'login-google' | 'register' | 'register-google' | 'sync';
   syncingMessage?: string;
   successMessage?: string;
+  signal?: AbortSignal;
 };
 
 const AUTH_REQUEST_TIMEOUT_MS = 30_000;
@@ -183,8 +184,19 @@ async function postAuth<TResponse>(
         () => controller.abort(),
         AUTH_REQUEST_TIMEOUT_MS,
       );
+      const abortFromCaller = () => controller.abort();
 
       try {
+        if (cloudTracking?.signal) {
+          if (cloudTracking.signal.aborted) {
+            controller.abort();
+          } else {
+            cloudTracking.signal.addEventListener('abort', abortFromCaller, {
+              once: true,
+            });
+          }
+        }
+
         if (SHOULD_LOG_API_DEBUG) {
           console.info(
             `[CafeSmart][auth-fetch] request method=POST url=${url}`,
@@ -278,7 +290,7 @@ async function postAuth<TResponse>(
 
           const authError: AuthError = {
             message:
-              endpoint === '/login' && response.status === 401
+              endpoint === '/login' && response.status === 401 && !data.field
                 ? AUTH_MESSAGES.invalidCredentials
                 : mapFriendlyAuthMessage(endpoint, data, fallbackError),
             field: data.field ?? null,
@@ -345,6 +357,7 @@ async function postAuth<TResponse>(
 
         lastNetworkError = error;
       } finally {
+        cloudTracking?.signal?.removeEventListener('abort', abortFromCaller);
         window.clearTimeout(timeoutId);
       }
     }
@@ -399,7 +412,7 @@ async function getAuth<TResponse>(
       );
 
       try {
-        if (SHOULD_LOG_API_DEBUG) {
+if (SHOULD_LOG_API_DEBUG) {
           console.info(`[CafeSmart][auth-fetch] request method=GET url=${url}`);
           logDebugLine('[CafeSmart][auth-fetch] request', {
             method: 'GET',
@@ -486,13 +499,27 @@ async function getAuth<TResponse>(
 }
 
 export const authService = {
-  async checkEmailExists(correo: string): Promise<boolean> {
-    const data = await postAuth<{ exists: boolean }>(
+  async checkEmailExists(
+    correo: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    const data = await postAuth<{
+      available?: boolean;
+      exists?: boolean;
+      field?: string;
+      code?: string;
+      message?: string;
+    }>(
       '/check-email',
       { correo },
       'No pudimos revisar el correo. Intenta nuevamente.',
-      { enabled: false },
+      { enabled: false, signal },
     );
+
+    if (typeof data.available === 'boolean') {
+      return !data.available;
+    }
+
     return Boolean(data.exists);
   },
 

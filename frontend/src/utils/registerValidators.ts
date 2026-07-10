@@ -5,6 +5,11 @@ export type RegisterLocationState = {
     nombre?: string;
     apellidos?: string;
   };
+  registerError?: {
+    field?: 'email' | 'correo';
+    code?: string;
+    message: string;
+  };
   registerDraft?: {
     authMode?: 'register';
     currentStep?: 1 | 2;

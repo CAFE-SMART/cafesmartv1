@@ -16,6 +16,7 @@ type ResetPasswordError = {
 
 type ResetPasswordOptions = {
   origin?: string;
+  initialEmail?: string;
 };
 
 function normalizeApiBaseUrl() {
@@ -133,7 +134,7 @@ async function requestPasswordReset(email: string, origin: string) {
 
 export function useResetPassword(options: ResetPasswordOptions = {}) {
   const origin = options.origin ?? 'login';
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => options.initialEmail?.trim() ?? '');
   const [status, setStatus] = useState<ResetPasswordStatus>('idle');
   const [error, setError] = useState<ResetPasswordError | null>(null);
   const [enlaceEnviado, setEnlaceEnviado] = useState(false);
