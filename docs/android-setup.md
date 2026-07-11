@@ -61,7 +61,7 @@ VITE_API_URL=http://10.0.2.2:3000
 Desde la raiz del repositorio:
 
 ```powershell
-pnpm install
+pnpm install --frozen-lockfile
 pnpm --filter cafe-smart-frontend build:android
 ```
 

@@ -14,8 +14,8 @@
  *
  * Flujo para ver la app en Android:
  *   1. pnpm build:android     -> genera dist/ usando .env.android
- *   2. npx cap sync android   -> copia dist/ al proyecto Android
- *   3. npx cap open android → abre Android Studio para correr la app
+ *   2. pnpm exec cap sync android   -> copia dist/ al proyecto Android
+ *   3. pnpm exec cap open android → abre Android Studio para correr la app
  */
 import type { CapacitorConfig } from '@capacitor/cli';
 

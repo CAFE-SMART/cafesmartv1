@@ -212,7 +212,7 @@ $distDir = Join-Path $projectRoot "dist"
 $apkPath = Join-Path $androidDir "app\build\outputs\apk\debug\app-debug.apk"
 $androidAssetsDir = Join-Path $androidDir "app\src\main\assets\public"
 $nodePath = Resolve-CommandPath -CommandName "node" -InstallHint "Instala Node.js antes de correr Android."
-$pnpmPath = Resolve-CommandPath -CommandName "pnpm" -InstallHint "Instala pnpm con corepack enable o npm i -g pnpm."
+$pnpmPath = Resolve-CommandPath -CommandName "pnpm" -InstallHint "Instala pnpm con corepack enable y corepack prepare pnpm@10.33.0 --activate."
 $adbPath = Resolve-AndroidTool -RelativePath "platform-tools\adb.exe" -ToolName "adb"
 $emulatorPath = Resolve-AndroidTool -RelativePath "emulator\emulator.exe" -ToolName "el emulador de Android"
 

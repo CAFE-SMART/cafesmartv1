@@ -12,12 +12,12 @@ steps:
 
   # Instalar pnpm
   - script: |
-      corepack enable pnpm
+      corepack enable && corepack prepare pnpm@10.33.0 --activate
     displayName: 'Install pnpm'
 
   # Instalar dependencias
   - script: |
-      pnpm install
+      pnpm install --frozen-lockfile
     displayName: 'Install dependencies'
 
   # Ejecutar lint

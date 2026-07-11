@@ -341,6 +341,7 @@ export default function Login() {
     useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
   const [recoveryNoticeExiting, setRecoveryNoticeExiting] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const restoredLoginDraftRef = useRef(false);
   const loginInFlightRef = useRef(false);
 
@@ -1353,3 +1354,4 @@ export default function Login() {
     </div>
   );
 }
+

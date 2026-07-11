@@ -48,6 +48,8 @@ Verifica tu entorno con:
 
 ```bash
 node -v
+corepack enable
+corepack prepare pnpm@10.33.0 --activate
 pnpm -v
 ```
 
@@ -116,7 +118,7 @@ Notas importantes:
 Instala dependencias:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
 Genera el cliente de Prisma (recomendado en instalaciones limpias):
@@ -144,7 +146,7 @@ Backend en desarrollo:
 
 ```bash
 cd backend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm start:dev
 ```
 
@@ -160,7 +162,7 @@ Frontend en desarrollo:
 
 ```bash
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
@@ -272,8 +274,8 @@ Con el emulador encendido, puedes ejecutar la app desde terminal:
 ```bash
 cd frontend
 pnpm build:android
-npx cap sync android
-npx cap run android
+pnpm exec cap sync android
+pnpm exec cap run android
 ```
 
 También puedes hacerlo desde Android Studio:
@@ -282,7 +284,7 @@ También puedes hacerlo desde Android Studio:
 
 ```bash
 cd frontend
-npx cap open android
+pnpm exec cap open android
 ```
 
 2. Selecciona el emulador en la barra superior.
@@ -335,7 +337,7 @@ Luego vuelve a ejecutar:
 ```bash
 cd frontend
 pnpm build:android
-npx cap sync android
+pnpm exec cap sync android
 ```
 
 ### Recomendaciones
@@ -384,7 +386,7 @@ Este paso genera la carpeta `dist/` usando `frontend/.env.android`, que es la ve
 ### 4. Sincroniza el proyecto Android
 
 ```bash
-npx cap sync android
+pnpm exec cap sync android
 ```
 
 Este comando:
@@ -393,12 +395,12 @@ Este comando:
 - actualiza la integración de Capacitor
 - refleja en Android los cambios recientes del frontend
 
-Debes repetir `pnpm build:android` y luego `npx cap sync android` cada vez que cambies el frontend o `frontend/.env.android` y quieras ver esos cambios en la app Android.
+Debes repetir `pnpm build:android` y luego `pnpm exec cap sync android` cada vez que cambies el frontend o `frontend/.env.android` y quieras ver esos cambios en la app Android.
 
 ### 5. Abre Android Studio
 
 ```bash
-npx cap open android
+pnpm exec cap open android
 ```
 
 Esto abre el proyecto nativo Android generado dentro de `frontend/android/`.
@@ -420,7 +422,7 @@ Cuando Android Studio abra el proyecto:
 ### 8. Cuándo repetir cada paso
 
 - Si cambias código React, vistas, estilos o servicios del frontend:
-  vuelve a ejecutar `pnpm build` y `npx cap sync android`.
+  vuelve a ejecutar `pnpm build` y `pnpm exec cap sync android`.
 - Si cambias configuración nativa Android:
   normalmente basta con abrir Android Studio y recompilar.
 
@@ -433,7 +435,7 @@ Cuando Android Studio abra el proyecto:
 - En dispositivo físico no conecta:
   usa la IP local de tu computador y asegúrate de que ambos estén en la misma red.
 - Los cambios del frontend no aparecen:
-  vuelve a ejecutar `pnpm build` y `npx cap sync android`.
+  vuelve a ejecutar `pnpm build` y `pnpm exec cap sync android`.
 - Android Studio tarda mucho o falla al abrir:
   espera la descarga inicial de Gradle y verifica que el SDK de Android esté instalado correctamente.
 
@@ -503,23 +505,23 @@ Este comando genera la carpeta `dist/` usando el modo Android.
 Lista los emuladores disponibles:
 
 ```bash
-npx cap run android --list
+pnpm exec cap run android --list
 ```
 
 Luego ejecuta la app indicando el target. Ejemplo:
 
 ```bash
-npx cap run android --target CafeSmart_Pixel_5
+pnpm exec cap run android --target CafeSmart_Pixel_5
 ```
 
 Si usas otro emulador, reemplaza `CafeSmart_Pixel_5` por el nombre que muestre Capacitor o por el nombre de tu AVD.
 
 ### 5. Flujo alternativo si Capacitor falla instalando
 
-Si `npx cap run android` compila pero falla en `Deploying app-debug.apk`, puedes instalar el APK manualmente:
+Si `pnpm exec cap run android` compila pero falla en `Deploying app-debug.apk`, puedes instalar el APK manualmente:
 
 ```powershell
-npx cap sync android
+pnpm exec cap sync android
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 install -r .\android\app\build\outputs\apk\debug\app-debug.apk
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s emulator-5554 shell monkey -p com.cafesmart.app -c android.intent.category.LAUNCHER 1
 ```
@@ -528,7 +530,7 @@ Notas:
 
 - `emulator-5554` es el ID que muestra `adb devices -l` o el comando con la ruta completa de `adb.exe`.
 - `CafeSmart_Pixel_5` es el nombre del emulador que usa Capacitor, pero solo aparece como target si el emulador está encendido.
-- Si `npx cap run android --target CafeSmart_Pixel_5` muestra `No devices found`, primero arranca el emulador y espera a que `adb devices -l` lo muestre como `device`.
+- Si `pnpm exec cap run android --target CafeSmart_Pixel_5` muestra `No devices found`, primero arranca el emulador y espera a que `adb devices -l` lo muestre como `device`.
 - Si `adb devices -l` muestra `offline`, cierra el emulador y arráncalo con `Cold Boot Now` desde Android Studio.
 - Si aparece `Can't find service: package` o `Broken pipe`, el emulador está dañado; usa `Wipe Data` o crea un emulador nuevo.
 

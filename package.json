@@ -3,14 +3,14 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "install:all": "pnpm install -r",
+    "install:all": "pnpm install --frozen-lockfile",
     "check:local": "node scripts/check-local-env.mjs",
     "dev": "pnpm check:local && pnpm --parallel --filter cafe-smart-backend --filter cafe-smart-frontend dev",
     "dev:backend": "pnpm --filter cafe-smart-backend start:dev",
     "dev:frontend": "pnpm --filter cafe-smart-frontend dev",
     "docker:up": "docker-compose up --build",
     "docker:down": "docker-compose down",
-    "seed": "pnpm --filter cafe-smart-backend prisma db seed",
+    "seed": "pnpm --dir backend prisma:seed",
     "build": "pnpm --filter cafe-smart-backend build && pnpm --filter cafe-smart-frontend build",
     "build:backend": "pnpm --filter cafe-smart-backend build",
     "build:frontend": "pnpm --filter cafe-smart-frontend build",
@@ -19,7 +19,12 @@
     "test:backend": "pnpm --filter cafe-smart-backend test",
     "test:frontend": "pnpm --filter cafe-smart-frontend test",
     "lint": "eslint . --ext .ts,.tsx",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "preinstall": "node scripts/only-allow-pnpm.mjs",
+    "prisma:generate": "pnpm --dir backend prisma:generate",
+    "prisma:migrate:dev": "pnpm --dir backend prisma:migrate:dev",
+    "prisma:migrate:deploy": "pnpm --dir backend prisma:migrate:deploy",
+    "prisma:studio": "pnpm --dir backend prisma:studio"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",

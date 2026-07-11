@@ -4,22 +4,21 @@ services:
   # Backend (NestJS + Prisma + Supabase)
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: cafe_smart_backend
     ports:
       - "3000:3000"
     env_file:
       - ./backend/.env
 
-  # 3. Frontend (React + Vite)
+  # Frontend (React + Vite)
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: cafe_smart_frontend
     ports:
       - "80:80"
     depends_on:
       - backend
-
-volumes:
-  postgres_data:
