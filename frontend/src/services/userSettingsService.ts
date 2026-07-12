@@ -121,7 +121,7 @@ export async function subirFotoPerfil(file: File) {
           });
         }
         throw new Error(
-          typeof data.message === 'string'
+          'message' in data && typeof data.message === 'string'
             ? data.message
             : 'No pudimos subir la foto. Revisa tu conexión e intenta nuevamente.',
         );

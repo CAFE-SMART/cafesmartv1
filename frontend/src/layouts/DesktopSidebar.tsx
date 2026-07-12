@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Ellipsis,
   House,
   LogOut,
@@ -104,17 +104,19 @@ function SidebarHeader({
         <button
           type="button"
           onClick={onToggle}
-          aria-label={
-            collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'
-          }
-          title={collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-[#102d92] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+          aria-label={collapsed ? 'Abrir barra lateral' : 'Cerrar barra lateral'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Abrir barra lateral' : 'Cerrar barra lateral'}
+          className="group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-[#bdd0ff] hover:bg-[#eef4ff] hover:text-[#102d92] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9cb8ff] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-400/40 dark:hover:bg-slate-800 dark:hover:text-white"
         >
           {collapsed ? (
-            <ChevronRight size={18} aria-hidden="true" />
+            <PanelLeftOpen size={18} aria-hidden="true" />
           ) : (
-            <ChevronLeft size={18} aria-hidden="true" />
+            <PanelLeftClose size={18} aria-hidden="true" />
           )}
+          <span className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-20 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1 text-xs font-bold text-white shadow-lg group-hover:block group-focus-visible:block dark:bg-white dark:text-slate-950">
+            {collapsed ? 'Abrir barra lateral' : 'Cerrar barra lateral'}
+          </span>
         </button>
       </div>
     </div>

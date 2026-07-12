@@ -313,9 +313,9 @@ async function postAuth<TResponse>(
 
         if (shouldLogLogin) {
           logLoginAuth('login exitoso', {
-            hasAccessToken: Boolean((data as AuthResponse).access_token),
-            hasUser: Boolean((data as AuthResponse).user),
-            hasCompany: Boolean((data as AuthResponse).hasCompany),
+            hasAccessToken: Boolean((data as unknown as AuthResponse).access_token),
+            hasUser: Boolean((data as unknown as AuthResponse).user),
+            hasCompany: Boolean((data as unknown as AuthResponse).hasCompany),
           });
         }
 

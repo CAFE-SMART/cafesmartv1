@@ -24,7 +24,11 @@ import {
   type DashboardInicioBodegaItem,
   type DashboardSummary,
 } from '../services/dashboardService';
-import { guardarConfiguracionBodega } from '../services/bodegaApi';
+import {
+  guardarConfiguracionBodega,
+  listarBodegas,
+  type BodegaItem,
+} from '../services/bodegaApi';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { prepareOfflineData } from '../services/offlinePreparationService';
@@ -49,6 +53,7 @@ type CachedDashboardHome = {
   summary: DashboardSummary;
   lotesBodega: LoteResumen[];
   inventarioBodega?: DashboardInicioBodegaItem[];
+  bodegaInicio?: BodegaItem | null;
   savedAt: string;
 };
 
@@ -360,6 +365,37 @@ function EmptyDashboardState({
   );
 }
 
+function normalizeKgValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function hasValidCapacity(value: unknown) {
+  const numeric = normalizeKgValue(value);
+  return numeric !== null && numeric > 0;
+}
+
+function selectInicioBodega(items: BodegaItem[]) {
+  return (
+    items.find((item) => item.esPrincipal && item.activa) ??
+    items.find((item) => item.esPrincipal) ??
+    items.find((item) => item.activa) ??
+    items[0] ??
+    null
+  );
+}
+function getDashboardInicioBodega(
+  value: DashboardSummary,
+): DashboardInicioBodegaItem[] {
+  const maybeValue = value as DashboardSummary & {
+    inventarioBodega?: unknown;
+  };
+
+  return Array.isArray(maybeValue.inventarioBodega)
+    ? (maybeValue.inventarioBodega as DashboardInicioBodegaItem[])
+    : [];
+}
 function DashboardLoadingState() {
   return (
     <CafeSmartProcessingScreen
@@ -412,6 +448,7 @@ export default function Inicio() {
   const [inventarioBodegaInicio, setInventarioBodegaInicio] = useState<
     DashboardInicioBodegaItem[]
   >([]);
+  const [bodegaInicio, setBodegaInicio] = useState<BodegaItem | null>(null);
   const [usingCachedDashboard, setUsingCachedDashboard] = useState(false);
   const [offlineCacheMissing, setOfflineCacheMissing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -476,6 +513,7 @@ export default function Inicio() {
       setSummary(null);
       setLotesBodega([]);
       setInventarioBodegaInicio([]);
+      setBodegaInicio(null);
       setUsingCachedDashboard(false);
       setOfflineCacheMissing(true);
       setError(null);
@@ -485,6 +523,7 @@ export default function Inicio() {
     setSummary(cachedHome.summary);
     setLotesBodega(cachedHome.lotesBodega);
     setInventarioBodegaInicio(cachedHome.inventarioBodega ?? []);
+    setBodegaInicio(cachedHome.bodegaInicio ?? null);
     setMostrarOnboardingBodega(false);
     setUsingCachedDashboard(true);
     setOfflineCacheMissing(false);
@@ -514,25 +553,29 @@ export default function Inicio() {
         dashboardInicioResult[0].status === 'fulfilled'
           ? dashboardInicioResult
           : await Promise.allSettled([obtenerDashboardSummary(), obtenerLotes()]);
+      const [bodegasResult] = await Promise.allSettled([listarBodegas()]);
+      const nextBodegaInicio =
+        bodegasResult.status === 'fulfilled'
+          ? selectInicioBodega(bodegasResult.value)
+          : null;
+      setBodegaInicio(nextBodegaInicio);
 
       if (dashboardResult.status === 'fulfilled') {
         setSummary(dashboardResult.value);
-        setInventarioBodegaInicio(
-          'inventarioBodega' in dashboardResult.value
-            ? dashboardResult.value.inventarioBodega
-            : [],
-        );
+        setInventarioBodegaInicio(getDashboardInicioBodega(dashboardResult.value));
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
         setMostrarOnboardingBodega(
-          !dashboardResult.value.kgCapacidad ||
-            dashboardResult.value.kgCapacidad <= 0,
+          !hasValidCapacity(
+            nextBodegaInicio?.capacidadMaxKg ?? dashboardResult.value.kgCapacidad,
+          ),
         );
         setError(null);
       } else {
         setUsingCachedDashboard(false);
         setOfflineCacheMissing(false);
         setInventarioBodegaInicio([]);
+        setBodegaInicio(nextBodegaInicio);
         setError(
           backendReachable === false
             ? 'No pudimos conectar con la nube'
@@ -552,10 +595,8 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: nextLotes,
-            inventarioBodega:
-              'inventarioBodega' in dashboardResult.value
-                ? dashboardResult.value.inventarioBodega
-                : [],
+            inventarioBodega: getDashboardInicioBodega(dashboardResult.value),
+            bodegaInicio: nextBodegaInicio,
             savedAt: new Date().toISOString(),
           });
           void saveOfflineCache('cached_inventory_summary', nextLotes);
@@ -592,10 +633,8 @@ export default function Inicio() {
           void saveOfflineCache<CachedDashboardHome>(DASHBOARD_HOME_CACHE_KEY, {
             summary: dashboardResult.value,
             lotesBodega: [],
-            inventarioBodega:
-              'inventarioBodega' in dashboardResult.value
-                ? dashboardResult.value.inventarioBodega
-                : [],
+            inventarioBodega: getDashboardInicioBodega(dashboardResult.value),
+            bodegaInicio: nextBodegaInicio,
             savedAt: new Date().toISOString(),
           });
         }
@@ -674,9 +713,14 @@ export default function Inicio() {
   }, [capacidadInicialKg, cargarDashboard]);
 
   const abrirEditorBodegaLocal = () => {
-    setNombreBodegaLocal('Bodega principal');
+    setNombreBodegaLocal(bodegaInicio?.nombre ?? 'Bodega principal');
+    const capacidadActual = normalizeKgValue(
+      bodegaInicio?.capacidadMaxKg ?? summary?.kgCapacidad ?? null,
+    );
     setCapacidadBodegaLocal(
-      summary?.kgCapacidad ? String(Math.min(summary.kgCapacidad, BODEGA_CAPACITY_MAX_KG)) : '',
+      capacidadActual !== null
+        ? String(Math.min(capacidadActual, BODEGA_CAPACITY_MAX_KG))
+        : '',
     );
     setBodegaLocalError(null);
     setMostrarEditorBodega(true);
@@ -705,41 +749,69 @@ export default function Inicio() {
   };
 
   const ocupacion = useMemo(() => {
-    const kgActual = summary?.kgActual ?? null;
-    const kgCapacidad = summary?.kgCapacidad ?? null;
+    const kgActual = Math.max(
+      0,
+      normalizeKgValue(bodegaInicio?.cafeAlmacenadoKg ?? summary?.kgActual) ?? 0,
+    );
+    const kgCapacidad = normalizeKgValue(
+      bodegaInicio?.capacidadMaxKg ?? summary?.kgCapacidad,
+    );
+    const tieneCapacidad = kgCapacidad !== null && kgCapacidad > 0;
 
-    if (
-      kgActual === null ||
-      kgCapacidad === null ||
-      !Number.isFinite(kgCapacidad) ||
-      kgCapacidad <= 0
-    ) {
+    if (!tieneCapacidad) {
       return {
+        estado: loading
+          ? ('cargando' as const)
+          : kgActual > 0
+            ? ('sin-capacidad' as const)
+            : ('sin-bodega' as const),
         porcentaje: 0,
         porcentajeVisual: 0,
-        etiqueta: loading ? '...' : '0%',
+        etiqueta: loading ? '...' : 'Capacidad sin configurar',
+        usadosKg: kgActual,
+        capacidadKg: null,
+        disponibleKg: null,
         excedida: false,
         nivel: 'normal' as const,
       };
     }
 
-    const porcentajeReal = Math.max(0, (kgActual / kgCapacidad) * 100);
+    const porcentajeReal = Math.max(
+      0,
+      normalizeKgValue(bodegaInicio?.ocupacionPct) ?? (kgActual / kgCapacidad) * 100,
+    );
+    const disponibleKg = Math.max(
+      0,
+      normalizeKgValue(bodegaInicio?.disponibleKg) ?? kgCapacidad - kgActual,
+    );
 
     return {
+      estado: 'configurada' as const,
       porcentaje: porcentajeReal,
       porcentajeVisual: Math.min(100, porcentajeReal),
-      etiqueta: formatPercentage(porcentajeReal),
+      etiqueta: formatPercentage(Math.round(porcentajeReal)),
+      usadosKg: kgActual,
+      capacidadKg: kgCapacidad,
+      disponibleKg,
       excedida: porcentajeReal > 100,
       nivel:
         porcentajeReal > 100
           ? 'alert'
           : porcentajeReal >= 95
-          ? 'alert'
-          : porcentajeReal >= 80
-            ? 'warning'
-            : 'normal',
+            ? 'alert'
+            : porcentajeReal >= 80
+              ? 'warning'
+              : 'normal',
     };
-  }, [loading, summary?.kgActual, summary?.kgCapacidad]);
+  }, [
+    bodegaInicio?.cafeAlmacenadoKg,
+    bodegaInicio?.capacidadMaxKg,
+    bodegaInicio?.disponibleKg,
+    bodegaInicio?.ocupacionPct,
+    loading,
+    summary?.kgActual,
+    summary?.kgCapacidad,
+  ]);
 
   const ocupacionVisual = useMemo(() => {
     if (ocupacion.nivel === 'alert') {
@@ -770,8 +842,8 @@ export default function Inicio() {
   }, [ocupacion.nivel]);
 
   const alertaBodega = useMemo(() => {
-    const kgActual = summary?.kgActual ?? null;
-    const kgCapacidad = summary?.kgCapacidad ?? null;
+    const kgActual = ocupacion.usadosKg;
+    const kgCapacidad = ocupacion.capacidadKg;
     if (
       kgActual === null ||
       kgCapacidad === null ||
@@ -823,7 +895,7 @@ export default function Inicio() {
       };
     }
     return null;
-  }, [summary?.kgActual, summary?.kgCapacidad]);
+  }, [ocupacion.capacidadKg, ocupacion.usadosKg]);
 
   useEffect(() => {
     setStorageAlertClosed(false);
@@ -1282,47 +1354,106 @@ export default function Inicio() {
             <section className="px-5 py-3">
               <p className={sectionTitleClass}>Capacidad en bodega</p>
 
-              <div className={`mt-3 rounded-[18px] border p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] ${ocupacionVisual.card}`}>
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-[0.9rem] font-black text-[#1f2937] dark:text-slate-100">
-                    Ocupaci&oacute;n actual
-                  </h2>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[1rem] font-black ${ocupacionVisual.badge}`}
-                  >
-                    {ocupacion.etiqueta}
-                  </span>
-                </div>
+              <div
+                className={`mt-3 rounded-[18px] border p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] ${ocupacionVisual.card}`}
+              >
+                {ocupacion.estado === 'sin-bodega' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <h2 className="text-base font-black text-slate-900 dark:text-slate-50">
+                        Aún no tienes una bodega configurada.
+                      </h2>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                        Crea una para controlar la capacidad de almacenamiento.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/ajustes', { state: { openBodega: true } })}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500"
+                    >
+                      Crear bodega
+                    </button>
+                  </div>
+                ) : ocupacion.estado === 'sin-capacidad' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-base font-black text-slate-900 dark:text-slate-50">
+                          Capacidad sin configurar
+                        </h2>
+                        <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                          Define la capacidad máxima de esta bodega para calcular su ocupación.
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-sm font-black ${ocupacionVisual.badge}`}>
+                        Sin dato
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                      {formatKg(ocupacion.usadosKg)} usados actualmente
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/ajustes', { state: { openBodega: true } })}
+                      className="inline-flex min-h-[40px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500"
+                    >
+                      Configurar capacidad
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-base font-black text-slate-900 dark:text-slate-50">
+                          Bodega principal
+                        </h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                          Ocupación actual
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-lg font-black ${ocupacionVisual.badge}`}
+                        aria-label={`${ocupacion.etiqueta} de ocupación`}
+                      >
+                        {ocupacion.etiqueta}
+                      </span>
+                    </div>
 
-                <div
-                  role="progressbar"
-                  aria-label="Porcentaje de ocupación de bodega"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                  aria-valuenow={String(Math.round(ocupacion.porcentajeVisual))}
-                  aria-valuetext={`${ocupacion.etiqueta} de ocupación de bodega`}
-                  className={`mt-3 h-4 overflow-hidden rounded-full border p-0.5 shadow-inner ${ocupacionVisual.track}`}
-                >
-                  <div
-                    className={`h-full min-w-2 rounded-full shadow-[0_1px_4px_rgba(15,23,42,0.24)] transition-[width] duration-500 ${ocupacionVisual.bar}`}
-                    style={{ width: `${ocupacion.porcentajeVisual}%` }}
-                  />
-                </div>
+                    <p className="mt-3 text-sm font-black text-slate-800 dark:text-slate-100">
+                      {formatKg(ocupacion.usadosKg)} usados de {formatKg(ocupacion.capacidadKg ?? 0)}
+                    </p>
 
-                <div className={`mt-2 flex items-center justify-between gap-4 text-[0.58rem] font-black ${ocupacionVisual.text}`}>
-                  <span>
-                    {formatMetric(loading, summary?.kgActual ?? null, formatKg)}{' '}
-                    usados
-                  </span>
-                  <span>
-                    {formatMetric(
-                      loading,
-                      summary?.kgCapacidad ?? null,
-                      formatKg,
-                    )}{' '}
-                    total
-                  </span>
-                </div>
+                    <div
+                      role="progressbar"
+                      aria-label="Porcentaje de ocupación de bodega"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(ocupacion.porcentajeVisual)}
+                      aria-valuetext={`${ocupacion.etiqueta} de ocupación de bodega`}
+                      className={`mt-3 h-4 overflow-hidden rounded-full border p-0.5 shadow-inner ${ocupacionVisual.track}`}
+                    >
+                      <div
+                        className={`h-full rounded-full shadow-[0_1px_4px_rgba(15,23,42,0.24)] transition-[width] duration-500 ${ocupacionVisual.bar}`}
+                        style={{ width: `${ocupacion.porcentajeVisual}%` }}
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className={`text-sm font-black ${ocupacionVisual.text}`}>
+                        {formatKg(ocupacion.disponibleKg ?? 0)} disponibles
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/ajustes', { state: { openBodega: true } })}
+                        className="inline-flex min-h-[36px] items-center rounded-full border border-[#bdd0ff] bg-white px-3 text-xs font-black text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-blue-400/30 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-blue-500/10"
+                      >
+                        Ver bodegas
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
                 {alertaBodega && mostrarAlertaBodega ? (
                   <div className="relative mt-3">
                     <AppFeedbackMessage
@@ -1367,7 +1498,6 @@ export default function Inicio() {
                     </AppFeedbackMessage>
                   </div>
                 ) : null}
-              </div>
             </section>
 
             <section className="px-5 py-3">

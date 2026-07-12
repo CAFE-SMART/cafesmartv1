@@ -28,6 +28,8 @@ export function SmartSelect({
   value,
   defaultValue,
   onChange,
+  onClick: _onClick,
+  onKeyDown: _onKeyDown,
   name,
   id,
   'aria-label': ariaLabel,
@@ -114,7 +116,6 @@ export function SmartSelect({
           }
         }}
         className={`${selectTriggerClass} ${className}`.trim()}
-        {...props}
       >
         <span className="block truncate">
           {selectedOption?.label ?? 'Selecciona una opción'}

@@ -52,7 +52,10 @@ import {
 import { obtenerDeviceId } from '../utils/deviceId';
 import { ApiRequestError } from '../services/apiService';
 import { createOfflineDraft } from '../services/offlineDraftService';
-import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
+import {
+  getOfflineCache,
+  saveOfflineCache,
+} from '../services/offlineCacheService';
 import { addSyncOperation } from '../services/syncQueueService';
 import {
   guardarConfiguracionBodega,
@@ -237,7 +240,9 @@ function generarId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function getProductorDocumentHelp(tipoDocumento: ProductorForm['tipoDocumento']) {
+function getProductorDocumentHelp(
+  tipoDocumento: ProductorForm['tipoDocumento'],
+) {
   if (tipoDocumento === 'CEDULA') {
     return 'Ingresa la cédula sin puntos ni espacios.';
   }
@@ -264,17 +269,26 @@ function getProductorDocumentPlaceholder(
     return 'Ej. AB123456';
   }
 
-  if (tipoDocumento === 'CE' || tipoDocumento === 'PEP' || tipoDocumento === 'OTRO') {
+  if (
+    tipoDocumento === 'CE' ||
+    tipoDocumento === 'PEP' ||
+    tipoDocumento === 'OTRO'
+  ) {
     return 'Ej. DOC-123456';
   }
 
   return 'Ej. 1234567890';
 }
 
-function getProductorNameError(value: string, tipoDocumento?: ProductorForm['tipoDocumento']) {
+function getProductorNameError(
+  value: string,
+  tipoDocumento?: ProductorForm['tipoDocumento'],
+) {
   if (tipoDocumento === 'NIT') {
     const empresa = validateCompanyName(value);
-    return empresa.isValid ? null : empresa.message ?? 'Revisa el nombre de la empresa.';
+    return empresa.isValid
+      ? null
+      : (empresa.message ?? 'Revisa el nombre de la empresa.');
   }
 
   const nombre = value.trim();
@@ -295,7 +309,10 @@ function getProductorNameError(value: string, tipoDocumento?: ProductorForm['tip
     return 'El nombre no puede pasar de 60 caracteres.';
   }
 
-  if (/[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(nombre) || !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/.test(nombre)) {
+  if (
+    /[@$%*=*?¿!¡#_/\\.,()[\]{}]/.test(nombre) ||
+    !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'-]+$/.test(nombre)
+  ) {
     return 'No uses símbolos especiales.';
   }
 
@@ -319,7 +336,9 @@ function getProductorDocumentError(
   const validation = validateDocumentNumber(documento, 'El documento', {
     type: tipoDocumento,
   });
-  return validation.isValid ? null : validation.message ?? 'Revisa el documento.';
+  return validation.isValid
+    ? null
+    : (validation.message ?? 'Revisa el documento.');
 }
 
 function getProductorPhoneError(value: string) {
@@ -327,7 +346,9 @@ function getProductorPhoneError(value: string) {
     optional: true,
   });
 
-  return telefono.isValid ? null : telefono.message ?? 'Revisa el número celular.';
+  return telefono.isValid
+    ? null
+    : (telefono.message ?? 'Revisa el número celular.');
 }
 
 function validateProductorField(
@@ -352,10 +373,20 @@ function validateProductorField(
 }
 
 function ProductorHint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1.5 text-xs font-medium leading-5 text-slate-500">{children}</p>;
+  return (
+    <p className="mt-1.5 text-xs font-medium leading-5 text-slate-500">
+      {children}
+    </p>
+  );
 }
 
-function ProductorFieldError({ id, message }: { id?: string; message: string }) {
+function ProductorFieldError({
+  id,
+  message,
+}: {
+  id?: string;
+  message: string;
+}) {
   return (
     <AppFeedbackMessage
       id={id}
@@ -393,9 +424,7 @@ function ProductorStepAlert({
       description={message}
       aria-live="polite"
       className={`${
-        exiting
-          ? 'translate-y-1 opacity-0'
-          : 'translate-y-0 opacity-100'
+        exiting ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
       }`}
     />
   );
@@ -501,11 +530,7 @@ function getProductorSaveError(error: unknown): ProductorModalError {
 }
 
 function getProductorInitials(nombre: string) {
-  const words = nombre
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
+  const words = nombre.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
   return words.map((word) => word[0]?.toUpperCase()).join('') || 'P';
 }
@@ -535,7 +560,9 @@ function getProductorDocumentLabel(productor: ProductorOption) {
 }
 
 function getProductorTime(productor: ProductorOption) {
-  const time = productor.createdAt ? new Date(productor.createdAt).getTime() : 0;
+  const time = productor.createdAt
+    ? new Date(productor.createdAt).getTime()
+    : 0;
   return Number.isFinite(time) ? time : 0;
 }
 
@@ -657,7 +684,7 @@ function ProductorCard({
     >
       <span className="flex w-full items-center gap-3">
         <span
-            className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black shadow-sm transition ${
             active
               ? 'bg-[#1f3fa7] text-white dark:bg-blue-600 dark:text-white'
               : 'bg-[#edf3ff] text-[#1f3fa7] dark:border dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200'
@@ -783,10 +810,16 @@ function CoffeeTypeDropdown({
         <span className="flex min-w-0 items-center gap-3">
           <span
             className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
-              selected ? iconoTipoCafe(selected.nombre).fondo : 'bg-[#eef4ff] text-[#1f3fa7]'
+              selected
+                ? iconoTipoCafe(selected.nombre).fondo
+                : 'bg-[#eef4ff] text-[#1f3fa7]'
             }`}
           >
-            {selected ? iconoTipoCafe(selected.nombre).icono : <Coffee size={18} />}
+            {selected ? (
+              iconoTipoCafe(selected.nombre).icono
+            ) : (
+              <Coffee size={18} />
+            )}
           </span>
           <span className="min-w-0 flex-1">
             <span
@@ -837,7 +870,9 @@ function CoffeeTypeDropdown({
               >
                 <span
                   className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    active ? `${visual.fondo} ring-2 ring-[#1f3fa7]/30 dark:ring-blue-300/40` : visual.fondo
+                    active
+                      ? `${visual.fondo} ring-2 ring-[#1f3fa7]/30 dark:ring-blue-300/40`
+                      : visual.fondo
                   }`}
                 >
                   {visual.icono}
@@ -902,11 +937,17 @@ function CompactSelect<T extends string>({
         type="button"
         aria-haspopup="listbox"
         aria-controls={listId}
-        aria-labelledby={labelledById ? `${labelledById} ${buttonId}` : undefined}
+        aria-labelledby={
+          labelledById ? `${labelledById} ${buttonId}` : undefined
+        }
         {...ariaExpanded(open)}
         onClick={onToggle}
         onBlur={(event) => {
-          if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
+          if (
+            !event.currentTarget.parentElement?.contains(
+              event.relatedTarget as Node | null,
+            )
+          ) {
             onClose();
           }
         }}
@@ -982,10 +1023,13 @@ function PurchaseDatePicker({
 }) {
   const selectedDate = parseLocalDateValue(value);
   const todayValue = getTodayLocalDateValue();
-  const todaySelectable = isDateValueInRange(todayValue, min, max) ? todayValue : max;
+  const todaySelectable = isDateValueInRange(todayValue, min, max)
+    ? todayValue
+    : max;
   const maxDate = parseLocalDateValue(max) ?? new Date();
   const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate = selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
+  const visibleDate =
+    selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
   const [calendarView, setCalendarView] = useState<'days' | 'months' | 'years'>(
     'days',
   );
@@ -995,7 +1039,10 @@ function PurchaseDatePicker({
 
   useEffect(() => {
     if (open) {
-      const nextDate = parseLocalDateValue(value) ?? parseLocalDateValue(todaySelectable) ?? maxDate;
+      const nextDate =
+        parseLocalDateValue(value) ??
+        parseLocalDateValue(todaySelectable) ??
+        maxDate;
       setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
       setCalendarView('days');
     }
@@ -1072,7 +1119,9 @@ function PurchaseDatePicker({
         {...ariaExpanded(open)}
         onClick={onToggle}
         className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 dark:bg-slate-950 dark:hover:bg-slate-900 ${
-          open ? 'border-[#102d92] bg-white dark:border-blue-400 dark:bg-slate-900' : 'border-[#d8e0ee] dark:border-slate-600'
+          open
+            ? 'border-[#102d92] bg-white dark:border-blue-400 dark:bg-slate-900'
+            : 'border-[#d8e0ee] dark:border-slate-600'
         }`}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d] dark:text-slate-100">
@@ -1221,25 +1270,25 @@ function PurchaseDatePicker({
               ))}
               {calendarDays.map((day, index) =>
                 day ? (
-                <button
-                  key={day.value}
-                  type="button"
-                  disabled={!isDateValueInRange(day.value, min, max)}
-                  {...ariaPressed(day.value === value)}
-                  onClick={() => {
-                    onChange(day.value);
-                    onClose();
-                  }}
-                  className={`h-8 rounded-full text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
-                    day.value === value
-                      ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
-                      : day.value === todaySelectable
-                        ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
-                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {day.day}
-                </button>
+                  <button
+                    key={day.value}
+                    type="button"
+                    disabled={!isDateValueInRange(day.value, min, max)}
+                    {...ariaPressed(day.value === value)}
+                    onClick={() => {
+                      onChange(day.value);
+                      onClose();
+                    }}
+                    className={`h-8 rounded-full text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
+                      day.value === value
+                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
+                        : day.value === todaySelectable
+                          ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
+                          : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {day.day}
+                  </button>
                 ) : (
                   <span key={`empty-${index}`} aria-hidden="true" />
                 ),
@@ -1424,7 +1473,10 @@ function readCompraDraft() {
 function writeCompraDraft(draft: CompraDraft) {
   try {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(COMPRA_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    window.localStorage.setItem(
+      COMPRA_DRAFT_STORAGE_KEY,
+      JSON.stringify(draft),
+    );
   } catch {
     // El borrador es una mejora de experiencia; si el navegador lo bloquea,
     // el formulario sigue funcionando normalmente.
@@ -1440,15 +1492,17 @@ function clearCompraDraft() {
   }
 }
 
-function hasCompraDraftProgress(draft: Omit<CompraDraft, 'version' | 'savedAt'>) {
+function hasCompraDraftProgress(
+  draft: Omit<CompraDraft, 'version' | 'savedAt'>,
+) {
   const hasSubloteProgress =
     draft.sublotes.length > 1 ||
     draft.sublotes.some((sublote) =>
       Boolean(
         sublote.tipoCafeId ||
-          sublote.calidadId ||
-          sublote.pesoInicial ||
-          sublote.precioKg,
+        sublote.calidadId ||
+        sublote.pesoInicial ||
+        sublote.precioKg,
       ),
     );
 
@@ -1465,9 +1519,9 @@ function countDraftSublotesConProgreso(draft: CompraDraft) {
   return draft.sublotes.filter((sublote) =>
     Boolean(
       sublote.tipoCafeId ||
-        sublote.calidadId ||
-        sublote.pesoInicial ||
-        sublote.precioKg,
+      sublote.calidadId ||
+      sublote.pesoInicial ||
+      sublote.precioKg,
     ),
   ).length;
 }
@@ -1495,10 +1549,7 @@ function formatoKg(valor: number) {
   });
 }
 
-function parseNumeroCompra(
-  valor: string,
-  options: { decimal?: boolean } = {},
-) {
+function parseNumeroCompra(valor: string, options: { decimal?: boolean } = {}) {
   const texto = valor.trim();
   if (!texto) return NaN;
 
@@ -1530,7 +1581,10 @@ function formatNumeroCompraInput(
     return `${enteroFormateado},${decimal}`;
   }
 
-  const digitos = texto.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 6);
+  const digitos = texto
+    .replace(/\D/g, '')
+    .replace(/^0+(?=\d)/, '')
+    .slice(0, 6);
   if (!digitos) return '';
   const numero = Number(digitos);
   return numero.toLocaleString('es-CO');
@@ -1651,9 +1705,9 @@ function calcularResumenSublotes(sublotes: SubloteForm[]) {
 function tieneDatosSublote(sublote: SubloteForm) {
   return Boolean(
     sublote.tipoCafeId ||
-      sublote.calidadId ||
-      sublote.pesoInicial ||
-      sublote.precioKg,
+    sublote.calidadId ||
+    sublote.pesoInicial ||
+    sublote.precioKg,
   );
 }
 
@@ -1670,7 +1724,8 @@ function calcularInventarioCompras(compras: CompraListadoItem[]) {
     (total, compra) =>
       total +
       compra.sublotes.reduce(
-        (subtotal, sublote) => subtotal + Math.max(0, Number(sublote.pesoActual) || 0),
+        (subtotal, sublote) =>
+          subtotal + Math.max(0, Number(sublote.pesoActual) || 0),
         0,
       ),
     0,
@@ -1707,7 +1762,10 @@ function getCapacidadDisponibleAntes(capacidad: EstadoCapacidadCompra | null) {
     Number.isFinite(capacidad.capacidadBodegaKg) &&
     Number.isFinite(capacidad.inventarioActualKg)
   ) {
-    return Math.max(0, capacidad.capacidadBodegaKg - capacidad.inventarioActualKg);
+    return Math.max(
+      0,
+      capacidad.capacidadBodegaKg - capacidad.inventarioActualKg,
+    );
   }
 
   return null;
@@ -1913,7 +1971,8 @@ function iconoTipoCafe(nombre: string) {
   if (tipo === 'VERDE') {
     return {
       icono: <Leaf size={18} />,
-      fondo: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
+      fondo:
+        'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
       borde: 'border-emerald-200 dark:border-emerald-400/50',
       texto: 'text-emerald-700 dark:text-emerald-200',
     };
@@ -1921,7 +1980,8 @@ function iconoTipoCafe(nombre: string) {
   if (tipo === 'SECO') {
     return {
       icono: <SunMedium size={18} />,
-      fondo: 'bg-orange-50 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200',
+      fondo:
+        'bg-orange-50 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200',
       borde: 'border-orange-200 dark:border-orange-400/50',
       texto: 'text-orange-700 dark:text-orange-200',
     };
@@ -1936,7 +1996,8 @@ function iconoTipoCafe(nombre: string) {
   }
   return {
     icono: <Coffee size={18} />,
-    fondo: 'bg-slate-100 text-slate-700 dark:bg-slate-600/40 dark:text-slate-100',
+    fondo:
+      'bg-slate-100 text-slate-700 dark:bg-slate-600/40 dark:text-slate-100',
     borde: 'border-slate-200 dark:border-slate-500',
     texto: 'text-slate-700 dark:text-slate-100',
   };
@@ -1947,7 +2008,8 @@ function visualCalidad(nombre: string) {
   if (calidad === 'BUENO') {
     return {
       icono: <Smile size={16} />,
-      fondo: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
+      fondo:
+        'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100',
       borde: 'border-emerald-200 dark:border-emerald-400/50',
       texto: 'text-emerald-700 dark:text-emerald-100',
     };
@@ -1955,7 +2017,8 @@ function visualCalidad(nombre: string) {
   if (calidad === 'REGULAR') {
     return {
       icono: <Meh size={16} />,
-      fondo: 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
+      fondo:
+        'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-100',
       borde: 'border-amber-200 dark:border-amber-400/50',
       texto: 'text-amber-700 dark:text-amber-100',
     };
@@ -2047,7 +2110,10 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
       );
     }
 
-    if (normalizedMessage.includes('supera') || normalizedMessage.includes('permitida')) {
+    if (
+      normalizedMessage.includes('supera') ||
+      normalizedMessage.includes('permitida')
+    ) {
       return createGuidedError(
         message,
         'Documento demasiado largo.',
@@ -2056,7 +2122,10 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
       );
     }
 
-    if (normalizedMessage.includes('repetir') || normalizedMessage.includes('mismo número')) {
+    if (
+      normalizedMessage.includes('repetir') ||
+      normalizedMessage.includes('mismo número')
+    ) {
       return createGuidedError(
         message,
         'Documento repetido.',
@@ -2246,9 +2315,10 @@ export default function Compras() {
   const { isOffline } = useNetworkStatus();
   const savingRef = useRef(false);
   const compraLocalIdRef = useRef<string | null>(null);
-  const latestCompraDraftRef = useRef<
-    Omit<CompraDraft, 'version' | 'savedAt'> | null
-  >(null);
+  const latestCompraDraftRef = useRef<Omit<
+    CompraDraft,
+    'version' | 'savedAt'
+  > | null>(null);
   const productoresSearchRef = useRef<HTMLInputElement | null>(null);
   const productorFeedbackRef = useRef<HTMLDivElement | null>(null);
   const formFeedbackRef = useRef<HTMLDivElement | null>(null);
@@ -2266,9 +2336,9 @@ export default function Compras() {
   const [subloteInputWarningsExiting, setSubloteInputWarningsExiting] =
     useState(false);
   const [subloteActivoId, setSubloteActivoId] = useState<string | null>(null);
-  const [pesoFocusedSubloteId, setPesoFocusedSubloteId] = useState<string | null>(
-    null,
-  );
+  const [pesoFocusedSubloteId, setPesoFocusedSubloteId] = useState<
+    string | null
+  >(null);
   const [productorSeleccionado, setProductorSeleccionado] =
     useState<ProductorOption | null>(null);
   const [productorSelectionMode, setProductorSelectionMode] =
@@ -2296,16 +2366,18 @@ export default function Compras() {
   });
   const [productorFormErrors, setProductorFormErrors] =
     useState<ProductorFormErrors>({});
-  const [productorFormTouched, setProductorFormTouched] =
-    useState<Partial<Record<ProductorFormField, boolean>>>({});
-  const [productorFormError, setProductorFormError] = useState<ProductorModalError | null>(
-    null,
-  );
-  const [productorImportedPendingDocument, setProductorImportedPendingDocument] =
-    useState(false);
-  const [productorImportMessage, setProductorImportMessage] = useState<string | null>(
-    null,
-  );
+  const [productorFormTouched, setProductorFormTouched] = useState<
+    Partial<Record<ProductorFormField, boolean>>
+  >({});
+  const [productorFormError, setProductorFormError] =
+    useState<ProductorModalError | null>(null);
+  const [
+    productorImportedPendingDocument,
+    setProductorImportedPendingDocument,
+  ] = useState(false);
+  const [productorImportMessage, setProductorImportMessage] = useState<
+    string | null
+  >(null);
   const [productorPhoneChoice, setProductorPhoneChoice] = useState<{
     contact: DeviceContact;
     phones: DeviceContactPhone[];
@@ -2334,7 +2406,8 @@ export default function Compras() {
     useState(false);
   const [panelBodegaVisible, setPanelBodegaVisible] = useState(true);
   const panelBodegaTimeoutRef = useRef<number | null>(null);
-  const mostrarPanelBodega = checkingCapacidadPreview || Boolean(capacidadPrevia?.validada);
+  const mostrarPanelBodega =
+    checkingCapacidadPreview || Boolean(capacidadPrevia?.validada);
   const [nombreBodegaNueva, setNombreBodegaNueva] =
     useState('Bodega principal');
   const [capacidadNuevaKg, setCapacidadNuevaKg] = useState('');
@@ -2394,15 +2467,20 @@ export default function Compras() {
   const [borradorPendiente, setBorradorPendiente] =
     useState<CompraDraft | null>(null);
   const [mostrarModalBorrador, setMostrarModalBorrador] = useState(false);
-  const [comprasRealizadas, setComprasRealizadas] = useState<CompraListadoItem[]>([]);
+  const [comprasRealizadas, setComprasRealizadas] = useState<
+    CompraListadoItem[]
+  >([]);
   const [bodegaBloqueada, setBodegaBloqueada] =
     useState<BodegaBloqueada | null>(null);
   const [mostrarHistorialCompras, setMostrarHistorialCompras] = useState(false);
   const [historialCompraFecha, setHistorialCompraFecha] = useState('');
   const [historialCompraFechaPickerOpen, setHistorialCompraFechaPickerOpen] =
     useState(false);
-  const [historialCompraProductor, setHistorialCompraProductor] = useState('TODOS');
-  const [historialCompraOrden, setHistorialCompraOrden] = useState<'recent' | 'oldest'>('recent');
+  const [historialCompraProductor, setHistorialCompraProductor] =
+    useState('TODOS');
+  const [historialCompraOrden, setHistorialCompraOrden] = useState<
+    'recent' | 'oldest'
+  >('recent');
   const [mostrarHistorialSublotes, setMostrarHistorialSublotes] =
     useState(false);
   const [botonGuardarProductorPresionado, setBotonGuardarProductorPresionado] =
@@ -2441,25 +2519,31 @@ export default function Compras() {
         const comprasCacheadas = comprasData ?? [];
         setCatalogos({ tiposCafe, calidades });
         setProductores(
-          dedupeProductorOptions((productoresData ?? []).map(mapProductorToOption)),
+          dedupeProductorOptions(
+            (productoresData ?? []).map(mapProductorToOption),
+          ),
         );
-      setComprasRealizadas(comprasCacheadas);
-      configurarLimitesEntradaCache(bodegaData ?? null);
-      setBodegaBloqueada(
-        bodegaData
-          ? resolverBodegaBloqueada(bodegaData.capacidadKg ?? null, comprasCacheadas)
+        setComprasRealizadas(comprasCacheadas);
+        configurarLimitesEntradaCache(bodegaData ?? null);
+        setBodegaBloqueada(
+          bodegaData
+            ? resolverBodegaBloqueada(
+                bodegaData.capacidadKg ?? null,
+                comprasCacheadas,
+              )
             : null,
         );
         setCatalogosFeedback('Información guardada en este dispositivo.');
         return;
       }
 
-      const [catalogosData, productoresData, comprasData, bodegaData] = await Promise.all([
-        obtenerCatalogosCompra(),
-        listarProductores(),
-        listarCompras(),
-        obtenerConfiguracionBodega(),
-      ]);
+      const [catalogosData, productoresData, comprasData, bodegaData] =
+        await Promise.all([
+          obtenerCatalogosCompra(),
+          listarProductores(),
+          listarCompras(),
+          obtenerConfiguracionBodega(),
+        ]);
       setCatalogos(catalogosData);
       setProductores(
         dedupeProductorOptions(productoresData.map(mapProductorToOption)),
@@ -2469,8 +2553,14 @@ export default function Compras() {
       setBodegaBloqueada(
         resolverBodegaBloqueada(bodegaData.capacidadKg, comprasData),
       );
-      void saveOfflineCache(CATALOG_TIPOS_CAFE_CACHE_KEY, catalogosData.tiposCafe);
-      void saveOfflineCache(CATALOG_CALIDADES_CACHE_KEY, catalogosData.calidades);
+      void saveOfflineCache(
+        CATALOG_TIPOS_CAFE_CACHE_KEY,
+        catalogosData.tiposCafe,
+      );
+      void saveOfflineCache(
+        CATALOG_CALIDADES_CACHE_KEY,
+        catalogosData.calidades,
+      );
       void saveOfflineCache(CATALOG_PRODUCTORES_CACHE_KEY, productoresData);
       void saveOfflineCache(COMPRAS_RECIENTES_CACHE_KEY, comprasData);
       void saveOfflineCache(WAREHOUSE_CAPACITY_CACHE_KEY, bodegaData);
@@ -2703,7 +2793,9 @@ export default function Compras() {
     [catalogos.calidades],
   );
   const catalogosOfflineFaltantes =
-    isOffline && Boolean(catalogosError) && (tiposCafe.length === 0 || calidades.length === 0);
+    isOffline &&
+    Boolean(catalogosError) &&
+    (tiposCafe.length === 0 || calidades.length === 0);
   const nombreTipoCafePorId = useMemo(
     () => new Map(tiposCafe.map((item) => [item.id, item.nombre])),
     [tiposCafe],
@@ -2750,7 +2842,9 @@ export default function Compras() {
     () => productoresOrdenadosRecientes.slice(0, LIMITE_PRODUCTORES_RECIENTES),
     [productoresOrdenadosRecientes],
   );
-  const busquedaProductorModalDebounced = useDebouncedValue(busquedaProductorModal);
+  const busquedaProductorModalDebounced = useDebouncedValue(
+    busquedaProductorModal,
+  );
   const productoresModalFiltrados = useMemo(() => {
     const resultado = fuzzySearch(
       productores,
@@ -2770,16 +2864,12 @@ export default function Compras() {
   }, [busquedaProductorModalDebounced, productorSortMode, productores]);
   const productoresModalUsaSimilares = useMemo(
     () =>
-      fuzzySearch(
-        productores,
-        busquedaProductorModalDebounced,
-        (productor) => [
-          productor.nombre,
-          productor.documento,
-          productor.detalle,
-          productor.telefono ?? '',
-        ],
-      ).isSimilar,
+      fuzzySearch(productores, busquedaProductorModalDebounced, (productor) => [
+        productor.nombre,
+        productor.documento,
+        productor.detalle,
+        productor.telefono ?? '',
+      ]).isSimilar,
     [busquedaProductorModalDebounced, productores],
   );
   const historialCompraProductores = useMemo(() => {
@@ -2793,12 +2883,15 @@ export default function Compras() {
     return Array.from(options.entries());
   }, [comprasRealizadas]);
   const comprasHistorialFiltradas = useMemo(() => {
-    const sameDate = (value: string) => value.slice(0, 10) === historialCompraFecha;
+    const sameDate = (value: string) =>
+      value.slice(0, 10) === historialCompraFecha;
     return [...comprasRealizadas]
       .filter((compra) => !historialCompraFecha || sameDate(compra.fecha))
       .filter((compra) => {
         if (historialCompraProductor === 'TODOS') return true;
-        const isNoRegistrado = !compra.productorNombre || compra.productorNombre === 'Productor General';
+        const isNoRegistrado =
+          !compra.productorNombre ||
+          compra.productorNombre === 'Productor General';
         if (historialCompraProductor === 'NO_REGISTRADO') return isNoRegistrado;
         return compra.productorNombre === historialCompraProductor;
       })
@@ -2847,9 +2940,7 @@ export default function Compras() {
     setCapacidadNuevaError(null);
   };
 
-  const desplazarAlFeedback = (
-    ref: React.RefObject<HTMLDivElement | null>,
-  ) => {
+  const desplazarAlFeedback = (ref: React.RefObject<HTMLDivElement | null>) => {
     window.setTimeout(() => {
       ref.current?.scrollIntoView({
         behavior: 'smooth',
@@ -2879,7 +2970,9 @@ export default function Compras() {
   const restaurarBorradorCompra = (draft: CompraDraft) => {
     compraLocalIdRef.current = draft.compraLocalId ?? generarId();
     setFecha(draft.fecha || hoyLocal());
-    setSublotes(draft.sublotes.length > 0 ? draft.sublotes : [crearSubloteVacio()]);
+    setSublotes(
+      draft.sublotes.length > 0 ? draft.sublotes : [crearSubloteVacio()],
+    );
     setSubloteActivoId(draft.subloteActivoId);
     setProductorSeleccionado(draft.productorSeleccionado);
     setProductorSelectionMode(draft.productorSelectionMode);
@@ -3012,14 +3105,13 @@ export default function Compras() {
     const phoneResult = phone?.number
       ? normalizeImportedContactPhone(phone.number)
       : null;
-    const telefonoDuplicado =
-      phoneResult?.formatted
-        ? productores.some(
-            (item) =>
-              normalizePhoneNumberForStorage(item.telefono ?? '') ===
-              normalizePhoneNumberForStorage(phoneResult.formatted),
-          )
-        : false;
+    const telefonoDuplicado = phoneResult?.formatted
+      ? productores.some(
+          (item) =>
+            normalizePhoneNumberForStorage(item.telefono ?? '') ===
+            normalizePhoneNumberForStorage(phoneResult.formatted),
+        )
+      : false;
     const telefonoWarning = phoneResult
       ? telefonoDuplicado
         ? 'Este celular ya está registrado. Revisa el productor existente antes de crear uno nuevo.'
@@ -3051,7 +3143,8 @@ export default function Compras() {
     );
     setProductorFormError({
       title: 'Documento pendiente',
-      description: 'Completa el tipo y número de documento antes de guardar este productor.',
+      description:
+        'Completa el tipo y número de documento antes de guardar este productor.',
     });
     setProductorPhoneChoice(null);
     window.setTimeout(() => {
@@ -3072,7 +3165,9 @@ export default function Compras() {
     try {
       const contact = await pickDeviceContact();
       if (contact.cancelled) return;
-      const phones = (contact.phones ?? []).filter((phone) => phone.number?.trim());
+      const phones = (contact.phones ?? []).filter((phone) =>
+        phone.number?.trim(),
+      );
       if (phones.length > 1) {
         setProductorPhoneChoice({ contact, phones });
         return;
@@ -3130,7 +3225,9 @@ export default function Compras() {
     }
   };
 
-  const alternarModoProductor = (mode: Exclude<ProductorSelectionMode, null>) => {
+  const alternarModoProductor = (
+    mode: Exclude<ProductorSelectionMode, null>,
+  ) => {
     const nextMode = productorSelectionMode === mode ? null : mode;
 
     setProductorSelectionMode(nextMode);
@@ -3138,11 +3235,17 @@ export default function Compras() {
     setError(null);
     setMostrarErrorFormulario(false);
 
-    if (nextMode !== 'buscar' && productorSeleccionado?.id !== PRODUCTOR_GENERAL.id) {
+    if (
+      nextMode !== 'buscar' &&
+      productorSeleccionado?.id !== PRODUCTOR_GENERAL.id
+    ) {
       setProductorSeleccionado(null);
     }
 
-    if (nextMode !== 'generico' && productorSeleccionado?.id === PRODUCTOR_GENERAL.id) {
+    if (
+      nextMode !== 'generico' &&
+      productorSeleccionado?.id === PRODUCTOR_GENERAL.id
+    ) {
       setProductorSeleccionado(null);
     }
 
@@ -3204,7 +3307,10 @@ export default function Compras() {
         ? normalizeCompanyName(productorForm.nombre)
         : normalizeHumanName(productorForm.nombre);
     const tipoDocumento = productorForm.tipoDocumento || 'CEDULA';
-    const documento = normalizeDocumentForStorage(productorForm.documento, tipoDocumento);
+    const documento = normalizeDocumentForStorage(
+      productorForm.documento,
+      tipoDocumento,
+    );
     const telefono = normalizePhoneNumberForStorage(productorForm.telefono);
     const errores = validarProductorForm();
 
@@ -3427,7 +3533,10 @@ export default function Compras() {
         return;
       }
 
-      if (catalogosError && (tiposCafe.length === 0 || calidades.length === 0)) {
+      if (
+        catalogosError &&
+        (tiposCafe.length === 0 || calidades.length === 0)
+      ) {
         mostrarErrorPaso(
           isOffline
             ? 'No hay catálogos guardados. Conéctate a internet una vez para cargar tipos de café, calidades y productores.'
@@ -3572,7 +3681,9 @@ export default function Compras() {
           inventarioActual: bodegaBloqueada.inventarioKg,
           nuevoTotal,
           pesoCompra: resumen.totalKg,
-          porcentaje: Math.round((nuevoTotal / bodegaBloqueada.capacidadKg) * 100),
+          porcentaje: Math.round(
+            (nuevoTotal / bodegaBloqueada.capacidadKg) * 100,
+          ),
         });
         setCapacidadRiesgoConfirmada(false);
         setMostrarModalCapacidad(true);
@@ -3783,8 +3894,6 @@ export default function Compras() {
           },
         });
         latestCompraDraftRef.current = {
-          version: 1,
-          savedAt: Date.now(),
           step,
           fecha,
           sublotes,
@@ -3880,10 +3989,18 @@ export default function Compras() {
         onHome={() => navigate('/inicio')}
         onShareSummary={(format) => {
           const tipos = Array.from(
-            new Set(compraGuardada.sublotes.map((sublote) => sublote.tipoCafe).filter(Boolean)),
+            new Set(
+              compraGuardada.sublotes
+                .map((sublote) => sublote.tipoCafe)
+                .filter(Boolean),
+            ),
           );
           const calidades = Array.from(
-            new Set(compraGuardada.sublotes.map((sublote) => sublote.calidad).filter(Boolean)),
+            new Set(
+              compraGuardada.sublotes
+                .map((sublote) => sublote.calidad)
+                .filter(Boolean),
+            ),
           );
 
           return shareMovementSummary({
@@ -3913,12 +4030,21 @@ export default function Compras() {
         }}
         history={{
           title: 'Historial completo de la compra',
-          summary: `${compraGuardada.sublotes.length} registros · ${formatTotalKg(compraGuardada.totalKg)} · ${formatoMoneda(compraGuardada.totalCompra)}`,
-          items: compraGuardada.sublotes.map((sublote) => ({
-            title: [sublote.tipoCafe, sublote.calidad].filter(Boolean).join(' ') || 'Café',
-            detail: `${formatTotalKg(sublote.pesoInicial)} · ${formatoMoneda(sublote.pesoInicial * sublote.precioKg)}`,
-            meta: `${formatoMoneda(sublote.precioKg)}/kg`,
-          })),
+          summary: `${compraGuardada.sublotes.length} registros · ${formatTotalKg(compraGuardada.totalKg)} · Total: ${formatoMoneda(compraGuardada.totalCompra)}`,
+          items: compraGuardada.sublotes.map((sublote) => {
+            const subtotal = sublote.pesoInicial * sublote.precioKg;
+
+            return {
+              title:
+                [sublote.tipoCafe, sublote.calidad].filter(Boolean).join(' ') ||
+                'Café',
+              detail: `${formatTotalKg(sublote.pesoInicial)} · ${formatoMoneda(subtotal)}`,
+              meta: `${formatoMoneda(sublote.precioKg)}/kg`,
+              kg: formatTotalKg(sublote.pesoInicial),
+              priceKg: `${formatoMoneda(sublote.precioKg)}/kg`,
+              subtotal: formatoMoneda(subtotal),
+            };
+          }),
         }}
         rows={[
           {
@@ -4072,7 +4198,8 @@ export default function Compras() {
                   </div>
                 )}
 
-                {!sinProductoresRegistrados && productoresOrdenadosRecientes.length > 1 ? (
+                {!sinProductoresRegistrados &&
+                productoresOrdenadosRecientes.length > 1 ? (
                   <button
                     type="button"
                     onClick={() => setMostrarModalProductores(true)}
@@ -4231,9 +4358,15 @@ export default function Compras() {
                 capacidadPrevia?.validada &&
                 typeof capacidadPrevia.porcentajeOcupacion === 'number' &&
                 Number.isFinite(capacidadPrevia.porcentajeOcupacion)
-                  ? Math.min(100, Math.max(0, capacidadPrevia.porcentajeOcupacion))
+                  ? Math.min(
+                      100,
+                      Math.max(0, capacidadPrevia.porcentajeOcupacion),
+                    )
                   : porcentajeDisponibleDespues !== null
-                    ? Math.min(100, Math.max(0, 100 - porcentajeDisponibleDespues))
+                    ? Math.min(
+                        100,
+                        Math.max(0, 100 - porcentajeDisponibleDespues),
+                      )
                     : null;
               const pesoWarning =
                 subloteInputWarnings[sublote.id]?.pesoInicial ?? null;
@@ -4335,13 +4468,23 @@ export default function Compras() {
                     />
                     {loading && tiposCafe.length === 0 ? (
                       <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        <p className="font-black text-slate-900">Cargando tipos de café...</p>
-                        <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
+                        <p className="font-black text-slate-900">
+                          Cargando tipos de café...
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Espera un momento mientras cargamos las opciones.
+                        </p>
                       </div>
-                    ) : catalogosError && tiposCafe.length === 0 && !catalogosOfflineFaltantes ? (
+                    ) : catalogosError &&
+                      tiposCafe.length === 0 &&
+                      !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
                         variant={isOffline ? 'warning' : 'error'}
-                        title={isOffline ? 'No hay información guardada' : 'No pudimos continuar'}
+                        title={
+                          isOffline
+                            ? 'No hay información guardada'
+                            : 'No pudimos continuar'
+                        }
                         description={
                           isOffline
                             ? 'Conéctate a internet una vez para cargar tipos de café, calidades y productores antes de registrar compras sin conexión.'
@@ -4429,13 +4572,23 @@ export default function Compras() {
                     </div>
                     {loading && calidades.length === 0 ? (
                       <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        <p className="font-black text-slate-900">Cargando calidades...</p>
-                        <p className="mt-1 leading-5">Espera un momento mientras cargamos las opciones.</p>
+                        <p className="font-black text-slate-900">
+                          Cargando calidades...
+                        </p>
+                        <p className="mt-1 leading-5">
+                          Espera un momento mientras cargamos las opciones.
+                        </p>
                       </div>
-                    ) : catalogosError && calidades.length === 0 && !catalogosOfflineFaltantes ? (
+                    ) : catalogosError &&
+                      calidades.length === 0 &&
+                      !catalogosOfflineFaltantes ? (
                       <AppFeedbackMessage
                         variant={isOffline ? 'warning' : 'error'}
-                        title={isOffline ? 'No hay información guardada' : 'No pudimos continuar'}
+                        title={
+                          isOffline
+                            ? 'No hay información guardada'
+                            : 'No pudimos continuar'
+                        }
                         description={
                           isOffline
                             ? 'Conéctate a internet una vez para cargar tipos de café, calidades y productores antes de registrar compras sin conexión.'
@@ -4550,10 +4703,18 @@ export default function Compras() {
 
                                 {checkingCapacidadPreview ? (
                                   <div className="flex items-start gap-3 pr-8 text-sm font-semibold text-slate-700">
-                                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-white/85 text-sky-700" aria-hidden="true">
-                                      <LoaderCircle size={18} className="animate-spin" />
+                                    <span
+                                      className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-white/85 text-sky-700"
+                                      aria-hidden="true"
+                                    >
+                                      <LoaderCircle
+                                        size={18}
+                                        className="animate-spin"
+                                      />
                                     </span>
-                                    <span className="text-[0.82rem] font-semibold leading-5 text-sky-800">Revisando espacio disponible...</span>
+                                    <span className="text-[0.82rem] font-semibold leading-5 text-sky-800">
+                                      Revisando espacio disponible...
+                                    </span>
                                   </div>
                                 ) : capacidadPrevia?.validada ? (
                                   <div className="space-y-3 pr-8">
@@ -4568,15 +4729,26 @@ export default function Compras() {
                                                 : 'bg-sky-100 text-sky-700'
                                           }`}
                                         >
-                                          <Warehouse size={12} aria-hidden="true" />
-                                          {capacidadEnExceso ? 'Sobrecapacidad' : capacidadCasiLlena ? 'Casi llena' : 'Disponible'}
+                                          <Warehouse
+                                            size={12}
+                                            aria-hidden="true"
+                                          />
+                                          {capacidadEnExceso
+                                            ? 'Sobrecapacidad'
+                                            : capacidadCasiLlena
+                                              ? 'Casi llena'
+                                              : 'Disponible'}
                                         </span>
                                       </div>
-                                      <span className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">Espacio disponible</span>
+                                      <span className="text-[0.72rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                                        Espacio disponible
+                                      </span>
                                     </div>
 
                                     {capacidadDisponibleAntes !== null ? (
-                                      <p className={`whitespace-nowrap text-[1.2rem] font-black leading-none ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-800'}`}>
+                                      <p
+                                        className={`whitespace-nowrap text-[1.2rem] font-black leading-none ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-800'}`}
+                                      >
                                         {capacidadDisponibleAntes >= 0
                                           ? `${formatoKg(capacidadDisponibleAntes)} kg libres`
                                           : `${formatoKg(Math.abs(capacidadDisponibleAntes))} kg por encima`}
@@ -4585,7 +4757,12 @@ export default function Compras() {
 
                                     {capacidadOcupacionPorcentaje !== null ? (
                                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <div className={`h-full rounded-full ${capacidadEnExceso ? 'bg-rose-500' : capacidadCasiLlena ? 'bg-amber-400' : 'bg-sky-500'}`} style={{ width: `${capacidadOcupacionPorcentaje}%` }} />
+                                        <div
+                                          className={`h-full rounded-full ${capacidadEnExceso ? 'bg-rose-500' : capacidadCasiLlena ? 'bg-amber-400' : 'bg-sky-500'}`}
+                                          style={{
+                                            width: `${capacidadOcupacionPorcentaje}%`,
+                                          }}
+                                        />
                                       </div>
                                     ) : null}
 
@@ -4596,8 +4773,13 @@ export default function Compras() {
                                             ? 'Disponible después:'
                                             : 'Sobrecapacidad después:'}
                                         </span>
-                                        <span className={`whitespace-nowrap font-black leading-tight ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-700'}`}>
-                                          {formatoKg(Math.abs(capacidadRestanteDespues))} kg
+                                        <span
+                                          className={`whitespace-nowrap font-black leading-tight ${capacidadEnExceso ? 'text-rose-800' : capacidadCasiLlena ? 'text-amber-800' : 'text-sky-700'}`}
+                                        >
+                                          {formatoKg(
+                                            Math.abs(capacidadRestanteDespues),
+                                          )}{' '}
+                                          kg
                                         </span>
                                       </div>
                                     ) : null}
@@ -4636,7 +4818,11 @@ export default function Compras() {
                                 : 'border-sky-200 text-sky-700 hover:bg-sky-50 focus-visible:ring-sky-500/40'
                           }`}
                         >
-                          <Warehouse size={21} strokeWidth={2.3} aria-hidden="true" />
+                          <Warehouse
+                            size={21}
+                            strokeWidth={2.3}
+                            aria-hidden="true"
+                          />
                         </button>
                         <p className="mt-1 text-[0.76rem] font-semibold leading-4 text-slate-500">
                           No escribas puntos.
@@ -4751,11 +4937,11 @@ export default function Compras() {
                 <span className="truncate">Paso anterior</span>
               </button>
               <button
-              type="button"
-              onClick={irSiguientePaso}
-              disabled={loading || checkingCapacidadPreview}
-              className="inline-flex min-h-[54px] min-w-0 items-center justify-center gap-2 rounded-[18px] bg-[#1f3fa7] px-3 py-3 text-[0.95rem] font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
-            >
+                type="button"
+                onClick={irSiguientePaso}
+                disabled={loading || checkingCapacidadPreview}
+                className="inline-flex min-h-[54px] min-w-0 items-center justify-center gap-2 rounded-[18px] bg-[#1f3fa7] px-3 py-3 text-[0.95rem] font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.26)] transition hover:bg-[#18358f] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
+              >
                 {loading || checkingCapacidadPreview ? (
                   <>
                     <LoaderCircle size={18} className="shrink-0 animate-spin" />
@@ -4825,15 +5011,20 @@ export default function Compras() {
                 </span>
               </div>
               <p className="mt-1 px-1 text-[0.86rem] font-semibold leading-5 text-slate-500">
-                Revisa cada café antes de confirmar. Puedes editar o eliminar
-                un producto si lo necesitas.
+                Revisa cada café antes de confirmar. Puedes editar o eliminar un
+                producto si lo necesitas.
               </p>
               <div className="mt-3 space-y-3">
-                {(sublotesParaHistorial.length > 2 ? sublotesParaHistorial.slice(-2) : sublotesParaHistorial).map((sublote) => {
+                {(sublotesParaHistorial.length > 2
+                  ? sublotesParaHistorial.slice(-2)
+                  : sublotesParaHistorial
+                ).map((sublote) => {
                   const tipoCafe =
-                    nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
+                    nombreTipoCafePorId.get(sublote.tipoCafeId) ??
+                    'Tipo pendiente';
                   const calidad =
-                    nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
+                    nombreCalidadPorId.get(sublote.calidadId) ??
+                    'Calidad pendiente';
                   const peso = leerCantidadCompra(sublote.pesoInicial).valor;
                   const precioKg = leerPrecioCompra(sublote.precioKg).valor;
                   const totalItem = peso * precioKg;
@@ -4846,7 +5037,9 @@ export default function Compras() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                          <div className={`shrink-0 rounded-[15px] p-2.5 ${visual.fondo}`}>
+                          <div
+                            className={`shrink-0 rounded-[15px] p-2.5 ${visual.fondo}`}
+                          >
                             {visual.icono}
                           </div>
                           <div className="min-w-0">
@@ -4858,7 +5051,8 @@ export default function Compras() {
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[0.78rem] font-bold text-slate-700">
-                                Peso: {peso.toLocaleString('es-CO', {
+                                Peso:{' '}
+                                {peso.toLocaleString('es-CO', {
                                   minimumFractionDigits: 0,
                                   maximumFractionDigits: 2,
                                 })}{' '}
@@ -5018,7 +5212,8 @@ export default function Compras() {
                   Registro en progreso
                 </h2>
                 <p className="mt-2 text-[0.98rem] font-semibold leading-6 text-slate-700">
-                    Tienes una compra pendiente. ¿Deseas continuarla o iniciar una nueva?
+                  Tienes una compra pendiente. ¿Deseas continuarla o iniciar una
+                  nueva?
                 </p>
               </div>
             </div>
@@ -5196,7 +5391,9 @@ export default function Compras() {
 
             <div className="mt-4 rounded-[16px] border border-[#fed7aa] bg-[#fff7ed] p-4 dark:border-amber-500/35 dark:bg-slate-800">
               <div className="flex items-center justify-between gap-3 text-[0.84rem]">
-                <span className="font-black text-slate-600 dark:text-slate-300">Capacidad máxima</span>
+                <span className="font-black text-slate-600 dark:text-slate-300">
+                  Capacidad máxima
+                </span>
                 <span className="font-black text-slate-950 dark:text-slate-50">
                   {datosCapacidad.capacidadKg.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
@@ -5206,7 +5403,9 @@ export default function Compras() {
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
-                <span className="font-black text-slate-600 dark:text-slate-300">Ocupación actual</span>
+                <span className="font-black text-slate-600 dark:text-slate-300">
+                  Ocupación actual
+                </span>
                 <span className="font-black text-slate-950 dark:text-slate-50">
                   {datosCapacidad.inventarioActual.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
@@ -5216,9 +5415,13 @@ export default function Compras() {
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
-                <span className="font-black text-slate-600 dark:text-slate-300">Peso de la compra</span>
+                <span className="font-black text-slate-600 dark:text-slate-300">
+                  Peso de la compra
+                </span>
                 <span className="font-black text-slate-950 dark:text-slate-50">
-                  {(datosCapacidad.pesoCompra ?? resumen.totalKg).toLocaleString('es-CO', {
+                  {(
+                    datosCapacidad.pesoCompra ?? resumen.totalKg
+                  ).toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,
                   })}{' '}
@@ -5226,7 +5429,9 @@ export default function Compras() {
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
-                <span className="font-black text-slate-600 dark:text-slate-300">Después de la compra</span>
+                <span className="font-black text-slate-600 dark:text-slate-300">
+                  Después de la compra
+                </span>
                 <span className="font-black text-[#c2410c] dark:text-amber-300">
                   {datosCapacidad.nuevoTotal.toLocaleString('es-CO', {
                     minimumFractionDigits: 0,
@@ -5236,11 +5441,14 @@ export default function Compras() {
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-[0.84rem]">
-                <span className="font-black text-slate-600 dark:text-slate-300">Ocupación proyectada</span>
+                <span className="font-black text-slate-600 dark:text-slate-300">
+                  Ocupación proyectada
+                </span>
                 <span className="font-black text-[#c2410c] dark:text-amber-300">
                   {Math.round(
                     datosCapacidad.porcentaje ??
-                      (datosCapacidad.nuevoTotal / datosCapacidad.capacidadKg) * 100,
+                      (datosCapacidad.nuevoTotal / datosCapacidad.capacidadKg) *
+                        100,
                   )}
                   %
                 </span>
@@ -5310,7 +5518,10 @@ export default function Compras() {
             <div className="mt-6 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-left">
               <p className="text-[0.95rem] text-slate-600">Quedarán</p>
               <p className="mt-1 text-[1.8rem] font-semibold text-slate-900">
-                {Math.max(0, datosAlerta80.capacidadKg - datosAlerta80.nuevoTotal).toLocaleString('es-CO', {
+                {Math.max(
+                  0,
+                  datosAlerta80.capacidadKg - datosAlerta80.nuevoTotal,
+                ).toLocaleString('es-CO', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 2,
                 })}{' '}
@@ -5365,7 +5576,9 @@ export default function Compras() {
                 <Check size={24} />
               </div>
               <h2 className="mt-5 text-[1.72rem] font-semibold leading-tight text-slate-900">
-                {isOffline ? '¿Guardar compra pendiente?' : '¿Registrar compra?'}
+                {isOffline
+                  ? '¿Guardar compra pendiente?'
+                  : '¿Registrar compra?'}
               </h2>
               <p className="mt-3 text-[1rem] font-medium leading-6 text-slate-600">
                 {isOffline
@@ -5414,8 +5627,10 @@ export default function Compras() {
                     <LoaderCircle size={18} className="shrink-0 animate-spin" />
                     <span>Guardando...</span>
                   </>
+                ) : isOffline ? (
+                  'Guardar pendiente'
                 ) : (
-                  isOffline ? 'Guardar pendiente' : 'Confirmar compra'
+                  'Confirmar compra'
                 )}
               </button>
               <button
@@ -5469,11 +5684,13 @@ export default function Compras() {
               </div>
               <div className="mt-4 grid gap-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-black text-slate-700">Fecha</span>
+                  <span className="mb-1 block text-xs font-black text-slate-700">
+                    Fecha
+                  </span>
                   <CafeSmartDatePicker
-                      value={historialCompraFecha}
+                    value={historialCompraFecha}
                     minDate={BUSINESS_MIN_DATE_VALUE}
-                      maxDate={getTodayLocalDateValue()}
+                    maxDate={getTodayLocalDateValue()}
                     open={historialCompraFechaPickerOpen}
                     label="Fecha"
                     placeholder="Fecha"
@@ -5487,27 +5704,40 @@ export default function Compras() {
                 </label>
                 {historialCompraFecha ? (
                   <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
-                    Mostrando registros filtrados por fecha. Usa “Limpiar” para volver a ver todos.
+                    Mostrando registros filtrados por fecha. Usa “Limpiar” para
+                    volver a ver todos.
                   </p>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
                   <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">Tipo de productor</span>
+                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                      Tipo de productor
+                    </span>
                     <SmartSelect
                       value={historialCompraProductor}
-                      onChange={(event) => setHistorialCompraProductor(event.target.value)}
+                      onChange={(event) =>
+                        setHistorialCompraProductor(event.target.value)
+                      }
                       className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
                     >
                       {historialCompraProductores.map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
                       ))}
                     </SmartSelect>
                   </label>
                   <label className="min-w-0 rounded-[14px] border border-[#dbe2f0] bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">Ordenar por</span>
+                    <span className="block text-[0.58rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-300">
+                      Ordenar por
+                    </span>
                     <SmartSelect
                       value={historialCompraOrden}
-                      onChange={(event) => setHistorialCompraOrden(event.target.value as 'recent' | 'oldest')}
+                      onChange={(event) =>
+                        setHistorialCompraOrden(
+                          event.target.value as 'recent' | 'oldest',
+                        )
+                      }
                       className="mt-1 min-h-[32px] border-0 bg-transparent px-0 py-0 text-sm font-black text-slate-950 shadow-none focus:ring-0 dark:bg-transparent dark:text-slate-50"
                     >
                       <option value="recent">Más recientes</option>
@@ -5515,9 +5745,9 @@ export default function Compras() {
                     </SmartSelect>
                   </label>
                 </div>
-                {(historialCompraFecha ||
-                  historialCompraProductor !== 'TODOS' ||
-                  historialCompraOrden !== 'recent') ? (
+                {historialCompraFecha ||
+                historialCompraProductor !== 'TODOS' ||
+                historialCompraOrden !== 'recent' ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -5611,7 +5841,9 @@ export default function Compras() {
                     Historial completo de la compra
                   </h2>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    {sublotesParaHistorial.length} registros · {formatTotalKg(resumen.totalKg)} · {formatoMoneda(resumen.totalCompra)}
+                    {sublotesParaHistorial.length} registros ·{' '}
+                    {formatTotalKg(resumen.totalKg)} ·{' '}
+                    {formatoMoneda(resumen.totalCompra)}
                   </p>
                 </div>
                 <button
@@ -5627,9 +5859,11 @@ export default function Compras() {
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
               {sublotesParaHistorial.map((sublote) => {
                 const tipoCafe =
-                  nombreTipoCafePorId.get(sublote.tipoCafeId) ?? 'Tipo pendiente';
+                  nombreTipoCafePorId.get(sublote.tipoCafeId) ??
+                  'Tipo pendiente';
                 const calidad =
-                  nombreCalidadPorId.get(sublote.calidadId) ?? 'Calidad pendiente';
+                  nombreCalidadPorId.get(sublote.calidadId) ??
+                  'Calidad pendiente';
                 const peso = leerCantidadCompra(sublote.pesoInicial).valor;
                 const precioKg = leerPrecioCompra(sublote.precioKg).valor;
                 const totalItem = peso * precioKg;
@@ -5644,7 +5878,8 @@ export default function Compras() {
                           {tipoCafe} — {calidad}
                         </p>
                         <p className="mt-1 text-sm font-bold text-slate-600">
-                          Peso: {peso.toLocaleString('es-CO', {
+                          Peso:{' '}
+                          {peso.toLocaleString('es-CO', {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 2,
                           })}{' '}
@@ -5668,7 +5903,9 @@ export default function Compras() {
                           <button
                             type="button"
                             aria-label={`Eliminar ${tipoCafe}`}
-                            onClick={() => eliminarSubloteDesdeRevision(sublote.id)}
+                            onClick={() =>
+                              eliminarSubloteDesdeRevision(sublote.id)
+                            }
                             className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] bg-[#fff1f3] text-[#d63b4a]"
                           >
                             <Trash2 size={14} />
@@ -5739,7 +5976,9 @@ export default function Compras() {
                     value={busquedaProductorModal}
                     maxLength={60}
                     onChange={(event) =>
-                      setBusquedaProductorModal(sanitizeSearchInput(event.target.value))
+                      setBusquedaProductorModal(
+                        sanitizeSearchInput(event.target.value),
+                      )
                     }
                     placeholder="Buscar por nombre, cédula o NIT"
                     className="w-full rounded-[16px] border border-[#dbe2f0] bg-[#f8faff] px-10 py-3 text-[0.95rem] font-medium text-slate-900 outline-none transition focus:border-[#1f3fa7] focus:bg-white focus:ring-4 focus:ring-[#1f3fa7]/10"
@@ -5751,19 +5990,19 @@ export default function Compras() {
                     Ordenar por
                   </label>
                   <div className="w-full max-w-[220px]">
-                  <CompactSelect
-                    id="productor-sort-select"
-                    value={productorSortMode}
-                    options={PRODUCTOR_SORT_OPTIONS}
-                    placeholder="Más recientes"
-                    open={productorFiltroDropdownOpen}
-                    icon={<History size={16} />}
-                    onToggle={() =>
-                      setProductorFiltroDropdownOpen((open) => !open)
-                    }
-                    onClose={() => setProductorFiltroDropdownOpen(false)}
-                    onChange={setProductorSortMode}
-                  />
+                    <CompactSelect
+                      id="productor-sort-select"
+                      value={productorSortMode}
+                      options={PRODUCTOR_SORT_OPTIONS}
+                      placeholder="Más recientes"
+                      open={productorFiltroDropdownOpen}
+                      icon={<History size={16} />}
+                      onToggle={() =>
+                        setProductorFiltroDropdownOpen((open) => !open)
+                      }
+                      onClose={() => setProductorFiltroDropdownOpen(false)}
+                      onChange={setProductorSortMode}
+                    />
                   </div>
                 </div>
               </div>
@@ -5845,7 +6084,8 @@ export default function Compras() {
             ...productorDetalle,
             roles: ['PRODUCTOR'],
             documento:
-              productorDetalle.rapido || productorDetalle.documento === 'Documento pendiente'
+              productorDetalle.rapido ||
+              productorDetalle.documento === 'Documento pendiente'
                 ? null
                 : productorDetalle.documento,
           }}
@@ -5856,7 +6096,9 @@ export default function Compras() {
             setProductorEditando(productor);
             setProductorForm({
               nombre: productor.nombre,
-              telefono: productor.telefono ? formatPhoneNumber(productor.telefono) : '',
+              telefono: productor.telefono
+                ? formatPhoneNumber(productor.telefono)
+                : '',
               documento:
                 productor.documento === 'Documento pendiente'
                   ? ''
@@ -5876,7 +6118,9 @@ export default function Compras() {
               <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[1.35rem] font-semibold leading-tight text-[#111827]">
-                    {productorEditando ? 'Editar productor' : 'Registrar productor'}
+                    {productorEditando
+                      ? 'Editar productor'
+                      : 'Registrar productor'}
                   </h2>
                   <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
                     {productorEditando
@@ -5917,19 +6161,32 @@ export default function Compras() {
                     </button>
                   </div>
                   {productorImportMessage ? (
-                    <p role="status" aria-live="polite" className="mt-2 text-xs font-bold text-[#102d92]">
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="mt-2 text-xs font-bold text-[#102d92]"
+                    >
                       {productorImportMessage}
                     </p>
                   ) : null}
                   {productorImportedPendingDocument ? (
-                    <div role="alert" className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                    <div
+                      role="alert"
+                      className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900"
+                    >
                       <p className="font-black">Documento pendiente</p>
-                      <p className="mt-1">Completa el tipo y número de documento antes de guardar este productor.</p>
+                      <p className="mt-1">
+                        Completa el tipo y número de documento antes de guardar
+                        este productor.
+                      </p>
                     </div>
                   ) : null}
                 </div>
                 <div className="order-2">
-                  <label htmlFor="productor-nombre" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label
+                    htmlFor="productor-nombre"
+                    className="mb-2 block text-[0.9rem] font-semibold text-slate-900"
+                  >
                     {productorForm.tipoDocumento === 'NIT'
                       ? 'Nombre de la empresa'
                       : 'Nombre completo'}
@@ -5938,7 +6195,10 @@ export default function Compras() {
                     id="productor-nombre"
                     type="text"
                     value={productorForm.nombre}
-                    disabled={!productorForm.tipoDocumento && !productorImportedPendingDocument}
+                    disabled={
+                      !productorForm.tipoDocumento &&
+                      !productorImportedPendingDocument
+                    }
                     aria-invalid={
                       productorFormErrors.nombre && productorFormTouched.nombre
                         ? 'true'
@@ -5951,7 +6211,10 @@ export default function Compras() {
                     }
                     onBlur={() => {
                       const nextForm = productorForm;
-                      const message = validateProductorField('nombre', nextForm);
+                      const message = validateProductorField(
+                        'nombre',
+                        nextForm,
+                      );
                       setProductorFormTouched((actual) => ({
                         ...actual,
                         nombre: true,
@@ -5979,8 +6242,8 @@ export default function Compras() {
                       !productorForm.tipoDocumento
                         ? 'Primero selecciona el tipo de documento'
                         : productorForm.tipoDocumento === 'NIT'
-                        ? 'Ej. Café Los Alpes'
-                        : 'Ej. Juan Pérez Rodríguez'
+                          ? 'Ej. Café Los Alpes'
+                          : 'Ej. Juan Pérez Rodríguez'
                     }
                     className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition-all disabled:cursor-not-allowed disabled:text-slate-400 disabled:placeholder:text-slate-400 focus:border-[#173ea6] focus:bg-white focus:ring-4 focus:ring-[#173ea6]/10 ${
                       productorFormErrors.nombre && productorFormTouched.nombre
@@ -5994,11 +6257,17 @@ export default function Compras() {
                       : 'Coloca su nombre y apellidos.'}
                   </ProductorHint>
                   {productorFormErrors.nombre && productorFormTouched.nombre ? (
-                    <ProductorFieldError id="productor-nombre-error" message={productorFormErrors.nombre} />
+                    <ProductorFieldError
+                      id="productor-nombre-error"
+                      message={productorFormErrors.nombre}
+                    />
                   ) : null}
                 </div>
                 <div className="order-1">
-                  <label id="productor-document-type-label" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label
+                    id="productor-document-type-label"
+                    className="mb-2 block text-[0.9rem] font-semibold text-slate-900"
+                  >
                     Tipo de documento
                   </label>
                   <ProductorHint>
@@ -6055,7 +6324,10 @@ export default function Compras() {
                   ) : null}
                 </div>
                 <div className="order-3">
-                  <label htmlFor="productor-documento" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label
+                    htmlFor="productor-documento"
+                    className="mb-2 block text-[0.9rem] font-semibold text-slate-900"
+                  >
                     Número de documento
                   </label>
                   <input
@@ -6072,12 +6344,14 @@ export default function Compras() {
                     }
                     disabled={!productorForm.tipoDocumento}
                     aria-invalid={
-                      productorFormErrors.documento && productorFormTouched.documento
+                      productorFormErrors.documento &&
+                      productorFormTouched.documento
                         ? 'true'
                         : 'false'
                     }
                     aria-describedby={
-                      productorFormErrors.documento && productorFormTouched.documento
+                      productorFormErrors.documento &&
+                      productorFormTouched.documento
                         ? 'productor-documento-error'
                         : undefined
                     }
@@ -6089,7 +6363,9 @@ export default function Compras() {
                     maxLength={25}
                     value={productorForm.documento}
                     onBlur={() => {
-                      const hasDocumentType = Boolean(productorForm.tipoDocumento);
+                      const hasDocumentType = Boolean(
+                        productorForm.tipoDocumento,
+                      );
                       const message = hasDocumentType
                         ? validateProductorField('documento', productorForm)
                         : null;
@@ -6122,7 +6398,9 @@ export default function Compras() {
                     }}
                     placeholder={
                       productorForm.tipoDocumento
-                        ? getProductorDocumentPlaceholder(productorForm.tipoDocumento)
+                        ? getProductorDocumentPlaceholder(
+                            productorForm.tipoDocumento,
+                          )
                         : 'Primero selecciona el tipo de documento'
                     }
                     className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] outline-none transition-all disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:placeholder:text-slate-400 ${
@@ -6137,11 +6415,17 @@ export default function Compras() {
                   </ProductorHint>
                   {productorFormErrors.documento &&
                   productorFormTouched.documento ? (
-                    <ProductorFieldError id="productor-documento-error" message={productorFormErrors.documento} />
+                    <ProductorFieldError
+                      id="productor-documento-error"
+                      message={productorFormErrors.documento}
+                    />
                   ) : null}
                 </div>
                 <div className="order-4">
-                  <label htmlFor="productor-telefono" className="mb-2 block text-[0.9rem] font-semibold text-slate-900">
+                  <label
+                    htmlFor="productor-telefono"
+                    className="mb-2 block text-[0.9rem] font-semibold text-slate-900"
+                  >
                     Teléfono (opcional)
                   </label>
                   <input
@@ -6151,12 +6435,14 @@ export default function Compras() {
                     maxLength={18}
                     value={productorForm.telefono}
                     aria-invalid={
-                      productorFormErrors.telefono && productorFormTouched.telefono
+                      productorFormErrors.telefono &&
+                      productorFormTouched.telefono
                         ? 'true'
                         : 'false'
                     }
                     aria-describedby={
-                      productorFormErrors.telefono && productorFormTouched.telefono
+                      productorFormErrors.telefono &&
+                      productorFormTouched.telefono
                         ? 'productor-telefono-error'
                         : undefined
                     }
@@ -6187,21 +6473,27 @@ export default function Compras() {
                     }}
                     placeholder="Ej. 300 123 4567"
                     className={`w-full rounded-[14px] border px-4 py-3 text-[0.95rem] text-slate-900 outline-none transition-all focus:border-[#173ea6] focus:bg-white focus:ring-4 focus:ring-[#173ea6]/10 ${
-                      productorFormErrors.telefono && productorFormTouched.telefono
+                      productorFormErrors.telefono &&
+                      productorFormTouched.telefono
                         ? 'border-rose-200 bg-rose-50/40'
                         : 'border-[#dde4f1] bg-[#f7f9fd]'
                     }`}
                   />
-                  <ProductorHint>Teléfono con prefijo internacional opcional.</ProductorHint>
+                  <ProductorHint>
+                    Teléfono con prefijo internacional opcional.
+                  </ProductorHint>
                   {productorFormErrors.telefono &&
                   productorFormTouched.telefono ? (
-                    <ProductorFieldError id="productor-telefono-error" message={productorFormErrors.telefono} />
+                    <ProductorFieldError
+                      id="productor-telefono-error"
+                      message={productorFormErrors.telefono}
+                    />
                   ) : null}
                 </div>
 
                 {productorFormError ? (
                   <div className="order-5">
-                  <ProductorGeneralError error={productorFormError} />
+                    <ProductorGeneralError error={productorFormError} />
                   </div>
                 ) : null}
               </div>
@@ -6247,7 +6539,10 @@ export default function Compras() {
                 <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
                   Selecciona un número
                 </p>
-                <h2 id="productor-phone-choice-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                <h2
+                  id="productor-phone-choice-title"
+                  className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100"
+                >
                   {productorPhoneChoice.contact.name || 'Contacto'}
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
@@ -6279,7 +6574,11 @@ export default function Compras() {
                       {phone.number}
                     </span>
                   </span>
-                  <ArrowRight size={18} className="text-[#102d92] dark:text-slate-100" aria-hidden="true" />
+                  <ArrowRight
+                    size={18}
+                    className="text-[#102d92] dark:text-slate-100"
+                    aria-hidden="true"
+                  />
                 </button>
               ))}
             </div>
@@ -6331,5 +6630,3 @@ export default function Compras() {
     </div>
   );
 }
-
-

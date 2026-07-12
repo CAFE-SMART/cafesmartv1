@@ -1,8 +1,16 @@
+import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { jsPDF } from 'jspdf';
 
-export type ShareSummaryFormat = 'image' | 'pdf' | 'text';
+export type ShareSummaryFormat = 'image' | 'pdf' | 'text' | 'download-pdf';
+
+export type ShareMovementSummaryResult = {
+  ok: boolean;
+  downloaded?: boolean;
+  cancelled?: boolean;
+  message?: string;
+};
 
 type ReceiptItem = {
   tipoCafe: string;
@@ -67,11 +75,20 @@ function safeNumber(value: unknown) {
 }
 
 function formatCurrency(value: number) {
-  return `$${new Intl.NumberFormat('es-CO', {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
     maximumFractionDigits: 0,
-  }).format(safeNumber(value))} COP`;
+  })
+    .format(safeNumber(value))
+    .replace(/\u00a0/g, ' ');
 }
 
+function buildShareText(receipt: ReceiptData) {
+  return receipt.kind === 'compra'
+    ? 'Comprobante de compra generado desde Café Smart.'
+    : 'Comprobante de venta generado desde Café Smart.';
+}
 function formatKg(value: number) {
   return `${new Intl.NumberFormat('es-CO', {
     maximumFractionDigits: safeNumber(value) % 1 === 0 ? 0 : 2,
@@ -98,21 +115,44 @@ function getReceiptData(input: ShareMovementSummaryInput): ReceiptData {
       textTitle: 'Compra registrada en Café Smart',
       fileBaseName: 'comprobante-compra-cafesmart',
       rows: [
-        { label: 'Productor', value: safeText(data.productor, 'Productor no registrado') },
+        {
+          label: 'Productor',
+          value: safeText(data.productor, 'Productor no registrado'),
+        },
         ...(data.items && data.items.length > 1
           ? []
           : [
-              { label: 'Tipo de café', value: safeText(data.tipoCafe, 'No especificado') },
-              { label: 'Calidad', value: safeText(data.calidad, 'No especificada') },
+              {
+                label: 'Tipo de café',
+                value: safeText(data.tipoCafe, 'No especificado'),
+              },
+              {
+                label: 'Calidad',
+                value: safeText(data.calidad, 'No especificada'),
+              },
             ]),
         { label: 'Cantidad', value: formatKg(data.totalKg) },
         ...(data.items && data.items.length > 1
           ? []
-          : [{ label: 'Precio por kg', value: formatCurrency(data.precioKg ?? 0) }]),
-        { label: 'Total pagado', value: formatCurrency(data.totalPagado), highlight: true },
+          : [
+              {
+                label: 'Precio por kg',
+                value: formatCurrency(data.precioKg ?? 0),
+              },
+            ]),
+        {
+          label: 'Total pagado',
+          value: formatCurrency(data.totalPagado),
+          highlight: true,
+        },
         { label: 'Fecha', value: formatShareDate(data.fecha) },
         ...(data.referencia
-          ? [{ label: 'Referencia del movimiento', value: data.referencia } satisfies ReceiptRow]
+          ? [
+              {
+                label: 'Referencia del movimiento',
+                value: data.referencia,
+              } satisfies ReceiptRow,
+            ]
           : []),
       ],
       items: data.items,
@@ -130,17 +170,37 @@ function getReceiptData(input: ShareMovementSummaryInput): ReceiptData {
       ...(data.items && data.items.length > 1
         ? []
         : [
-            { label: 'Tipo de café', value: safeText(data.tipoCafe, 'No especificado') },
-            { label: 'Calidad', value: safeText(data.calidad, 'No especificada') },
+            {
+              label: 'Tipo de café',
+              value: safeText(data.tipoCafe, 'No especificado'),
+            },
+            {
+              label: 'Calidad',
+              value: safeText(data.calidad, 'No especificada'),
+            },
           ]),
       { label: 'Cantidad vendida', value: formatKg(data.totalKg) },
       ...(data.items && data.items.length > 1
         ? []
-        : [{ label: 'Precio por kg', value: formatCurrency(data.precioKg ?? 0) }]),
-      { label: 'Total de la venta', value: formatCurrency(data.totalVenta), highlight: true },
+        : [
+            {
+              label: 'Precio por kg',
+              value: formatCurrency(data.precioKg ?? 0),
+            },
+          ]),
+      {
+        label: 'Total de la venta',
+        value: formatCurrency(data.totalVenta),
+        highlight: true,
+      },
       { label: 'Fecha', value: formatShareDate(data.fecha) },
       ...(data.referencia
-        ? [{ label: 'Referencia del movimiento', value: data.referencia } satisfies ReceiptRow]
+        ? [
+            {
+              label: 'Referencia del movimiento',
+              value: data.referencia,
+            } satisfies ReceiptRow,
+          ]
         : []),
     ],
     items: data.items,
@@ -168,8 +228,7 @@ function buildPlainText(receipt: ReceiptData) {
 }
 
 function isShareCancellation(error: unknown) {
-  const message =
-    error instanceof Error ? error.message : String(error ?? '');
+  const message = error instanceof Error ? error.message : String(error ?? '');
   return /cancel|cancell|dismiss|abort/i.test(message);
 }
 
@@ -193,7 +252,8 @@ function drawRoundedRect(
 async function createReceiptImageBase64(receipt: ReceiptData) {
   const width = 1080;
   const rowHeight = 82;
-  const detailRows = receipt.items && receipt.items.length > 1 ? receipt.items.length : 0;
+  const detailRows =
+    receipt.items && receipt.items.length > 1 ? receipt.items.length : 0;
   const height = 390 + receipt.rows.length * rowHeight + detailRows * 94;
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -242,8 +302,16 @@ async function createReceiptImageBase64(receipt: ReceiptData) {
     ctx.font = isReference ? '700 21px Arial' : '700 25px Arial';
     ctx.fillText(row.label, 130, y);
 
-    ctx.fillStyle = row.highlight ? '#102d92' : isReference ? '#64748b' : '#1f2933';
-    ctx.font = row.highlight ? '900 36px Arial' : isReference ? '700 22px Arial' : '800 30px Arial';
+    ctx.fillStyle = row.highlight
+      ? '#102d92'
+      : isReference
+        ? '#64748b'
+        : '#1f2933';
+    ctx.font = row.highlight
+      ? '900 36px Arial'
+      : isReference
+        ? '700 22px Arial'
+        : '800 30px Arial';
     ctx.textAlign = 'right';
     ctx.fillText(row.value, width - 130, y);
     ctx.textAlign = 'left';
@@ -317,22 +385,93 @@ async function sharePlainText(receipt: ReceiptData) {
   });
 }
 
-async function shareImage(receipt: ReceiptData) {
-  const base64 = await createReceiptImageBase64(receipt);
-  const uri = await writeCacheFile(
-    `comprobantes/${receipt.fileBaseName}.png`,
-    base64,
-  );
+function isNativeAndroid() {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
 
+function base64ToBlob(base64: string, type: string) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type });
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function shareNativeFile(
+  receipt: ReceiptData,
+  path: string,
+  base64: string,
+  text: string,
+) {
+  const uri = await writeCacheFile(path, base64);
   await Share.share({
     title: receipt.title,
-    text: 'Comprobante generado desde CaféSmart',
+    text,
     url: uri,
     dialogTitle: 'Compartir comprobante',
   });
 }
 
-async function sharePdf(receipt: ReceiptData) {
+async function shareWebFile(
+  blob: Blob,
+  fileName: string,
+  receipt: ReceiptData,
+  text: string,
+): Promise<ShareMovementSummaryResult> {
+  const file = new File([blob], fileName, { type: blob.type });
+  const shareData: ShareData = {
+    title: receipt.title,
+    text,
+    files: [file],
+  };
+
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share(shareData);
+    return { ok: true };
+  }
+
+  downloadBlob(blob, fileName);
+  return {
+    ok: true,
+    downloaded: true,
+    message:
+      'El comprobante se descargó en tu computador. Puedes adjuntarlo desde WhatsApp, correo u otra aplicación.',
+  };
+}
+
+async function shareImage(
+  receipt: ReceiptData,
+): Promise<ShareMovementSummaryResult> {
+  const base64 = await createReceiptImageBase64(receipt);
+  const fileName = `${receipt.fileBaseName}.png`;
+  const text = buildShareText(receipt);
+
+  if (isNativeAndroid()) {
+    await shareNativeFile(receipt, `comprobantes/${fileName}`, base64, text);
+    return { ok: true };
+  }
+
+  return shareWebFile(
+    base64ToBlob(base64, 'image/png'),
+    fileName,
+    receipt,
+    text,
+  );
+}
+
+function createReceiptPdfDoc(receipt: ReceiptData) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 54;
@@ -346,7 +485,7 @@ async function sharePdf(receipt: ReceiptData) {
   doc.setTextColor(16, 45, 146);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
-  doc.text('CaféSmart', margin + 26, y);
+  doc.text('Café Smart', margin + 26, y);
 
   y += 32;
   doc.setTextColor(107, 114, 128);
@@ -357,7 +496,15 @@ async function sharePdf(receipt: ReceiptData) {
   for (const row of receipt.rows) {
     if (row.highlight) {
       doc.setFillColor(238, 244, 255);
-      doc.roundedRect(margin + 20, y - 24, pageWidth - margin * 2 - 40, 42, 10, 10, 'F');
+      doc.roundedRect(
+        margin + 20,
+        y - 24,
+        pageWidth - margin * 2 - 40,
+        42,
+        10,
+        10,
+        'F',
+      );
     }
     if (row.label.includes('Referencia')) {
       doc.setTextColor(148, 163, 184);
@@ -368,8 +515,14 @@ async function sharePdf(receipt: ReceiptData) {
     doc.setFontSize(row.label.includes('Referencia') ? 10 : 12);
     doc.text(row.label, margin + 28, y);
 
-    doc.setTextColor(row.highlight ? 16 : 31, row.highlight ? 45 : 41, row.highlight ? 146 : 51);
-    doc.setFontSize(row.highlight ? 17 : row.label.includes('Referencia') ? 11 : 14);
+    doc.setTextColor(
+      row.highlight ? 16 : 31,
+      row.highlight ? 45 : 41,
+      row.highlight ? 146 : 51,
+    );
+    doc.setFontSize(
+      row.highlight ? 17 : row.label.includes('Referencia') ? 11 : 14,
+    );
     doc.text(row.value, pageWidth - margin - 28, y, { align: 'right' });
     y += 48;
   }
@@ -384,7 +537,15 @@ async function sharePdf(receipt: ReceiptData) {
 
     for (const item of receipt.items) {
       doc.setFillColor(248, 250, 252);
-      doc.roundedRect(margin + 20, y - 18, pageWidth - margin * 2 - 40, 48, 9, 9, 'F');
+      doc.roundedRect(
+        margin + 20,
+        y - 18,
+        pageWidth - margin * 2 - 40,
+        48,
+        9,
+        9,
+        'F',
+      );
       doc.setTextColor(31, 41, 51);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
@@ -411,56 +572,69 @@ async function sharePdf(receipt: ReceiptData) {
 
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(12);
-  doc.text('Registro generado desde CaféSmart.', margin + 26, 705);
-
-  const base64 = doc.output('datauristring').split(',')[1] ?? '';
-  const uri = await writeCacheFile(
-    `comprobantes/${receipt.fileBaseName}.pdf`,
-    base64,
-  );
-
-  await Share.share({
-    title: receipt.title,
-    text: 'Comprobante generado desde CaféSmart',
-    url: uri,
-    dialogTitle: 'Compartir comprobante',
-  });
+  doc.text('Registro generado desde Café Smart.', margin + 26, 705);
+  return doc;
 }
 
-export async function shareMovementSummary(input: ShareMovementSummaryInput) {
+async function sharePdf(
+  receipt: ReceiptData,
+): Promise<ShareMovementSummaryResult> {
+  const doc = createReceiptPdfDoc(receipt);
+  const fileName = `${receipt.fileBaseName}.pdf`;
+  const text = buildShareText(receipt);
+
+  if (isNativeAndroid()) {
+    const base64 = doc.output('datauristring').split(',')[1] ?? '';
+    await shareNativeFile(receipt, `comprobantes/${fileName}`, base64, text);
+    return { ok: true };
+  }
+
+  return shareWebFile(doc.output('blob'), fileName, receipt, text);
+}
+
+async function downloadPdf(
+  receipt: ReceiptData,
+): Promise<ShareMovementSummaryResult> {
+  const doc = createReceiptPdfDoc(receipt);
+  downloadBlob(doc.output('blob'), `${receipt.fileBaseName}.pdf`);
+  return {
+    ok: true,
+    downloaded: true,
+    message:
+      'El comprobante se descargó en tu computador. Puedes adjuntarlo desde WhatsApp, correo u otra aplicación.',
+  };
+}
+export async function shareMovementSummary(
+  input: ShareMovementSummaryInput,
+): Promise<ShareMovementSummaryResult> {
   const receipt = getReceiptData(input);
   const format = input.format ?? 'image';
 
   try {
+    if (format === 'download-pdf') {
+      return await downloadPdf(receipt);
+    }
+
     if (format === 'pdf') {
-      await sharePdf(receipt);
-      return true;
+      return await sharePdf(receipt);
     }
 
     if (format === 'text') {
       await sharePlainText(receipt);
-      return true;
+      return { ok: true };
     }
 
-    await shareImage(receipt);
-    return true;
+    return await shareImage(receipt);
   } catch (error) {
-    console.warn(
-      `[CafeSmart][share-${input.type}] comprobante falló, usando texto`,
-      error,
-    );
-
-    if (isShareCancellation(error)) return true;
-
-    try {
-      await sharePlainText(receipt);
-      return true;
-    } catch (fallbackError) {
-      console.warn(
-        `[CafeSmart][share-${input.type}] cancelado o error`,
-        fallbackError,
-      );
-      return isShareCancellation(fallbackError);
+    if (isShareCancellation(error)) {
+      return { ok: true, cancelled: true };
     }
+
+    console.warn(`[CafeSmart][share-${input.type}] comprobante falló`, error);
+    return {
+      ok: false,
+      message:
+        'No pudimos preparar el comprobante para compartir. Intenta descargarlo nuevamente.',
+    };
   }
 }

@@ -58,7 +58,7 @@ function readStored(): Conversation[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((item) => item?.id && Array.isArray(item.messages))
-      .map((item) => ({
+      .map<Conversation>((item) => ({
         ...item,
         type: item.type === 'financial' ? 'financial' : 'general',
         title: item.title || 'Nueva conversación',

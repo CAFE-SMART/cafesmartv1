@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, ImageIcon, Receipt, Share2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileText,
+  ImageIcon,
+  Receipt,
+  Share2,
+  X,
+} from 'lucide-react';
 import { CafeSmartErrorState } from './CafeSmartErrorState';
-import type { ShareSummaryFormat } from '../services/shareMovementSummary';
+import type {
+  ShareMovementSummaryResult,
+  ShareSummaryFormat,
+} from '../services/shareMovementSummary';
 
 type SummaryRow = {
   icon: React.ReactNode;
@@ -13,6 +23,9 @@ type HistoryItem = {
   title: string;
   detail: string;
   meta?: string;
+  kg?: string;
+  priceKg?: string;
+  subtotal?: string;
 };
 
 type TransactionHistory = {
@@ -33,7 +46,9 @@ type TransactionSuccessScreenProps = {
   onPrimary: () => void;
   onHome: () => void;
   capacityNotice?: React.ReactNode;
-  onShareSummary?: (format: ShareSummaryFormat) => Promise<boolean>;
+  onShareSummary?: (
+    format: ShareSummaryFormat,
+  ) => Promise<ShareMovementSummaryResult>;
 };
 
 export function TransactionSuccessScreen({
@@ -51,6 +66,7 @@ export function TransactionSuccessScreen({
   onShareSummary,
 }: TransactionSuccessScreenProps) {
   const [shareError, setShareError] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [shareOptionsOpen, setShareOptionsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -61,13 +77,18 @@ export function TransactionSuccessScreen({
 
     setSharing(true);
     setShareError(null);
+    setShareNotice(null);
 
     try {
-      const opened = await onShareSummary(format);
-      if (!opened) {
-        setShareError('No pudimos abrir las opciones de compartir.');
+      const result = await onShareSummary(format);
+      if (!result.ok) {
+        setShareError(
+          result.message ??
+            'No pudimos preparar el comprobante para compartir. Intenta descargarlo nuevamente.',
+        );
       } else {
-        setShareOptionsOpen(false);
+        if (result.message) setShareNotice(result.message);
+        if (!result.cancelled) setShareOptionsOpen(false);
       }
     } finally {
       setSharing(false);
@@ -77,7 +98,7 @@ export function TransactionSuccessScreen({
   if (receiptOpen) {
     return (
       <main className="min-h-dvh bg-[#f8fbff] px-5 py-6 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
-        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[430px] flex-col">
+        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col">
           <header className="flex items-center gap-3 pb-4">
             <button
               type="button"
@@ -91,10 +112,9 @@ export function TransactionSuccessScreen({
               <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-[#102d92] dark:text-blue-200">
                 Comprobante
               </p>
-              <h1 className="text-xl font-black">Comprobante del movimiento</h1>
+              <h1 className="text-xl font-black">Comprobante de compra</h1>
             </div>
           </header>
-
           <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900">
             <div className="rounded-[18px] border border-[#dbe6ff] bg-[#f5f8ff] px-4 py-4 dark:border-blue-400/30 dark:bg-blue-500/10">
               <p className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-[#102d92] dark:text-blue-200">
@@ -120,6 +140,45 @@ export function TransactionSuccessScreen({
               ))}
             </div>
           </div>
+          {onShareSummary ? (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => void handleShare('pdf')}
+                disabled={sharing}
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#173ea6] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18"
+              >
+                <Share2 size={17} aria-hidden="true" />
+                {sharing ? 'Preparando...' : 'Compartir comprobante'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleShare('download-pdf')}
+                disabled={sharing}
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#eef4ff] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d4ed8]/18 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                <FileText size={17} aria-hidden="true" />
+                Descargar PDF
+              </button>
+            </div>
+          ) : null}
+          {shareNotice ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-3 rounded-[14px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            >
+              {shareNotice}
+            </p>
+          ) : null}
+          {shareError ? (
+            <p
+              role="alert"
+              className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+            >
+              {shareError}
+            </p>
+          ) : null}{' '}
         </section>
       </main>
     );
@@ -128,7 +187,7 @@ export function TransactionSuccessScreen({
   if (historyOpen && history) {
     return (
       <main className="min-h-dvh bg-[#f8fbff] px-5 py-6 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
-        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[430px] flex-col">
+        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[720px] flex-col">
           <header className="flex items-center gap-3 pb-4">
             <button
               type="button"
@@ -149,25 +208,60 @@ export function TransactionSuccessScreen({
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900">
-            {history.items.map((item, index) => (
-              <article
-                key={`${item.title}-${index}`}
-                className="rounded-[16px] border border-slate-200 bg-[#fbfcff] px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
-              >
-                <p className="text-sm font-black uppercase text-slate-950 dark:text-slate-100">
-                  {item.title}
-                </p>
-                <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-300">
-                  {item.detail}
-                </p>
-                {item.meta ? (
-                  <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {item.meta}
+          <div className="flex-1 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900">
+            <div className="hidden overflow-hidden rounded-[18px] border border-slate-200 dark:border-slate-700 md:block">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="bg-[#eef4ff] text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#375a9c] dark:bg-slate-800 dark:text-blue-100">
+                  <tr>
+                    <th className="px-4 py-3">Calidad</th>
+                    <th className="px-4 py-3 text-right">Kilogramos</th>
+                    <th className="px-4 py-3 text-right">Precio/kg</th>
+                    <th className="px-4 py-3 text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {history.items.map((item, index) => (
+                    <tr
+                      key={`${item.title}-row-${index}`}
+                      className="bg-white dark:bg-slate-900"
+                    >
+                      <td className="px-4 py-3 font-black uppercase text-slate-950 dark:text-slate-100">
+                        {item.title}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-700 dark:text-slate-200">
+                        {item.kg ?? item.detail.split(' · ')[0] ?? '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-600 dark:text-slate-300">
+                        {item.priceKg ?? item.meta ?? '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-[#102d92] dark:text-blue-100">
+                        {item.subtotal ?? item.detail.split(' · ')[1] ?? '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="space-y-2 md:hidden">
+              {history.items.map((item, index) => (
+                <article
+                  key={`${item.title}-${index}`}
+                  className="rounded-[16px] border border-slate-200 bg-[#fbfcff] px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <p className="text-sm font-black uppercase text-slate-950 dark:text-slate-100">
+                    {item.title}
                   </p>
-                ) : null}
-              </article>
-            ))}
+                  <p className="mt-1 text-sm font-bold text-slate-700 dark:text-slate-200">
+                    {item.detail}
+                  </p>
+                  {item.meta ? (
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {item.meta}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       </main>
@@ -196,6 +290,15 @@ export function TransactionSuccessScreen({
               <Share2 size={17} aria-hidden="true" />
               {sharing ? 'Abriendo...' : 'Compartir comprobante'}
             </button>
+            {shareNotice ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="rounded-[12px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+              >
+                {shareNotice}
+              </p>
+            ) : null}
             {shareError ? (
               <p
                 role="alert"
@@ -242,7 +345,7 @@ export function TransactionSuccessScreen({
                       className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-wait disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     >
                       <FileText size={17} aria-hidden="true" />
-                      Compartir PDF
+                      Compartir comprobante
                     </button>
                   </div>
                 </section>
@@ -290,7 +393,9 @@ export function TransactionSuccessScreen({
           </p>
         </div>
 
-        {capacityNotice ? <div className="mt-3 text-sm">{capacityNotice}</div> : null}
+        {capacityNotice ? (
+          <div className="mt-3 text-sm">{capacityNotice}</div>
+        ) : null}
 
         <div className="mt-3 grid gap-2">
           <button
@@ -312,7 +417,6 @@ export function TransactionSuccessScreen({
           ) : null}
         </div>
       </section>
-
     </CafeSmartErrorState>
   );
 }

@@ -53,6 +53,11 @@ type CachedDashboardHome =
       lotesBodega?: LoteResumen[];
     };
 
+function isCachedDashboardWrapper(
+  value: CachedDashboardHome | null,
+): value is { summary?: DashboardSummary; lotesBodega?: LoteResumen[] } {
+  return Boolean(value && typeof value === 'object' && 'summary' in value);
+}
 function round(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.round(value * 100) / 100
@@ -72,12 +77,11 @@ export async function buildAiContext(): Promise<BuiltAiContext> {
   ]);
   const queueSummary = getSyncQueueSummary();
   const usingCachedData = typeof navigator !== 'undefined' ? !navigator.onLine : false;
-  const summary =
-    dashboardCache && 'summary' in dashboardCache
-      ? dashboardCache.summary ?? null
-      : dashboardCache ?? null;
+  const summary: DashboardSummary | null = isCachedDashboardWrapper(dashboardCache)
+    ? dashboardCache.summary ?? null
+    : dashboardCache;
   const cachedHomeLotes =
-    dashboardCache && 'lotesBodega' in dashboardCache && Array.isArray(dashboardCache.lotesBodega)
+    isCachedDashboardWrapper(dashboardCache) && Array.isArray(dashboardCache.lotesBodega)
       ? dashboardCache.lotesBodega
       : [];
   const lotes = Array.isArray(inventory) && inventory.length > 0 ? inventory : cachedHomeLotes;

@@ -118,6 +118,7 @@ import {
   obtenerPerfilUsuario,
   quitarFotoPerfilRemota,
   subirFotoPerfil,
+  type UserProfileResponse,
 } from '../services/userSettingsService';
 import { ApiRequestError } from '../services/apiService';
 import {
@@ -240,9 +241,17 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
   PERSONALIZADO: 'Personalizado',
 };
 
-function normalizeBusinessType(value?: string | null) {
+type AjustesTipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO';
+
+type AjustesOrganizacion = {
+  id?: string | null;
+  nombre?: string | null;
+  tipo?: AjustesTipoOrganizacion | null;
+  descripcion?: string | null;
+};
+function normalizeBusinessType(value?: string | null): AjustesTipoOrganizacion | null {
   const normalized = value?.trim().toUpperCase();
-  if (!normalized) return '';
+  if (!normalized) return null;
   if (normalized === 'COMPRAVENTA' || normalized === 'COMPRA VENTA') {
     return 'COMPRAVENTA';
   }
@@ -257,7 +266,7 @@ function normalizeBusinessType(value?: string | null) {
   ) {
     return 'OTRO';
   }
-  return normalized;
+  return 'OTRO';
 }
 
 function isCustomBusinessType(value: string) {
@@ -267,7 +276,7 @@ function isCustomBusinessType(value: string) {
 
 function getBusinessTypeLabel(value: string) {
   const normalized = normalizeBusinessType(value);
-  return BUSINESS_TYPE_LABELS[normalized] ?? value;
+  return normalized ? (BUSINESS_TYPE_LABELS[normalized] ?? value) : value;
 }
 
 type AjustesErrorSection = 'profile' | 'company' | 'bodega';
@@ -839,6 +848,70 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
   );
 }
 
+
+type DesktopScreenReaderConfig = {
+  name: string;
+  description: string;
+  statusLabel: string;
+  actionLabel: string;
+  shortcut?: string;
+  settingsProtocol?: string;
+  instructions: string;
+};
+
+function getDesktopScreenReaderConfig(): DesktopScreenReaderConfig {
+  if (typeof navigator === 'undefined') {
+    return {
+      name: 'lector de pantalla',
+      description:
+        'Configura el lector de pantalla desde los ajustes de accesibilidad de tu sistema.',
+      statusLabel: 'Configura el lector de pantalla desde tu sistema',
+      actionLabel: 'Ver instrucciones',
+      instructions:
+        'Configura el lector de pantalla desde los ajustes de accesibilidad de tu sistema.',
+    };
+  }
+
+  const platform = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
+
+  if (platform.includes('win')) {
+    return {
+      name: 'Narrador',
+      description:
+        'Usa Narrador de Windows para escuchar y controlar Café Smart.',
+      statusLabel: 'Configura Narrador desde Windows',
+      actionLabel: 'Configurar Narrador',
+      shortcut: 'Windows + Ctrl + Enter',
+      settingsProtocol: 'ms-settings:easeofaccess-narrator',
+      instructions:
+        'Narrador se controla desde Windows. Presiona Windows + Ctrl + Enter para activarlo o desactivarlo.',
+    };
+  }
+
+  if (platform.includes('mac')) {
+    return {
+      name: 'VoiceOver',
+      description:
+        'Usa VoiceOver para escuchar y controlar Café Smart.',
+      statusLabel: 'Configura VoiceOver desde macOS',
+      actionLabel: 'Ver instrucciones de VoiceOver',
+      shortcut: 'Command + F5',
+      instructions:
+        'VoiceOver se controla desde macOS. Presiona Command + F5 para activarlo o desactivarlo.',
+    };
+  }
+
+  return {
+    name: 'lector de pantalla',
+    description:
+      'Configura el lector de pantalla desde los ajustes de accesibilidad de tu sistema.',
+    statusLabel: 'Configura el lector de pantalla desde tu sistema',
+    actionLabel: 'Ver instrucciones',
+    instructions:
+      'Configura el lector de pantalla desde los ajustes de accesibilidad de tu sistema.',
+  };
+}
+
 export default function Ajustes() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -850,7 +923,7 @@ export default function Ajustes() {
     setHighContrast,
     setFontScale,
   } = useAccessibility();
-  const { isDesktop } = useDeviceLayout();
+  const { isDesktop, isNativeMobile } = useDeviceLayout();
   const [settingsSearch, setSettingsSearch] = useState('');
   const [activeSettingsCategory, setActiveSettingsCategory] =
     useState('perfil');
@@ -1097,6 +1170,8 @@ export default function Ajustes() {
     useState<SystemScreenReaderStatus | null>(null);
   const [screenReaderStatusLoading, setScreenReaderStatusLoading] =
     useState(false);
+  const [screenReaderDesktopFeedback, setScreenReaderDesktopFeedback] =
+    useState<string | null>(null);
   const [permissionStatuses, setPermissionStatuses] =
     useState<AppPermissionStatuses | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
@@ -1722,7 +1797,7 @@ export default function Ajustes() {
           prev.nombreEmpresa === 'Negocio sin nombre'
             ? nombreOrganizacionReal
             : prev.nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(nextTipo),
+        tipoEmpresa: normalizeBusinessType(nextTipo) || prev.tipoEmpresa || 'COMPRAVENTA',
         descripcion: nextDescripcion,
       }));
     }
@@ -1799,14 +1874,15 @@ export default function Ajustes() {
       try {
         const perfilPersistido = await obtenerPerfilUsuario();
         if (!active) return;
-        let organizacionPersistida = perfilPersistido.organizacion ?? null;
+        let organizacionPersistida: AjustesOrganizacion | null =
+          perfilPersistido.organizacion ?? null;
         if (!organizacionPersistida?.nombre) {
           try {
             const organizacion = await obtenerConfiguracionOrganizacion();
             organizacionPersistida = {
               id: organizacion.id,
               nombre: organizacion.nombre,
-              tipo: organizacion.tipo as typeof perfilPersistido.tipoOrganizacion,
+              tipo: normalizeBusinessType(organizacion.tipo),
               descripcion: organizacion.descripcion ?? null,
             };
           } catch (error) {
@@ -2568,9 +2644,9 @@ export default function Ajustes() {
 
     try {
       setGuardandoPerfil(true);
-      const perfilActualizado = isOffline
+      const perfilActualizado: UserProfileResponse = isOffline
         ? {
-            id: user?.id ?? '',
+            id: String(user?.id ?? ''),
             nombre: normalizedProfile.nombre,
             correo: normalizedProfile.correo,
             telefono: normalizedProfile.telefono || null,
@@ -2715,13 +2791,13 @@ export default function Ajustes() {
       setCompany((prev) => ({
         ...prev,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo),
+        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
         descripcion: descripcionActualizada,
       }));
       companyBaselineRef.current = {
         ...company,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo),
+        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
         descripcion: descripcionActualizada,
       };
       if (user && token) {

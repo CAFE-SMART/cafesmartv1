@@ -13,7 +13,7 @@ const SECADO_PROCESS_TYPE = 'EN SECADO';
 const SECADO_PROCESS_QUALITY = 'EN PROCESO';
 export const VISUAL_CAPACITY_KG = 3000;
 
-export type SecadoEstado = 'DRAFT' | 'IN_PROCESS' | 'READY' | 'COMPLETED';
+export type SecadoEstado = 'DRAFT' | 'IN_PROCESS' | 'READY' | 'COMPLETED' | 'CANCELLED';
 export type SecadoModo = 'TOTAL' | 'PARCIAL';
 
 export type SecadoSubloteSeleccionado = {
