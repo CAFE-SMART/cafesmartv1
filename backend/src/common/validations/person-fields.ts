@@ -34,6 +34,14 @@ function throwPersonValidation(
   );
 }
 
+
+function normalizarDigitosDocumento(value: string) {
+  return value.replace(/[.\-\s]/g, '').replace(/\D/g, '');
+}
+
+function tieneCaracteresNitNoPermitidos(value: string) {
+  return /[^\d.\-\s]/.test(value);
+}
 function hasRepeatedDigits(value: string) {
   return /^(\d)\1+$/.test(value);
 }
@@ -147,17 +155,23 @@ export function normalizarDocumentoPersona(
   }
 
   if (options.tipoDocumento === 'NIT') {
-    const nit = documento.includes('-')
-      ? documento
-      : documento.length >= 9
-        ? `${documento.slice(0, -1)}-${documento.slice(-1)}`
-        : documento;
-
-    if (!/^\d{8,9}-\d$/.test(nit)) {
+    if (tieneCaracteresNitNoPermitidos(documento)) {
       throwPersonValidation(
         entidad,
         'DOCUMENTO_INVALIDO',
-        'Para NIT usa el formato 900123456-7.',
+        'Revisa el número de documento. Puedes escribirlo con o sin guion.',
+        'documento',
+      );
+    }
+
+    const digits = normalizarDigitosDocumento(documento);
+    const nit = digits.length >= 2 ? `${digits.slice(0, -1)}-${digits.slice(-1)}` : digits;
+
+    if (digits.length < 9 || digits.length > 10 || !/^\d{8,9}-\d$/.test(nit)) {
+      throwPersonValidation(
+        entidad,
+        'DOCUMENTO_INVALIDO',
+        'Revisa el número de documento. Puedes escribirlo con o sin guion.',
         'documento',
       );
     }
@@ -268,3 +282,4 @@ export function normalizarTelefonoInternacional(
 
   return parsed.number;
 }
+

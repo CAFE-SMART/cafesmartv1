@@ -243,7 +243,7 @@ function getProductorDocumentHelp(tipoDocumento: ProductorForm['tipoDocumento'])
   }
 
   if (tipoDocumento === 'NIT') {
-    return 'Ingresa el NIT sin puntos ni guiones.';
+    return 'Puedes ingresar el NIT con o sin guion.';
   }
 
   return 'Primero selecciona el tipo de documento.';
@@ -257,7 +257,7 @@ function getProductorDocumentPlaceholder(
   }
 
   if (tipoDocumento === 'NIT') {
-    return 'Ej. 900123456';
+    return 'Ej. 900123456-7';
   }
 
   if (tipoDocumento === 'PASAPORTE') {
@@ -6331,4 +6331,5 @@ export default function Compras() {
     </div>
   );
 }
+
 

@@ -357,11 +357,13 @@ export function useRegisterForm({
       nextErrors.apellidos = 'Ingresa al menos un apellido para continuar.';
     }
 
-    const telefonoValidation = validatePhoneNumber(telefono, 'El teléfono');
-    const telefonoNormalizado = normalizePhoneNumberForStorage(telefono);
-    if (!telefono.trim()) {
-      nextErrors.telefono = 'Ingresa un número de teléfono.';
-    } else if (!telefonoValidation.isValid || !telefonoNormalizado) {
+    const telefonoValidation = validatePhoneNumber(telefono, 'El teléfono', {
+      optional: true,
+    });
+    const telefonoNormalizado = telefono.trim()
+      ? normalizePhoneNumberForStorage(telefono)
+      : undefined;
+    if (telefono.trim() && (!telefonoValidation.isValid || !telefonoNormalizado)) {
       nextErrors.telefono =
         telefonoValidation.message ?? 'Ingresa un número de teléfono válido.';
     }
@@ -435,7 +437,7 @@ export function useRegisterForm({
             ? otroTipoDetalle.trim()
             : undefined,
         nombre: `${nombre.trim()} ${apellidos.trim()}`,
-        telefono: telefonoNormalizado,
+        ...(telefonoNormalizado ? { telefono: telefonoNormalizado } : {}),
         correo,
         password,
       },
@@ -477,3 +479,4 @@ export function useRegisterForm({
     handleSubmit,
   };
 }
+

@@ -144,15 +144,20 @@ export function formatPhoneNumber(value: string, defaultCountry: CountryCode = '
   return `${prefix}${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`;
 }
 
+export function normalizeDocumentDigits(value: string) {
+  return value.replace(/[.\-\s]/g, '').replace(/\D/g, '');
+}
+
+function hasUnsupportedNitCharacters(value: string) {
+  return /[^\d.\-\s]/.test(value);
+}
 export function sanitizeDocumentInput(value: string, type: DocumentType) {
   if (type === 'NIT') {
-    const limpio = value.replace(/[^\d-]/g, '');
-    const [base = '', verificacion = ''] = limpio.split('-');
-    const baseDigits = base.replace(/\D/g, '').slice(0, 9);
-    const checkDigit = verificacion.replace(/\D/g, '').slice(0, 1);
-    return limpio.includes('-') || checkDigit
-      ? `${baseDigits}${checkDigit ? `-${checkDigit}` : '-'}`
-      : baseDigits;
+    const digits = normalizeDocumentDigits(value).slice(0, 10);
+    if (value.includes('-') && digits.length > 1) {
+      return `${digits.slice(0, -1)}-${digits.slice(-1)}`;
+    }
+    return digits;
   }
 
   if (type === 'PASAPORTE') {
@@ -169,10 +174,9 @@ export function sanitizeDocumentInput(value: string, type: DocumentType) {
 export function normalizeDocumentForStorage(value: string, type: DocumentType) {
   const documento = value.trim();
   if (type === 'NIT') {
-    const [base = '', verificacion = ''] = documento.split('-');
-    const baseDigits = base.replace(/\D/g, '').slice(0, 9);
-    const checkDigit = verificacion.replace(/\D/g, '').slice(0, 1);
-    return checkDigit ? `${baseDigits}-${checkDigit}` : baseDigits;
+    const digits = normalizeDocumentDigits(documento).slice(0, 10);
+    if (digits.length < 2) return digits;
+    return `${digits.slice(0, -1)}-${digits.slice(-1)}`;
   }
 
   if (type === 'PASAPORTE') {
@@ -327,11 +331,19 @@ export function validateDocumentNumber(
   const tipoDocumento = options.type ?? 'CEDULA';
 
   if (tipoDocumento === 'NIT') {
-    const normalized = normalizeDocumentForStorage(documento, tipoDocumento);
-    if (!/^\d{8,9}-\d$/.test(normalized)) {
+    if (hasUnsupportedNitCharacters(documento)) {
       return {
         isValid: false,
-        message: 'Para NIT usa el formato 900123456-7.',
+        message: 'Revisa el número de documento. Puedes escribirlo con o sin guion.',
+      };
+    }
+
+    const digits = normalizeDocumentDigits(documento);
+    const normalized = normalizeDocumentForStorage(documento, tipoDocumento);
+    if (digits.length < 9 || digits.length > 10 || !/^\d{8,9}-\d$/.test(normalized)) {
+      return {
+        isValid: false,
+        message: 'Revisa el número de documento. Puedes escribirlo con o sin guion.',
       };
     }
 
@@ -415,3 +427,4 @@ export function validateDocumentNumber(
 
   return { isValid: true };
 }
+

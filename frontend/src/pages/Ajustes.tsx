@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { Preferences } from '@capacitor/preferences';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -39,6 +40,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { useDeviceLayout } from '../hooks/useDeviceLayout';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { ContactDetailModal } from '../components/ContactDetailModal';
@@ -349,15 +351,113 @@ function validateProfileEmail(value: string) {
 
 function validateColombianPhone(value: string) {
   const result = validatePhoneNumber(value, 'El teléfono', { optional: true });
-  return result.isValid ? null : result.message ?? 'Ingresa un número de teléfono válido.';
+  return result.isValid
+    ? null
+    : (result.message ?? 'Ingresa un número de teléfono válido.');
 }
 
+type DesktopSettingsCardConfig = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  icon: LucideIcon;
+  status?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  keywords?: string[];
+};
+
+type DesktopSettingsCategory = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+function formatDisplayName(value?: string | null) {
+  const normalized = value?.trim().replace(/\s+/g, ' ');
+  if (!normalized) return 'Usuario Café Smart';
+
+  return normalized
+    .toLocaleLowerCase('es-CO')
+    .replace(
+      /(^|\s)(\p{L})/gu,
+      (_, separator: string, letter: string) =>
+        `${separator}${letter.toLocaleUpperCase('es-CO')}`,
+    );
+}
+
+function ComingSoonBadge() {
+  return (
+    <span className="inline-flex w-fit items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-amber-800 dark:border-amber-400/50 dark:bg-amber-400/10 dark:text-amber-100">
+      Próximamente
+    </span>
+  );
+}
+
+function DesktopSettingsCard({ card }: { card: DesktopSettingsCardConfig }) {
+  const Icon = card.icon;
+  const content = (
+    <>
+      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-[#edf3ff] text-[#2a4fb5] dark:bg-blue-500/15 dark:text-blue-200">
+        <Icon size={20} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start justify-between gap-3">
+          <span className="text-sm font-black text-slate-950 dark:text-slate-50">
+            {card.title}
+          </span>
+          {card.disabled ? (
+            <ComingSoonBadge />
+          ) : (
+            <ChevronRight
+              size={18}
+              aria-hidden="true"
+              className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-300"
+            />
+          )}
+        </span>
+        <span className="mt-1 block text-sm leading-5 text-slate-600 dark:text-slate-300">
+          {card.description}
+        </span>
+        {card.status ? (
+          <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <CheckCircle2 size={13} aria-hidden="true" />
+            {card.status}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+
+  const className = `group flex min-h-[132px] w-full items-start gap-3 rounded-[14px] border p-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2a4fb5]/25 ${
+    card.disabled
+      ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200'
+      : 'border-[#dbe5f7] bg-white text-slate-900 hover:border-[#9fb5f5] hover:bg-[#f7f9ff] hover:shadow-md active:scale-[0.995] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-400/50 dark:hover:bg-slate-800'
+  }`;
+
+  if (card.disabled || !card.onClick) {
+    return (
+      <div className={className} aria-disabled="true">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={card.onClick} className={className}>
+      {content}
+    </button>
+  );
+}
 function getInitials(value: string) {
   const words = value.trim().split(/\s+/).filter(Boolean);
-  return words
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase())
-    .join('') || 'CS';
+  return (
+    words
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase())
+      .join('') || 'CS'
+  );
 }
 
 function isAllowedAvatarType(type: string) {
@@ -376,7 +476,8 @@ function readFileAsDataUrl(file: File) {
       typeof reader.result === 'string'
         ? resolve(reader.result)
         : reject(new Error('Formato de imagen no válido.'));
-    reader.onerror = () => reject(reader.error ?? new Error('No pudimos leer la imagen.'));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error('No pudimos leer la imagen.'));
     reader.readAsDataURL(file);
   });
 }
@@ -419,7 +520,11 @@ function normalizeNumericInput(value: string, max = Number.MAX_SAFE_INTEGER) {
   return String(Math.min(parsed, max));
 }
 
-function getBodegaDraftKey(userId: string | number | undefined, mode: BodegaDraftMode, bodegaId?: string | null) {
+function getBodegaDraftKey(
+  userId: string | number | undefined,
+  mode: BodegaDraftMode,
+  bodegaId?: string | null,
+) {
   const owner = userId ? String(userId) : 'anonymous';
   return mode === 'crear'
     ? `cafe-smart:bodega-draft:v1:${owner}:crear-bodega`
@@ -460,8 +565,7 @@ function sanitizeBodegaDraft(value: unknown): BodegaDraft | null {
       limiteMaximoKg: Number(limites.limiteMaximoKg) || 0,
       alertaPreventivaPct: Number(limites.alertaPreventivaPct) || 80,
       alertaCriticaPct: Number(limites.alertaCriticaPct) || 95,
-      bloquearAlSuperarCapacidad:
-        limites.bloquearAlSuperarCapacidad !== false,
+      bloquearAlSuperarCapacidad: limites.bloquearAlSuperarCapacidad !== false,
       alertasActivas: limites.alertasActivas !== false,
     },
     limitesTransaccion: draft.limitesTransaccion
@@ -529,7 +633,8 @@ function formatDate(value: string) {
 
 function mapClienteAdmin(cliente: ClienteItem): PeopleAdminItem {
   const tipoDocumento =
-    cliente.tipoDocumento ?? (cliente.documento?.includes('-') ? 'NIT' : 'CEDULA');
+    cliente.tipoDocumento ??
+    (cliente.documento?.includes('-') ? 'NIT' : 'CEDULA');
   return {
     id: cliente.id,
     contactType: 'cliente',
@@ -544,7 +649,8 @@ function mapClienteAdmin(cliente: ClienteItem): PeopleAdminItem {
 
 function mapProductorAdmin(productor: ProductorItem): PeopleAdminItem {
   const tipoDocumento =
-    productor.tipoDocumento ?? (productor.documento?.includes('-') ? 'NIT' : 'CEDULA');
+    productor.tipoDocumento ??
+    (productor.documento?.includes('-') ? 'NIT' : 'CEDULA');
   return {
     id: productor.id,
     contactType: 'productor',
@@ -744,6 +850,10 @@ export default function Ajustes() {
     setHighContrast,
     setFontScale,
   } = useAccessibility();
+  const { isDesktop } = useDeviceLayout();
+  const [settingsSearch, setSettingsSearch] = useState('');
+  const [activeSettingsCategory, setActiveSettingsCategory] =
+    useState('perfil');
 
   const initialConfig = useMemo(
     () => ({
@@ -768,7 +878,9 @@ export default function Ajustes() {
   }));
   const profileBaselineRef = React.useRef<ProfileSettings | null>(null);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
-  const confirmedAvatarUrlRef = React.useRef<string | null>(user?.avatarUrl ?? null);
+  const confirmedAvatarUrlRef = React.useRef<string | null>(
+    user?.avatarUrl ?? null,
+  );
   const [profileAvatarUrl, setProfileAvatarUrl] = useState(
     () => user?.avatarUrl ?? '',
   );
@@ -812,10 +924,12 @@ export default function Ajustes() {
   const [bodegaDraftDirty, setBodegaDraftDirty] = useState(false);
   const [bodegaDraftPending, setBodegaDraftPending] =
     useState<BodegaDraft | null>(null);
-  const [bodegaDraftTarget, setBodegaDraftTarget] =
-    useState<BodegaItem | null>(null);
+  const [bodegaDraftTarget, setBodegaDraftTarget] = useState<BodegaItem | null>(
+    null,
+  );
   const [showBodegaDraftModal, setShowBodegaDraftModal] = useState(false);
-  const [bodegaDeleteTarget, setBodegaDeleteTarget] = useState<BodegaItem | null>(null);
+  const [bodegaDeleteTarget, setBodegaDeleteTarget] =
+    useState<BodegaItem | null>(null);
   const [bodegaFeedback, setBodegaFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
     message: string;
@@ -835,9 +949,12 @@ export default function Ajustes() {
     bloquearAlSuperarCapacidad: true,
     alertasActivas: true,
   });
-  const [bodegaLimitesScope, setBodegaLimitesScope] =
-    useState<'todas' | 'activas' | 'seleccionadas'>('todas');
-  const [bodegaLimitesSelectedIds, setBodegaLimitesSelectedIds] = useState<string[]>([]);
+  const [bodegaLimitesScope, setBodegaLimitesScope] = useState<
+    'todas' | 'activas' | 'seleccionadas'
+  >('todas');
+  const [bodegaLimitesSelectedIds, setBodegaLimitesSelectedIds] = useState<
+    string[]
+  >([]);
   const [limitesTab, setLimitesTab] = useState<LimitesTab>('todos');
   const [limitMinPesoCompraKg, setLimitMinPesoCompraKg] = useState(
     String(initialLimites.minPesoCompraKg),
@@ -866,9 +983,12 @@ export default function Ajustes() {
   const [secadoLotes, setSecadoLotes] = useState<LoteResumen[]>([]);
   const [secadoLoteKey, setSecadoLoteKey] = useState('');
   const [secadoDetalle, setSecadoDetalle] = useState<LoteDetalle | null>(null);
-  const [secadoWeights, setSecadoWeights] = useState<Record<string, number>>({});
+  const [secadoWeights, setSecadoWeights] = useState<Record<string, number>>(
+    {},
+  );
   const [secadoSessionsVersion, setSecadoSessionsVersion] = useState(0);
-  const [secadoSortMode, setSecadoSortMode] = useState<SecadoSortMode>('recent');
+  const [secadoSortMode, setSecadoSortMode] =
+    useState<SecadoSortMode>('recent');
   const [secadoQualityFilter, setSecadoQualityFilter] =
     useState<SecadoQualityFilter>('TODOS');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -884,14 +1004,21 @@ export default function Ajustes() {
   const [nombreLimitNotice, setNombreLimitNotice] = useState(false);
   const [peopleMode, setPeopleMode] = useState<PeopleAdminMode>(null);
   const [clientesAdmin, setClientesAdmin] = useState<PeopleAdminItem[]>([]);
-  const [productoresAdmin, setProductoresAdmin] = useState<PeopleAdminItem[]>([]);
+  const [productoresAdmin, setProductoresAdmin] = useState<PeopleAdminItem[]>(
+    [],
+  );
   const [contactosAdmin, setContactosAdmin] = useState<PeopleAdminItem[]>([]);
   const [peopleSearch, setPeopleSearch] = useState('');
-  const [peopleSortMode, setPeopleSortMode] = useState<PeopleSortMode>('recent');
+  const [peopleSortMode, setPeopleSortMode] =
+    useState<PeopleSortMode>('recent');
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleError, setPeopleError] = useState<string | null>(null);
-  const [peopleDetail, setPeopleDetail] = useState<PeopleAdminItem | null>(null);
-  const [peopleEditing, setPeopleEditing] = useState<PeopleAdminItem | null>(null);
+  const [peopleDetail, setPeopleDetail] = useState<PeopleAdminItem | null>(
+    null,
+  );
+  const [peopleEditing, setPeopleEditing] = useState<PeopleAdminItem | null>(
+    null,
+  );
   const [peopleDeleteTarget, setPeopleDeleteTarget] =
     useState<PeopleAdminItem | null>(null);
   const [peopleFormError, setPeopleFormError] = useState<string | null>(null);
@@ -919,7 +1046,10 @@ export default function Ajustes() {
   } | null>(null);
 
   useEffect(() => {
-    const state = location.state as { openBodega?: boolean; openLimits?: boolean } | null;
+    const state = location.state as {
+      openBodega?: boolean;
+      openLimits?: boolean;
+    } | null;
     if (state?.openBodega) {
       setIsEditingBodega(true);
       navigate(location.pathname, { replace: true });
@@ -1005,7 +1135,9 @@ export default function Ajustes() {
   };
   const handleAvatarImageError = () => {
     if (!avatarPreview && savedAvatarUrl) {
-      console.warn('[CafeSmart][profile-avatar] no se pudo cargar la foto guardada');
+      console.warn(
+        '[CafeSmart][profile-avatar] no se pudo cargar la foto guardada',
+      );
     }
     setProfileAvatarLoadFailed(true);
   };
@@ -1131,8 +1263,9 @@ export default function Ajustes() {
     }
   };
 
-  const isSystemScreenReaderActive = (status: SystemScreenReaderStatus | null) =>
-    isScreenReaderActive(status);
+  const isSystemScreenReaderActive = (
+    status: SystemScreenReaderStatus | null,
+  ) => isScreenReaderActive(status);
 
   const cargarEstadosPermisos = async () => {
     setPermissionsLoading(true);
@@ -1321,10 +1454,16 @@ export default function Ajustes() {
     if (draft.limitesTransaccion) {
       setLimitMinPesoCompraKg(String(draft.limitesTransaccion.minPesoCompraKg));
       setLimitMaxPesoKg(String(draft.limitesTransaccion.maxPesoCompraKg));
-      setLimitMinPrecioCompraKg(String(draft.limitesTransaccion.minPrecioCompraKg));
+      setLimitMinPrecioCompraKg(
+        String(draft.limitesTransaccion.minPrecioCompraKg),
+      );
       setLimitMaxPrecioKg(String(draft.limitesTransaccion.maxPrecioCompraKg));
-      setLimitMinPrecioVentaKg(String(draft.limitesTransaccion.minPrecioVentaKg));
-      setLimitMaxPrecioVentaKg(String(draft.limitesTransaccion.maxPrecioVentaKg));
+      setLimitMinPrecioVentaKg(
+        String(draft.limitesTransaccion.minPrecioVentaKg),
+      );
+      setLimitMaxPrecioVentaKg(
+        String(draft.limitesTransaccion.maxPrecioVentaKg),
+      );
     }
     setBodegaWizardStep(draft.step);
     setBodegaDraftDirty(true);
@@ -1444,7 +1583,8 @@ export default function Ajustes() {
     nombre: cliente.nombre,
     documento: cliente.documento ?? '',
     tipoDocumento:
-      cliente.tipoDocumento ?? (cliente.documento?.includes('-') ? 'NIT' : 'CEDULA'),
+      cliente.tipoDocumento ??
+      (cliente.documento?.includes('-') ? 'NIT' : 'CEDULA'),
     telefono: cliente.telefono ?? '',
     roles: ['CLIENTE'],
     createdAt: cliente.createdAt,
@@ -1540,9 +1680,12 @@ export default function Ajustes() {
     );
     const nextNombre = profile.nombre || user?.name || '';
     const nextCorreo = profile.correo || user?.email || '';
-    const nextTelefono = profile.telefono || formatPhoneNumber(user?.telefono ?? '');
+    const nextTelefono =
+      profile.telefono || formatPhoneNumber(user?.telefono ?? '');
     const nextTipo =
-      normalizeBusinessType(user?.tipoOrganizacion ?? user?.organizacion?.tipo) ||
+      normalizeBusinessType(
+        user?.tipoOrganizacion ?? user?.organizacion?.tipo,
+      ) ||
       normalizeBusinessType(company.tipoEmpresa) ||
       'COMPRAVENTA';
     const nextDescripcion =
@@ -1590,7 +1733,9 @@ export default function Ajustes() {
     }
     const confirmedAvatarUrl = confirmedAvatarUrlRef.current ?? '';
     const shouldKeepConfirmedAvatar =
-      confirmedAvatarUrl && profileAvatarUrl === confirmedAvatarUrl && !userAvatarUrl;
+      confirmedAvatarUrl &&
+      profileAvatarUrl === confirmedAvatarUrl &&
+      !userAvatarUrl;
 
     if (
       !avatarPreview &&
@@ -1698,7 +1843,8 @@ export default function Ajustes() {
           correo: perfilPersistido.correo,
           telefono: formatPhoneNumber(perfilPersistido.telefono ?? ''),
         });
-        const tipoOrganizacionNormalizado = normalizeBusinessType(tipoOrganizacion);
+        const tipoOrganizacionNormalizado =
+          normalizeBusinessType(tipoOrganizacion);
         if (nombreOrganizacion) {
           setCompany((prev) => ({
             nombreEmpresa: nombreOrganizacion,
@@ -1731,14 +1877,16 @@ export default function Ajustes() {
                       tipoOrganizacionNormalizado ||
                       normalizeBusinessType(organizacionPersistida.tipo),
                   }
-                : user.organizacion ?? null,
+                : (user.organizacion ?? null),
               nombreOrganizacion,
               tipoOrganizacion:
                 tipoOrganizacionNormalizado ||
                 normalizeBusinessType(user.tipoOrganizacion) ||
                 null,
               otroTipoDetalle:
-                perfilPersistido.otroTipoDetalle ?? user.otroTipoDetalle ?? null,
+                perfilPersistido.otroTipoDetalle ??
+                user.otroTipoDetalle ??
+                null,
               descripcionOrganizacion,
               avatarUrl: perfilPersistido.avatarUrl ?? null,
             },
@@ -1774,17 +1922,17 @@ export default function Ajustes() {
             secadoQualityFilter === 'TODOS' ||
             keyOf(session.calidad) === secadoQualityFilter,
         )
-        .sort(
-          (a, b) =>
-            secadoSortMode === 'oldest'
-              ? new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
-              : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+        .sort((a, b) =>
+          secadoSortMode === 'oldest'
+            ? new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+            : new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
         ),
     [secadoQualityFilter, secadoSessionsVersion, secadoSortMode],
   );
 
   const sublotesSecadoDisponibles = useMemo(
-    () => secadoDetalle?.sublotes.filter((sublote) => sublote.pesoActual > 0) ?? [],
+    () =>
+      secadoDetalle?.sublotes.filter((sublote) => sublote.pesoActual > 0) ?? [],
     [secadoDetalle],
   );
 
@@ -1808,9 +1956,10 @@ export default function Ajustes() {
         (lote) => keyOf(lote.tipoCafe) === 'VERDE' && lote.pesoActual > 0,
       );
       setSecadoLotes(verdes);
-      const selected = verdes.find(
-        (lote) => `${lote.tipoCafeId}:${lote.calidadId}` === secadoLoteKey,
-      ) ?? verdes[0];
+      const selected =
+        verdes.find(
+          (lote) => `${lote.tipoCafeId}:${lote.calidadId}` === secadoLoteKey,
+        ) ?? verdes[0];
 
       if (!selected) {
         setSecadoDetalle(null);
@@ -1824,10 +1973,13 @@ export default function Ajustes() {
         selected.tipoCafeId,
         selected.calidadId,
       );
-      const detalle =
-        ENABLE_SECADO_PROTOTYPE
-          ? applySecadoToDetalle(detalleBase, selected.tipoCafeId, selected.calidadId)
-          : detalleBase;
+      const detalle = ENABLE_SECADO_PROTOTYPE
+        ? applySecadoToDetalle(
+            detalleBase,
+            selected.tipoCafeId,
+            selected.calidadId,
+          )
+        : detalleBase;
       setSecadoDetalle(detalle);
       setSecadoWeights(
         Object.fromEntries(
@@ -1853,11 +2005,13 @@ export default function Ajustes() {
     setSecadoLoading(true);
     setSecadoError(null);
     try {
-      const detalleBase = await obtenerDetalleLote(lote.tipoCafeId, lote.calidadId);
-      const detalle =
-        ENABLE_SECADO_PROTOTYPE
-          ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId)
-          : detalleBase;
+      const detalleBase = await obtenerDetalleLote(
+        lote.tipoCafeId,
+        lote.calidadId,
+      );
+      const detalle = ENABLE_SECADO_PROTOTYPE
+        ? applySecadoToDetalle(detalleBase, lote.tipoCafeId, lote.calidadId)
+        : detalleBase;
       setSecadoDetalle(detalle);
       setSecadoWeights(
         Object.fromEntries(
@@ -1993,15 +2147,20 @@ export default function Ajustes() {
       ]),
     [debouncedPeopleSearch, peopleItems],
   );
-  const peopleFiltered = peopleSearchResult.items
-    .sort((a, b) => {
-      if (peopleSortMode === 'oldest') {
-        return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
-      }
-      if (peopleSortMode === 'az') return a.nombre.localeCompare(b.nombre, 'es');
-      if (peopleSortMode === 'za') return b.nombre.localeCompare(a.nombre, 'es');
-      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-    });
+  const peopleFiltered = peopleSearchResult.items.sort((a, b) => {
+    if (peopleSortMode === 'oldest') {
+      return (
+        new Date(a.createdAt ?? 0).getTime() -
+        new Date(b.createdAt ?? 0).getTime()
+      );
+    }
+    if (peopleSortMode === 'az') return a.nombre.localeCompare(b.nombre, 'es');
+    if (peopleSortMode === 'za') return b.nombre.localeCompare(a.nombre, 'es');
+    return (
+      new Date(b.createdAt ?? 0).getTime() -
+      new Date(a.createdAt ?? 0).getTime()
+    );
+  });
   const peopleEmptyTitle = peopleSearch.trim()
     ? 'No encontramos contactos con esa búsqueda'
     : peopleMode === 'clientes'
@@ -2062,7 +2221,8 @@ export default function Ajustes() {
     if (!isAllowedAvatarFile(file)) {
       setAvatarFeedback({
         type: 'error',
-        message: 'Formato no compatible. Selecciona una imagen JPG, PNG o WebP.',
+        message:
+          'Formato no compatible. Selecciona una imagen JPG, PNG o WebP.',
       });
       return;
     }
@@ -2070,7 +2230,8 @@ export default function Ajustes() {
     if (file.size <= 0) {
       setAvatarFeedback({
         type: 'error',
-        message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
+        message:
+          'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
       return;
     }
@@ -2078,7 +2239,8 @@ export default function Ajustes() {
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
       setAvatarFeedback({
         type: 'error',
-        message: 'La imagen es demasiado grande. Selecciona una imagen de máximo 8 MB.',
+        message:
+          'La imagen es demasiado grande. Selecciona una imagen de máximo 8 MB.',
       });
       return;
     }
@@ -2092,7 +2254,8 @@ export default function Ajustes() {
     } catch {
       setAvatarFeedback({
         type: 'error',
-        message: 'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
+        message:
+          'No pudimos abrir la imagen. Selecciona otra foto e intenta nuevamente.',
       });
     }
   };
@@ -2200,7 +2363,10 @@ export default function Ajustes() {
   const guardarFotoPerfil = async () => {
     console.log('[avatar] guardar presionado');
     console.log('[avatar] archivo seleccionado:', avatarFile);
-    console.log('[avatar] vista previa:', avatarPreview ? avatarPreview.slice(0, 64) : null);
+    console.log(
+      '[avatar] vista previa:',
+      avatarPreview ? avatarPreview.slice(0, 64) : null,
+    );
     console.log('[avatar] URL actual:', profileAvatarUrl);
     console.log('[avatar] estado saving:', avatarSaving);
 
@@ -2259,8 +2425,13 @@ export default function Ajustes() {
         });
       }
 
-      if (!confirmedAvatarUrl || confirmedAvatarUrl !== perfilActualizado.avatarUrl) {
-        throw new Error('La foto se subió, pero no quedó guardada en el perfil.');
+      if (
+        !confirmedAvatarUrl ||
+        confirmedAvatarUrl !== perfilActualizado.avatarUrl
+      ) {
+        throw new Error(
+          'La foto se subió, pero no quedó guardada en el perfil.',
+        );
       }
 
       setProfileAvatarUrl(confirmedAvatarUrl);
@@ -2342,15 +2513,18 @@ export default function Ajustes() {
           ? err.message
           : 'No pudimos guardar la foto. Intenta nuevamente.';
       if (
-        /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(rawMessage)
+        /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(
+          rawMessage,
+        )
       ) {
         console.error('[avatar] SUPABASE_STORAGE_CONFIG_FALTANTE', err);
       }
-      const message = /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(
-        rawMessage,
-      )
-        ? 'No pudimos guardar la foto. Intenta nuevamente en unos momentos.'
-        : rawMessage;
+      const message =
+        /SUPABASE|STORAGE|SERVICE_ROLE|BUCKET|VARIABLE|BACKEND/i.test(
+          rawMessage,
+        )
+          ? 'No pudimos guardar la foto. Intenta nuevamente en unos momentos.'
+          : rawMessage;
       setAvatarFeedback({
         type: 'error',
         message,
@@ -2409,7 +2583,8 @@ export default function Ajustes() {
             telefono: normalizedProfile.telefono || null,
           });
 
-      const nextAvatarUrl = perfilActualizado.avatarUrl ?? profileAvatarUrl ?? null;
+      const nextAvatarUrl =
+        perfilActualizado.avatarUrl ?? profileAvatarUrl ?? null;
 
       const nextProfile = {
         nombre: perfilActualizado.nombre,
@@ -2479,7 +2654,8 @@ export default function Ajustes() {
             }
           : {
               variant: 'success',
-              message: 'Perfil actualizado. Tus datos se guardaron correctamente.',
+              message:
+                'Perfil actualizado. Tus datos se guardaron correctamente.',
             },
       );
     } catch (error) {
@@ -2521,11 +2697,13 @@ export default function Ajustes() {
     const descripcionEmpresa = company.descripcion.trim().replace(/\s+/g, ' ');
     try {
       setGuardandoEmpresa(true);
-      const organizacionActualizada = await actualizarConfiguracionOrganizacion({
-        nombreOrganizacion: nombreEmpresa,
-        tipoOrganizacion: tipoEmpresa,
-        descripcionOrganizacion: descripcionEmpresa || null,
-      });
+      const organizacionActualizada = await actualizarConfiguracionOrganizacion(
+        {
+          nombreOrganizacion: nombreEmpresa,
+          tipoOrganizacion: tipoEmpresa,
+          descripcionOrganizacion: descripcionEmpresa || null,
+        },
+      );
       const organizacionConfirmada =
         (await obtenerConfiguracionOrganizacion().catch(() => null)) ??
         organizacionActualizada;
@@ -2552,7 +2730,8 @@ export default function Ajustes() {
           hasCompany,
           user: {
             ...user,
-            organizacionId: organizacionConfirmada.id ?? user.organizacionId ?? null,
+            organizacionId:
+              organizacionConfirmada.id ?? user.organizacionId ?? null,
             organizacion: {
               id: organizacionConfirmada.id ?? user.organizacionId ?? null,
               nombre: organizacionConfirmada.nombre ?? nombreEmpresa,
@@ -2570,9 +2749,12 @@ export default function Ajustes() {
           },
         });
       }
-      setSuccess('Negocio actualizado correctamente. Los cambios ya están disponibles en tu perfil.');
+      setSuccess(
+        'Negocio actualizado correctamente. Los cambios ya están disponibles en tu perfil.',
+      );
     } catch {
-      const message = 'No pudimos actualizar el negocio. Revisa tu conexión e intenta nuevamente.';
+      const message =
+        'No pudimos actualizar el negocio. Revisa tu conexión e intenta nuevamente.';
       setError(message);
       setFloatingError(getAjustesGuidance(message));
     } finally {
@@ -2592,19 +2774,30 @@ export default function Ajustes() {
       tipoDocumento === 'NIT'
         ? validateCompanyName(peopleForm.nombre)
         : validatePersonName(peopleForm.nombre, 'El nombre');
-    const documento = normalizeDocumentForStorage(peopleForm.documento, tipoDocumento);
-    const documentoValidation = validateDocumentNumber(peopleForm.documento, 'El documento', {
-      optional: false,
-      type: tipoDocumento,
-    });
+    const documento = normalizeDocumentForStorage(
+      peopleForm.documento,
+      tipoDocumento,
+    );
+    const documentoValidation = validateDocumentNumber(
+      peopleForm.documento,
+      'El documento',
+      {
+        optional: false,
+        type: tipoDocumento,
+      },
+    );
     const telefono = normalizePhoneNumberForStorage(peopleForm.telefono);
     const telefonoError = validateColombianPhone(peopleForm.telefono);
     const duplicates = [...clientesAdmin, ...productoresAdmin].some(
       (item) =>
-        !(item.id === peopleEditing.id && item.contactType === peopleEditing.contactType) &&
+        !(
+          item.id === peopleEditing.id &&
+          item.contactType === peopleEditing.contactType
+        ) &&
         item.contactType === peopleEditing.contactType &&
         item.tipoDocumento === tipoDocumento &&
-        normalizeDocumentForStorage(item.documento, item.tipoDocumento) === documento,
+        normalizeDocumentForStorage(item.documento, item.tipoDocumento) ===
+          documento,
     );
     const nextErrors: Partial<Record<keyof PeopleAdminForm, string>> = {};
 
@@ -2634,7 +2827,9 @@ export default function Ajustes() {
       if (peopleEditing.contactType === 'cliente') {
         const updated = await actualizarCliente(peopleEditing.id, payload);
         setClientesAdmin((items) =>
-          items.map((item) => (item.id === updated.id ? mapClienteAdmin(updated) : item)),
+          items.map((item) =>
+            item.id === updated.id ? mapClienteAdmin(updated) : item,
+          ),
         );
       } else {
         const updated = await actualizarProductor(peopleEditing.id, payload);
@@ -2727,13 +2922,15 @@ export default function Ajustes() {
       if (
         !Number.isInteger(bodegaLimitesForm.alertaPreventivaPct) ||
         bodegaLimitesForm.alertaPreventivaPct <= 0 ||
-        bodegaLimitesForm.alertaPreventivaPct >= bodegaLimitesForm.alertaCriticaPct
+        bodegaLimitesForm.alertaPreventivaPct >=
+          bodegaLimitesForm.alertaCriticaPct
       ) {
         return 'La alerta preventiva debe ser menor que el nivel crítico.';
       }
       if (
         !Number.isInteger(bodegaLimitesForm.alertaCriticaPct) ||
-        bodegaLimitesForm.alertaCriticaPct <= bodegaLimitesForm.alertaPreventivaPct ||
+        bodegaLimitesForm.alertaCriticaPct <=
+          bodegaLimitesForm.alertaPreventivaPct ||
         bodegaLimitesForm.alertaCriticaPct > 100
       ) {
         return 'El nivel crítico debe ser mayor que la alerta preventiva.';
@@ -2768,13 +2965,17 @@ export default function Ajustes() {
     }
     setBodegaFeedback(null);
     setBodegaDraftDirty(true);
-    setBodegaWizardStep((current) => (current < 3 ? ((current + 1) as BodegaWizardStep) : current));
+    setBodegaWizardStep((current) =>
+      current < 3 ? ((current + 1) as BodegaWizardStep) : current,
+    );
   };
 
   const volverBodegaStep = () => {
     setBodegaFeedback(null);
     setBodegaDraftDirty(true);
-    setBodegaWizardStep((current) => (current > 1 ? ((current - 1) as BodegaWizardStep) : current));
+    setBodegaWizardStep((current) =>
+      current > 1 ? ((current - 1) as BodegaWizardStep) : current,
+    );
   };
 
   const abrirVistaPreviaBodega = () => {
@@ -2812,7 +3013,10 @@ export default function Ajustes() {
         : '¿Descartar cambios?\n\nSe eliminará el borrador guardado.',
     );
     if (!confirmed) return;
-    await removeBodegaDraft(bodegaDraftPending.mode, bodegaDraftPending.bodegaId);
+    await removeBodegaDraft(
+      bodegaDraftPending.mode,
+      bodegaDraftPending.bodegaId,
+    );
     const target = bodegaDraftTarget;
     const mode = bodegaDraftPending.mode;
     setShowBodegaDraftModal(false);
@@ -2902,12 +3106,12 @@ export default function Ajustes() {
   };
 
   const getLimitesOperativosBodegaForSave = (): LimitesTransaccion => ({
-      minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
-      maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
-      minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
-      maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
-      minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
-      maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
+    minPesoCompraKg: parseNumericInput(limitMinPesoCompraKg),
+    maxPesoCompraKg: parseNumericInput(limitMaxPesoKg),
+    minPrecioCompraKg: parseNumericInput(limitMinPrecioCompraKg),
+    maxPrecioCompraKg: parseNumericInput(limitMaxPrecioKg),
+    minPrecioVentaKg: parseNumericInput(limitMinPrecioVentaKg),
+    maxPrecioVentaKg: parseNumericInput(limitMaxPrecioVentaKg),
   });
 
   const getBodegaSaveErrorMessage = (err: unknown) => {
@@ -2983,12 +3187,15 @@ export default function Ajustes() {
         await guardarLimitesBodega(updated.id, limitesBodegaPayload);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === updated.id)) {
-          throw new Error('No pudimos confirmar la bodega actualizada. Intenta nuevamente.');
+          throw new Error(
+            'No pudimos confirmar la bodega actualizada. Intenta nuevamente.',
+          );
         }
         await removeBodegaDraft('editar', updated.id);
         setBodegaFeedback({
           variant: 'success',
-          message: 'Bodega actualizada correctamente. Los cambios se guardaron correctamente.',
+          message:
+            'Bodega actualizada correctamente. Los cambios se guardaron correctamente.',
         });
       } else {
         const limitesOperativos = getLimitesOperativosBodegaForSave();
@@ -3006,12 +3213,15 @@ export default function Ajustes() {
         guardarLimitesEntradaLocales(limitesOperativos);
         const nextBodegas = await cargarBodegas();
         if (!nextBodegas.some((item) => item.id === created.id)) {
-          throw new Error('No pudimos confirmar la bodega creada. Intenta nuevamente.');
+          throw new Error(
+            'No pudimos confirmar la bodega creada. Intenta nuevamente.',
+          );
         }
         await removeBodegaDraft('crear');
         setBodegaFeedback({
           variant: 'success',
-          message: 'Bodega creada correctamente. La nueva bodega ya está disponible.',
+          message:
+            'Bodega creada correctamente. La nueva bodega ya está disponible.',
         });
       }
 
@@ -3213,7 +3423,10 @@ export default function Ajustes() {
     ) {
       return 'Ingresa un estado crítico válido.';
     }
-    if (bodegaLimitesForm.alertaCriticaPct <= bodegaLimitesForm.alertaPreventivaPct) {
+    if (
+      bodegaLimitesForm.alertaCriticaPct <=
+      bodegaLimitesForm.alertaPreventivaPct
+    ) {
       return 'El nivel preventivo debe ser menor que el nivel crítico.';
     }
     return null;
@@ -3303,7 +3516,10 @@ export default function Ajustes() {
         setBodegaLimitesFeedback({
           variant: 'error',
           message: `Los límites superan la capacidad de una o más bodegas: ${conflicts
-            .map((bodega) => `${bodega.nombre} (${formatKg(bodega.capacidadMaxKg)} kg)`)
+            .map(
+              (bodega) =>
+                `${bodega.nombre} (${formatKg(bodega.capacidadMaxKg)} kg)`,
+            )
             .join(', ')}.`,
         });
         return;
@@ -3318,7 +3534,10 @@ export default function Ajustes() {
       setBodegaLimitesFeedback({ variant: 'error', message: validationError });
       return;
     }
-    if (bodegaLimitesScope === 'seleccionadas' && bodegaLimitesSelectedIds.length === 0) {
+    if (
+      bodegaLimitesScope === 'seleccionadas' &&
+      bodegaLimitesSelectedIds.length === 0
+    ) {
       setBodegaLimitesFeedback({
         variant: 'error',
         message: 'Selecciona al menos una bodega.',
@@ -3379,7 +3598,8 @@ export default function Ajustes() {
     if (bodegaDeleteTarget.cafeAlmacenadoKg > 0) {
       setBodegaFeedback({
         variant: 'warning',
-        message: 'No puedes eliminar esta bodega porque tiene inventario activo.',
+        message:
+          'No puedes eliminar esta bodega porque tiene inventario activo.',
       });
       setBodegaDeleteTarget(null);
       return;
@@ -3486,7 +3706,9 @@ export default function Ajustes() {
       await markLimitsOnboarding('configured');
       setSuccess('Límites actualizados.');
     } catch {
-      setError('No pudimos guardar los límites. Revisa tu conexión e intenta nuevamente.');
+      setError(
+        'No pudimos guardar los límites. Revisa tu conexión e intenta nuevamente.',
+      );
     } finally {
       setGuardandoLimites(false);
     }
@@ -3509,7 +3731,8 @@ export default function Ajustes() {
           ? 'Contactos Multirol'
           : 'Gestión de contactos';
   const activePeopleSingular =
-    peopleEditing?.roles.includes('PRODUCTOR') && !peopleEditing?.roles.includes('CLIENTE')
+    peopleEditing?.roles.includes('PRODUCTOR') &&
+    !peopleEditing?.roles.includes('CLIENTE')
       ? 'productor'
       : 'contacto';
   const activePeopleSearchResult = useMemo(
@@ -3607,9 +3830,9 @@ export default function Ajustes() {
         const baseline = profileBaselineRef.current;
         const hasProfileChanges = Boolean(
           baseline &&
-            (baseline.nombre !== profile.nombre ||
-              baseline.correo !== profile.correo ||
-              baseline.telefono !== profile.telefono),
+          (baseline.nombre !== profile.nombre ||
+            baseline.correo !== profile.correo ||
+            baseline.telefono !== profile.telefono),
         );
         if (hasProfileChanges && !confirmarSalidaSinGuardar()) {
           backEvent.preventDefault();
@@ -3676,15 +3899,15 @@ export default function Ajustes() {
         const original = bodegaEditando;
         const hasBodegaChanges = original
           ? original.nombre !== nombreBodega.trim() ||
-            ((original.ubicacion ?? original.descripcion ?? '') !==
-              ubicacionBodega.trim()) ||
+            (original.ubicacion ?? original.descripcion ?? '') !==
+              ubicacionBodega.trim() ||
             Math.round(original.capacidadMaxKg) !== getBodegaFormCapacidad() ||
             bodegaWizardStep > 1
           : Boolean(
               nombreBodega.trim() ||
-                ubicacionBodega.trim() ||
-                capacidadKg.trim() ||
-                bodegaWizardStep > 1,
+              ubicacionBodega.trim() ||
+              capacidadKg.trim() ||
+              bodegaWizardStep > 1,
             );
         if (hasBodegaChanges && !confirmarSalidaSinGuardar()) {
           backEvent.preventDefault();
@@ -3769,14 +3992,17 @@ export default function Ajustes() {
     setPeopleImportMessage(null);
   };
 
-  const hasPeopleDraftChanges = (item: PeopleAdminItem | null, form: PeopleAdminForm) => {
+  const hasPeopleDraftChanges = (
+    item: PeopleAdminItem | null,
+    form: PeopleAdminForm,
+  ) => {
     if (!item) return false;
     if (!item.id) {
       return Boolean(
         form.nombre.trim() ||
-          form.tipoDocumento ||
-          form.documento.trim() ||
-          form.telefono.trim(),
+        form.tipoDocumento ||
+        form.documento.trim() ||
+        form.telefono.trim(),
       );
     }
     const itemRoles = [...item.roles].sort().join(',');
@@ -3851,7 +4077,10 @@ export default function Ajustes() {
       ? normalizeImportedContactPhone(phone.number)
       : null;
     console.log('[contactos] nombre importado:', contact.name?.trim() || '');
-    console.log('[contactos] teléfono importado:', phoneResult?.formatted ?? '');
+    console.log(
+      '[contactos] teléfono importado:',
+      phoneResult?.formatted ?? '',
+    );
     const nextForm: PeopleAdminForm = {
       nombre: contact.name?.trim() || peopleForm.nombre,
       tipoDocumento: peopleForm.tipoDocumento || 'CEDULA',
@@ -3859,15 +4088,14 @@ export default function Ajustes() {
       telefono: phoneResult?.formatted ?? peopleForm.telefono,
       roles: peopleForm.roles.length ? peopleForm.roles : ['CLIENTE'],
     };
-    const telefonoDuplicado =
-      phoneResult?.normalized
-        ? contactosAdmin.some(
-            (item) =>
-              item.roles.some((rol) => nextForm.roles.includes(rol)) &&
-              normalizePhoneNumberForStorage(item.telefono) ===
-                normalizePhoneNumberForStorage(phoneResult.formatted),
-          )
-        : false;
+    const telefonoDuplicado = phoneResult?.normalized
+      ? contactosAdmin.some(
+          (item) =>
+            item.roles.some((rol) => nextForm.roles.includes(rol)) &&
+            normalizePhoneNumberForStorage(item.telefono) ===
+              normalizePhoneNumberForStorage(phoneResult.formatted),
+        )
+      : false;
     const telefonoWarning = phoneResult
       ? telefonoDuplicado
         ? 'Este celular ya está registrado. Revisa el contacto existente antes de crear uno nuevo.'
@@ -3890,7 +4118,9 @@ export default function Ajustes() {
     setPeopleFormError(null);
     setPeoplePhoneChoice(null);
     window.setTimeout(() => {
-      document.querySelector<HTMLButtonElement>('[aria-label="Tipo de documento"]')?.focus();
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Tipo de documento"]')
+        ?.focus();
     }, 50);
   };
 
@@ -3908,7 +4138,9 @@ export default function Ajustes() {
       console.log('[contactos] permiso:', 'solicitado por plugin nativo');
       if (contact.cancelled) return;
 
-      const phones = (contact.phones ?? []).filter((phone) => phone.number?.trim());
+      const phones = (contact.phones ?? []).filter((phone) =>
+        phone.number?.trim(),
+      );
       if (phones.length > 1) {
         setPeoplePhoneChoice({ contact, phones });
         return;
@@ -3932,7 +4164,9 @@ export default function Ajustes() {
     const choice = peoplePhoneChoice;
     if (!choice?.contact) {
       setPeoplePhoneChoice(null);
-      setPeopleFormError('No pudimos seleccionar ese número. Intenta importar el contacto nuevamente.');
+      setPeopleFormError(
+        'No pudimos seleccionar ese número. Intenta importar el contacto nuevamente.',
+      );
       return;
     }
     aplicarContactoImportadoPersona(choice.contact, phone);
@@ -3953,13 +4187,11 @@ export default function Ajustes() {
       nextForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = normalizePhoneNumberForStorage(nextForm.telefono);
+    const telefonoNormalizado = normalizePhoneNumberForStorage(
+      nextForm.telefono,
+    );
     const contactos = contactosAdmin.filter(
-      (item) =>
-        !(
-          currentEditing &&
-          item.id === currentEditing.id
-        ),
+      (item) => !(currentEditing && item.id === currentEditing.id),
     );
 
     if (documentoNormalizado) {
@@ -3988,9 +4220,13 @@ export default function Ajustes() {
         nextErrors.telefono = 'Este número ya está registrado.';
       }
     } else if (nextForm.telefono.trim()) {
-      const telefonoValidation = validatePhoneNumber(nextForm.telefono, 'El teléfono', {
-        optional: true,
-      });
+      const telefonoValidation = validatePhoneNumber(
+        nextForm.telefono,
+        'El teléfono',
+        {
+          optional: true,
+        },
+      );
       if (!telefonoValidation.isValid) {
         nextErrors.telefono = telefonoValidation.message;
       }
@@ -4029,20 +4265,32 @@ export default function Ajustes() {
       peopleForm.documento,
       tipoDocumento,
     );
-    const telefonoNormalizado = normalizePhoneNumberForStorage(peopleForm.telefono);
+    const telefonoNormalizado = normalizePhoneNumberForStorage(
+      peopleForm.telefono,
+    );
     const nombreValidation =
       tipoDocumento === 'NIT'
         ? validateCompanyName(peopleForm.nombre)
         : validatePersonName(peopleForm.nombre, 'El nombre');
-    const documentoValidation = validateDocumentNumber(peopleForm.documento, 'El documento', {
-      type: tipoDocumento,
-    });
-    const telefonoValidation = validatePhoneNumber(peopleForm.telefono, 'El teléfono', {
-      optional: true,
-    });
+    const documentoValidation = validateDocumentNumber(
+      peopleForm.documento,
+      'El documento',
+      {
+        type: tipoDocumento,
+      },
+    );
+    const telefonoValidation = validatePhoneNumber(
+      peopleForm.telefono,
+      'El teléfono',
+      {
+        optional: true,
+      },
+    );
     if (!nombreValidation.isValid) nextErrors.nombre = nombreValidation.message;
-    if (!documentoValidation.isValid) nextErrors.documento = documentoValidation.message;
-    if (!telefonoValidation.isValid) nextErrors.telefono = telefonoValidation.message;
+    if (!documentoValidation.isValid)
+      nextErrors.documento = documentoValidation.message;
+    if (!telefonoValidation.isValid)
+      nextErrors.telefono = telefonoValidation.message;
     if (peopleForm.roles.length === 0) {
       nextErrors.roles = 'Selecciona al menos un rol para el contacto.';
     }
@@ -4052,7 +4300,8 @@ export default function Ajustes() {
         item.id !== peopleEditing.id &&
         item.roles.some((rol) => peopleForm.roles.includes(rol)) &&
         item.tipoDocumento === tipoDocumento &&
-        normalizeDocumentForStorage(item.documento, item.tipoDocumento) === documentoNormalizado,
+        normalizeDocumentForStorage(item.documento, item.tipoDocumento) ===
+          documentoNormalizado,
     );
 
     if (duplicated) {
@@ -4115,9 +4364,10 @@ export default function Ajustes() {
             ? apiError.details.contactId
             : null;
         const missingRoles = Array.isArray(apiError.details?.missingRoles)
-          ? (apiError.details.missingRoles.filter(
-              (rol): rol is ContactoRol => rol === 'CLIENTE' || rol === 'PRODUCTOR',
-            ))
+          ? apiError.details.missingRoles.filter(
+              (rol): rol is ContactoRol =>
+                rol === 'CLIENTE' || rol === 'PRODUCTOR',
+            )
           : peopleForm.roles;
         const roleLabel = missingRoles.includes('CLIENTE')
           ? 'cliente'
@@ -4129,7 +4379,8 @@ export default function Ajustes() {
         if (shouldAddRole && contactId) {
           const saved = mapContactoAdmin(
             await missingRoles.reduce(
-              async (previous, rol) => agregarRolContacto((await previous).id, rol),
+              async (previous, rol) =>
+                agregarRolContacto((await previous).id, rol),
               Promise.resolve({ id: contactId } as ContactoItem),
             ),
           );
@@ -4150,10 +4401,9 @@ export default function Ajustes() {
           return;
         }
 
-        const message =
-          missingRoles.includes('CLIENTE')
-            ? 'Este contacto ya está registrado como productor. Puedes agregarle el rol de cliente sin duplicar sus datos.'
-            : 'Este contacto ya está registrado como cliente. Puedes agregarle el rol de productor sin duplicar sus datos.';
+        const message = missingRoles.includes('CLIENTE')
+          ? 'Este contacto ya está registrado como productor. Puedes agregarle el rol de cliente sin duplicar sus datos.'
+          : 'Este contacto ya está registrado como cliente. Puedes agregarle el rol de productor sin duplicar sus datos.';
         setPeopleFormErrors((current) => ({
           ...current,
           documento: message,
@@ -4201,9 +4451,13 @@ export default function Ajustes() {
     try {
       await Promise.all([
         item.clienteId ? eliminarCliente(item.clienteId) : Promise.resolve(),
-        item.productorId ? eliminarProductor(item.productorId) : Promise.resolve(),
+        item.productorId
+          ? eliminarProductor(item.productorId)
+          : Promise.resolve(),
       ]);
-      setContactosAdmin((items) => items.filter((current) => current.id !== item.id));
+      setContactosAdmin((items) =>
+        items.filter((current) => current.id !== item.id),
+      );
       setPeopleDetail(null);
       setSuccess('Contacto desactivado correctamente.');
     } catch {
@@ -4267,7 +4521,9 @@ export default function Ajustes() {
 
     setSyncFeedback(null);
     setRetryingSyncIds((current) =>
-      current.includes(operation.idLocal) ? current : [...current, operation.idLocal],
+      current.includes(operation.idLocal)
+        ? current
+        : [...current, operation.idLocal],
     );
     retryOperation(operation.idLocal);
 
@@ -4280,7 +4536,8 @@ export default function Ajustes() {
       setSyncQueue(updatedQueue);
       setSyncSummary(getSyncQueueSummary());
       setSyncFeedback({
-        variant: updatedOperation?.estado === 'SINCRONIZADO' ? 'success' : 'error',
+        variant:
+          updatedOperation?.estado === 'SINCRONIZADO' ? 'success' : 'error',
         message:
           updatedOperation?.estado === 'SINCRONIZADO'
             ? 'Registro sincronizado correctamente.'
@@ -4311,7 +4568,8 @@ export default function Ajustes() {
       title: 'Secado',
       description: 'Revisa procesos de secado.',
       icon: Droplets,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => {
         setSecadoError(null);
         navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } });
@@ -4322,7 +4580,8 @@ export default function Ajustes() {
       title: 'Gastos',
       description: 'Consulta y registra gastos.',
       icon: Wallet,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => navigate('/gastos'),
     },
     {
@@ -4330,7 +4589,8 @@ export default function Ajustes() {
       title: 'Sincronización',
       description: `${syncSummary.pendientes} pendientes · ${syncSummary.errores} con error`,
       icon: CloudCog,
-      iconStyle: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200',
+      iconStyle:
+        'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200',
       onClick: () => setSyncPanelOpen((current) => !current),
     },
   ] as const;
@@ -4341,7 +4601,8 @@ export default function Ajustes() {
       title: 'Negocio',
       description: 'Nombre, tipo y descripción',
       icon: Building2,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: abrirEditorEmpresa,
     },
@@ -4350,7 +4611,8 @@ export default function Ajustes() {
       title: 'Tipos de café',
       description: 'Variedades registradas',
       icon: FlaskConical,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: true,
       onClick: undefined,
     },
@@ -4359,7 +4621,8 @@ export default function Ajustes() {
       title: 'Calidades de café',
       description: 'Estándares de calidad',
       icon: ScanSearch,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: true,
       onClick: undefined,
     },
@@ -4368,7 +4631,8 @@ export default function Ajustes() {
       title: 'Bodega',
       description: 'Espacio de bodega',
       icon: Warehouse,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: abrirEditorBodega,
     },
@@ -4377,7 +4641,8 @@ export default function Ajustes() {
       title: 'Usuarios',
       description: 'Roles y permisos',
       icon: Users,
-      iconStyle: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+      iconStyle:
+        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
       staticOnly: true,
       onClick: undefined,
     },
@@ -4386,7 +4651,8 @@ export default function Ajustes() {
       title: 'Soporte',
       description: 'Ayuda y reportes',
       icon: LifeBuoy,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       staticOnly: false,
       onClick: () => navigate('/soporte'),
     },
@@ -4403,7 +4669,8 @@ export default function Ajustes() {
       title: 'Contactos',
       description: 'Clientes y productores registrados',
       icon: Users2,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => void cargarPersonasAdmin('todos'),
     },
     {
@@ -4411,7 +4678,8 @@ export default function Ajustes() {
       title: 'Usuarios del sistema',
       description: 'Roles y permisos',
       icon: Shield,
-      iconStyle: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+      iconStyle:
+        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
       onClick: undefined,
     },
   ] as const;
@@ -4446,8 +4714,9 @@ export default function Ajustes() {
     },
   ];
 
-  const systemScreenReaderActive =
-    isSystemScreenReaderActive(systemScreenReaderStatus);
+  const systemScreenReaderActive = isSystemScreenReaderActive(
+    systemScreenReaderStatus,
+  );
   const screenReaderStatusTitle = screenReaderStatusLoading
     ? 'Comprobando lector de pantalla'
     : systemScreenReaderActive
@@ -4464,7 +4733,8 @@ export default function Ajustes() {
       description: 'Mejora la navegación con asistencia',
       status: screenReaderStatusTitle,
       icon: ScanSearch,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('screen-reader' as const),
     },
     {
@@ -4475,7 +4745,8 @@ export default function Ajustes() {
         ? 'Activado'
         : 'Desactivado',
       icon: Eye,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('high-contrast' as const),
     },
     {
@@ -4489,7 +4760,8 @@ export default function Ajustes() {
             ? 'Grande'
             : 'Normal',
       icon: Settings,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('font-scale' as const),
     },
     {
@@ -4498,7 +4770,8 @@ export default function Ajustes() {
       description: 'Cámara, fotos y notificaciones',
       status: permissionsLoading ? 'Consultando' : 'Configurar',
       icon: Shield,
-      iconStyle: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
       onClick: () => setAccessibilityModal('permissions' as const),
     },
   ] as const;
@@ -4561,6 +4834,415 @@ export default function Ajustes() {
     return isNativeAndroid() ? 'No disponible' : 'Solo Android';
   };
 
+  const themeStatusLabel =
+    theme === 'system' ? 'Sistema' : theme === 'dark' ? 'Oscuro' : 'Claro';
+  const fontScaleStatusLabel =
+    accessibilityPreferences.fontScale === 'xlarge'
+      ? 'Extra grande'
+      : accessibilityPreferences.fontScale === 'large'
+        ? 'Grande'
+        : 'Mediano';
+  const syncStatusLabel =
+    syncSummary.errores > 0
+      ? `${syncSummary.errores} ${syncSummary.errores === 1 ? 'registro necesita' : 'registros necesitan'} revisión`
+      : syncSummary.pendientes > 0
+        ? `${syncSummary.pendientes} ${syncSummary.pendientes === 1 ? 'registro pendiente' : 'registros pendientes'}`
+        : 'Todo está sincronizado';
+  const desktopProfileName = formatDisplayName(profile.nombre || user?.name);
+  const desktopBusinessType =
+    getBusinessTypeLabel(
+      company.tipoEmpresa ||
+        user?.tipoOrganizacion ||
+        user?.organizacion?.tipo ||
+        '',
+    ) || 'Tipo de negocio no definido';
+
+  const desktopCategories: DesktopSettingsCategory[] = [
+    { id: 'perfil', label: 'Perfil', icon: UserCircle2 },
+    { id: 'finanzas', label: 'Información financiera', icon: Lock },
+    { id: 'procesos', label: 'Procesos operativos', icon: CloudCog },
+    { id: 'apariencia', label: 'Apariencia', icon: Monitor },
+    { id: 'accesibilidad', label: 'Accesibilidad', icon: Eye },
+    { id: 'asistente', label: 'Asistente inteligente', icon: ScanSearch },
+    { id: 'negocio', label: 'Configuración del negocio', icon: Building2 },
+    { id: 'personas', label: 'Gestión de personas', icon: Users2 },
+  ];
+
+  const desktopCards: DesktopSettingsCardConfig[] = [
+    {
+      id: 'secado',
+      title: 'Secado',
+      description: 'Revisa y administra los procesos de secado.',
+      category: 'procesos',
+      icon: Droplets,
+      onClick: () => {
+        setSecadoError(null);
+        navigate('/inventario/secado/inicio', { state: { from: '/ajustes' } });
+      },
+    },
+    {
+      id: 'gastos',
+      title: 'Gastos',
+      description: 'Consulta y registra los gastos del negocio.',
+      category: 'procesos',
+      icon: Wallet,
+      onClick: () => navigate('/gastos'),
+    },
+    {
+      id: 'sincronizacion',
+      title: 'Sincronización',
+      description: 'Revisa el estado de los registros locales.',
+      category: 'procesos',
+      icon: CloudCog,
+      status: syncStatusLabel,
+      onClick: () => setSyncPanelOpen((current) => !current),
+    },
+    {
+      id: 'tema-visual',
+      title: 'Tema visual',
+      description: 'Elige cómo quieres ver Café Smart.',
+      category: 'apariencia',
+      icon: Monitor,
+      status: `Tema actual: ${themeStatusLabel}`,
+      onClick: () => setThemeModalOpen(true),
+      keywords: ['claro', 'oscuro', 'sistema'],
+    },
+    {
+      id: 'lector-pantalla',
+      title: 'Lector de pantalla',
+      description: 'Configura la navegación asistida.',
+      category: 'accesibilidad',
+      icon: ScanSearch,
+      status: screenReaderStatusTitle,
+      onClick: () => setAccessibilityModal('screen-reader'),
+      keywords: ['talkback', 'asistencia'],
+    },
+    {
+      id: 'alto-contraste',
+      title: 'Alto contraste',
+      description: 'Mejora el contraste de textos y controles.',
+      category: 'accesibilidad',
+      icon: Eye,
+      status: accessibilityPreferences.highContrast
+        ? 'Activado'
+        : 'Desactivado',
+      onClick: () => setAccessibilityModal('high-contrast'),
+      keywords: ['contraste'],
+    },
+    {
+      id: 'tamano-fuente',
+      title: 'Tamaño de fuente',
+      description: 'Cambia el tamaño del texto de la aplicación.',
+      category: 'accesibilidad',
+      icon: Settings,
+      status: `Tamaño actual: ${fontScaleStatusLabel}`,
+      onClick: () => setAccessibilityModal('font-scale'),
+      keywords: ['texto', 'letra'],
+    },
+    {
+      id: 'permisos',
+      title: 'Permisos',
+      description: 'Administra los permisos de la aplicación.',
+      category: 'accesibilidad',
+      icon: Shield,
+      status: permissionsLoading ? 'Consultando' : 'Configurar',
+      onClick: () => setAccessibilityModal('permissions'),
+      keywords: ['camara', 'fotos', 'notificaciones'],
+    },
+    {
+      id: 'ia-asistente',
+      title: 'IA asistente',
+      description: 'Consulta información de tu negocio.',
+      category: 'asistente',
+      icon: ScanSearch,
+      disabled: true,
+      keywords: ['inteligente', 'consulta'],
+    },
+    {
+      id: 'negocio',
+      title: 'Negocio',
+      description: 'Edita los datos de tu negocio.',
+      category: 'negocio',
+      icon: Building2,
+      onClick: abrirEditorEmpresa,
+    },
+    {
+      id: 'tipos-cafe',
+      title: 'Tipos de café',
+      description: 'Administra los tipos de café.',
+      category: 'negocio',
+      icon: FlaskConical,
+      disabled: true,
+    },
+    {
+      id: 'calidades-cafe',
+      title: 'Calidades de café',
+      description: 'Administra las calidades del café.',
+      category: 'negocio',
+      icon: ScanSearch,
+      disabled: true,
+    },
+    {
+      id: 'bodegas',
+      title: 'Bodegas',
+      description: 'Administra tus bodegas y su capacidad.',
+      category: 'negocio',
+      icon: Warehouse,
+      onClick: abrirEditorBodega,
+      keywords: ['bodega', 'capacidad'],
+    },
+    {
+      id: 'equipo-permisos',
+      title: 'Equipo y permisos',
+      description: 'Administra las personas que pueden usar Café Smart.',
+      category: 'negocio',
+      icon: Users,
+      disabled: true,
+      keywords: ['usuarios', 'roles'],
+    },
+    {
+      id: 'soporte',
+      title: 'Soporte',
+      description: 'Obtén ayuda o reporta un problema.',
+      category: 'negocio',
+      icon: LifeBuoy,
+      onClick: () => navigate('/soporte'),
+    },
+    {
+      id: 'contactos',
+      title: 'Contactos',
+      description: 'Administra clientes, productores y otros contactos.',
+      category: 'personas',
+      icon: Users2,
+      onClick: () => void cargarPersonasAdmin('todos'),
+      keywords: ['cliente', 'productor', 'contacto'],
+    },
+  ];
+
+  const normalizedSettingsSearch = settingsSearch
+    .trim()
+    .toLocaleLowerCase('es-CO');
+  const filteredDesktopCategories = desktopCategories
+    .map((category) => {
+      const cards = desktopCards.filter((card) => {
+        if (card.category !== category.id) return false;
+        if (!normalizedSettingsSearch) return true;
+        const searchableText = [
+          card.title,
+          card.description,
+          category.label,
+          ...(card.keywords ?? []),
+        ]
+          .join(' ')
+          .toLocaleLowerCase('es-CO');
+        return searchableText.includes(normalizedSettingsSearch);
+      });
+      return { ...category, cards };
+    })
+    .filter((category) => category.cards.length > 0);
+  const hasDesktopSearchResults = filteredDesktopCategories.length > 0;
+  const isDesktopSettingsOverlayOpen = Boolean(
+    themeModalOpen ||
+    accessibilityModal ||
+    screenReaderSetupPromptOpen ||
+    profilePhotoOpen ||
+    profileAvatarRemoveConfirmOpen ||
+    bodegaFormOpen ||
+    bodegaPreviewOpen ||
+    bodegaLimitesGeneralOpen ||
+    bodegaLimitesConfirmOpen ||
+    secadoPanel ||
+    isEditingProfile ||
+    profileInfoOpen ||
+    isViewingPublicProfile ||
+    isEditingCompany ||
+    isEditingBodega ||
+    isEditingLimites ||
+    peopleMode ||
+    mostrarConfirmacionCerrarSesion ||
+    syncPanelOpen,
+  );
+
+  const goToDesktopCategory = (categoryId: string) => {
+    setActiveSettingsCategory(categoryId);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`desktop-settings-${categoryId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  if (isDesktop && !isDesktopSettingsOverlayOpen) {
+    return (
+      <div className="min-h-full bg-[#f5f7fb] px-6 py-8 text-slate-950 dark:bg-slate-950 dark:text-slate-100 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
+          <header className="grid gap-4 rounded-[18px] border border-[#dbe5f7] bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[1fr_360px] lg:items-center">
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">
+                Ajustes
+              </h1>
+              <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                Administra tu cuenta, negocio y preferencias.
+              </p>
+            </div>
+            <label className="relative block">
+              <span className="sr-only">Buscar en ajustes</span>
+              <ScanSearch
+                size={18}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="search"
+                value={settingsSearch}
+                onChange={(event) => setSettingsSearch(event.target.value)}
+                placeholder="Buscar en ajustes..."
+                className="h-12 w-full rounded-[14px] border border-[#dbe5f7] bg-[#f8fbff] pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2a4fb5] focus:ring-4 focus:ring-[#2a4fb5]/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            </label>
+          </header>
+
+          <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+            <aside className="hidden lg:block">
+              <nav
+                aria-label="Categorías de ajustes"
+                className="sticky top-6 rounded-[16px] border border-[#dbe5f7] bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              >
+                {desktopCategories.map((category) => {
+                  const Icon = category.icon;
+                  const active = activeSettingsCategory === category.id;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => goToDesktopCategory(category.id)}
+                      aria-current={active ? 'page' : undefined}
+                      className={`mb-1 flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2a4fb5]/20 ${active ? 'bg-[#eaf0ff] text-[#1f3fa7] ring-1 ring-[#bdd0ff] dark:bg-blue-500/15 dark:text-blue-100 dark:ring-blue-400/30' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}
+                    >
+                      <Icon size={17} aria-hidden="true" />
+                      {category.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
+
+            <main
+              className="min-w-0 space-y-6"
+              aria-label="Contenido de ajustes"
+            >
+              <section
+                id="desktop-settings-perfil"
+                className="rounded-[18px] border border-[#dbe5f7] bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#102d92] text-xl font-black text-white shadow-sm">
+                    {currentAvatarUrl ? (
+                      <img
+                        src={currentAvatarUrl}
+                        alt={`Foto de perfil de ${desktopProfileName}`}
+                        onLoad={handleAvatarImageLoad}
+                        onError={handleAvatarImageError}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      getInitials(desktopProfileName)
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-2xl font-black text-slate-950 dark:text-white">
+                      {desktopProfileName}
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      {desktopBusinessType}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {profileCompanyName}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={abrirEditorPerfil}
+                    className="inline-flex min-h-11 items-center justify-center rounded-[12px] bg-[#2a4fb5] px-4 text-sm font-black text-white shadow-sm transition hover:bg-[#21419a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2a4fb5]/25"
+                  >
+                    Editar perfil
+                  </button>
+                </div>
+              </section>
+
+              <section
+                id="desktop-settings-finanzas"
+                className="rounded-[18px] border border-[#bdd0ff] bg-[#eef4ff] p-5 shadow-sm dark:border-blue-400/30 dark:bg-blue-500/10"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex gap-4">
+                    <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-white text-[#2a4fb5] shadow-sm dark:bg-slate-900 dark:text-blue-200">
+                      <Lock size={21} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-950 dark:text-white">
+                        Resumen financiero protegido
+                      </h2>
+                      <p className="mt-1 max-w-2xl text-sm font-semibold text-slate-600 dark:text-slate-300">
+                        Consulta ventas, compras y gastos. Te pediremos tu
+                        contraseña para proteger esta información.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate('/resumen-financiero/acceso', {
+                        state: {
+                          returnTo: '/ajustes',
+                          finalBackTo: '/ajustes',
+                        },
+                      })
+                    }
+                    className="inline-flex min-h-11 items-center justify-center rounded-[12px] bg-[#2a4fb5] px-4 text-sm font-black text-white shadow-sm transition hover:bg-[#21419a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2a4fb5]/25"
+                  >
+                    Ver resumen financiero
+                  </button>
+                </div>
+              </section>
+
+              {hasDesktopSearchResults ? (
+                filteredDesktopCategories.map((category) => (
+                  <section
+                    key={category.id}
+                    id={`desktop-settings-${category.id}`}
+                    className="scroll-mt-8"
+                  >
+                    {category.id !== 'perfil' && category.id !== 'finanzas' ? (
+                      <h2 className="mb-3 text-lg font-black text-slate-950 dark:text-white">
+                        {category.label}
+                      </h2>
+                    ) : null}
+                    <div className="grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                      {category.cards.map((card) => (
+                        <DesktopSettingsCard key={card.id} card={card} />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              ) : (
+                <section className="rounded-[18px] border border-dashed border-[#c7d5f2] bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <ScanSearch
+                    size={28}
+                    aria-hidden="true"
+                    className="mx-auto text-slate-400 dark:text-slate-500"
+                  />
+                  <p className="mt-3 text-sm font-bold text-slate-600 dark:text-slate-300">
+                    No encontramos opciones que coincidan con tu búsqueda.
+                  </p>
+                </section>
+              )}
+            </main>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[150px] text-slate-900 dark:bg-none dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-[430px] flex-col gap-4">
@@ -4654,7 +5336,8 @@ export default function Ajustes() {
           </div>
           {systemScreenReaderActive ? (
             <p className="rounded-[14px] bg-[#f8faff] px-4 py-3 text-sm font-bold text-slate-600 dark:bg-slate-950 dark:text-slate-200">
-              TalkBack está activo. Café Smart está listo para usarse con lector de pantalla.
+              TalkBack está activo. Café Smart está listo para usarse con lector
+              de pantalla.
             </p>
           ) : (
             <button
@@ -4700,7 +5383,10 @@ export default function Ajustes() {
                         {permission.description}
                       </p>
                       <p className="mt-2 text-xs font-black text-[#102d92] dark:text-blue-200">
-                        Estado: {permissionsLoading ? 'Consultando...' : formatPermissionState(permission.status?.state)}
+                        Estado:{' '}
+                        {permissionsLoading
+                          ? 'Consultando...'
+                          : formatPermissionState(permission.status?.state)}
                       </p>
                     </div>
                     <button
@@ -4722,7 +5408,11 @@ export default function Ajustes() {
                 className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               >
                 {permissionsLoading ? (
-                  <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                  <LoaderCircle
+                    size={15}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <RefreshCcw size={15} aria-hidden="true" />
                 )}
@@ -4756,7 +5446,9 @@ export default function Ajustes() {
                     Activa el lector de pantalla del celular
                   </h3>
                   <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
-                    El modo compatible de Café Smart está listo, pero debes activar TalkBack desde los ajustes de accesibilidad de tu dispositivo.
+                    El modo compatible de Café Smart está listo, pero debes
+                    activar TalkBack desde los ajustes de accesibilidad de tu
+                    dispositivo.
                   </p>
                 </div>
                 <button
@@ -4801,7 +5493,8 @@ export default function Ajustes() {
             aria-label="Texto de alto contraste"
           >
             {binaryAccessibilityOptions.map((option) => {
-              const active = accessibilityPreferences.highContrast === option.value;
+              const active =
+                accessibilityPreferences.highContrast === option.value;
               return (
                 <button
                   key={String(option.value)}
@@ -4817,7 +5510,9 @@ export default function Ajustes() {
                 >
                   <span
                     className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${
-                      active ? 'bg-[#102d92] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                      active
+                        ? 'bg-[#102d92] dark:bg-blue-500'
+                        : 'bg-slate-200 dark:bg-slate-700'
                     }`}
                     aria-hidden="true"
                   >
@@ -4851,7 +5546,8 @@ export default function Ajustes() {
             aria-label="Tamaño de fuente"
           >
             {fontScaleOptions.map((option) => {
-              const active = accessibilityPreferences.fontScale === option.value;
+              const active =
+                accessibilityPreferences.fontScale === option.value;
               return (
                 <button
                   key={option.value}
@@ -4934,7 +5630,11 @@ export default function Ajustes() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <ChevronRight size={17} className="text-slate-400" aria-hidden="true" />
+              <ChevronRight
+                size={17}
+                className="text-slate-400"
+                aria-hidden="true"
+              />
               <button
                 type="button"
                 onClick={(event) => {
@@ -4942,7 +5642,9 @@ export default function Ajustes() {
                   setMostrarConfirmacionCerrarSesion(true);
                 }}
                 disabled={cerrandoSesion}
-                aria-label={cerrandoSesion ? 'Cerrando sesión' : 'Cerrar sesión'}
+                aria-label={
+                  cerrandoSesion ? 'Cerrando sesión' : 'Cerrar sesión'
+                }
                 title="Cerrar sesión"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#fee2e2] text-rose-700 transition hover:bg-[#fecaca] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -4965,20 +5667,20 @@ export default function Ajustes() {
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                  <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-400/30">
-                    <LogOut size={22} aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2
-                      id="cerrar-sesion-title"
-                      className="text-lg font-black text-slate-950 dark:text-slate-50"
-                    >
-                      ¿Cerrar sesión?
-                    </h2>
-                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
-                      Tu sesión se cerrará en este dispositivo.
-                    </p>
-                  </div>
+                    <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-400/30">
+                      <LogOut size={22} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2
+                        id="cerrar-sesion-title"
+                        className="text-lg font-black text-slate-950 dark:text-slate-50"
+                      >
+                        ¿Cerrar sesión?
+                      </h2>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-200">
+                        Tu sesión se cerrará en este dispositivo.
+                      </p>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -5017,29 +5719,32 @@ export default function Ajustes() {
               className="fixed inset-0 z-[116] flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center"
               onClick={() => setIsViewingPublicProfile(false)}
             >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="perfil-usuario-title"
-              className="max-h-[86dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#dbe5f7] bg-[#f8fbff] p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 id="perfil-usuario-title" className="text-base font-black text-slate-950">
-                  Perfil de usuario
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsViewingPublicProfile(false)}
-                  aria-label="Cerrar perfil de usuario"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#102d92] text-base font-black text-white">
-                  {currentAvatarUrl ? (
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="perfil-usuario-title"
+                className="max-h-[86dvh] w-full max-w-[430px] overflow-y-auto rounded-[24px] border border-[#dbe5f7] bg-[#f8fbff] p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3
+                    id="perfil-usuario-title"
+                    className="text-base font-black text-slate-950"
+                  >
+                    Perfil de usuario
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsViewingPublicProfile(false)}
+                    aria-label="Cerrar perfil de usuario"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#102d92] text-base font-black text-white">
+                    {currentAvatarUrl ? (
                       <img
                         src={currentAvatarUrl}
                         alt=""
@@ -5047,69 +5752,71 @@ export default function Ajustes() {
                         onError={handleAvatarImageError}
                         className="h-full w-full object-cover"
                       />
-                  ) : (
-                    getInitials(profile.nombre || company.nombreEmpresa)
-                  )}
+                    ) : (
+                      getInitials(profile.nombre || company.nombreEmpresa)
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-black text-slate-900">
+                      {company.nombreEmpresa || profile.nombre || 'CaféSmart'}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-500">
+                      {getBusinessTypeLabel(company.tipoEmpresa) ||
+                        'Compraventa'}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700">
+                    Activo
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-black text-slate-900">
-                    {company.nombreEmpresa || profile.nombre || 'CaféSmart'}
+                <div className="mt-4 grid gap-2 text-sm">
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Nombre completo
+                    </span>
+                    {profile.nombre || 'Nombre no registrado'}
                   </p>
-                  <p className="text-xs font-semibold text-slate-500">
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Nombre de la empresa
+                    </span>
+                    {profileCompanyName}
+                  </p>
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Correo electrónico
+                    </span>
+                    {profile.correo || 'Correo no registrado'}
+                  </p>
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Teléfono
+                    </span>
+                    {profile.telefono
+                      ? formatPhoneNumber(profile.telefono)
+                      : 'Teléfono no registrado'}
+                  </p>
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Tipo de negocio
+                    </span>
                     {getBusinessTypeLabel(company.tipoEmpresa) || 'Compraventa'}
                   </p>
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
+                      Descripción del negocio
+                    </span>
+                    {company.descripcion.trim() ||
+                      'Sin descripción registrada.'}
+                  </p>
+                  <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-emerald-700">
+                    <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-emerald-500">
+                      Estado
+                    </span>
+                    Activo
+                  </p>
                 </div>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700">
-                  Activo
-                </span>
-              </div>
-              <div className="mt-4 grid gap-2 text-sm">
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Nombre completo
-                  </span>
-                  {profile.nombre || 'Nombre no registrado'}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Nombre de la empresa
-                  </span>
-                  {profileCompanyName}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Correo electrónico
-                  </span>
-                  {profile.correo || 'Correo no registrado'}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Teléfono
-                  </span>
-                  {profile.telefono
-                    ? formatPhoneNumber(profile.telefono)
-                    : 'Teléfono no registrado'}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Tipo de negocio
-                  </span>
-                  {getBusinessTypeLabel(company.tipoEmpresa) || 'Compraventa'}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-slate-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-slate-400">
-                    Descripción del negocio
-                  </span>
-                  {company.descripcion.trim() || 'Sin descripción registrada.'}
-                </p>
-                <p className="rounded-[14px] bg-white px-3 py-2 font-semibold text-emerald-700">
-                  <span className="block text-[0.66rem] font-black uppercase tracking-[0.08em] text-emerald-500">
-                    Estado
-                  </span>
-                  Activo
-                </p>
-              </div>
-            </section>
+              </section>
             </div>
           ) : null}
 
@@ -5118,141 +5825,40 @@ export default function Ajustes() {
               className="fixed inset-0 z-[90] flex items-stretch justify-center bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
               onClick={cerrarEditorPerfil}
             >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="editar-perfil-title"
-              className="flex h-[100dvh] w-full max-w-[520px] flex-col overflow-hidden bg-[#f8fbff] text-slate-950 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both] dark:bg-slate-950 dark:text-slate-100 sm:h-[min(92dvh,820px)] sm:rounded-[26px]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 id="editar-perfil-title" className="text-xl font-black">
-                    Editar perfil
-                  </h3>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-300">
-                    Gestiona tu información personal y la foto de perfil.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={cerrarEditorPerfil}
-                  aria-label="Cerrar edición de perfil"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-              <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex flex-col items-center text-center">
-                  <div className="h-24 w-24 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
-                    {currentAvatarUrl ? (
-                      <img
-                        src={currentAvatarUrl}
-                        alt="Foto de perfil"
-                        onLoad={handleAvatarImageLoad}
-                        onError={handleAvatarImageError}
-                        className="h-full w-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center rounded-full bg-[#eaf0ff] text-2xl font-black text-[#102d92]">
-                        {getInitials(profile.nombre || company.nombreEmpresa)}
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-3 text-base font-black">{profile.nombre || 'Administrador'}</p>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
-                    {company.nombreEmpresa ||
-                      (!hydrated || !companyLoaded
-                        ? 'Cargando negocio...'
-                        : 'Negocio sin nombre')}
-                  </p>
-                </div>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                  className="hidden"
-                  onChange={(event) => void seleccionarFotoPerfil(event)}
-                />
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={abrirPerfilPublico}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
-                >
-                  <Eye size={15} /> Ver perfil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileInfoOpen(true)}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white dark:bg-blue-600"
-                >
-                  <Pencil size={15} /> Editar información
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfilePhotoOpen(true);
-                  setAvatarFeedback(null);
-                  setProfileFeedback(null);
-                }}
-                className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="editar-perfil-title"
+                className="flex h-[100dvh] w-full max-w-[520px] flex-col overflow-hidden bg-[#f8fbff] text-slate-950 shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[cafesmartFadeUp_220ms_ease-out_both] dark:bg-slate-950 dark:text-slate-100 sm:h-[min(92dvh,820px)] sm:rounded-[26px]"
+                onClick={(event) => event.stopPropagation()}
               >
-                <Pencil size={15} /> Editar foto
-              </button>
-              {profileFeedback ? (
-                <AppFeedbackMessage
-                  variant={profileFeedback.variant}
-                  description={profileFeedback.message}
-                  className="mt-4"
-                />
-              ) : null}
-              {error && activeErrorSection === 'profile' ? (
-                <AppFeedbackMessage
-                  variant="error"
-                  description="No pudimos actualizar tu perfil. Intenta de nuevo."
-                  className="mt-4"
-                />
-              ) : null}
-              {profilePhotoOpen ? (
-                <div className="fixed inset-0 z-[112] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
-                  <section
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="editar-foto-perfil-title"
-                    className="w-full max-w-[380px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <h4
-                          id="editar-foto-perfil-title"
-                          className="text-lg font-black text-slate-950 dark:text-slate-100"
-                        >
-                          Editar foto
-                        </h4>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Revisa la vista previa antes de guardar.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={cancelarEdicionFotoPerfil}
-                        disabled={profileAvatarBusy}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
-                        aria-label="Cerrar edición de foto"
+                <div className="shrink-0 border-b border-slate-200 bg-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3
+                        id="editar-perfil-title"
+                        className="text-xl font-black"
                       >
-                        <X size={17} />
-                      </button>
+                        Editar perfil
+                      </h3>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                        Gestiona tu información personal y la foto de perfil.
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={cerrarEditorPerfil}
+                      aria-label="Cerrar edición de perfil"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex flex-col items-center text-center">
-                      <div className="h-28 w-28 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
+                      <div className="h-24 w-24 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
                         {currentAvatarUrl ? (
                           <img
                             src={currentAvatarUrl}
@@ -5263,291 +5869,433 @@ export default function Ajustes() {
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center rounded-full bg-[#eaf0ff] text-2xl font-black text-[#102d92]">
-                            {getInitials(profile.nombre || company.nombreEmpresa)}
+                            {getInitials(
+                              profile.nombre || company.nombreEmpresa,
+                            )}
                           </div>
                         )}
                       </div>
-                      <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">
-                        La foto se guardará solo cuando pulses Guardar cambios.
+                      <p className="mt-3 text-base font-black">
+                        {profile.nombre || 'Administrador'}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">
+                        {company.nombreEmpresa ||
+                          (!hydrated || !companyLoaded
+                            ? 'Cargando negocio...'
+                            : 'Negocio sin nombre')}
                       </p>
                     </div>
-                    {avatarFeedback ? (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        className={`mt-4 rounded-[14px] px-3 py-2 text-sm font-bold ${
-                          avatarFeedback.type === 'success'
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
-                            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200'
-                        }`}
-                      >
-                        {avatarFeedback.message}
-                      </div>
-                    ) : null}
-                    <div className="mt-5 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (avatarInputRef.current) {
-                            avatarInputRef.current.value = '';
-                            avatarInputRef.current.click();
-                          }
-                        }}
-                        disabled={profileAvatarBusy}
-                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55 dark:bg-blue-600"
-                      >
-                        Cambiar foto
-                      </button>
-                      <button
-                        type="button"
-                        onClick={quitarFotoPerfil}
-                        disabled={profileAvatarBusy || (!hasSavedAvatar && !avatarPreview)}
-                        className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      >
-                        Quitar foto
-                      </button>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void guardarFotoPerfil()}
-                        disabled={!avatarFile || avatarSaving}
-                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
-                      >
-                        {avatarSaving ? (
-                          <LoaderCircle size={15} className="animate-spin" />
-                        ) : (
-                          <Save size={15} />
-                        )}
-                        {avatarSaving ? 'Guardando foto...' : 'Guardar cambios'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelarEdicionFotoPerfil}
-                        disabled={profileAvatarBusy}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </section>
-                  {profileAvatarRemoveConfirmOpen ? (
-                    <div className="fixed inset-0 z-[113] flex items-center justify-center bg-slate-950/50 px-5 py-6">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={(event) => void seleccionarFotoPerfil(event)}
+                    />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={abrirPerfilPublico}
+                      className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
+                    >
+                      <Eye size={15} /> Ver perfil
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProfileInfoOpen(true)}
+                      className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white dark:bg-blue-600"
+                    >
+                      <Pencil size={15} /> Editar información
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfilePhotoOpen(true);
+                      setAvatarFeedback(null);
+                      setProfileFeedback(null);
+                    }}
+                    className="mt-2 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-900 dark:text-blue-100"
+                  >
+                    <Pencil size={15} /> Editar foto
+                  </button>
+                  {profileFeedback ? (
+                    <AppFeedbackMessage
+                      variant={profileFeedback.variant}
+                      description={profileFeedback.message}
+                      className="mt-4"
+                    />
+                  ) : null}
+                  {error && activeErrorSection === 'profile' ? (
+                    <AppFeedbackMessage
+                      variant="error"
+                      description="No pudimos actualizar tu perfil. Intenta de nuevo."
+                      className="mt-4"
+                    />
+                  ) : null}
+                  {profilePhotoOpen ? (
+                    <div className="fixed inset-0 z-[112] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
                       <section
                         role="dialog"
                         aria-modal="true"
-                        aria-labelledby="quitar-foto-perfil-title"
-                        className="w-full max-w-[340px] rounded-[20px] bg-white p-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.28)] dark:bg-slate-900"
+                        aria-labelledby="editar-foto-perfil-title"
+                        className="w-full max-w-[380px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        <h5
-                          id="quitar-foto-perfil-title"
-                          className="text-lg font-black text-slate-950 dark:text-slate-100"
-                        >
-                          ¿Quitar la foto de perfil?
-                        </h5>
-                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                          Se volverá a mostrar la inicial de tu nombre.
-                        </p>
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <h4
+                              id="editar-foto-perfil-title"
+                              className="text-lg font-black text-slate-950 dark:text-slate-100"
+                            >
+                              Editar foto
+                            </h4>
+                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                              Revisa la vista previa antes de guardar.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicionFotoPerfil}
+                            disabled={profileAvatarBusy}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                            aria-label="Cerrar edición de foto"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <div className="h-28 w-28 overflow-hidden rounded-full bg-[#eef4ff] p-1 ring-1 ring-[#dbe6ff] dark:bg-slate-800 dark:ring-slate-700">
+                            {currentAvatarUrl ? (
+                              <img
+                                src={currentAvatarUrl}
+                                alt="Foto de perfil"
+                                onLoad={handleAvatarImageLoad}
+                                onError={handleAvatarImageError}
+                                className="h-full w-full rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center rounded-full bg-[#eaf0ff] text-2xl font-black text-[#102d92]">
+                                {getInitials(
+                                  profile.nombre || company.nombreEmpresa,
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">
+                            La foto se guardará solo cuando pulses Guardar
+                            cambios.
+                          </p>
+                        </div>
+                        {avatarFeedback ? (
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            className={`mt-4 rounded-[14px] px-3 py-2 text-sm font-bold ${
+                              avatarFeedback.type === 'success'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200'
+                            }`}
+                          >
+                            {avatarFeedback.message}
+                          </div>
+                        ) : null}
                         <div className="mt-5 grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => setProfileAvatarRemoveConfirmOpen(false)}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                            onClick={() => {
+                              if (avatarInputRef.current) {
+                                avatarInputRef.current.value = '';
+                                avatarInputRef.current.click();
+                              }
+                            }}
+                            disabled={profileAvatarBusy}
+                            className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55 dark:bg-blue-600"
                           >
-                            Conservar foto
+                            Cambiar foto
                           </button>
                           <button
                             type="button"
-                            onClick={() => void confirmarQuitarFotoPerfil()}
-                            disabled={avatarSaving}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
+                            onClick={quitarFotoPerfil}
+                            disabled={
+                              profileAvatarBusy ||
+                              (!hasSavedAvatar && !avatarPreview)
+                            }
+                            className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] transition disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                           >
-                            {avatarSaving ? 'Quitando...' : 'Quitar foto'}
+                            Quitar foto
                           </button>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void guardarFotoPerfil()}
+                            disabled={!avatarFile || avatarSaving}
+                            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            {avatarSaving ? (
+                              <LoaderCircle
+                                size={15}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Save size={15} />
+                            )}
+                            {avatarSaving
+                              ? 'Guardando foto...'
+                              : 'Guardar cambios'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicionFotoPerfil}
+                            disabled={profileAvatarBusy}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </section>
+                      {profileAvatarRemoveConfirmOpen ? (
+                        <div className="fixed inset-0 z-[113] flex items-center justify-center bg-slate-950/50 px-5 py-6">
+                          <section
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="quitar-foto-perfil-title"
+                            className="w-full max-w-[340px] rounded-[20px] bg-white p-5 text-center shadow-[0_24px_70px_rgba(15,23,42,0.28)] dark:bg-slate-900"
+                          >
+                            <h5
+                              id="quitar-foto-perfil-title"
+                              className="text-lg font-black text-slate-950 dark:text-slate-100"
+                            >
+                              ¿Quitar la foto de perfil?
+                            </h5>
+                            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                              Se volverá a mostrar la inicial de tu nombre.
+                            </p>
+                            <div className="mt-5 grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setProfileAvatarRemoveConfirmOpen(false)
+                                }
+                                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                              >
+                                Conservar foto
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void confirmarQuitarFotoPerfil()}
+                                disabled={avatarSaving}
+                                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-55"
+                              >
+                                {avatarSaving ? 'Quitando...' : 'Quitar foto'}
+                              </button>
+                            </div>
+                          </section>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {profileInfoOpen ? (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+                      <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="editar-info-perfil-title"
+                        className="max-h-[88dvh] w-full max-w-[400px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <h4
+                              id="editar-info-perfil-title"
+                              className="text-lg font-black text-slate-950 dark:text-slate-100"
+                            >
+                              Editar información
+                            </h4>
+                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                              Actualiza tus datos personales.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setProfileInfoOpen(false)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
+                            aria-label="Cerrar edición de información"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <label className={fieldLabelClass}>
+                              Nombre completo
+                            </label>
+                            <input
+                              type="text"
+                              value={profile.nombre}
+                              maxLength={PROFILE_NAME_MAX_LENGTH}
+                              onChange={(event) => {
+                                const next = event.target.value.slice(
+                                  0,
+                                  PROFILE_NAME_MAX_LENGTH,
+                                );
+                                if (
+                                  event.target.value.length >=
+                                  PROFILE_NAME_MAX_LENGTH
+                                ) {
+                                  setNombreLimitNotice(true);
+                                }
+                                setProfile((prev) => ({
+                                  ...prev,
+                                  nombre: next,
+                                }));
+                                setProfileErrors((prev) => ({
+                                  ...prev,
+                                  nombre: undefined,
+                                }));
+                                clearFeedback();
+                              }}
+                              onBlur={() => {
+                                const nombreError = validateProfileName(
+                                  profile.nombre,
+                                );
+                                setProfileErrors((prev) => ({
+                                  ...prev,
+                                  nombre: nombreError ?? undefined,
+                                }));
+                              }}
+                              className={`${fieldInputClass}`}
+                              placeholder="Nombre completo"
+                            />
+                            <div className="mt-1 flex items-center justify-between text-[11px] font-bold">
+                              <span className="text-amber-700">
+                                {nombreLimitNotice ? 'Llegaste al límite.' : ''}
+                              </span>
+                              <span className="text-slate-500">
+                                {profile.nombre.length}/
+                                {PROFILE_NAME_MAX_LENGTH}
+                              </span>
+                            </div>
+                            {profileErrors.nombre ? (
+                              <p className={fieldErrorClass}>
+                                {profileErrors.nombre}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <label className={fieldLabelClass}>
+                              Correo electrónico
+                            </label>
+                            <input
+                              type="email"
+                              value={profile.correo}
+                              maxLength={PROFILE_EMAIL_MAX_LENGTH}
+                              onChange={(event) => {
+                                const next = event.target.value.slice(
+                                  0,
+                                  PROFILE_EMAIL_MAX_LENGTH,
+                                );
+                                setProfile((prev) => ({
+                                  ...prev,
+                                  correo: next,
+                                }));
+                                setProfileErrors((prev) => ({
+                                  ...prev,
+                                  correo:
+                                    validateProfileEmail(next) ?? undefined,
+                                }));
+                                clearFeedback();
+                              }}
+                              className={`${fieldInputClass}`}
+                              placeholder="Correo electrónico"
+                            />
+                            {profileErrors.correo ? (
+                              <p className={fieldErrorClass}>
+                                {profileErrors.correo}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="mt-5">
+                            <label className={fieldLabelClass}>
+                              Número de teléfono (Opcional)
+                            </label>
+                            <p className={fieldHelpTextClass}>
+                              Puedes dejarlo vacío o escribir un número
+                              internacional válido.
+                            </p>
+                            <input
+                              type="tel"
+                              value={profile.telefono}
+                              inputMode="tel"
+                              maxLength={18}
+                              onChange={(event) => {
+                                const raw = event.target.value;
+                                const hasInvalid =
+                                  /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) ||
+                                  /[^\d\s()+-]/.test(raw);
+                                const next = formatPhoneNumber(raw);
+                                setProfile((prev) => ({
+                                  ...prev,
+                                  telefono: next,
+                                }));
+                                setProfileErrors((prev) => ({
+                                  ...prev,
+                                  telefono: hasInvalid
+                                    ? 'No uses letras ni símbolos.'
+                                    : (validateColombianPhone(next) ??
+                                      undefined),
+                                }));
+                                clearFeedback();
+                              }}
+                              className={`${fieldInputClass}`}
+                              placeholder="Ej. 300 123 4567"
+                            />
+                            {profileErrors.telefono ? (
+                              <p className={fieldErrorClass}>
+                                {profileErrors.telefono}
+                              </p>
+                            ) : null}
+                          </div>
+                          {error && activeErrorSection === 'profile' ? (
+                            <InlineGuidedError
+                              message={getAjustesGuidance(error)}
+                            />
+                          ) : null}
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => void guardarPerfil()}
+                              disabled={guardandoPerfil}
+                              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
+                            >
+                              {guardandoPerfil ? (
+                                <LoaderCircle
+                                  size={15}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Save size={15} />
+                              )}
+                              {guardandoPerfil
+                                ? 'Guardando...'
+                                : 'Guardar datos'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProfileInfoOpen(false)}
+                              className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85]"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
                       </section>
                     </div>
                   ) : null}
                 </div>
-              ) : null}
-              {profileInfoOpen ? (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
-                  <section
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="editar-info-perfil-title"
-                    className="max-h-[88dvh] w-full max-w-[400px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.24)] dark:border-slate-700 dark:bg-slate-900"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <h4
-                          id="editar-info-perfil-title"
-                          className="text-lg font-black text-slate-950 dark:text-slate-100"
-                        >
-                          Editar información
-                        </h4>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Actualiza tus datos personales.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setProfileInfoOpen(false)}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-200"
-                        aria-label="Cerrar edición de información"
-                      >
-                        <X size={17} />
-                      </button>
-                    </div>
-                    <div className="space-y-4">
-              <div>
-              <label className={fieldLabelClass}>
-                Nombre completo
-              </label>
-              <input
-                type="text"
-                value={profile.nombre}
-                maxLength={PROFILE_NAME_MAX_LENGTH}
-                onChange={(event) => {
-                  const next = event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH);
-                  if (event.target.value.length >= PROFILE_NAME_MAX_LENGTH) {
-                    setNombreLimitNotice(true);
-                  }
-                  setProfile((prev) => ({
-                    ...prev,
-                    nombre: next,
-                  }));
-                  setProfileErrors((prev) => ({
-                    ...prev,
-                    nombre: undefined,
-                  }));
-                  clearFeedback();
-                }}
-                onBlur={() => {
-                  const nombreError = validateProfileName(profile.nombre);
-                  setProfileErrors((prev) => ({
-                    ...prev,
-                    nombre: nombreError ?? undefined,
-                  }));
-                }}
-                className={`${fieldInputClass}`}
-                placeholder="Nombre completo"
-              />
-              <div className="mt-1 flex items-center justify-between text-[11px] font-bold">
-                <span className="text-amber-700">
-                  {nombreLimitNotice ? 'Llegaste al límite.' : ''}
-                </span>
-                <span className="text-slate-500">
-                  {profile.nombre.length}/{PROFILE_NAME_MAX_LENGTH}
-                </span>
-              </div>
-              {profileErrors.nombre ? (
-                <p className={fieldErrorClass}>
-                  {profileErrors.nombre}
-                </p>
-              ) : null}
-              </div>
-              <div>
-              <label className={fieldLabelClass}>
-                Correo electrónico
-              </label>
-              <input
-                type="email"
-                value={profile.correo}
-                maxLength={PROFILE_EMAIL_MAX_LENGTH}
-                onChange={(event) => {
-                  const next = event.target.value.slice(
-                    0,
-                    PROFILE_EMAIL_MAX_LENGTH,
-                  );
-                  setProfile((prev) => ({
-                    ...prev,
-                    correo: next,
-                  }));
-                  setProfileErrors((prev) => ({
-                    ...prev,
-                    correo: validateProfileEmail(next) ?? undefined,
-                  }));
-                  clearFeedback();
-                }}
-                className={`${fieldInputClass}`}
-                placeholder="Correo electrónico"
-              />
-              {profileErrors.correo ? (
-                <p className={fieldErrorClass}>
-                  {profileErrors.correo}
-                </p>
-              ) : null}
-              </div>
-              <div className="mt-5">
-              <label className={fieldLabelClass}>
-                Número de teléfono (Opcional)
-              </label>
-              <p className={fieldHelpTextClass}>
-                Puedes dejarlo vacío o escribir un número internacional válido.
-              </p>
-              <input
-                type="tel"
-                value={profile.telefono}
-                inputMode="tel"
-                maxLength={18}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  const hasInvalid = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw) || /[^\d\s()+-]/.test(raw);
-                  const next = formatPhoneNumber(raw);
-                  setProfile((prev) => ({
-                    ...prev,
-                    telefono: next,
-                  }));
-                  setProfileErrors((prev) => ({
-                    ...prev,
-                    telefono: hasInvalid
-                      ? 'No uses letras ni símbolos.'
-                      : validateColombianPhone(next) ?? undefined,
-                  }));
-                  clearFeedback();
-                }}
-                className={`${fieldInputClass}`}
-                placeholder="Ej. 300 123 4567"
-              />
-              {profileErrors.telefono ? (
-                <p className={fieldErrorClass}>
-                  {profileErrors.telefono}
-                </p>
-              ) : null}
-              </div>
-              {error && activeErrorSection === 'profile' ? (
-                <InlineGuidedError message={getAjustesGuidance(error)} />
-              ) : null}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => void guardarPerfil()}
-                  disabled={guardandoPerfil}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#1683f7] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
-                >
-                  {guardandoPerfil ? (
-                    <LoaderCircle size={15} className="animate-spin" />
-                  ) : (
-                    <Save size={15} />
-                  )}
-                  {guardandoPerfil ? 'Guardando...' : 'Guardar datos'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileInfoOpen(false)}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85]"
-                >
-                  Cancelar
-                </button>
-              </div>
-                    </div>
-                  </section>
-                </div>
-              ) : null}
-              </div>
-            </section>
+              </section>
             </div>
           ) : null}
         </section>
@@ -5595,85 +6343,92 @@ export default function Ajustes() {
               title="Sincronización offline"
               description="Revisa registros guardados sin conexión."
             >
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-[13px] border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-400/60 dark:bg-amber-500/15">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
-                      Pendientes
-                    </p>
-                    <p className="mt-1 text-lg font-black text-amber-900 dark:text-amber-100">
-                      {syncSummary.pendientes}
-                    </p>
-                  </div>
-                  <div className="rounded-[13px] border border-red-200 bg-red-50 px-3 py-2 dark:border-red-400/60 dark:bg-red-500/15">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-red-700 dark:text-red-200">
-                      Con error
-                    </p>
-                    <p className="mt-1 text-lg font-black text-red-900 dark:text-red-100">
-                      {syncSummary.errores}
-                    </p>
-                  </div>
-                  <div className="rounded-[13px] border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-400/60 dark:bg-emerald-500/15">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-200">
-                      Sincronizados
-                    </p>
-                    <p className="mt-1 text-lg font-black text-emerald-900 dark:text-emerald-100">
-                      {syncSummary.sincronizados}
-                    </p>
-                  </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-[13px] border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-400/60 dark:bg-amber-500/15">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
+                    Pendientes
+                  </p>
+                  <p className="mt-1 text-lg font-black text-amber-900 dark:text-amber-100">
+                    {syncSummary.pendientes}
+                  </p>
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void reintentarSincronizacion()}
-                    disabled={
-                      syncAllRetrying ||
-                      retryingSyncIds.length > 0 ||
-                      syncSummary.pendientes + syncSummary.errores === 0 ||
-                      isOffline
-                    }
-                    className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
-                  >
-                    {syncAllRetrying ? (
-                      <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {syncAllRetrying ? 'Reintentando...' : 'Reintentar'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearSyncedOperations}
-                    disabled={syncSummary.sincronizados === 0}
-                    className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-3 text-xs font-black text-[#334b85] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  >
-                    Limpiar sincronizados
-                  </button>
+                <div className="rounded-[13px] border border-red-200 bg-red-50 px-3 py-2 dark:border-red-400/60 dark:bg-red-500/15">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-red-700 dark:text-red-200">
+                    Con error
+                  </p>
+                  <p className="mt-1 text-lg font-black text-red-900 dark:text-red-100">
+                    {syncSummary.errores}
+                  </p>
                 </div>
+                <div className="rounded-[13px] border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-400/60 dark:bg-emerald-500/15">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-200">
+                    Sincronizados
+                  </p>
+                  <p className="mt-1 text-lg font-black text-emerald-900 dark:text-emerald-100">
+                    {syncSummary.sincronizados}
+                  </p>
+                </div>
+              </div>
 
-                {syncFeedback ? (
-                  <AppFeedbackMessage
-                    variant={syncFeedback.variant}
-                    description={syncFeedback.message}
-                    className="mt-4"
-                  />
-                ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void reintentarSincronizacion()}
+                  disabled={
+                    syncAllRetrying ||
+                    retryingSyncIds.length > 0 ||
+                    syncSummary.pendientes + syncSummary.errores === 0 ||
+                    isOffline
+                  }
+                  className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
+                >
+                  {syncAllRetrying ? (
+                    <LoaderCircle
+                      size={14}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  {syncAllRetrying ? 'Reintentando...' : 'Reintentar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSyncedOperations}
+                  disabled={syncSummary.sincronizados === 0}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-3 text-xs font-black text-[#334b85] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  Limpiar sincronizados
+                </button>
+              </div>
 
-                {syncQueue.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    {syncQueue.map((operation) => {
-                      const isRetrying = retryingSyncIds.includes(operation.idLocal);
-                      const technicalError =
-                        operation.error?.match(/property\s+[\w.]+\s+should not exist/i)?.[0] ??
-                        null;
-                      const friendlyError =
-                        operation.estado === 'ERROR'
-                          ? operation.modulo === 'VENTA'
-                            ? 'No pudimos sincronizar esta venta. Intenta nuevamente.'
-                            : operation.modulo === 'SECADO'
-                              ? 'No pudimos sincronizar este secado. Intenta nuevamente.'
-                              : 'No pudimos sincronizar este registro. Intenta nuevamente.'
-                          : null;
+              {syncFeedback ? (
+                <AppFeedbackMessage
+                  variant={syncFeedback.variant}
+                  description={syncFeedback.message}
+                  className="mt-4"
+                />
+              ) : null}
 
-                      return (
+              {syncQueue.length > 0 ? (
+                <div className="mt-4 space-y-2">
+                  {syncQueue.map((operation) => {
+                    const isRetrying = retryingSyncIds.includes(
+                      operation.idLocal,
+                    );
+                    const technicalError =
+                      operation.error?.match(
+                        /property\s+[\w.]+\s+should not exist/i,
+                      )?.[0] ?? null;
+                    const friendlyError =
+                      operation.estado === 'ERROR'
+                        ? operation.modulo === 'VENTA'
+                          ? 'No pudimos sincronizar esta venta. Intenta nuevamente.'
+                          : operation.modulo === 'SECADO'
+                            ? 'No pudimos sincronizar este secado. Intenta nuevamente.'
+                            : 'No pudimos sincronizar este registro. Intenta nuevamente.'
+                        : null;
+
+                    return (
                       <div
                         key={operation.idLocal}
                         className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
@@ -5688,12 +6443,15 @@ export default function Ajustes() {
                                   : operation.modulo}
                             </p>
                             <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">
-                              {new Date(operation.creadoEn).toLocaleString('es-CO', {
-                                day: '2-digit',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
+                              {new Date(operation.creadoEn).toLocaleString(
+                                'es-CO',
+                                {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                },
+                              )}
                             </p>
                           </div>
                           <span
@@ -5718,13 +6476,17 @@ export default function Ajustes() {
                         </div>
                         {operation.error ? (
                           <div className="mt-2 rounded-[10px] border border-red-100 bg-red-50 px-2.5 py-2 text-[11px] font-semibold leading-4 text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-100">
-                            <p>{technicalError ? friendlyError : operation.error}</p>
+                            <p>
+                              {technicalError ? friendlyError : operation.error}
+                            </p>
                             {technicalError ? (
                               <details className="mt-1 text-red-700 dark:text-red-200">
                                 <summary className="cursor-pointer font-black">
                                   Detalle técnico
                                 </summary>
-                                <p className="mt-1 break-words">{technicalError}</p>
+                                <p className="mt-1 break-words">
+                                  {technicalError}
+                                </p>
                               </details>
                             ) : null}
                           </div>
@@ -5733,12 +6495,20 @@ export default function Ajustes() {
                           <div className="mt-2 flex gap-2">
                             <button
                               type="button"
-                              onClick={() => void reintentarOperacionSync(operation)}
-                              disabled={isRetrying || syncAllRetrying || isOffline}
+                              onClick={() =>
+                                void reintentarOperacionSync(operation)
+                              }
+                              disabled={
+                                isRetrying || syncAllRetrying || isOffline
+                              }
                               className="inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-[10px] bg-[#102d92] px-3 py-1.5 text-[11px] font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
                             >
                               {isRetrying ? (
-                                <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
+                                <LoaderCircle
+                                  size={13}
+                                  className="animate-spin"
+                                  aria-hidden="true"
+                                />
                               ) : null}
                               {isRetrying ? 'Reintentando...' : 'Reintentar'}
                             </button>
@@ -5754,14 +6524,14 @@ export default function Ajustes() {
                         ) : null}
                       </div>
                     );
-                    })}
-                  </div>
-                ) : (
-                  <CafeSmartEmptyState
-                    title="Todo está sincronizado"
-                    description="No hay operaciones pendientes en este dispositivo."
-                  />
-                )}
+                  })}
+                </div>
+              ) : (
+                <CafeSmartEmptyState
+                  title="Todo está sincronizado"
+                  description="No hay operaciones pendientes en este dispositivo."
+                />
+              )}
             </CafeSmartModal>
           ) : null}
           <CafeSmartModal
@@ -5777,7 +6547,8 @@ export default function Ajustes() {
                 <Trash2 size={18} aria-hidden="true" />
               </span>
               <p className="text-sm font-semibold leading-5 text-red-900 dark:text-red-100">
-                Elimina solo si ya no quieres intentar sincronizar este registro.
+                Elimina solo si ya no quieres intentar sincronizar este
+                registro.
               </p>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 max-[330px]:grid-cols-1">
@@ -5809,305 +6580,344 @@ export default function Ajustes() {
               <div className="relative flex max-h-[min(72dvh,760px)] w-full flex-col overflow-hidden bg-white">
                 <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-[#cfd8e6]" />
                 <div className="shrink-0 px-4 pb-3 pt-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-black text-slate-950">
-                    Proceso de secado
-                  </h3>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                    Revisa secados activos o inicia un nuevo proceso.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSecadoPanel(null)}
-                  aria-label="Cerrar panel de secado"
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-950">
+                        Proceso de secado
+                      </h3>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                        Revisa secados activos o inicia un nuevo proceso.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSecadoPanel(null)}
+                      aria-label="Cerrar panel de secado"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecadoError(null);
-                    setSecadoPanel('active');
-                    setSecadoSessionsVersion((current) => current + 1);
-                  }}
-                  className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
-                    secadoPanel === 'active'
-                      ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
-                      : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
-                  }`}
-                  {...ariaPressed(secadoPanel === 'active')}
-                >
-                  <CircleDashed size={15} />
-                  Ver secados activos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void cargarPanelSecadoInicio()}
-                  className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
-                    secadoPanel === 'start'
-                      ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
-                      : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
-                  }`}
-                  {...ariaPressed(secadoPanel === 'start')}
-                >
-                  <Droplets size={15} />
-                  Iniciar secado
-                </button>
-              </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSecadoError(null);
+                        setSecadoPanel('active');
+                        setSecadoSessionsVersion((current) => current + 1);
+                      }}
+                      className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
+                        secadoPanel === 'active'
+                          ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                          : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
+                      }`}
+                      {...ariaPressed(secadoPanel === 'active')}
+                    >
+                      <CircleDashed size={15} />
+                      Ver secados activos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void cargarPanelSecadoInicio()}
+                      className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[13px] px-3 text-xs font-black transition ${
+                        secadoPanel === 'start'
+                          ? 'border border-blue-700 bg-blue-700 text-white shadow-sm dark:border-blue-500 dark:bg-blue-600 dark:text-white'
+                          : 'border border-slate-300 bg-white text-slate-800 hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-blue-500/40'
+                      }`}
+                      {...ariaPressed(secadoPanel === 'start')}
+                    >
+                      <Droplets size={15} />
+                      Iniciar secado
+                    </button>
+                  </div>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
-
-              {secadoLoading ? (
-                <div className="mt-3 space-y-2">
-                  {[0, 1, 2].map((item) => (
-                    <div key={item} className="h-14 animate-pulse rounded-[14px] bg-[#eef2f7]" />
-                  ))}
-                </div>
-              ) : null}
-
-              {secadoError ? (
-                <AppFeedbackMessage
-                  variant="error"
-                  description={secadoError}
-                  className="mt-3"
-                />
-              ) : null}
-
-              {!secadoLoading && secadoPanel === 'home' ? (
-                <div className="mt-3 rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
-                  Elige una acción para revisar procesos activos o preparar un nuevo secado.
-                </div>
-              ) : null}
-
-              {!secadoLoading && secadoPanel === 'start' ? (
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-black text-slate-950">
-                      Iniciar secado
-                    </h4>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Selecciona los sublotes de café verde.
-                    </p>
-                  </div>
-                  {secadoLotes.length > 1 ? (
-                    <label className="block">
-                      <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                        Lote verde
-                      </span>
-                      <SmartSelect
-                        value={secadoLoteKey}
-                        onChange={(event) => void cargarDetalleSecadoInline(event.target.value)}
-                      >
-                        {secadoLotes.map((lote) => (
-                          <option
-                            key={`${lote.tipoCafeId}:${lote.calidadId}`}
-                            value={`${lote.tipoCafeId}:${lote.calidadId}`}
-                          >
-                            {getCoffeeCodePrefix(lote)} · {formatCoffeeFullName(lote)} - {formatSecadoKg(lote.pesoActual)}
-                          </option>
-                        ))}
-                      </SmartSelect>
-                    </label>
+                  {secadoLoading ? (
+                    <div className="mt-3 space-y-2">
+                      {[0, 1, 2].map((item) => (
+                        <div
+                          key={item}
+                          className="h-14 animate-pulse rounded-[14px] bg-[#eef2f7]"
+                        />
+                      ))}
+                    </div>
                   ) : null}
 
-                  {sublotesSecadoDisponibles.length === 0 ? (
-                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
-                      No hay sublotes verdes disponibles para iniciar secado.
+                  {secadoError ? (
+                    <AppFeedbackMessage
+                      variant="error"
+                      description={secadoError}
+                      className="mt-3"
+                    />
+                  ) : null}
+
+                  {!secadoLoading && secadoPanel === 'home' ? (
+                    <div className="mt-3 rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
+                      Elige una acción para revisar procesos activos o preparar
+                      un nuevo secado.
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {sublotesSecadoDisponibles.map((sublote, index) => {
-                        const checked = (secadoWeights[sublote.id] ?? 0) > 0;
-                        const visualCode = formatSubloteVisualCode(sublote, index);
-                        const fullName = formatCoffeeFullName(sublote);
-                        return (
-                          <article
-                            key={sublote.id}
-                            title={`${visualCode} · ${fullName}`}
-                            className={`rounded-[14px] border px-3 py-2.5 ${
-                              checked
-                                ? 'border-[#c9d7ff] bg-[#f5f8ff]'
-                                : 'border-[#e5e9f5] bg-white'
-                            }`}
+                  ) : null}
+
+                  {!secadoLoading && secadoPanel === 'start' ? (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-950">
+                          Iniciar secado
+                        </h4>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                          Selecciona los sublotes de café verde.
+                        </p>
+                      </div>
+                      {secadoLotes.length > 1 ? (
+                        <label className="block">
+                          <span className="mb-1 block text-[0.64rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                            Lote verde
+                          </span>
+                          <SmartSelect
+                            value={secadoLoteKey}
+                            onChange={(event) =>
+                              void cargarDetalleSecadoInline(event.target.value)
+                            }
                           >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(event) =>
-                                  setSecadoWeights((current) => {
-                                    const next = { ...current };
-                                    if (event.target.checked) {
-                                      next[sublote.id] = sublote.pesoActual;
-                                    } else {
-                                      delete next[sublote.id];
+                            {secadoLotes.map((lote) => (
+                              <option
+                                key={`${lote.tipoCafeId}:${lote.calidadId}`}
+                                value={`${lote.tipoCafeId}:${lote.calidadId}`}
+                              >
+                                {getCoffeeCodePrefix(lote)} ·{' '}
+                                {formatCoffeeFullName(lote)} -{' '}
+                                {formatSecadoKg(lote.pesoActual)}
+                              </option>
+                            ))}
+                          </SmartSelect>
+                        </label>
+                      ) : null}
+
+                      {sublotesSecadoDisponibles.length === 0 ? (
+                        <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center text-xs font-bold text-slate-500">
+                          No hay sublotes verdes disponibles para iniciar
+                          secado.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {sublotesSecadoDisponibles.map((sublote, index) => {
+                            const checked =
+                              (secadoWeights[sublote.id] ?? 0) > 0;
+                            const visualCode = formatSubloteVisualCode(
+                              sublote,
+                              index,
+                            );
+                            const fullName = formatCoffeeFullName(sublote);
+                            return (
+                              <article
+                                key={sublote.id}
+                                title={`${visualCode} · ${fullName}`}
+                                className={`rounded-[14px] border px-3 py-2.5 ${
+                                  checked
+                                    ? 'border-[#c9d7ff] bg-[#f5f8ff]'
+                                    : 'border-[#e5e9f5] bg-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(event) =>
+                                      setSecadoWeights((current) => {
+                                        const next = { ...current };
+                                        if (event.target.checked) {
+                                          next[sublote.id] = sublote.pesoActual;
+                                        } else {
+                                          delete next[sublote.id];
+                                        }
+                                        return next;
+                                      })
                                     }
-                                    return next;
-                                  })
-                                }
-                                className="h-4 w-4 accent-[#102d92]"
-                                aria-label={`Seleccionar ${visualCode} ${fullName}`}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-black text-slate-950">
-                                  {visualCode}
-                                </p>
+                                    className="h-4 w-4 accent-[#102d92]"
+                                    aria-label={`Seleccionar ${visualCode} ${fullName}`}
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-black text-slate-950">
+                                      {visualCode}
+                                    </p>
+                                    <p className="text-[0.66rem] font-semibold text-slate-500">
+                                      {fullName} ·{' '}
+                                      {formatSecadoKg(sublote.pesoActual)}
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    aria-label={`Kilos a secar de ${visualCode} ${fullName}`}
+                                    title={`Kilos a secar de ${visualCode}`}
+                                    inputMode="decimal"
+                                    min="0"
+                                    max={sublote.pesoActual}
+                                    step="0.1"
+                                    value={secadoWeights[sublote.id] ?? ''}
+                                    onChange={(event) => {
+                                      const value = Number(event.target.value);
+                                      setSecadoWeights((current) => {
+                                        if (
+                                          !Number.isFinite(value) ||
+                                          value <= 0
+                                        ) {
+                                          const next = { ...current };
+                                          delete next[sublote.id];
+                                          return next;
+                                        }
+                                        return {
+                                          ...current,
+                                          [sublote.id]: Math.min(
+                                            value,
+                                            sublote.pesoActual,
+                                          ),
+                                        };
+                                      });
+                                    }}
+                                    className="h-9 w-20 rounded-[10px] border border-[#dbe2f0] bg-white px-2 text-right text-xs font-black text-slate-800"
+                                  />
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
+                        Total seleccionado:{' '}
+                        {formatSecadoKg(totalSecadoSeleccionado)}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={totalSecadoSeleccionado <= 0}
+                        onClick={iniciarSecadoInline}
+                        className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        <CheckCircle2 size={15} />
+                        Iniciar secado
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {!secadoLoading && secadoPanel === 'active' ? (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-950">
+                          Secados activos
+                        </h4>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                          Café en proceso de secado.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 rounded-[14px] border border-[#e3e8f2] bg-[#f8faff] p-2">
+                        <label className="block">
+                          <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                            Orden
+                          </span>
+                          <SmartSelect
+                            value={secadoSortMode}
+                            onChange={(event) =>
+                              setSecadoSortMode(
+                                event.target.value as SecadoSortMode,
+                              )
+                            }
+                            className="h-9 rounded-[11px] text-[0.66rem]"
+                          >
+                            <option value="recent">Más recientes</option>
+                            <option value="oldest">Más antiguos</option>
+                          </SmartSelect>
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                            Calidad
+                          </span>
+                          <SmartSelect
+                            value={secadoQualityFilter}
+                            onChange={(event) =>
+                              setSecadoQualityFilter(
+                                event.target.value as SecadoQualityFilter,
+                              )
+                            }
+                            className="h-9 rounded-[11px] text-[0.66rem]"
+                          >
+                            <option value="TODOS">Todos</option>
+                            <option value="BUENO">Bueno</option>
+                            <option value="REGULAR">Regular</option>
+                            <option value="MALO">Malo</option>
+                          </SmartSelect>
+                        </label>
+                      </div>
+                      {secadosActivosInline.length === 0 ? (
+                        <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center">
+                          <Package2
+                            size={18}
+                            className="mx-auto text-slate-400"
+                          />
+                          <p className="mt-2 text-xs font-black text-slate-700">
+                            No hay secados activos
+                          </p>
+                        </div>
+                      ) : (
+                        secadosActivosInline.map((session) => (
+                          <article
+                            key={session.id}
+                            title={`${getCoffeeCodePrefix(session)} · ${formatCoffeeFullName(session)}`}
+                            className="rounded-[14px] border border-[#c7d8ff] bg-[#f4f8ff] px-3 py-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.66rem] font-black text-[#102d92]">
+                                    {getCoffeeCodePrefix(session)}
+                                  </span>
+                                  <p className="truncate text-sm font-black text-[#102d92]">
+                                    {formatCoffeeFullName(session)}
+                                  </p>
+                                </div>
                                 <p className="text-[0.66rem] font-semibold text-slate-500">
-                                  {fullName} · {formatSecadoKg(sublote.pesoActual)}
+                                  {session.sublotes.length} sublotes ·{' '}
+                                  {formatSecadoKg(
+                                    session.sublotes.reduce(
+                                      (sum, item) => sum + item.pesoActual,
+                                      0,
+                                    ),
+                                  )}
                                 </p>
                               </div>
-                              <input
-                                type="number"
-                                aria-label={`Kilos a secar de ${visualCode} ${fullName}`}
-                                title={`Kilos a secar de ${visualCode}`}
-                                inputMode="decimal"
-                                min="0"
-                                max={sublote.pesoActual}
-                                step="0.1"
-                                value={secadoWeights[sublote.id] ?? ''}
-                                onChange={(event) => {
-                                  const value = Number(event.target.value);
-                                  setSecadoWeights((current) => {
-                                    if (!Number.isFinite(value) || value <= 0) {
-                                      const next = { ...current };
-                                      delete next[sublote.id];
-                                      return next;
-                                    }
-                                    return {
-                                      ...current,
-                                      [sublote.id]: Math.min(value, sublote.pesoActual),
-                                    };
-                                  });
-                                }}
-                                className="h-9 w-20 rounded-[10px] border border-[#dbe2f0] bg-white px-2 text-right text-xs font-black text-slate-800"
+                              <CircleDashed
+                                size={17}
+                                className="shrink-0 text-[#102d92]"
                               />
                             </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  `/inventario/secado/${session.id}/finalizar?step=finish`,
+                                  {
+                                    state: { from: '/ajustes' },
+                                  },
+                                )
+                              }
+                              className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white"
+                            >
+                              Finalizar secado
+                            </button>
                           </article>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="rounded-[14px] bg-[#eef4ff] px-3 py-2 text-sm font-black text-[#102d92]">
-                    Total seleccionado: {formatSecadoKg(totalSecadoSeleccionado)}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={totalSecadoSeleccionado <= 0}
-                    onClick={iniciarSecadoInline}
-                    className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[13px] bg-[#102d92] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    <CheckCircle2 size={15} />
-                    Iniciar secado
-                  </button>
-                </div>
-              ) : null}
-
-              {!secadoLoading && secadoPanel === 'active' ? (
-                <div className="mt-3 space-y-2">
-                  <div>
-                    <h4 className="text-sm font-black text-slate-950">
-                      Secados activos
-                    </h4>
-                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Café en proceso de secado.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 rounded-[14px] border border-[#e3e8f2] bg-[#f8faff] p-2">
-                    <label className="block">
-                      <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                        Orden
-                      </span>
-                      <SmartSelect
-                        value={secadoSortMode}
-                        onChange={(event) =>
-                          setSecadoSortMode(event.target.value as SecadoSortMode)
+                        ))
+                      )}
+                      <RefreshButton
+                        onClick={() =>
+                          setSecadoSessionsVersion((current) => current + 1)
                         }
-                        className="h-9 rounded-[11px] text-[0.66rem]"
+                        aria-label="Actualizar lista"
                       >
-                        <option value="recent">Más recientes</option>
-                        <option value="oldest">Más antiguos</option>
-                      </SmartSelect>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                        Calidad
-                      </span>
-                      <SmartSelect
-                        value={secadoQualityFilter}
-                        onChange={(event) =>
-                          setSecadoQualityFilter(
-                            event.target.value as SecadoQualityFilter,
-                          )
-                        }
-                        className="h-9 rounded-[11px] text-[0.66rem]"
-                      >
-                        <option value="TODOS">Todos</option>
-                        <option value="BUENO">Bueno</option>
-                        <option value="REGULAR">Regular</option>
-                        <option value="MALO">Malo</option>
-                      </SmartSelect>
-                    </label>
-                  </div>
-                  {secadosActivosInline.length === 0 ? (
-                    <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-center">
-                      <Package2 size={18} className="mx-auto text-slate-400" />
-                      <p className="mt-2 text-xs font-black text-slate-700">
-                        No hay secados activos
-                      </p>
+                        Actualizar lista
+                      </RefreshButton>
                     </div>
-                  ) : (
-                    secadosActivosInline.map((session) => (
-                      <article
-                        key={session.id}
-                        title={`${getCoffeeCodePrefix(session)} · ${formatCoffeeFullName(session)}`}
-                        className="rounded-[14px] border border-[#c7d8ff] bg-[#f4f8ff] px-3 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="inline-flex shrink-0 rounded-[9px] border border-[#c7d8ff] bg-white px-2 py-1 text-[0.66rem] font-black text-[#102d92]">
-                                {getCoffeeCodePrefix(session)}
-                              </span>
-                              <p className="truncate text-sm font-black text-[#102d92]">
-                                {formatCoffeeFullName(session)}
-                              </p>
-                            </div>
-                            <p className="text-[0.66rem] font-semibold text-slate-500">
-                              {session.sublotes.length} sublotes · {formatSecadoKg(session.sublotes.reduce((sum, item) => sum + item.pesoActual, 0))}
-                            </p>
-                          </div>
-                          <CircleDashed size={17} className="shrink-0 text-[#102d92]" />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(`/inventario/secado/${session.id}/finalizar?step=finish`, {
-                              state: { from: '/ajustes' },
-                            })
-                          }
-                          className="mt-3 inline-flex min-h-[38px] w-full items-center justify-center rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white"
-                        >
-                          Finalizar secado
-                        </button>
-                      </article>
-                    ))
-                  )}
-                  <RefreshButton
-                    onClick={() => setSecadoSessionsVersion((current) => current + 1)}
-                    aria-label="Actualizar lista"
-                  >
-                    Actualizar lista
-                  </RefreshButton>
-                </div>
-              ) : null}
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -6130,7 +6940,12 @@ export default function Ajustes() {
                   Tema visual
                 </span>
                 <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-slate-500 dark:text-slate-300">
-                  Actual: {theme === 'system' ? 'Sistema' : resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'}
+                  Actual:{' '}
+                  {theme === 'system'
+                    ? 'Sistema'
+                    : resolvedTheme === 'dark'
+                      ? 'Oscuro'
+                      : 'Claro'}
                 </span>
               </span>
               <ChevronRight
@@ -6155,7 +6970,9 @@ export default function Ajustes() {
                   title={`${item.title}: ${item.status}`}
                   className="flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition hover:border-[#cfd8ee] hover:bg-[#fbfcff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:hover:border-slate-500 dark:hover:bg-slate-800"
                 >
-                  <span className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}>
+                  <span
+                    className={`inline-flex rounded-lg p-2 ${item.iconStyle}`}
+                  >
                     <Icon size={14} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -6194,7 +7011,7 @@ export default function Ajustes() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block whitespace-normal text-sm font-semibold leading-5 text-slate-900 dark:text-slate-50">
-                  IA asistente 
+                  IA asistente
                 </span>
                 <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-slate-500 dark:text-slate-200">
                   Consulta tu negocio
@@ -6380,152 +7197,173 @@ export default function Ajustes() {
                 </button>
               </div>
               <div className="mt-4 space-y-3">
-              {limitNotice ? (
-                <AppFeedbackMessage variant="warning" description={limitNotice} />
-              ) : null}
-              <label htmlFor="settings-business-name" className="block">
-                <span className={fieldLabelClass}>
-                  Nombre del negocio
-                </span>
-                <input
-                  id="settings-business-name"
-                  type="text"
-                  value={company.nombreEmpresa}
-                  onChange={(event) => {
-                    setCompany((prev) => ({
-                      ...prev,
-                      nombreEmpresa: event.target.value.slice(0, BUSINESS_NAME_MAX_LENGTH),
-                    }));
-                    if (event.target.value.length >= BUSINESS_NAME_MAX_LENGTH) {
-                      showLimitNotice('Llegaste al máximo de caracteres.');
+                {limitNotice ? (
+                  <AppFeedbackMessage
+                    variant="warning"
+                    description={limitNotice}
+                  />
+                ) : null}
+                <label htmlFor="settings-business-name" className="block">
+                  <span className={fieldLabelClass}>Nombre del negocio</span>
+                  <input
+                    id="settings-business-name"
+                    type="text"
+                    value={company.nombreEmpresa}
+                    onChange={(event) => {
+                      setCompany((prev) => ({
+                        ...prev,
+                        nombreEmpresa: event.target.value.slice(
+                          0,
+                          BUSINESS_NAME_MAX_LENGTH,
+                        ),
+                      }));
+                      if (
+                        event.target.value.length >= BUSINESS_NAME_MAX_LENGTH
+                      ) {
+                        showLimitNotice('Llegaste al máximo de caracteres.');
+                      }
+                      clearFeedback();
+                    }}
+                    onBlur={() => {
+                      const validation = validateCompanyName(
+                        company.nombreEmpresa,
+                      );
+                      const message = validation.isValid
+                        ? validateBusinessName(company.nombreEmpresa)
+                        : validation.message;
+                      if (message) {
+                        setError(message);
+                        setFloatingError(getAjustesGuidance(message));
+                      }
+                    }}
+                    maxLength={BUSINESS_NAME_MAX_LENGTH}
+                    className={fieldInputClass}
+                    placeholder="Nombre del negocio"
+                  />
+                </label>
+                <div className="-mt-1 flex justify-end">
+                  <span
+                    className={`text-xs font-bold ${
+                      company.nombreEmpresa.length >= BUSINESS_NAME_MAX_LENGTH
+                        ? 'text-amber-600 dark:text-amber-300'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {company.nombreEmpresa.length}/{BUSINESS_NAME_MAX_LENGTH}
+                  </span>
+                </div>
+                <label htmlFor="settings-business-type" className="block">
+                  <span className={fieldLabelClass}>Tipo de negocio</span>
+                  <SmartSelect
+                    id="settings-business-type"
+                    value={company.tipoEmpresa}
+                    onChange={(event) => {
+                      setCompany((prev) => ({
+                        ...prev,
+                        tipoEmpresa: event.target.value,
+                      }));
+                      clearFeedback();
+                    }}
+                    className="text-sm"
+                  >
+                    <option value="">Seleccionar tipo</option>
+                    <option value="COMPRAVENTA">Compraventa</option>
+                    <option value="COOPERATIVA">Cooperativa</option>
+                    <option value="OTRO">Personalizado</option>
+                  </SmartSelect>
+                </label>
+                <label
+                  htmlFor="settings-business-description"
+                  className="block"
+                >
+                  <span className={fieldLabelClass}>
+                    Describe cómo opera tu negocio. (Opcional)
+                  </span>
+                  <textarea
+                    id="settings-business-description"
+                    value={company.descripcion}
+                    onChange={(event) => {
+                      setCompany((prev) => ({
+                        ...prev,
+                        descripcion: event.target.value.slice(
+                          0,
+                          BUSINESS_DESCRIPTION_MAX_LENGTH,
+                        ),
+                      }));
+                      if (
+                        event.target.value.length >=
+                        BUSINESS_DESCRIPTION_MAX_LENGTH
+                      ) {
+                        showLimitNotice('Llegaste al máximo de caracteres.');
+                      }
+                      clearFeedback();
+                    }}
+                    maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
+                    className={fieldTextareaClass}
+                    rows={3}
+                    placeholder="Ej: Laboratorio de finca que evalúa muestras de café y registra calidad."
+                  />
+                </label>
+                <div className="-mt-1 flex justify-end">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {company.descripcion.length}/
+                    {BUSINESS_DESCRIPTION_MAX_LENGTH}
+                  </span>
+                </div>
+                {error && activeErrorSection === 'company' ? (
+                  <InlineGuidedError message={getAjustesGuidance(error)} />
+                ) : null}
+                {success?.startsWith('Negocio actualizado') ? (
+                  <AppFeedbackMessage
+                    variant="success"
+                    title="Negocio actualizado correctamente"
+                    description="Los cambios ya están disponibles en tu perfil."
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setSuccess(null)}
+                        aria-label="Cerrar aviso"
+                      >
+                        <X size={14} />
+                      </button>
                     }
-                    clearFeedback();
-                  }}
-                  onBlur={() => {
-                    const validation = validateCompanyName(company.nombreEmpresa);
-                    const message = validation.isValid
-                      ? validateBusinessName(company.nombreEmpresa)
-                      : validation.message;
-                    if (message) {
-                      setError(message);
-                      setFloatingError(getAjustesGuidance(message));
-                    }
-                  }}
-                  maxLength={BUSINESS_NAME_MAX_LENGTH}
-                  className={fieldInputClass}
-                  placeholder="Nombre del negocio"
-                />
-              </label>
-              <div className="-mt-1 flex justify-end">
-                <span
-                  className={`text-xs font-bold ${
-                    company.nombreEmpresa.length >= BUSINESS_NAME_MAX_LENGTH
-                      ? 'text-amber-600 dark:text-amber-300'
-                      : 'text-slate-500 dark:text-slate-400'
-                  }`}
-                >
-                  {company.nombreEmpresa.length}/{BUSINESS_NAME_MAX_LENGTH}
-                </span>
+                  />
+                ) : null}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={guardarEmpresa}
+                    disabled={guardandoEmpresa}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
+                  >
+                    {guardandoEmpresa ? (
+                      <LoaderCircle size={15} className="animate-spin" />
+                    ) : (
+                      <Save size={15} />
+                    )}
+                    {guardandoEmpresa
+                      ? 'Guardando negocio...'
+                      : 'Guardar negocio'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cerrarEditorEmpresa}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </div>
-              <label htmlFor="settings-business-type" className="block">
-                <span className={fieldLabelClass}>
-                  Tipo de negocio
-                </span>
-                <SmartSelect
-                  id="settings-business-type"
-                  value={company.tipoEmpresa}
-                  onChange={(event) => {
-                    setCompany((prev) => ({
-                      ...prev,
-                      tipoEmpresa: event.target.value,
-                    }));
-                    clearFeedback();
-                  }}
-                  className="text-sm"
-                >
-                  <option value="">Seleccionar tipo</option>
-                  <option value="COMPRAVENTA">Compraventa</option>
-                  <option value="COOPERATIVA">Cooperativa</option>
-                  <option value="OTRO">Personalizado</option>
-                </SmartSelect>
-              </label>
-              <label htmlFor="settings-business-description" className="block">
-                <span className={fieldLabelClass}>
-                  Describe cómo opera tu negocio. (Opcional)
-                </span>
-                <textarea
-                  id="settings-business-description"
-                  value={company.descripcion}
-                  onChange={(event) => {
-                    setCompany((prev) => ({
-                      ...prev,
-                      descripcion: event.target.value.slice(
-                        0,
-                        BUSINESS_DESCRIPTION_MAX_LENGTH,
-                      ),
-                    }));
-                    if (event.target.value.length >= BUSINESS_DESCRIPTION_MAX_LENGTH) {
-                      showLimitNotice('Llegaste al máximo de caracteres.');
-                    }
-                    clearFeedback();
-                  }}
-                  maxLength={BUSINESS_DESCRIPTION_MAX_LENGTH}
-                  className={fieldTextareaClass}
-                  rows={3}
-                  placeholder="Ej: Laboratorio de finca que evalúa muestras de café y registra calidad."
-                />
-              </label>
-              <div className="-mt-1 flex justify-end">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {company.descripcion.length}/{BUSINESS_DESCRIPTION_MAX_LENGTH}
-                </span>
-              </div>
-              {error && activeErrorSection === 'company' ? (
-                <InlineGuidedError message={getAjustesGuidance(error)} />
-              ) : null}
-              {success?.startsWith('Negocio actualizado') ? (
-                <AppFeedbackMessage
-                  variant="success"
-                  title="Negocio actualizado correctamente"
-                  description="Los cambios ya están disponibles en tu perfil."
-                  action={
-                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
-                      <X size={14} />
-                    </button>
-                  }
-                />
-              ) : null}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={guardarEmpresa}
-                  disabled={guardandoEmpresa}
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 py-2.5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70"
-                >
-                  {guardandoEmpresa ? (
-                    <LoaderCircle size={15} className="animate-spin" />
-                  ) : (
-                    <Save size={15} />
-                  )}
-                  {guardandoEmpresa ? 'Guardando negocio...' : 'Guardar negocio'}
-                </button>
-                <button
-                  type="button"
-                  onClick={cerrarEditorEmpresa}
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 py-2.5 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
+            </section>
+          </div>
         ) : null}
 
-              {error && !activeErrorSection && !isEditingBodega && !isEditingLimites ? (
+        {error &&
+        !activeErrorSection &&
+        !isEditingBodega &&
+        !isEditingLimites ? (
           <InlineGuidedError message={getAjustesGuidance(error)} />
         ) : null}
-
       </div>
 
       {isEditingBodega ? (
@@ -6546,30 +7384,33 @@ export default function Ajustes() {
                     <ArrowLeft size={18} />
                   </button>
                   <div className="min-w-0">
-                <h3 id="bodegas-title" className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100">
-                  Bodegas
-                </h3>
-                <p className="mt-1 text-[0.78rem] font-semibold text-slate-500 dark:text-slate-300">
-                  Administra los puntos de almacenamiento de tu negocio.
-                </p>
+                    <h3
+                      id="bodegas-title"
+                      className="text-[1.25rem] font-semibold leading-tight text-[#111827] dark:text-slate-100"
+                    >
+                      Bodegas
+                    </h3>
+                    <p className="mt-1 text-[0.78rem] font-semibold text-slate-500 dark:text-slate-300">
+                      Administra los puntos de almacenamiento de tu negocio.
+                    </p>
                   </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void cargarBodegas()}
+                    disabled={bodegasLoading}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d5deee] bg-white text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
+                    aria-label="Recargar bodegas"
+                    title="Recargar bodegas"
+                  >
+                    <RefreshCcw
+                      size={16}
+                      className={bodegasLoading ? 'animate-spin' : ''}
+                    />
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void cargarBodegas()}
-                  disabled={bodegasLoading}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d5deee] bg-white text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
-                  aria-label="Recargar bodegas"
-                  title="Recargar bodegas"
-                >
-                  <RefreshCcw
-                    size={16}
-                    className={bodegasLoading ? 'animate-spin' : ''}
-                  />
-                </button>
-              </div>
-            </div>
             </header>
 
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 pb-[calc(env(safe-area-inset-bottom)+92px)]">
@@ -6608,7 +7449,10 @@ export default function Ajustes() {
               </button>
 
               <p className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[0.62rem] font-semibold text-slate-500 dark:text-slate-400">
-                <CalendarDays size={12} className="text-[#102d92] dark:text-blue-300" />
+                <CalendarDays
+                  size={12}
+                  className="text-[#102d92] dark:text-blue-300"
+                />
                 Última actualización: {formatDate(updatedAt)}
               </p>
 
@@ -6656,7 +7500,8 @@ export default function Ajustes() {
                             </span>
                           </div>
                           <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                            {bodega.ubicacion?.trim() || 'Sin ubicación registrada'}
+                            {bodega.ubicacion?.trim() ||
+                              'Sin ubicación registrada'}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
@@ -6697,7 +7542,8 @@ export default function Ajustes() {
                             Capacidad
                           </p>
                           <p className="mt-1 text-[0.72rem] font-black text-slate-950 dark:text-slate-100">
-                            {formatKg(bodega.cafeAlmacenadoKg)} / {formatKg(bodega.capacidadMaxKg)} kg
+                            {formatKg(bodega.cafeAlmacenadoKg)} /{' '}
+                            {formatKg(bodega.capacidadMaxKg)} kg
                           </p>
                         </div>
                         <div className="rounded-[12px] bg-white px-2.5 py-2 dark:bg-slate-900">
@@ -6720,7 +7566,9 @@ export default function Ajustes() {
                       <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
                           className="h-full rounded-full bg-[#102d92] dark:bg-blue-500"
-                          style={{ width: `${Math.min(100, Math.max(0, bodega.ocupacionPct))}%` }}
+                          style={{
+                            width: `${Math.min(100, Math.max(0, bodega.ocupacionPct))}%`,
+                          }}
                         />
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -6787,7 +7635,12 @@ export default function Ajustes() {
                   <div className="mt-8">
                     <div className="flex items-center justify-between text-[1.05rem] font-medium text-slate-900 dark:text-slate-100">
                       <span>
-                        Paso {bodegaWizardStep}: {bodegaWizardStep === 1 ? 'Información' : bodegaWizardStep === 2 ? 'Límites' : 'Alertas'}
+                        Paso {bodegaWizardStep}:{' '}
+                        {bodegaWizardStep === 1
+                          ? 'Información'
+                          : bodegaWizardStep === 2
+                            ? 'Límites'
+                            : 'Alertas'}
                       </span>
                       <span>{bodegaWizardStep} de 3</span>
                     </div>
@@ -6820,7 +7673,10 @@ export default function Ajustes() {
                     />
                   ) : null}
                   {limitNotice ? (
-                    <AppFeedbackMessage variant="warning" description={limitNotice} />
+                    <AppFeedbackMessage
+                      variant="warning"
+                      description={limitNotice}
+                    />
                   ) : null}
                   {bodegaWizardStep === 1 ? (
                     <div className="space-y-4 rounded-[24px] border border-[#e3e9f5] bg-[#fbfcff] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
@@ -6832,22 +7688,31 @@ export default function Ajustes() {
                           Información de la bodega
                         </h5>
                         <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Registra los datos principales del punto de almacenamiento.
+                          Registra los datos principales del punto de
+                          almacenamiento.
                         </p>
                       </div>
                       <label className="block">
-                        <span className={fieldLabelClass}>Nombre de la bodega</span>
+                        <span className={fieldLabelClass}>
+                          Nombre de la bodega
+                        </span>
                         <input
                           type="text"
                           maxLength={BODEGA_NAME_MAX_LENGTH}
                           value={nombreBodega}
                           onChange={(event) => {
-                            if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) {
+                            if (
+                              event.target.value.length >=
+                              BODEGA_NAME_MAX_LENGTH
+                            ) {
                               showLimitNotice();
                             }
                             setBodegaDraftDirty(true);
                             setNombreBodega(
-                              sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH),
+                              sanitizeLimitedText(
+                                event.target.value,
+                                BODEGA_NAME_MAX_LENGTH,
+                              ),
                             );
                             setBodegaFeedback(null);
                           }}
@@ -6857,7 +7722,9 @@ export default function Ajustes() {
                       </label>
 
                       <label className="block">
-                        <span className={fieldLabelClass}>Capacidad máxima (kg)</span>
+                        <span className={fieldLabelClass}>
+                          Capacidad máxima (kg)
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -6877,7 +7744,9 @@ export default function Ajustes() {
                       </label>
 
                       <label className="block">
-                        <span className={fieldLabelClass}>Ubicación o descripción (opcional)</span>
+                        <span className={fieldLabelClass}>
+                          Ubicación o descripción (opcional)
+                        </span>
                         <textarea
                           maxLength={BODEGA_DESCRIPTION_MAX_LENGTH}
                           value={ubicacionBodega}
@@ -6895,7 +7764,8 @@ export default function Ajustes() {
                           placeholder="Tuluá, zona centro"
                         />
                         <span className="mt-1 block text-right text-[0.68rem] font-bold text-slate-400">
-                          {ubicacionBodega.length}/{BODEGA_DESCRIPTION_MAX_LENGTH}
+                          {ubicacionBodega.length}/
+                          {BODEGA_DESCRIPTION_MAX_LENGTH}
                         </span>
                       </label>
                     </div>
@@ -6951,7 +7821,9 @@ export default function Ajustes() {
                                 value={formatNumericInput(limitMinPesoCompraKg)}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMinPesoCompraKg(normalizeNumericInput(event.target.value));
+                                  setLimitMinPesoCompraKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -6968,7 +7840,9 @@ export default function Ajustes() {
                                 value={formatNumericInput(limitMaxPesoKg)}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMaxPesoKg(normalizeNumericInput(event.target.value));
+                                  setLimitMaxPesoKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -6982,10 +7856,14 @@ export default function Ajustes() {
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                value={formatNumericInput(limitMinPrecioCompraKg)}
+                                value={formatNumericInput(
+                                  limitMinPrecioCompraKg,
+                                )}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMinPrecioCompraKg(normalizeNumericInput(event.target.value));
+                                  setLimitMinPrecioCompraKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -7002,7 +7880,9 @@ export default function Ajustes() {
                                 value={formatNumericInput(limitMaxPrecioKg)}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMaxPrecioKg(normalizeNumericInput(event.target.value));
+                                  setLimitMaxPrecioKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -7024,10 +7904,14 @@ export default function Ajustes() {
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                value={formatNumericInput(limitMinPrecioVentaKg)}
+                                value={formatNumericInput(
+                                  limitMinPrecioVentaKg,
+                                )}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMinPrecioVentaKg(normalizeNumericInput(event.target.value));
+                                  setLimitMinPrecioVentaKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -7041,10 +7925,14 @@ export default function Ajustes() {
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                value={formatNumericInput(limitMaxPrecioVentaKg)}
+                                value={formatNumericInput(
+                                  limitMaxPrecioVentaKg,
+                                )}
                                 onChange={(event) => {
                                   setBodegaDraftDirty(true);
-                                  setLimitMaxPrecioVentaKg(normalizeNumericInput(event.target.value));
+                                  setLimitMaxPrecioVentaKg(
+                                    normalizeNumericInput(event.target.value),
+                                  );
                                   setBodegaFeedback(null);
                                 }}
                                 className={`${fieldInputClass} min-h-[58px] rounded-[18px] px-4 text-[1.05rem]`}
@@ -7054,7 +7942,6 @@ export default function Ajustes() {
                           </section>
                         ) : null}
                       </div>
-
                     </div>
                   ) : null}
 
@@ -7068,11 +7955,14 @@ export default function Ajustes() {
                           Alertas de almacenamiento
                         </h5>
                         <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Configura cuándo debe advertir el sistema sobre la ocupación de la bodega.
+                          Configura cuándo debe advertir el sistema sobre la
+                          ocupación de la bodega.
                         </p>
                       </div>
                       <label className="block">
-                        <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
+                        <span className={fieldLabelClass}>
+                          Alertar cuando alcance (%)
+                        </span>
                         <input
                           type="number"
                           min="1"
@@ -7089,11 +7979,14 @@ export default function Ajustes() {
                           className={fieldInputClass}
                         />
                         <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          Se mostrará una advertencia cuando la ocupación alcance este porcentaje.
+                          Se mostrará una advertencia cuando la ocupación
+                          alcance este porcentaje.
                         </span>
                       </label>
                       <label className="block">
-                        <span className={fieldLabelClass}>Estado crítico (%)</span>
+                        <span className={fieldLabelClass}>
+                          Estado crítico (%)
+                        </span>
                         <input
                           type="number"
                           min="1"
@@ -7110,13 +8003,16 @@ export default function Ajustes() {
                           className={fieldInputClass}
                         />
                         <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                          La bodega se mostrará en estado crítico al alcanzar este porcentaje.
+                          La bodega se mostrará en estado crítico al alcanzar
+                          este porcentaje.
                         </span>
                       </label>
                       <button
                         type="button"
                         role="switch"
-                        aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
+                        aria-checked={
+                          bodegaLimitesForm.bloquearAlSuperarCapacidad
+                        }
                         onClick={() => {
                           setBodegaDraftDirty(true);
                           setBodegaLimitesForm((current) => ({
@@ -7128,13 +8024,18 @@ export default function Ajustes() {
                         className="flex min-h-[44px] w-full items-center justify-between rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       >
                         <span className="text-left">
-                          <span className="block">Bloquear movimientos al alcanzar el 100 %</span>
+                          <span className="block">
+                            Bloquear movimientos al alcanzar el 100 %
+                          </span>
                           <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                            No se permitirán nuevas entradas cuando la bodega no tenga espacio disponible.
+                            No se permitirán nuevas entradas cuando la bodega no
+                            tenga espacio disponible.
                           </span>
                         </span>
                         <span className="text-xs text-slate-500 dark:text-slate-300">
-                          {bodegaLimitesForm.bloquearAlSuperarCapacidad ? 'Activado' : 'Desactivado'}
+                          {bodegaLimitesForm.bloquearAlSuperarCapacidad
+                            ? 'Activado'
+                            : 'Desactivado'}
                         </span>
                       </button>
                       <button
@@ -7153,11 +8054,14 @@ export default function Ajustes() {
                         <span className="text-left">
                           <span className="block">Alertas de espacio</span>
                           <span className="block text-xs font-semibold text-slate-500 dark:text-slate-300">
-                            El sistema mostrará avisos cuando se alcancen los niveles configurados.
+                            El sistema mostrará avisos cuando se alcancen los
+                            niveles configurados.
                           </span>
                         </span>
                         <span className="text-xs text-slate-500 dark:text-slate-300">
-                          {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
+                          {bodegaLimitesForm.alertasActivas
+                            ? 'Activadas'
+                            : 'Desactivadas'}
                         </span>
                       </button>
                     </div>
@@ -7169,7 +8073,9 @@ export default function Ajustes() {
                         Café almacenado
                       </p>
                       <p className="mt-1 text-sm font-black text-slate-950 dark:text-slate-100">
-                        {loadingStock ? 'Cargando...' : `${formatKg(bodegaEditando.cafeAlmacenadoKg)} kg`}
+                        {loadingStock
+                          ? 'Cargando...'
+                          : `${formatKg(bodegaEditando.cafeAlmacenadoKg)} kg`}
                       </p>
                     </div>
                   ) : null}
@@ -7194,7 +8100,9 @@ export default function Ajustes() {
                       id="bodega-preview-title"
                       className="text-lg font-black text-slate-950 dark:text-slate-100"
                     >
-                      {bodegaEditando ? 'Vista previa de los cambios' : 'Vista previa de la bodega'}
+                      {bodegaEditando
+                        ? 'Vista previa de los cambios'
+                        : 'Vista previa de la bodega'}
                     </h4>
                     <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
                       Revisa la información antes de guardar.
@@ -7225,7 +8133,10 @@ export default function Ajustes() {
                       title: 'Información',
                       items: [
                         ['Nombre', nombreBodega.trim() || 'Sin nombre'],
-                        ['Capacidad máxima', `${formatKg(getBodegaFormCapacidad())} kg`],
+                        [
+                          'Capacidad máxima',
+                          `${formatKg(getBodegaFormCapacidad())} kg`,
+                        ],
                         [
                           'Ubicación o descripción',
                           ubicacionBodega.trim() || 'No registrada',
@@ -7235,24 +8146,48 @@ export default function Ajustes() {
                     {
                       title: 'Límites de compra',
                       items: [
-                        ['Peso mínimo', `${formatKg(parseNumericInput(limitMinPesoCompraKg))} kg`],
-                        ['Peso máximo', `${formatKg(parseNumericInput(limitMaxPesoKg))} kg`],
-                        ['Precio mínimo x kg', `$ ${formatNumericInput(limitMinPrecioCompraKg)}`],
-                        ['Precio máximo x kg', `$ ${formatNumericInput(limitMaxPrecioKg)}`],
+                        [
+                          'Peso mínimo',
+                          `${formatKg(parseNumericInput(limitMinPesoCompraKg))} kg`,
+                        ],
+                        [
+                          'Peso máximo',
+                          `${formatKg(parseNumericInput(limitMaxPesoKg))} kg`,
+                        ],
+                        [
+                          'Precio mínimo x kg',
+                          `$ ${formatNumericInput(limitMinPrecioCompraKg)}`,
+                        ],
+                        [
+                          'Precio máximo x kg',
+                          `$ ${formatNumericInput(limitMaxPrecioKg)}`,
+                        ],
                       ],
                     },
                     {
                       title: 'Límites de venta',
                       items: [
-                        ['Precio mínimo x kg', `$ ${formatNumericInput(limitMinPrecioVentaKg)}`],
-                        ['Precio máximo x kg', `$ ${formatNumericInput(limitMaxPrecioVentaKg)}`],
+                        [
+                          'Precio mínimo x kg',
+                          `$ ${formatNumericInput(limitMinPrecioVentaKg)}`,
+                        ],
+                        [
+                          'Precio máximo x kg',
+                          `$ ${formatNumericInput(limitMaxPrecioVentaKg)}`,
+                        ],
                       ],
                     },
                     {
                       title: 'Alertas',
                       items: [
-                        ['Alerta preventiva', `${bodegaLimitesForm.alertaPreventivaPct} %`],
-                        ['Nivel crítico', `${bodegaLimitesForm.alertaCriticaPct} %`],
+                        [
+                          'Alerta preventiva',
+                          `${bodegaLimitesForm.alertaPreventivaPct} %`,
+                        ],
+                        [
+                          'Nivel crítico',
+                          `${bodegaLimitesForm.alertaCriticaPct} %`,
+                        ],
                         [
                           'Bloqueo al 100 %',
                           bodegaLimitesForm.bloquearAlSuperarCapacidad
@@ -7261,17 +8196,26 @@ export default function Ajustes() {
                         ],
                         [
                           'Alertas',
-                          bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas',
+                          bodegaLimitesForm.alertasActivas
+                            ? 'Activadas'
+                            : 'Desactivadas',
                         ],
                       ],
                     },
                     {
                       title: 'Estado',
                       items: [
-                        ['Estado inicial', bodegaEditando?.activa === false ? 'Inactiva' : 'Activa'],
+                        [
+                          'Estado inicial',
+                          bodegaEditando?.activa === false
+                            ? 'Inactiva'
+                            : 'Activa',
+                        ],
                         [
                           'Bodega principal',
-                          bodegaEditando?.esPrincipal || bodegas.length === 0 ? 'Sí' : 'No',
+                          bodegaEditando?.esPrincipal || bodegas.length === 0
+                            ? 'Sí'
+                            : 'No',
                         ],
                       ],
                     },
@@ -7427,28 +8371,42 @@ export default function Ajustes() {
                       description={bodegaLimitesFeedback.message}
                     />
                   ) : null}
-                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 ? (
+                  {bodegaLimitesGeneralOpen &&
+                  bodegaLimitesGeneralStep === 1 ? (
                     <label className="block">
                       <span className={fieldLabelClass}>Aplicar a</span>
                       <SmartSelect
                         value={bodegaLimitesScope}
                         onChange={(event) =>
                           setBodegaLimitesScope(
-                            event.target.value as 'todas' | 'activas' | 'seleccionadas',
+                            event.target.value as
+                              | 'todas'
+                              | 'activas'
+                              | 'seleccionadas',
                           )
                         }
                         className={fieldInputClass}
                       >
                         <option value="todas">Todas las bodegas</option>
                         <option value="activas">Solo bodegas activas</option>
-                        <option value="seleccionadas">Bodegas seleccionadas</option>
+                        <option value="seleccionadas">
+                          Bodegas seleccionadas
+                        </option>
                       </SmartSelect>
                     </label>
                   ) : null}
-                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 ? (
+                  {bodegaLimitesGeneralOpen &&
+                  bodegaLimitesGeneralStep === 1 ? (
                     <div className="rounded-[14px] border border-[#d5deee] bg-white p-3 text-xs font-semibold leading-5 text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
                       <p className="font-black text-slate-900 dark:text-slate-100">
-                        {getBodegasAfectadasLimiteGeneral().length} bodega{getBodegasAfectadasLimiteGeneral().length === 1 ? '' : 's'} seleccionada{getBodegasAfectadasLimiteGeneral().length === 1 ? '' : 's'}
+                        {getBodegasAfectadasLimiteGeneral().length} bodega
+                        {getBodegasAfectadasLimiteGeneral().length === 1
+                          ? ''
+                          : 's'}{' '}
+                        seleccionada
+                        {getBodegasAfectadasLimiteGeneral().length === 1
+                          ? ''
+                          : 's'}
                       </p>
                       {getBodegasAfectadasLimiteGeneral().map((bodega) => (
                         <p key={bodega.id}>
@@ -7460,14 +8418,18 @@ export default function Ajustes() {
                       </p>
                     </div>
                   ) : null}
-                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 1 && bodegaLimitesScope === 'seleccionadas' ? (
+                  {bodegaLimitesGeneralOpen &&
+                  bodegaLimitesGeneralStep === 1 &&
+                  bodegaLimitesScope === 'seleccionadas' ? (
                     <div className="rounded-[14px] border border-[#d5deee] bg-[#f8faff] p-3 dark:border-slate-700 dark:bg-slate-950">
                       <p className="text-[0.62rem] font-black uppercase text-slate-500 dark:text-slate-300">
                         Selecciona bodegas
                       </p>
                       <div className="mt-2 space-y-2">
                         {bodegas.map((bodega) => {
-                          const checked = bodegaLimitesSelectedIds.includes(bodega.id);
+                          const checked = bodegaLimitesSelectedIds.includes(
+                            bodega.id,
+                          );
                           return (
                             <label
                               key={bodega.id}
@@ -7479,12 +8441,18 @@ export default function Ajustes() {
                                 onChange={(event) =>
                                   setBodegaLimitesSelectedIds((current) =>
                                     event.target.checked
-                                      ? Array.from(new Set([...current, bodega.id]))
-                                      : current.filter((id) => id !== bodega.id),
+                                      ? Array.from(
+                                          new Set([...current, bodega.id]),
+                                        )
+                                      : current.filter(
+                                          (id) => id !== bodega.id,
+                                        ),
                                   )
                                 }
                               />
-                              <span className="min-w-0 truncate">{bodega.nombre}</span>
+                              <span className="min-w-0 truncate">
+                                {bodega.nombre}
+                              </span>
                               {bodega.activa ? (
                                 <span className="ml-auto text-[0.62rem] font-black uppercase text-emerald-700">
                                   Activa
@@ -7496,14 +8464,19 @@ export default function Ajustes() {
                       </div>
                     </div>
                   ) : null}
-                  {(!bodegaLimitesGeneralOpen || bodegaLimitesGeneralStep === 2) ? (
+                  {!bodegaLimitesGeneralOpen ||
+                  bodegaLimitesGeneralStep === 2 ? (
                     <>
                       <label className="block">
-                        <span className={fieldLabelClass}>Límite mínimo (kg)</span>
+                        <span className={fieldLabelClass}>
+                          Límite mínimo (kg)
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
-                          value={formatKgInput(bodegaLimitesForm.limiteMinimoKg)}
+                          value={formatKgInput(
+                            bodegaLimitesForm.limiteMinimoKg,
+                          )}
                           onChange={(event) =>
                             setBodegaLimitesForm((current) => ({
                               ...current,
@@ -7514,11 +8487,15 @@ export default function Ajustes() {
                         />
                       </label>
                       <label className="block">
-                        <span className={fieldLabelClass}>Límite máximo (kg)</span>
+                        <span className={fieldLabelClass}>
+                          Límite máximo (kg)
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
-                          value={formatKgInput(bodegaLimitesForm.limiteMaximoKg)}
+                          value={formatKgInput(
+                            bodegaLimitesForm.limiteMaximoKg,
+                          )}
                           onChange={(event) =>
                             setBodegaLimitesForm((current) => ({
                               ...current,
@@ -7530,44 +8507,51 @@ export default function Ajustes() {
                       </label>
                     </>
                   ) : null}
-                  {(!bodegaLimitesGeneralOpen || bodegaLimitesGeneralStep === 3) ? (
+                  {!bodegaLimitesGeneralOpen ||
+                  bodegaLimitesGeneralStep === 3 ? (
                     <>
                       <label className="block">
-                        <span className={fieldLabelClass}>Alertar cuando alcance (%)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={bodegaLimitesForm.alertaPreventivaPct}
-                      onChange={(event) =>
-                        setBodegaLimitesForm((current) => ({
-                          ...current,
-                          alertaPreventivaPct: Number(event.target.value),
-                        }))
-                      }
-                      className={fieldInputClass}
-                    />
+                        <span className={fieldLabelClass}>
+                          Alertar cuando alcance (%)
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={bodegaLimitesForm.alertaPreventivaPct}
+                          onChange={(event) =>
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              alertaPreventivaPct: Number(event.target.value),
+                            }))
+                          }
+                          className={fieldInputClass}
+                        />
                       </label>
                       <label className="block">
-                        <span className={fieldLabelClass}>Estado crítico (%)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={bodegaLimitesForm.alertaCriticaPct}
-                      onChange={(event) =>
-                        setBodegaLimitesForm((current) => ({
-                          ...current,
-                          alertaCriticaPct: Number(event.target.value),
-                        }))
-                      }
-                      className={fieldInputClass}
-                    />
+                        <span className={fieldLabelClass}>
+                          Estado crítico (%)
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={bodegaLimitesForm.alertaCriticaPct}
+                          onChange={(event) =>
+                            setBodegaLimitesForm((current) => ({
+                              ...current,
+                              alertaCriticaPct: Number(event.target.value),
+                            }))
+                          }
+                          className={fieldInputClass}
+                        />
                       </label>
                       <button
                         type="button"
                         role="switch"
-                        aria-checked={bodegaLimitesForm.bloquearAlSuperarCapacidad}
+                        aria-checked={
+                          bodegaLimitesForm.bloquearAlSuperarCapacidad
+                        }
                         onClick={() =>
                           setBodegaLimitesForm((current) => ({
                             ...current,
@@ -7598,23 +8582,32 @@ export default function Ajustes() {
                       >
                         Alertas de espacio
                         <span className="text-xs text-slate-500 dark:text-slate-300">
-                          {bodegaLimitesForm.alertasActivas ? 'Activadas' : 'Desactivadas'}
+                          {bodegaLimitesForm.alertasActivas
+                            ? 'Activadas'
+                            : 'Desactivadas'}
                         </span>
                       </button>
                     </>
                   ) : null}
-                  {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep === 3 ? (
+                  {bodegaLimitesGeneralOpen &&
+                  bodegaLimitesGeneralStep === 3 ? (
                     <p className="rounded-[12px] bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-                      Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
+                      Esta configuración reemplazará los límites individuales de
+                      las bodegas seleccionadas.
                     </p>
                   ) : null}
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => {
-                        if (bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep > 1) {
+                        if (
+                          bodegaLimitesGeneralOpen &&
+                          bodegaLimitesGeneralStep > 1
+                        ) {
                           setBodegaLimitesGeneralStep((current) =>
-                            current > 1 ? ((current - 1) as BodegaWizardStep) : current,
+                            current > 1
+                              ? ((current - 1) as BodegaWizardStep)
+                              : current,
                           );
                           return;
                         }
@@ -7626,7 +8619,9 @@ export default function Ajustes() {
                       }}
                       className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                     >
-                      {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep > 1 ? 'Atrás' : 'Cancelar'}
+                      {bodegaLimitesGeneralOpen && bodegaLimitesGeneralStep > 1
+                        ? 'Atrás'
+                        : 'Cancelar'}
                     </button>
                     <button
                       type="button"
@@ -7670,7 +8665,8 @@ export default function Ajustes() {
                   Aplicar límites generales
                 </h4>
                 <p className="mt-2 text-sm font-semibold leading-5 text-slate-600 dark:text-slate-300">
-                  Esta configuración reemplazará los límites individuales de las bodegas seleccionadas.
+                  Esta configuración reemplazará los límites individuales de las
+                  bodegas seleccionadas.
                 </p>
                 <div className="mt-5 grid grid-cols-2 gap-2">
                   <button
@@ -7687,7 +8683,11 @@ export default function Ajustes() {
                     className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
                   >
                     {guardandoBodega ? (
-                      <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                      <LoaderCircle
+                        size={15}
+                        className="animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : null}
                     Aplicar configuración
                   </button>
@@ -7705,7 +8705,8 @@ export default function Ajustes() {
                       ¿Eliminar bodega?
                     </h4>
                     <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                      ¿Estás seguro de eliminar esta bodega? Esta acción no se puede deshacer.
+                      ¿Estás seguro de eliminar esta bodega? Esta acción no se
+                      puede deshacer.
                     </p>
                   </div>
                   <button
@@ -7810,7 +8811,9 @@ export default function Ajustes() {
                         maxLength={5}
                         value={limitMinPesoCompraKg}
                         onChange={(event) => {
-                          const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                          const raw = event.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 5);
                           setLimitMinPesoCompraKg(raw);
                           clearFeedback();
                         }}
@@ -7829,7 +8832,9 @@ export default function Ajustes() {
                         maxLength={5}
                         value={limitMaxPesoKg}
                         onChange={(event) => {
-                          const raw = event.target.value.replace(/\D/g, '').slice(0, 5);
+                          const raw = event.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 5);
                           setLimitMaxPesoKg(raw);
                           clearFeedback();
                         }}
@@ -7852,7 +8857,9 @@ export default function Ajustes() {
                           maxLength={6}
                           value={limitMinPrecioCompraKg}
                           onChange={(event) => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            const raw = event.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 6);
                             setLimitMinPrecioCompraKg(raw);
                             clearFeedback();
                           }}
@@ -7876,7 +8883,9 @@ export default function Ajustes() {
                           maxLength={6}
                           value={limitMaxPrecioKg}
                           onChange={(event) => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            const raw = event.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 6);
                             setLimitMaxPrecioKg(raw);
                             clearFeedback();
                           }}
@@ -7909,7 +8918,9 @@ export default function Ajustes() {
                           maxLength={6}
                           value={limitMinPrecioVentaKg}
                           onChange={(event) => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            const raw = event.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 6);
                             setLimitMinPrecioVentaKg(raw);
                             clearFeedback();
                           }}
@@ -7933,7 +8944,9 @@ export default function Ajustes() {
                           maxLength={6}
                           value={limitMaxPrecioVentaKg}
                           onChange={(event) => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 6);
+                            const raw = event.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 6);
                             setLimitMaxPrecioVentaKg(raw);
                             clearFeedback();
                           }}
@@ -7994,12 +9007,15 @@ export default function Ajustes() {
                     <ArrowLeft size={18} />
                   </button>
                   <div className="min-w-0">
-                  <h3 id="personas-admin-title" className="text-lg font-black text-slate-950 dark:text-slate-100">
-                    Gestión de contactos
-                  </h3>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-300">
-                    Clientes y productores registrados
-                  </p>
+                    <h3
+                      id="personas-admin-title"
+                      className="text-lg font-black text-slate-950 dark:text-slate-100"
+                    >
+                      Gestión de contactos
+                    </h3>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-300">
+                      Clientes y productores registrados
+                    </p>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -8007,7 +9023,9 @@ export default function Ajustes() {
                     type="button"
                     onClick={() =>
                       peopleMode &&
-                      void cargarPersonasAdmin(peopleMode, { resetSearch: false })
+                      void cargarPersonasAdmin(peopleMode, {
+                        resetSearch: false,
+                      })
                     }
                     disabled={peopleLoading || !peopleMode}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-[#d5deee] bg-white text-[#334b85] disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-blue-100"
@@ -8099,7 +9117,11 @@ export default function Ajustes() {
                   description={success}
                   className="mt-3"
                   action={
-                    <button type="button" onClick={() => setSuccess(null)} aria-label="Cerrar aviso">
+                    <button
+                      type="button"
+                      onClick={() => setSuccess(null)}
+                      aria-label="Cerrar aviso"
+                    >
                       <X size={14} />
                     </button>
                   }
@@ -8113,7 +9135,10 @@ export default function Ajustes() {
                   role="status"
                   aria-label="Cargando"
                 >
-                  <div className="cs-loader mx-auto h-8 w-8" aria-hidden="true" />
+                  <div
+                    className="cs-loader mx-auto h-8 w-8"
+                    aria-hidden="true"
+                  />
                   <p className="mt-3">Cargando contactos...</p>
                 </div>
               ) : peopleError ? (
@@ -8122,14 +9147,18 @@ export default function Ajustes() {
                     No pudimos cargar los contactos
                   </p>
                   <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    {peopleError.replace(/^No pudimos cargar los contactos\.?\s*/i, '') ||
-                      'Intenta nuevamente en unos momentos.'}
+                    {peopleError.replace(
+                      /^No pudimos cargar los contactos\.?\s*/i,
+                      '',
+                    ) || 'Intenta nuevamente en unos momentos.'}
                   </p>
                   <button
                     type="button"
                     onClick={() =>
                       peopleMode &&
-                      void cargarPersonasAdmin(peopleMode, { resetSearch: false })
+                      void cargarPersonasAdmin(peopleMode, {
+                        resetSearch: false,
+                      })
                     }
                     disabled={peopleLoading}
                     className="mt-4 rounded-[12px] border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-900 shadow-sm transition hover:bg-amber-100 dark:border-amber-400/40 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-slate-800"
@@ -8168,29 +9197,35 @@ export default function Ajustes() {
                           <span
                             className="mt-1 inline-flex rounded-full bg-[#eef4ff] px-2 py-0.5 text-[0.62rem] font-black text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100"
                             aria-label={
-                              item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR')
+                              item.roles.includes('CLIENTE') &&
+                              item.roles.includes('PRODUCTOR')
                                 ? 'Contacto Multirol: cliente y productor'
                                 : item.roles.includes('CLIENTE')
                                   ? 'Contacto cliente'
                                   : 'Contacto productor'
                             }
                           >
-                            {item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR')
+                            {item.roles.includes('CLIENTE') &&
+                            item.roles.includes('PRODUCTOR')
                               ? 'Multirol'
                               : item.roles.includes('CLIENTE')
                                 ? 'Cliente'
                                 : 'Productor'}
                           </span>
-                          {item.roles.includes('CLIENTE') && item.roles.includes('PRODUCTOR') ? (
+                          {item.roles.includes('CLIENTE') &&
+                          item.roles.includes('PRODUCTOR') ? (
                             <p className="mt-1 text-xs font-bold text-[#334b85] dark:text-blue-100">
                               Cliente y productor
                             </p>
                           ) : null}
                           <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">
-                            {item.tipoDocumento === 'NIT' ? 'NIT' : 'Cédula'}: {item.documento || 'Pendiente'}
+                            {item.tipoDocumento === 'NIT' ? 'NIT' : 'Cédula'}:{' '}
+                            {item.documento || 'Pendiente'}
                           </p>
                           <p className="text-xs font-bold text-slate-400 dark:text-slate-400">
-                            {item.telefono ? formatPhoneNumber(item.telefono) : 'Teléfono no registrado'}
+                            {item.telefono
+                              ? formatPhoneNumber(item.telefono)
+                              : 'Teléfono no registrado'}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
@@ -8253,7 +9288,9 @@ export default function Ajustes() {
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/45 px-3 pb-3 pt-3 backdrop-blur-sm sm:items-center">
           <section className="w-full max-w-[410px] rounded-[22px] bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.24)]">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-black text-slate-950">Editar registro</h3>
+              <h3 className="text-lg font-black text-slate-950">
+                Editar registro
+              </h3>
               <button
                 type="button"
                 onClick={cerrarEdicionPersona}
@@ -8270,7 +9307,9 @@ export default function Ajustes() {
                     variant="error"
                     description={peopleFormError}
                     action={
-                      peopleFormError.startsWith('Permiso de contactos desactivado') ? (
+                      peopleFormError.startsWith(
+                        'Permiso de contactos desactivado',
+                      ) ? (
                         <button
                           type="button"
                           onClick={() => void openAppSettings()}
@@ -8303,14 +9342,24 @@ export default function Ajustes() {
                   </button>
                 </div>
                 {peopleImportMessage ? (
-                  <p role="status" aria-live="polite" className="mt-2 text-xs font-bold text-[#102d92]">
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="mt-2 text-xs font-bold text-[#102d92]"
+                  >
                     {peopleImportMessage}
                   </p>
                 ) : null}
                 {peopleImportedPendingDocument ? (
-                  <div role="alert" className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+                  <div
+                    role="alert"
+                    className="mt-2 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900"
+                  >
                     <p className="font-black">Documento pendiente</p>
-                    <p className="mt-1">Completa el tipo y número de documento antes de guardar este contacto.</p>
+                    <p className="mt-1">
+                      Completa el tipo y número de documento antes de guardar
+                      este contacto.
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -8336,7 +9385,10 @@ export default function Ajustes() {
                           ? ['PRODUCTOR']
                           : ['CLIENTE'];
                     setPeopleForm((prev) => ({ ...prev, roles }));
-                    setPeopleFormErrors((current) => ({ ...current, roles: undefined }));
+                    setPeopleFormErrors((current) => ({
+                      ...current,
+                      roles: undefined,
+                    }));
                     setPeopleFormError(null);
                   }}
                   className={fieldInputClass}
@@ -8346,126 +9398,145 @@ export default function Ajustes() {
                   <option value="PRODUCTOR">Productor</option>
                   <option value="MULTIROL">Cliente y productor</option>
                 </SmartSelect>
-                {peopleForm.roles.includes('CLIENTE') && peopleForm.roles.includes('PRODUCTOR') ? (
+                {peopleForm.roles.includes('CLIENTE') &&
+                peopleForm.roles.includes('PRODUCTOR') ? (
                   <p className="mt-2 rounded-[12px] bg-[#eef4ff] px-3 py-2 text-xs font-bold text-[#102d92]">
-                    Este contacto será Multirol y podrá participar en compras y ventas.
+                    Este contacto será Multirol y podrá participar en compras y
+                    ventas.
                   </p>
                 ) : null}
               </label>
-              {peopleFormErrors.roles ? <p className={fieldErrorClass}>{peopleFormErrors.roles}</p> : null}
+              {peopleFormErrors.roles ? (
+                <p className={fieldErrorClass}>{peopleFormErrors.roles}</p>
+              ) : null}
               <label className="block">
-                <span className={fieldLabelClass}>
-                  Tipo de documento
-                </span>
-              <SmartSelect
-                value={peopleForm.tipoDocumento}
-                onChange={(event) =>
-                  setPeopleForm((prev) => {
-                    setPeopleImportedPendingDocument(false);
-                    setPeopleFormError(null);
-                    return {
-                      ...prev,
-                      tipoDocumento: event.target.value as DocumentType,
-                      documento: '',
-                    };
-                  })
-                }
-                className="text-sm"
-                aria-label="Tipo de documento"
-              >
-                <option value="">Selecciona el tipo de documento</option>
-                <option value="CEDULA">Cédula</option>
-                <option value="NIT">NIT</option>
-                <option value="TI">Tarjeta de identidad</option>
-                <option value="CE">Cédula de extranjería</option>
-                <option value="PASAPORTE">Pasaporte</option>
-                <option value="PEP">PEP</option>
-                <option value="OTRO">Otro</option>
-              </SmartSelect>
+                <span className={fieldLabelClass}>Tipo de documento</span>
+                <SmartSelect
+                  value={peopleForm.tipoDocumento}
+                  onChange={(event) =>
+                    setPeopleForm((prev) => {
+                      setPeopleImportedPendingDocument(false);
+                      setPeopleFormError(null);
+                      return {
+                        ...prev,
+                        tipoDocumento: event.target.value as DocumentType,
+                        documento: '',
+                      };
+                    })
+                  }
+                  className="text-sm"
+                  aria-label="Tipo de documento"
+                >
+                  <option value="">Selecciona el tipo de documento</option>
+                  <option value="CEDULA">Cédula</option>
+                  <option value="NIT">NIT</option>
+                  <option value="TI">Tarjeta de identidad</option>
+                  <option value="CE">Cédula de extranjería</option>
+                  <option value="PASAPORTE">Pasaporte</option>
+                  <option value="PEP">PEP</option>
+                  <option value="OTRO">Otro</option>
+                </SmartSelect>
               </label>
-              {peopleFormErrors.tipoDocumento ? <p className={fieldErrorClass}>{peopleFormErrors.tipoDocumento}</p> : null}
+              {peopleFormErrors.tipoDocumento ? (
+                <p className={fieldErrorClass}>
+                  {peopleFormErrors.tipoDocumento}
+                </p>
+              ) : null}
               <label className="block">
                 <span className={fieldLabelClass}>
                   {peopleForm.tipoDocumento === 'NIT'
                     ? 'Nombre del negocio'
                     : 'Nombre completo'}
                 </span>
-              <input
-                type="text"
-                value={peopleForm.nombre}
-                onChange={(event) =>
-                  setPeopleForm((prev) => ({
-                    ...prev,
-                    nombre: event.target.value.replace(/\s{2,}/g, ' '),
-                  }))
-                }
-                disabled={!peopleForm.tipoDocumento && !peopleImportedPendingDocument}
-                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
-                placeholder={
-                  peopleForm.tipoDocumento
-                    ? peopleForm.tipoDocumento === 'NIT'
-                      ? 'Nombre del negocio'
-                      : 'Nombre completo'
-                    : 'Primero selecciona el tipo de documento'
-                }
-              />
-              </label>
-              {peopleFormErrors.nombre ? <p className={fieldErrorClass}>{peopleFormErrors.nombre}</p> : null}
-              <label className="block">
-                <span className={fieldLabelClass}>
-                  Número de documento
-                </span>
-              <input
-                type="text"
-                value={peopleForm.documento}
-                onChange={(event) => {
-                  setPeopleForm((prev) => {
-                    setPeopleImportedPendingDocument(false);
-                    const next = {
+                <input
+                  type="text"
+                  value={peopleForm.nombre}
+                  onChange={(event) =>
+                    setPeopleForm((prev) => ({
                       ...prev,
-                      documento: prev.tipoDocumento
-                        ? sanitizeDocumentInput(event.target.value, prev.tipoDocumento)
-                        : '',
-                    };
-                    validarPersonaEnTiempoReal(next);
-                    return next;
-                  });
-                }}
-                disabled={!peopleForm.tipoDocumento}
-                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
-                placeholder={
-                  peopleForm.tipoDocumento
-                    ? peopleForm.tipoDocumento === 'NIT'
-                      ? '900123456-7'
-                      : '1234567890'
-                    : 'Luego podrás ingresar el documento'
-                }
-              />
+                      nombre: event.target.value.replace(/\s{2,}/g, ' '),
+                    }))
+                  }
+                  disabled={
+                    !peopleForm.tipoDocumento && !peopleImportedPendingDocument
+                  }
+                  className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
+                  placeholder={
+                    peopleForm.tipoDocumento
+                      ? peopleForm.tipoDocumento === 'NIT'
+                        ? 'Nombre del negocio'
+                        : 'Nombre completo'
+                      : 'Primero selecciona el tipo de documento'
+                  }
+                />
               </label>
-              {peopleFormErrors.documento ? <p className={fieldErrorClass}>{peopleFormErrors.documento}</p> : null}
+              {peopleFormErrors.nombre ? (
+                <p className={fieldErrorClass}>{peopleFormErrors.nombre}</p>
+              ) : null}
               <label className="block">
-                <span className={fieldLabelClass}>
-                  Teléfono (opcional)
-                </span>
-              <input
-                type="text"
-                value={peopleForm.telefono}
-                onChange={(event) => {
-                  setPeopleForm((prev) => {
-                    const next = {
-                      ...prev,
-                      telefono: formatPhoneNumber(event.target.value),
-                    };
-                    validarPersonaEnTiempoReal(next);
-                    return next;
-                  });
-                }}
-                disabled={!peopleForm.tipoDocumento && !peopleImportedPendingDocument}
-                className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
-                placeholder={peopleForm.tipoDocumento ? '300 123 4567' : 'Opcional después del documento'}
-              />
+                <span className={fieldLabelClass}>Número de documento</span>
+                <input
+                  type="text"
+                  value={peopleForm.documento}
+                  onChange={(event) => {
+                    setPeopleForm((prev) => {
+                      setPeopleImportedPendingDocument(false);
+                      const next = {
+                        ...prev,
+                        documento: prev.tipoDocumento
+                          ? sanitizeDocumentInput(
+                              event.target.value,
+                              prev.tipoDocumento,
+                            )
+                          : '',
+                      };
+                      validarPersonaEnTiempoReal(next);
+                      return next;
+                    });
+                  }}
+                  disabled={!peopleForm.tipoDocumento}
+                  className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
+                  placeholder={
+                    peopleForm.tipoDocumento
+                      ? peopleForm.tipoDocumento === 'NIT'
+                        ? 'Ej. 900123456-7'
+                        : '1234567890'
+                      : 'Luego podrás ingresar el documento'
+                  }
+                />
               </label>
-              {peopleFormErrors.telefono ? <p className={fieldErrorClass}>{peopleFormErrors.telefono}</p> : null}
+              {peopleFormErrors.documento ? (
+                <p className={fieldErrorClass}>{peopleFormErrors.documento}</p>
+              ) : null}
+              <label className="block">
+                <span className={fieldLabelClass}>Teléfono (opcional)</span>
+                <input
+                  type="text"
+                  value={peopleForm.telefono}
+                  onChange={(event) => {
+                    setPeopleForm((prev) => {
+                      const next = {
+                        ...prev,
+                        telefono: formatPhoneNumber(event.target.value),
+                      };
+                      validarPersonaEnTiempoReal(next);
+                      return next;
+                    });
+                  }}
+                  disabled={
+                    !peopleForm.tipoDocumento && !peopleImportedPendingDocument
+                  }
+                  className={`${fieldInputClass} disabled:bg-slate-100 disabled:text-slate-400`}
+                  placeholder={
+                    peopleForm.tipoDocumento
+                      ? '300 123 4567'
+                      : 'Opcional después del documento'
+                  }
+                />
+              </label>
+              {peopleFormErrors.telefono ? (
+                <p className={fieldErrorClass}>{peopleFormErrors.telefono}</p>
+              ) : null}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -8501,7 +9572,10 @@ export default function Ajustes() {
                 <p className="text-xs font-black uppercase tracking-[0.08em] text-[#334b85] dark:text-slate-200">
                   Selecciona un número
                 </p>
-                <h3 id="people-phone-choice-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                <h3
+                  id="people-phone-choice-title"
+                  className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100"
+                >
                   {peoplePhoneChoice.contact.name || 'Contacto'}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
@@ -8533,7 +9607,11 @@ export default function Ajustes() {
                       {phone.number}
                     </span>
                   </span>
-                  <ChevronRight size={18} className="text-[#102d92] dark:text-slate-100" aria-hidden="true" />
+                  <ChevronRight
+                    size={18}
+                    className="text-[#102d92] dark:text-slate-100"
+                    aria-hidden="true"
+                  />
                 </button>
               ))}
             </div>
@@ -8561,7 +9639,10 @@ export default function Ajustes() {
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#1f3fa7]">
                   Edición sin finalizar
                 </p>
-                <h3 id="people-draft-title" className="mt-1 text-lg font-black text-slate-950">
+                <h3
+                  id="people-draft-title"
+                  className="mt-1 text-lg font-black text-slate-950"
+                >
                   Encontramos cambios que no fueron guardados.
                 </h3>
               </div>
@@ -8616,7 +9697,10 @@ export default function Ajustes() {
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-rose-600">
                   ¿Eliminar contacto?
                 </p>
-                <h3 id="delete-contact-title" className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100">
+                <h3
+                  id="delete-contact-title"
+                  className="mt-1 text-lg font-black text-slate-950 dark:text-slate-100"
+                >
                   {peopleDeleteTarget.nombre}
                 </h3>
               </div>
@@ -8630,7 +9714,8 @@ export default function Ajustes() {
               </button>
             </div>
             <p className="mt-3 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-              Esta acción no se puede deshacer. El contacto se eliminará permanentemente.
+              Esta acción no se puede deshacer. El contacto se eliminará
+              permanentemente.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
@@ -8667,3 +9752,4 @@ export default function Ajustes() {
     </div>
   );
 }
+

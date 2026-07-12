@@ -641,7 +641,7 @@ export default function Register() {
                     <SectionHeader label="Contacto" />
                     <PhoneInput
                       id="register-admin-phone"
-                      label="Teléfono"
+                      label="Teléfono (opcional)"
                       value={telefono}
                       onChange={(value) => {
                         setTelefono(formatNationalPhone(value));
@@ -1108,7 +1108,7 @@ function TextInput({
           exiting={limitWarningExiting}
         />
       ) : null}
-      {error ? <FieldError id={errorId} message={error} /> : null}
+      <p id={`${id}-help`} className={fieldHelpTextClass}>`r`n        Puedes agregarlo ahora o completarlo después desde tu perfil.`r`n      </p>`r`n      {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
 }
@@ -1245,7 +1245,7 @@ function TextareaInput({
           exiting={limitWarningExiting}
         />
       ) : null}
-      {error ? <FieldError id={errorId} message={error} /> : null}
+      <p id={`${id}-help`} className={fieldHelpTextClass}>`r`n        Puedes agregarlo ahora o completarlo después desde tu perfil.`r`n      </p>`r`n      {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
 }
@@ -1299,7 +1299,7 @@ function PasswordInput({
           placeholder={placeholder}
           autoComplete={autoComplete}
           maxLength={maxLength}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={error ? `${id}-help ${errorId}` : `${id}-help`}
           className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 pr-11 caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
             error
               ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
@@ -1315,7 +1315,7 @@ function PasswordInput({
           {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
         </button>
       </div>
-      {error ? <FieldError id={errorId} message={error} /> : null}
+      <p id={`${id}-help`} className={fieldHelpTextClass}>`r`n        Puedes agregarlo ahora o completarlo después desde tu perfil.`r`n      </p>`r`n      {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
 }
@@ -1400,10 +1400,10 @@ function PhoneInput({
             ).length;
             onChange(event.currentTarget.value);
           }}
-          placeholder="300 123 4567"
+          placeholder="Ej. 300 123 4567"
           autoComplete="tel-national"
           maxLength={12}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={error ? `${id}-help ${errorId}` : `${id}-help`}
           className={`${fieldInputClass} register-credential-input min-h-[54px] rounded-[14px] px-4 pl-[4.15rem] caret-[#274ab8] shadow-[0_8px_20px_rgba(15,23,42,0.045)] placeholder:text-[#7b8798] selection:bg-blue-200 selection:text-slate-950 dark:caret-blue-200 dark:selection:bg-blue-500 dark:selection:text-white ${
             error
               ? 'border-rose-400 bg-rose-50/70 text-rose-950 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-rose-400/70 dark:bg-rose-500/15 dark:text-rose-100 dark:focus:border-rose-300 dark:focus:ring-rose-400/25'
@@ -1411,7 +1411,7 @@ function PhoneInput({
           }`}
         />
       </div>
-      {error ? <FieldError id={errorId} message={error} /> : null}
+      <p id={`${id}-help`} className={fieldHelpTextClass}>`r`n        Puedes agregarlo ahora o completarlo después desde tu perfil.`r`n      </p>`r`n      {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
 }
@@ -1873,3 +1873,4 @@ function InfoNotice({ text, compact = false }: { text: string; compact?: boolean
     </div>
   );
 }
+

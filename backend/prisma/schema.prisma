@@ -106,7 +106,7 @@ model User {
   correo         String                 @unique @map("correo")
   password       String?                @map("password")
   googleId       String?                @unique @map("google_id")
-  telefono       String                 @map("telefono")
+  telefono       String?                @map("telefono")
   avatarUrl      String?                @map("avatar_url")
   rol            RolUsuario             @default(ADMIN) @map("id_rol")
   activo         Boolean                @default(true) @map("estado")
@@ -456,3 +456,4 @@ enum EstadoSecadoProceso {
   CANCELADO
   ANULADO
 }
+

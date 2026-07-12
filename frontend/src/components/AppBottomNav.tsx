@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { themeClasses } from '../theme/themeClasses';
+import { useDeviceLayout } from '../hooks/useDeviceLayout';
+import { useHasGlobalNavigation } from '../layouts/GlobalNavigationContext';
 
 const items = [
   { id: 'inicio', label: 'Inicio', path: '/inicio', icon: House },
@@ -41,14 +43,18 @@ function isActiveItemPath(pathname: string, itemPath: string) {
 export function AppBottomNav({
   hidden = false,
   activePath,
+  global = false,
 }: {
   hidden?: boolean;
   activePath?: string;
+  global?: boolean;
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isMobile } = useDeviceLayout();
+  const hasGlobalNavigation = useHasGlobalNavigation();
 
-  if (hidden) return null;
+  if (hidden || !isMobile || (hasGlobalNavigation && !global)) return null;
 
   return (
     <nav
@@ -98,3 +104,4 @@ export function AppBottomNav({
     </nav>
   );
 }
+

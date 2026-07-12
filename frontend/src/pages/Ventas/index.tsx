@@ -4206,14 +4206,14 @@ export default function Ventas() {
                       !clienteForm.tipoDocumento
                         ? 'Primero selecciona el tipo de documento'
                         : clienteForm.tipoDocumento === 'NIT'
-                        ? '900123456-7'
+                        ? 'Ej. 900123456-7'
                         : '1234567890'
                     }
                     className={getClienteModalInputClass(Boolean(clienteFormErrors.documento))}
                   />
                   <p className={clienteModalHintClass}>
                     {clienteForm.tipoDocumento === 'NIT'
-                      ? 'Escribe el NIT con dígito de verificación si lo tienes.'
+                      ? 'Puedes ingresar el NIT con o sin guion.'
                       : 'Escribe solo números, sin puntos ni espacios.'}
                   </p>
                   {clienteFormErrors.documento ? (
@@ -4321,5 +4321,6 @@ export default function Ventas() {
     </div>
   );
 }
+
 
 

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
+import { ResponsiveLayout } from '../layouts/ResponsiveLayout';
 
 const Landing = lazy(() => import('../pages/Landing'));
 const Login = lazy(() => import('../pages/Login'));
@@ -43,7 +44,8 @@ export default function AppRoutes() {
         <Route path="/crear-empresa" element={<Register />} />
         <Route path="/estado-sistema" element={<SystemStatus />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/inicio" element={<Inicio />} />
+          <Route element={<ResponsiveLayout />}>
+            <Route path="/inicio" element={<Inicio />} />
           <Route path="/compras" element={<Compras />} />
           <Route path="/ventas" element={<Ventas />} />
           <Route path="/inventario" element={<Inventario />} />
@@ -87,9 +89,11 @@ export default function AppRoutes() {
             path="/resumen-financiero/analisis-inteligente"
             element={<AnalisisInteligente />}
           />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Suspense>
   );
 }
+

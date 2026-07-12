@@ -9,7 +9,7 @@ type CrearUsuarioData = {
   correo: string;
   password: string | null;
   googleId?: string | null;
-  telefono: string;
+  telefono?: string | null;
   rol: RolUsuario;
   organizacionId: string;
 };
@@ -21,7 +21,7 @@ type CreateAdminWithOrganizationInput = {
   descripcionOrganizacion?: string | null;
   nombre: string;
   correo: string;
-  telefono: string;
+  telefono?: string | null;
   password: string;
   googleId?: string | null;
 };
@@ -254,7 +254,7 @@ export class UsersService {
         correo: data.correo.trim().toLowerCase(),
         password: data.password,
         googleId: data.googleId,
-        telefono: data.telefono,
+        telefono: data.telefono ?? null,
         rol: data.rol,
         organizacionId: data.organizacionId,
       },
@@ -305,7 +305,7 @@ export class UsersService {
         data: {
           nombre: input.nombre,
           correo: input.correo.trim().toLowerCase(),
-          telefono: input.telefono,
+          telefono: input.telefono ?? null,
           password: input.password,
           googleId: input.googleId ?? null,
           rol: RolUsuario.ADMIN,
@@ -892,3 +892,4 @@ export class UsersService {
     return `${url}/storage/v1/object/public/avatars/${encodedPath}`;
   }
 }
+

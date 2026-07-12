@@ -63,13 +63,16 @@ export class RegisterGoogleDto {
   })
   descripcion?: string;
 
-  @Transform(({ value }) => normalizarTelefonoInternacional(String(value ?? '')) ?? String(value ?? '').trim())
-  @IsString({ message: 'El telefono es obligatorio.' })
-  @IsNotEmpty()
+  @Transform(({ value }) => {
+    const raw = String(value ?? '').trim();
+    return raw ? normalizarTelefonoInternacional(raw) ?? raw : undefined;
+  })
+  @IsOptional()
+  @IsString({ message: 'El telefono debe ser texto.' })
   @Matches(/^\+[1-9]\d{6,14}$/, {
     message: 'Ingresa un número de teléfono válido.',
   })
-  telefono: string;
+  telefono?: string;
 
   @IsString({ message: 'La contrasena es obligatoria.' })
   @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
@@ -80,3 +83,5 @@ export class RegisterGoogleDto {
   })
   password: string;
 }
+
+

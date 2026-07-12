@@ -16,7 +16,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "user:reset-test-password": "ts-node scripts/reset-test-user-password.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.19",

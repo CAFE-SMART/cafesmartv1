@@ -68,13 +68,16 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'El nombre del usuario es obligatorio.' })
   nombre: string;
 
-  @Transform(({ value }) => normalizarTelefonoInternacional(String(value ?? '')) ?? String(value ?? '').trim())
+  @Transform(({ value }) => {
+    const raw = String(value ?? '').trim();
+    return raw ? normalizarTelefonoInternacional(raw) ?? raw : undefined;
+  })
+  @IsOptional()
   @IsString({ message: 'El telefono debe ser texto.' })
-  @IsNotEmpty({ message: 'El telefono es obligatorio.' })
   @Matches(/^\+[1-9]\d{6,14}$/, {
     message: 'Ingresa un número de teléfono válido.',
   })
-  telefono: string;
+  telefono?: string;
 
   @Transform(({ value }) => String(value).trim().toLowerCase())
   @IsEmail({}, { message: 'El correo electronico no tiene un formato valido.' })
@@ -92,3 +95,5 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'La contrasena es obligatoria.' })
   password: string;
 }
+
+
