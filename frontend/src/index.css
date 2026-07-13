@@ -212,6 +212,41 @@ html.font-xlarge {
   font-size: 125%;
 }
 
+:where(
+  a[href],
+  button,
+  input,
+  textarea,
+  select,
+  summary,
+  [role='button'],
+  [role='link'],
+  [role='menuitem'],
+  [role='tab'],
+  [tabindex]:not([tabindex='-1'])
+):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(47, 99, 216, 0.18);
+}
+
+.dark
+  :where(
+    a[href],
+    button,
+    input,
+    textarea,
+    select,
+    summary,
+    [role='button'],
+    [role='link'],
+    [role='menuitem'],
+    [role='tab'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible {
+  outline-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.24);
+}
 .a11y-screen-reader :focus-visible,
 .a11y-high-contrast :focus-visible {
   outline: 3px solid var(--border-focus);
@@ -756,7 +791,11 @@ select {
 .dark .cs-workflow-page [class*='linear-gradient'],
 .dark .cs-workflow-page [class*='radial-gradient'] {
   background-image:
-    radial-gradient(circle at 50% 12%, rgba(37, 99, 235, 0.16), transparent 30%),
+    radial-gradient(
+      circle at 50% 12%,
+      rgba(37, 99, 235, 0.16),
+      transparent 30%
+    ),
     linear-gradient(180deg, #020617 0%, #0f172a 58%, #111827 100%);
 }
 

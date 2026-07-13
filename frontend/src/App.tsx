@@ -12,6 +12,7 @@ import { useCloudStatus } from './context/CloudStatusContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStoredAuthToken } from './storage/authStorage';
 import { themeClasses } from './theme/themeClasses';
+import { UnsavedChangesProvider } from './context/UnsavedChangesContext';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -61,7 +62,10 @@ const AiConversationProvider = lazy(() =>
   })),
 );
 
-class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class AppErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
@@ -94,7 +98,6 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
 
   private handleGoHome = async () => {
     const path = window.location.pathname;
-    const inAuthFlow = isPublicRoute(path);
     const token = await getStoredAuthToken();
 
     if (path.startsWith('/ajustes')) {
@@ -113,7 +116,8 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
   render() {
     if (this.state.hasError) {
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      const path =
+        typeof window !== 'undefined' ? window.location.pathname : '';
       const inAuthFlow = isPublicRoute(path);
       const inVentasFlow = path.startsWith('/ventas');
       const inAjustesFlow = path.startsWith('/ajustes');
@@ -143,10 +147,10 @@ class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundary
             inAuthFlow
               ? 'Volver a editar'
               : inAjustesFlow
-              ? 'Volver a ajustes'
-              : inVentasFlow
-                ? 'Volver a ventas'
-                : 'Volver al inicio'
+                ? 'Volver a ajustes'
+                : inVentasFlow
+                  ? 'Volver a ventas'
+                  : 'Volver al inicio'
           }
           onPrimary={this.handleRetry}
           onSecondary={inAuthFlow ? this.handleBackToEdit : this.handleGoHome}
@@ -188,13 +192,18 @@ function GlobalOfflineNotice() {
       : window.sessionStorage.getItem(DISMISSED_CONNECTION_ALERT_KEY),
   );
 
-  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(location.pathname);
+  const isSubloteDetail = /^\/inventario\/[^/]+\/[^/]+\/sublotes$/.test(
+    location.pathname,
+  );
   const isAuthFlow = isPublicRoute(location.pathname);
 
   useEffect(() => {
     if (!reconnectedAt) return undefined;
     setShowReconnectedNotice(true);
-    const timeout = window.setTimeout(() => setShowReconnectedNotice(false), 5200);
+    const timeout = window.setTimeout(
+      () => setShowReconnectedNotice(false),
+      5200,
+    );
     return () => window.clearTimeout(timeout);
   }, [reconnectedAt]);
 
@@ -205,7 +214,13 @@ function GlobalOfflineNotice() {
   const hasNoInternet = !isOnline;
   const backendUnavailable = isOnline && backendReachable === false;
 
-  if (!hasNoInternet && !backendUnavailable && !showReconnectedNotice && !isSyncing) return null;
+  if (
+    !hasNoInternet &&
+    !backendUnavailable &&
+    !showReconnectedNotice &&
+    !isSyncing
+  )
+    return null;
 
   const notice = hasNoInternet
     ? {
@@ -316,7 +331,10 @@ function NativeBackButtonHandler({
   const lastExitAttemptRef = useRef(0);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    if (
+      !Capacitor.isNativePlatform() ||
+      Capacitor.getPlatform() !== 'android'
+    ) {
       return undefined;
     }
 
@@ -460,7 +478,9 @@ function App() {
     <BrowserRouter>
       <AppErrorBoundary>
         <PrivateRouteHistoryTracker />
-        <AppContent />
+        <UnsavedChangesProvider>
+          <AppContent />
+        </UnsavedChangesProvider>
       </AppErrorBoundary>
     </BrowserRouter>
   );

@@ -16,6 +16,7 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import { RefreshButton } from '../components/RefreshButton';
+import { useDeviceLayout } from '../hooks/useDeviceLayout';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { useUser } from '../context/UserContext';
 import {
@@ -441,6 +442,7 @@ function DashboardErrorState({
 
 export default function Inicio() {
   const navigate = useNavigate();
+  const { isDesktop } = useDeviceLayout();
   const { user } = useUser();
   const { tone, isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -977,6 +979,252 @@ export default function Inicio() {
 
   if (dashboardState === 'loading') {
     return <DashboardLoadingState />;
+  }
+
+
+  if (isDesktop) {
+    const offlineIsReady = offlinePrepFeedback?.variant === 'success';
+    const warehouseName = bodegaInicio?.nombre?.trim() || 'Bodega principal';
+    const warehouseLocation = bodegaInicio?.ubicacion?.trim() || 'Sin ubicación registrada';
+
+    return (
+      <div className="min-h-full bg-[#f4f7fb] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+        {refreshing ? (
+          <div className="fixed inset-0 z-40 bg-white/82 backdrop-blur-sm dark:bg-slate-950/82">
+            <DashboardLoadingState />
+          </div>
+        ) : null}
+
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-0">
+          <header className="rounded-[20px] border border-[#dbe2ee] bg-white px-6 py-5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-[#eef4ff] text-[#102d92] shadow-sm dark:bg-blue-500/15 dark:text-blue-100">
+                  <PackageCheck size={28} strokeWidth={2.35} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-black leading-tight text-[#111827] dark:text-slate-50">Café Smart</h1>
+                  <p className="mt-1 text-sm font-semibold text-[#65758f] dark:text-slate-300">Resumen general de tu negocio</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex min-h-[36px] items-center gap-2 rounded-full border border-[#dbe2ee] bg-[#f8fbff] px-3 text-xs font-black uppercase tracking-[0.08em] text-[#475569] dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
+                  <span className={`h-2 w-2 rounded-full ${resolveCloudDotClass(tone)}`} aria-hidden="true" />
+                  {resolveCloudLabel(tone)}
+                </span>
+                {usingCachedDashboard ? (
+                  <span className="inline-flex min-h-[36px] items-center rounded-full bg-amber-50 px-3 text-xs font-black text-amber-800 dark:bg-amber-500/15 dark:text-amber-100">Información guardada</span>
+                ) : dashboardState === 'valid' ? (
+                  <span className="text-sm font-bold text-[#65758f] dark:text-slate-300">{formatUpdatedAgo(summary?.updatedAt ?? null, now)}</span>
+                ) : null}
+                <RefreshButton onClick={() => void handleReload()} loading={refreshing} aria-label="Recargar información del inicio" className="min-h-[40px]">
+                  Recargar
+                </RefreshButton>
+              </div>
+            </div>
+          </header>
+
+          {dashboardState === 'error' ? (
+            <section className="rounded-[20px] border border-rose-200 bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-rose-500/40 dark:bg-slate-900">
+              <h2 className="text-lg font-black text-slate-950 dark:text-slate-50">
+                {offlineCacheMissing ? 'No hay información guardada' : error === 'No pudimos conectar con la nube' ? 'Conexión inestable' : 'No pudimos cargar el inicio'}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                {offlineCacheMissing ? 'Conéctate a internet una vez para cargar tus datos y poder consultarlos sin conexión.' : error === 'No pudimos conectar con la nube' ? 'Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.' : 'Revisa tu conexión e intenta nuevamente.'}
+              </p>
+              <RefreshButton onClick={() => void handleReload()} aria-label="Recargar información del inicio" className="mt-5">Recargar</RefreshButton>
+            </section>
+          ) : null}
+
+          {dashboardState === 'valid' && error ? (
+            <section className="rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-400/30 dark:bg-amber-500/10">
+              <h2 className="text-sm font-black text-amber-900 dark:text-amber-100">Conexión inestable</h2>
+              <p className="mt-1 text-sm font-semibold leading-6 text-amber-800 dark:text-amber-200">Puedes seguir usando los datos guardados. Intentaremos sincronizar cuando vuelva la conexión.</p>
+            </section>
+          ) : null}
+
+          {dashboardState === 'valid' && mostrarOnboardingBodega ? (
+            <section className="rounded-[20px] border border-[#f59e0b] bg-[#fff4cc] p-5 text-[#5f370e] shadow-[0_12px_28px_rgba(180,83,9,0.12)] dark:border-amber-500/70 dark:bg-amber-950/45 dark:text-amber-50">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 items-start gap-4">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-white/80 text-[#92400e] shadow-sm dark:bg-amber-900/60 dark:text-amber-100"><Warehouse size={23} aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-black">Configura la capacidad de tu bodega</h2>
+                    <p className="mt-1 text-sm font-bold leading-6">Necesitamos este dato para validar compras, inventario y ventas.</p>
+                    {capacidadInicialKg ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,260px)_auto] sm:items-end">
+                        <div>
+                          <label htmlFor="inicio-desktop-capacidad-inicial" className="text-xs font-black">Capacidad máxima (kg)</label>
+                          <input id="inicio-desktop-capacidad-inicial" type="number" min="1" value={capacidadInicialKg} onChange={(event) => { setCapacidadInicialKg(event.target.value); setCapacidadInicialError(null); }} className="mt-1 h-11 w-full rounded-[12px] border border-[#f3c363] bg-white px-3 text-sm font-black text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-amber-600/30 dark:border-amber-400/70 dark:bg-slate-950 dark:text-slate-50" placeholder="Ej. 6000" />
+                        </div>
+                        <button type="button" onClick={() => void guardarCapacidadInicial()} disabled={guardandoCapacidadInicial} className="inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#173ea6] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">
+                          {guardandoCapacidadInicial ? 'Guardando...' : 'Guardar capacidad'}
+                        </button>
+                      </div>
+                    ) : null}
+                    {capacidadInicialError ? <p className="mt-2 text-sm font-black text-[#b42318] dark:text-rose-200">{capacidadInicialError}</p> : null}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <button type="button" onClick={() => setMostrarOnboardingBodega(false)} className="inline-flex min-h-[40px] items-center rounded-full bg-white/75 px-4 text-sm font-black text-[#5f370e] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 dark:border dark:border-amber-400/50 dark:bg-slate-900 dark:text-amber-50 dark:hover:bg-slate-800">Más tarde</button>
+                  <button type="button" onClick={() => setCapacidadInicialKg((value) => value || '6000')} className="inline-flex min-h-[40px] items-center rounded-full bg-[#102d92] px-4 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">Configurar bodega</button>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {dashboardState === 'valid' ? (
+            <main className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
+              <div className="flex min-w-0 flex-col gap-6">
+                <section className="rounded-[20px] border border-[#dbe2ee] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900" aria-labelledby="desktop-resumen-dia">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 id="desktop-resumen-dia" className="text-lg font-black text-[#111827] dark:text-slate-50">Resumen del día</h2>
+                      <p className="mt-1 text-sm font-semibold text-[#65758f] dark:text-slate-300">Actividad principal de tu negocio</p>
+                    </div>
+                    <span className="inline-flex rounded-full border border-[#dbe5ff] bg-[#f7f9ff] px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-[#102d92] dark:border-blue-500/60 dark:bg-blue-500/20 dark:text-blue-100">Hoy</span>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                    <MetricCard label="Compras" value={formatMetric(loading, summary?.comprasHoy ?? null, formatInteger)} icon={ShoppingCart} />
+                    <MetricCard label="Ventas" value={formatMetric(loading, summary?.ventasHoy ?? null, formatInteger)} icon={CalendarDays} />
+                    <MetricCard label="Kg comprados" value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)} icon={PackageCheck} />
+                    <MetricCard label="Productores" value={formatMetric(loading, summary?.totalProductores ?? null, formatInteger)} icon={ShieldCheck} />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button type="button" onClick={() => navigate('/gastos')} className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(16,45,146,0.18)] transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">Registrar gasto</button>
+                    <button type="button" onClick={() => navigate('/compras')} className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#bdd0ff] bg-white px-5 text-sm font-black text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-blue-400/30 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-blue-500/10">Registrar compra</button>
+                    <button type="button" onClick={() => navigate('/ventas')} className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#bdd0ff] bg-white px-5 text-sm font-black text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-blue-400/30 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-blue-500/10">Registrar venta</button>
+                  </div>
+                </section>
+
+                <section className="rounded-[20px] border border-[#dbe2ee] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900" aria-labelledby="desktop-lotes-antiguos">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 id="desktop-lotes-antiguos" className="text-lg font-black text-[#111827] dark:text-slate-50">Lotes más antiguos en bodega</h2>
+                      <p className="mt-1 text-sm font-semibold text-[#65758f] dark:text-slate-300">Café disponible ordenado por antigüedad</p>
+                    </div>
+                    <button type="button" onClick={() => navigate('/inventario')} className="inline-flex min-h-[38px] items-center rounded-full border border-[#bdd0ff] bg-white px-4 text-sm font-black text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-blue-400/30 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-blue-500/10">Ver todos los lotes</button>
+                  </div>
+
+                  <div className="mt-5 overflow-hidden rounded-[16px] border border-[#e4eaf3] dark:border-slate-700">
+                    {cafeEnBodega.length === 0 ? (
+                      <div className="px-5 py-8 text-sm font-semibold text-[#65758f] dark:text-slate-300">Aún no hay café disponible en esta bodega.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-[#edf1f7] text-left dark:divide-slate-700">
+                          <thead className="bg-[#f8fbff] dark:bg-slate-950/70">
+                            <tr>
+                              <th scope="col" className="px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Lote</th>
+                              <th scope="col" className="px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Estado</th>
+                              <th scope="col" className="px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Días en bodega</th>
+                              <th scope="col" className="px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Peso</th>
+                              <th scope="col" className="px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Tipo</th>
+                              <th scope="col" className="px-4 py-3 text-right text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#edf1f7] bg-white dark:divide-slate-700 dark:bg-slate-900">
+                            {cafeEnBodega.map((item) => {
+                              const isGood = item.calidad.toLowerCase() === 'bueno';
+                              return (
+                                <tr key={item.key} className="hover:bg-[#f8fbff] dark:hover:bg-slate-800/60">
+                                  <td className="px-4 py-4 text-sm font-black text-slate-900 dark:text-slate-50">{item.codigo || item.tipo}</td>
+                                  <td className="px-4 py-4">
+                                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${isGood ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100'}`}>{item.calidad || 'Sin estado'}</span>
+                                  </td>
+                                  <td className="px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200">{item.diasEnBodega} días</td>
+                                  <td className="px-4 py-4 text-sm font-black text-[#18479d] dark:text-blue-200">{formatKg(item.pesoDisponibleKg)}</td>
+                                  <td className="px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200">{item.tipo || 'Sin tipo'}</td>
+                                  <td className="px-4 py-4 text-right">
+                                    <button type="button" onClick={() => navigate('/inventario')} aria-label={`Ver opciones del lote ${item.codigo || item.tipo}`} className="inline-flex min-h-[34px] items-center rounded-full border border-[#dbe2ee] bg-white px-3 text-xs font-black text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-slate-600 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-slate-800">Ver</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <aside className="flex min-w-0 flex-col gap-6">
+                <section className="rounded-[20px] border border-[#dbe2ee] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900" aria-labelledby="desktop-bodega-principal">
+                  {ocupacion.estado === 'sin-bodega' ? (
+                    <div>
+                      <h2 id="desktop-bodega-principal" className="text-lg font-black text-slate-900 dark:text-slate-50">Aún no tienes una bodega configurada</h2>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">Crea una para controlar la capacidad de almacenamiento.</p>
+                      <button type="button" onClick={() => navigate('/ajustes', { state: { openBodega: true } })} className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-5 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">Crear bodega</button>
+                    </div>
+                  ) : ocupacion.estado === 'sin-capacidad' ? (
+                    <div>
+                      <h2 id="desktop-bodega-principal" className="text-lg font-black text-slate-900 dark:text-slate-50">Capacidad sin configurar</h2>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">Define la capacidad máxima para calcular la ocupación de esta bodega.</p>
+                      <p className="mt-4 rounded-[14px] bg-[#f8fbff] px-4 py-3 text-sm font-black text-slate-800 dark:bg-slate-950 dark:text-slate-100">{formatKg(ocupacion.usadosKg)} usados actualmente</p>
+                      <button type="button" onClick={() => navigate('/ajustes', { state: { openBodega: true } })} className="mt-5 inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-5 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">Configurar capacidad</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h2 id="desktop-bodega-principal" className="truncate text-lg font-black text-slate-900 dark:text-slate-50">{warehouseName}</h2>
+                          <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">{warehouseLocation}</p>
+                        </div>
+                        <button type="button" onClick={abrirEditorBodegaLocal} aria-label="Editar bodega principal" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dbe2ee] bg-white text-[#102d92] transition hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-slate-600 dark:bg-slate-950 dark:text-blue-100 dark:hover:bg-slate-800"><Warehouse size={18} aria-hidden="true" /></button>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {bodegaInicio?.esPrincipal ? <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-900 dark:border-blue-400/40 dark:bg-blue-500/15 dark:text-blue-100">Principal</span> : null}
+                        {bodegaInicio?.activa ? <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100">Activa</span> : null}
+                      </div>
+
+                      <div className="mt-5 grid gap-3">
+                        <div className="rounded-[16px] border border-[#e4eaf3] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950/70">
+                          <p className="text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Capacidad</p>
+                          <p className="mt-2 text-lg font-black text-slate-950 dark:text-slate-50">{formatKg(ocupacion.usadosKg)} / {formatKg(ocupacion.capacidadKg ?? 0)}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-[16px] border border-[#e4eaf3] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950/70">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Disponible</p>
+                            <p className="mt-2 text-base font-black text-emerald-800 dark:text-emerald-100">{formatKg(ocupacion.disponibleKg ?? 0)}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#e4eaf3] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950/70">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#64748b] dark:text-slate-300">Ocupación</p>
+                            <p className="mt-2 text-base font-black text-[#102d92] dark:text-blue-100">{ocupacion.etiqueta}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div role="progressbar" aria-label="Porcentaje de ocupación de bodega" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ocupacion.porcentajeVisual)} aria-valuetext={`${ocupacion.etiqueta} de ocupación de bodega`} className={`mt-5 h-4 overflow-hidden rounded-full border p-0.5 shadow-inner ${ocupacionVisual.track}`}>
+                        <div className={`h-full rounded-full shadow-[0_1px_4px_rgba(15,23,42,0.24)] transition-[width] duration-500 ${ocupacionVisual.bar}`} style={{ width: `${ocupacion.porcentajeVisual}%` }} />
+                      </div>
+                      <p className={`mt-2 text-sm font-black ${ocupacionVisual.text}`}>{ocupacion.etiqueta} de ocupación</p>
+                      <button type="button" onClick={() => navigate('/ajustes', { state: { openBodega: true } })} className="mt-5 inline-flex min-h-[42px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-5 text-sm font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500">Administrar bodega</button>
+                    </>
+                  )}
+                </section>
+
+                <section className="rounded-[20px] border border-[#dbe2ee] bg-white p-6 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900" aria-labelledby="desktop-offline-mode">
+                  <div className="flex items-start gap-4">
+                    <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-emerald-50 text-emerald-700 shadow-sm dark:bg-emerald-500/15 dark:text-emerald-100"><Sparkles size={22} aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                      <h2 id="desktop-offline-mode" className="text-lg font-black text-slate-900 dark:text-slate-50">{offlineIsReady ? 'Modo sin conexión listo' : 'Modo sin conexión'}</h2>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{offlineIsReady ? offlinePrepFeedback.description : 'Guarda catálogos, inventario y resumen para trabajar offline.'}</p>
+                    </div>
+                  </div>
+                  {offlinePrepFeedback && !offlineIsReady ? <AppFeedbackMessage className="mt-4" variant={offlinePrepFeedback.variant} title={offlinePrepFeedback.title} description={offlinePrepFeedback.description} /> : null}
+                  <button type="button" onClick={() => void handlePrepareOffline()} disabled={preparingOffline || !isOnline} className="mt-5 inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[14px] bg-emerald-700 px-4 text-sm font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-slate-700">
+                    <Sparkles size={16} aria-hidden="true" />
+                    {preparingOffline ? 'Guardando' : offlineIsReady ? 'Actualizar datos offline' : 'Preparar'}
+                  </button>
+                </section>
+              </aside>
+            </main>
+          ) : null}
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { themeClasses } from '../../theme/themeClasses';
 
@@ -11,6 +12,15 @@ type CafeSmartModalProps = {
   labelledById: string;
   className?: string;
 };
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 export function CafeSmartModal({
   open,
@@ -29,26 +39,59 @@ export function CafeSmartModal({
 
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = dialogRef.current;
-    dialog?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    window.setTimeout(() => {
+      const focusable = dialogRef.current?.querySelector<HTMLElement>(
+        FOCUSABLE_SELECTOR,
+      );
+      (focusable ?? dialogRef.current)?.focus();
+    }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
+      ).filter((element) => !element.hasAttribute('disabled'));
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [onClose, open]);
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[120] px-4 py-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center px-4 py-6">
       <button
         type="button"
         aria-label="Cerrar"
@@ -62,7 +105,7 @@ export function CafeSmartModal({
         aria-labelledby={labelledById}
         aria-describedby={description ? `${labelledById}-description` : undefined}
         tabIndex={-1}
-        className={`relative mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[22px] shadow-[0_24px_70px_rgba(15,23,42,0.24)] ${themeClasses.modalBase} ${className}`}
+        className={`relative z-[1010] mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[22px] shadow-[0_24px_70px_rgba(15,23,42,0.24)] ${themeClasses.modalBase} ${className}`}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-700">
           <div className="min-w-0">
@@ -89,6 +132,7 @@ export function CafeSmartModal({
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

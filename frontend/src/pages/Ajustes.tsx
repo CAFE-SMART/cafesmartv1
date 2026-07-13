@@ -191,6 +191,8 @@ import {
 } from '../utils/personValidation';
 import { fuzzySearch, useDebouncedValue } from '../utils/fuzzySearch';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useNotifications } from '../hooks/useNotifications';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import granitoInteligente from '../assets/granito-inteligente.png';
 import {
   PESO_MAXIMO_ENTRADA_KG,
@@ -241,7 +243,11 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
   PERSONALIZADO: 'Personalizado',
 };
 
-type AjustesTipoOrganizacion = 'COOPERATIVA' | 'COMPRAVENTA' | 'PERSONALIZADO' | 'OTRO';
+type AjustesTipoOrganizacion =
+  | 'COOPERATIVA'
+  | 'COMPRAVENTA'
+  | 'PERSONALIZADO'
+  | 'OTRO';
 
 type AjustesOrganizacion = {
   id?: string | null;
@@ -249,7 +255,9 @@ type AjustesOrganizacion = {
   tipo?: AjustesTipoOrganizacion | null;
   descripcion?: string | null;
 };
-function normalizeBusinessType(value?: string | null): AjustesTipoOrganizacion | null {
+function normalizeBusinessType(
+  value?: string | null,
+): AjustesTipoOrganizacion | null {
   const normalized = value?.trim().toUpperCase();
   if (!normalized) return null;
   if (normalized === 'COMPRAVENTA' || normalized === 'COMPRA VENTA') {
@@ -848,7 +856,6 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
   );
 }
 
-
 type DesktopScreenReaderConfig = {
   name: string;
   description: string;
@@ -891,8 +898,7 @@ function getDesktopScreenReaderConfig(): DesktopScreenReaderConfig {
   if (platform.includes('mac')) {
     return {
       name: 'VoiceOver',
-      description:
-        'Usa VoiceOver para escuchar y controlar Café Smart.',
+      description: 'Usa VoiceOver para escuchar y controlar Café Smart.',
       statusLabel: 'Configura VoiceOver desde macOS',
       actionLabel: 'Ver instrucciones de VoiceOver',
       shortcut: 'Command + F5',
@@ -1162,7 +1168,12 @@ export default function Ajustes() {
     useState<SyncOperation | null>(null);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [accessibilityModal, setAccessibilityModal] = useState<
-    'screen-reader' | 'high-contrast' | 'font-scale' | 'permissions' | null
+    | 'screen-reader'
+    | 'high-contrast'
+    | 'font-scale'
+    | 'permissions'
+    | 'notifications'
+    | null
   >(null);
   const [screenReaderSetupPromptOpen, setScreenReaderSetupPromptOpen] =
     useState(false);
@@ -1177,6 +1188,11 @@ export default function Ajustes() {
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [permissionsFeedback, setPermissionsFeedback] = useState<{
     variant: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const notifications = useNotifications();
+  const [notificationFeedback, setNotificationFeedback] = useState<{
+    variant: 'success' | 'error' | 'warning' | 'info';
     message: string;
   } | null>(null);
   const [bodegaLimitesFeedback, setBodegaLimitesFeedback] = useState<{
@@ -1797,7 +1813,8 @@ export default function Ajustes() {
           prev.nombreEmpresa === 'Negocio sin nombre'
             ? nombreOrganizacionReal
             : prev.nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(nextTipo) || prev.tipoEmpresa || 'COMPRAVENTA',
+        tipoEmpresa:
+          normalizeBusinessType(nextTipo) || prev.tipoEmpresa || 'COMPRAVENTA',
         descripcion: nextDescripcion,
       }));
     }
@@ -2791,13 +2808,15 @@ export default function Ajustes() {
       setCompany((prev) => ({
         ...prev,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
+        tipoEmpresa:
+          normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
         descripcion: descripcionActualizada,
       }));
       companyBaselineRef.current = {
         ...company,
         nombreEmpresa: organizacionConfirmada.nombre ?? nombreEmpresa,
-        tipoEmpresa: normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
+        tipoEmpresa:
+          normalizeBusinessType(organizacionConfirmada.tipo) || 'OTRO',
         descripcion: descripcionActualizada,
       };
       if (user && token) {
@@ -4094,6 +4113,40 @@ export default function Ajustes() {
     );
   };
 
+  const profileBaseline = profileBaselineRef.current;
+  const companyBaseline = companyBaselineRef.current;
+  const hasProfileInfoUnsavedChanges = Boolean(
+    profileInfoOpen &&
+    profileBaseline &&
+    (profileBaseline.nombre !== profile.nombre ||
+      profileBaseline.correo !== profile.correo ||
+      profileBaseline.telefono !== profile.telefono),
+  );
+  const hasProfilePhotoUnsavedChanges = Boolean(
+    profilePhotoOpen && (avatarFile || avatarPreview),
+  );
+  const hasCompanyUnsavedChanges = Boolean(
+    isEditingCompany &&
+    companyBaseline &&
+    (companyBaseline.nombreEmpresa !== company.nombreEmpresa ||
+      companyBaseline.tipoEmpresa !== company.tipoEmpresa ||
+      companyBaseline.descripcion !== company.descripcion),
+  );
+  const hasPeopleUnsavedChanges = Boolean(
+    peopleEditing && hasPeopleDraftChanges(peopleEditing, peopleForm),
+  );
+  const hasAjustesUnsavedChanges = Boolean(
+    hasProfileInfoUnsavedChanges ||
+    hasProfilePhotoUnsavedChanges ||
+    hasCompanyUnsavedChanges ||
+    (bodegaFormOpen && bodegaDraftDirty) ||
+    hasPeopleUnsavedChanges,
+  );
+
+  useUnsavedChanges('ajustes-forms', hasAjustesUnsavedChanges, {
+    title: 'Tienes cambios sin guardar',
+    message: 'Si sales ahora, perderás la información que no has guardado.',
+  });
   const cerrarEdicionPersona = () => {
     if (hasPeopleDraftChanges(peopleEditing, peopleForm) && peopleEditing) {
       setPeopleDraft({ editing: peopleEditing, form: peopleForm });
@@ -4790,17 +4843,45 @@ export default function Ajustes() {
     },
   ];
 
+  const desktopScreenReaderConfig = useMemo(getDesktopScreenReaderConfig, []);
+  const isAndroidScreenReader = isNativeAndroid();
   const systemScreenReaderActive = isSystemScreenReaderActive(
     systemScreenReaderStatus,
   );
-  const screenReaderStatusTitle = screenReaderStatusLoading
-    ? 'Comprobando lector de pantalla'
+  const screenReaderStatusTitle = !isAndroidScreenReader
+    ? desktopScreenReaderConfig.statusLabel
+    : screenReaderStatusLoading
+      ? 'Comprobando lector de pantalla'
+      : systemScreenReaderActive
+        ? 'Lector de pantalla activo'
+        : 'TalkBack no está activo';
+  const screenReaderStatusDescription = !isAndroidScreenReader
+    ? desktopScreenReaderConfig.instructions
     : systemScreenReaderActive
-      ? 'Lector de pantalla activo'
-      : 'TalkBack no está activo';
-  const screenReaderStatusDescription = systemScreenReaderActive
-    ? 'Café Smart está preparado para funcionar con el lector de tu dispositivo.'
-    : 'Abre los ajustes de accesibilidad para activarlo.';
+      ? 'Café Smart está preparado para funcionar con el lector de tu dispositivo.'
+      : 'Abre los ajustes de accesibilidad para activarlo.';
+
+  const handleScreenReaderSetupAction = () => {
+    if (isAndroidScreenReader) {
+      setScreenReaderSetupPromptOpen(true);
+      return;
+    }
+
+    if (desktopScreenReaderConfig.settingsProtocol) {
+      window.location.href = desktopScreenReaderConfig.settingsProtocol;
+    }
+
+    if (desktopScreenReaderConfig.shortcut && navigator.clipboard) {
+      void navigator.clipboard.writeText(desktopScreenReaderConfig.shortcut);
+    }
+
+    setPermissionsFeedback({
+      variant: 'success',
+      message: desktopScreenReaderConfig.shortcut
+        ? `Atajo copiado: ${desktopScreenReaderConfig.shortcut}`
+        : desktopScreenReaderConfig.instructions,
+    });
+  };
 
   const accessibilityCards = [
     {
@@ -4841,9 +4922,19 @@ export default function Ajustes() {
       onClick: () => setAccessibilityModal('font-scale' as const),
     },
     {
+      id: 'notifications',
+      title: 'Notificaciones',
+      description: 'Inventario, secados y tareas pendientes',
+      status: notificationStatusLabel,
+      icon: BellRing,
+      iconStyle:
+        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+      onClick: () => setAccessibilityModal('notifications' as const),
+    },
+    {
       id: 'permissions',
       title: 'Permisos',
-      description: 'Cámara, fotos y notificaciones',
+      description: 'Cámara, fotos y ajustes del dispositivo',
       status: permissionsLoading ? 'Consultando' : 'Configurar',
       icon: Shield,
       iconStyle:
@@ -4908,6 +4999,52 @@ export default function Ajustes() {
     if (state === 'limited') return 'Limitado';
     if (state === 'denied') return 'No permitido';
     return isNativeAndroid() ? 'No disponible' : 'Solo Android';
+  };
+
+  const notificationStatusLabel = notifications.isLoading
+    ? 'Consultando'
+    : notifications.status === 'granted'
+      ? 'Notificaciones activadas'
+      : notifications.status === 'denied'
+        ? 'Notificaciones bloqueadas'
+        : notifications.status === 'unsupported'
+          ? 'No disponible'
+          : 'Activar';
+
+  const notificationDescription =
+    notifications.status === 'granted'
+      ? 'Notificaciones activadas'
+      : notifications.status === 'denied'
+        ? 'Puedes activarlas desde la configuración de permisos de tu dispositivo o navegador.'
+        : notifications.status === 'unsupported'
+          ? 'Este navegador no admite notificaciones.'
+          : 'Recibe avisos sobre inventario, secados y tareas pendientes.';
+
+  const activarNotificaciones = async () => {
+    const result = await notifications.requestPermission();
+    setNotificationFeedback({
+      variant:
+        result.status === 'granted'
+          ? 'success'
+          : result.status === 'denied'
+            ? 'warning'
+            : result.status === 'unsupported'
+              ? 'error'
+              : 'info',
+      message: result.message ?? notificationStatusLabel,
+    });
+  };
+
+  const probarNotificacion = async () => {
+    const result = await notifications.sendTestNotification();
+    setNotificationFeedback({
+      variant: result.ok
+        ? 'success'
+        : result.status === 'denied'
+          ? 'warning'
+          : 'error',
+      message: result.message ?? 'No pudimos enviar la notificación de prueba.',
+    });
   };
 
   const themeStatusLabel =
@@ -5016,6 +5153,17 @@ export default function Ajustes() {
       keywords: ['texto', 'letra'],
     },
     {
+      id: 'notificaciones',
+      title: 'Notificaciones',
+      description:
+        'Recibe avisos sobre inventario, secados y tareas pendientes.',
+      category: 'accesibilidad',
+      icon: BellRing,
+      status: notificationStatusLabel,
+      onClick: () => setAccessibilityModal('notifications'),
+      keywords: ['notificaciones', 'avisos', 'permisos', 'secado'],
+    },
+    {
       id: 'permisos',
       title: 'Permisos',
       description: 'Administra los permisos de la aplicación.',
@@ -5031,7 +5179,7 @@ export default function Ajustes() {
       description: 'Consulta información de tu negocio.',
       category: 'asistente',
       icon: ScanSearch,
-      disabled: true,
+      onClick: () => navigate('/asistente'),
       keywords: ['inteligente', 'consulta'],
     },
     {
@@ -5148,7 +5296,486 @@ export default function Ajustes() {
     });
   };
 
-  if (isDesktop && !isDesktopSettingsOverlayOpen) {
+  const isDesktopPortalModalOpen = Boolean(
+    themeModalOpen ||
+    accessibilityModal ||
+    screenReaderSetupPromptOpen ||
+    syncPanelOpen ||
+    syncDeleteCandidate,
+  );
+
+  const desktopSettingsModalLayer = isDesktop ? (
+    <>
+      <CafeSmartModal
+        open={themeModalOpen}
+        onClose={() => setThemeModalOpen(false)}
+        labelledById="theme-modal-title"
+        title="Tema visual"
+        description="Elige cómo quieres ver CaféSmart."
+      >
+        <div className="space-y-3" role="radiogroup" aria-label="Tema visual">
+          {themeOptions.map((option) => {
+            const Icon = option.icon;
+            const active = theme === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                {...ariaChecked(active)}
+                onClick={() => setTheme(option.value)}
+                className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${active ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-slate-300 dark:bg-slate-800' : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'}`}
+              >
+                <span
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] ${active ? 'bg-[#102d92] text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-[#eff4ff] text-[#2c57cc] dark:bg-slate-800 dark:text-slate-200'}`}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black text-slate-950 dark:text-slate-100">
+                    {option.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                    {option.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </CafeSmartModal>
+
+      <CafeSmartModal
+        open={accessibilityModal === 'screen-reader'}
+        onClose={() => setAccessibilityModal(null)}
+        labelledById="screen-reader-modal-title"
+        title="Lector de pantalla"
+        description={
+          isAndroidScreenReader
+            ? 'Usa TalkBack para escuchar y controlar Café Smart.'
+            : desktopScreenReaderConfig.description
+        }
+      >
+        {isAndroidScreenReader ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-3 rounded-[16px] border px-4 py-3 ${systemScreenReaderActive ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100'}`}
+          >
+            <p className="text-sm font-black">{screenReaderStatusTitle}</p>
+            <p className="mt-1 text-xs font-semibold leading-5">
+              {screenReaderStatusDescription}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-[16px] border border-blue-100 bg-blue-50 px-4 py-3 text-blue-950 dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-100">
+            <p className="text-sm font-black">Narrador de Windows</p>
+            <p className="mt-1 text-xs font-semibold leading-5">
+              {desktopScreenReaderConfig.instructions}
+            </p>
+            <p className="mt-2 text-xs font-black">
+              Atajo: {desktopScreenReaderConfig.shortcut}
+            </p>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={handleScreenReaderSetupAction}
+          className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+        >
+          {isAndroidScreenReader
+            ? 'Configurar TalkBack'
+            : desktopScreenReaderConfig.actionLabel}
+        </button>
+      </CafeSmartModal>
+
+      {screenReaderSetupPromptOpen ? (
+        <CafeSmartModal
+          open={screenReaderSetupPromptOpen}
+          onClose={() => void cerrarSugerenciaLectorPantalla()}
+          labelledById="activar-lector-pantalla-title"
+          title="Activa el lector de pantalla del celular"
+          description="El modo compatible de Café Smart está listo, pero debes activar TalkBack desde los ajustes de accesibilidad de tu dispositivo."
+          className="max-w-[380px]"
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void cerrarSugerenciaLectorPantalla()}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            >
+              Ahora no
+            </button>
+            <button
+              type="button"
+              onClick={() => void abrirAccesibilidadDesdeSugerencia()}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+            >
+              Abrir accesibilidad
+            </button>
+          </div>
+        </CafeSmartModal>
+      ) : null}
+
+      <CafeSmartModal
+        open={accessibilityModal === 'permissions'}
+        onClose={() => setAccessibilityModal(null)}
+        labelledById="permissions-modal-title"
+        title="Permisos de la aplicación"
+        description="Controla qué funciones del dispositivo puede utilizar Café Smart."
+      >
+        <div className="space-y-3">
+          {permissionsFeedback ? (
+            <AppFeedbackMessage
+              variant={permissionsFeedback.variant}
+              description={permissionsFeedback.message}
+            />
+          ) : null}
+          {permissionRows.map((permission) => {
+            const Icon = permission.icon;
+            return (
+              <article
+                key={permission.id}
+                className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-slate-950 dark:text-slate-50">
+                      {permission.title}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                      {permission.description}
+                    </p>
+                    <p className="mt-2 text-xs font-black text-[#102d92] dark:text-blue-200">
+                      Estado:{' '}
+                      {permissionsLoading
+                        ? 'Consultando...'
+                        : formatPermissionState(permission.status?.state)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void abrirAjustesAplicacion()}
+                    className="shrink-0 rounded-full border border-[#d5deee] bg-white px-3 py-1.5 text-xs font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    Configurar
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => void cargarEstadosPermisos()}
+              disabled={permissionsLoading}
+              className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            >
+              {permissionsLoading ? (
+                <LoaderCircle
+                  size={15}
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <RefreshCcw size={15} aria-hidden="true" />
+              )}
+              Recargar
+            </button>
+            <button
+              type="button"
+              onClick={() => void abrirAjustesAplicacion()}
+              className="inline-flex min-h-[42px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+            >
+              Abrir ajustes
+            </button>
+          </div>
+        </div>
+      </CafeSmartModal>
+
+      <CafeSmartModal
+        open={accessibilityModal === 'high-contrast'}
+        onClose={() => setAccessibilityModal(null)}
+        labelledById="high-contrast-modal-title"
+        title="Texto de alto contraste"
+        description="Aumenta el contraste para facilitar la lectura de textos, alertas y botones."
+      >
+        <div
+          className="space-y-3"
+          role="radiogroup"
+          aria-label="Texto de alto contraste"
+        >
+          {binaryAccessibilityOptions.map((option) => {
+            const active =
+              accessibilityPreferences.highContrast === option.value;
+            return (
+              <button
+                key={String(option.value)}
+                type="button"
+                role="radio"
+                {...ariaChecked(active)}
+                onClick={() => setHighContrast(option.value)}
+                className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${active ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15' : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'}`}
+              >
+                <span
+                  className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${active ? 'bg-[#102d92] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${active ? 'translate-x-5' : 'translate-x-0'}`}
+                  />
+                </span>
+                <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                  {option.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </CafeSmartModal>
+
+      <CafeSmartModal
+        open={accessibilityModal === 'font-scale'}
+        onClose={() => setAccessibilityModal(null)}
+        labelledById="font-scale-modal-title"
+        title="Tamaño de fuente"
+        description="Elige el tamaño de texto que te resulte más cómodo."
+      >
+        <div
+          className="space-y-3"
+          role="radiogroup"
+          aria-label="Tamaño de fuente"
+        >
+          {fontScaleOptions.map((option) => {
+            const active = accessibilityPreferences.fontScale === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                {...ariaChecked(active)}
+                onClick={() => setFontScale(option.value)}
+                className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${active ? 'border-[#102d92] bg-[#eef4ff] shadow-sm dark:border-blue-300 dark:bg-blue-500/15' : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-800'}`}
+              >
+                <span
+                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${active ? 'border-[#102d92] bg-[#102d92] dark:border-blue-300 dark:bg-blue-500' : 'border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-900'}`}
+                  aria-hidden="true"
+                >
+                  {active ? (
+                    <span className="h-2.5 w-2.5 rounded-full bg-white" />
+                  ) : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black text-slate-950 dark:text-slate-50">
+                    {option.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-200">
+                    {option.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </CafeSmartModal>
+
+      <CafeSmartModal
+        open={syncPanelOpen}
+        onClose={() => setSyncPanelOpen(false)}
+        labelledById="sync-offline-title"
+        title="Sincronización offline"
+        description="Revisa registros guardados sin conexión."
+        className="max-w-2xl"
+      >
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-[13px] border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-400/60 dark:bg-amber-500/15">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-200">
+              Pendientes
+            </p>
+            <p className="mt-1 text-lg font-black text-amber-900 dark:text-amber-100">
+              {syncSummary.pendientes}
+            </p>
+          </div>
+          <div className="rounded-[13px] border border-red-200 bg-red-50 px-3 py-2 dark:border-red-400/60 dark:bg-red-500/15">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-red-700 dark:text-red-200">
+              Con error
+            </p>
+            <p className="mt-1 text-lg font-black text-red-900 dark:text-red-100">
+              {syncSummary.errores}
+            </p>
+          </div>
+          <div className="rounded-[13px] border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-400/60 dark:bg-emerald-500/15">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-200">
+              Sincronizados
+            </p>
+            <p className="mt-1 text-lg font-black text-emerald-900 dark:text-emerald-100">
+              {syncSummary.sincronizados}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void reintentarSincronizacion()}
+            disabled={
+              syncAllRetrying ||
+              retryingSyncIds.length > 0 ||
+              syncSummary.pendientes + syncSummary.errores === 0 ||
+              isOffline
+            }
+            className="inline-flex min-h-[36px] items-center justify-center gap-2 rounded-[12px] bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
+          >
+            {syncAllRetrying ? (
+              <LoaderCircle
+                size={14}
+                className="animate-spin"
+                aria-hidden="true"
+              />
+            ) : null}
+            {syncAllRetrying ? 'Reintentando...' : 'Reintentar'}
+          </button>
+          <button
+            type="button"
+            onClick={clearSyncedOperations}
+            disabled={syncSummary.sincronizados === 0}
+            className="inline-flex min-h-[36px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-3 text-xs font-black text-[#334b85] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          >
+            Limpiar sincronizados
+          </button>
+        </div>
+        {syncFeedback ? (
+          <AppFeedbackMessage
+            variant={syncFeedback.variant}
+            description={syncFeedback.message}
+            className="mt-4"
+          />
+        ) : null}
+        {syncQueue.length > 0 ? (
+          <div className="mt-4 max-h-[42vh] space-y-2 overflow-y-auto pr-1">
+            {syncQueue.map((operation) => {
+              const isRetrying = retryingSyncIds.includes(operation.idLocal);
+              return (
+                <div
+                  key={operation.idLocal}
+                  className="rounded-[14px] border border-[#e7ecf7] bg-[#fbfcff] px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-900 dark:text-slate-100">
+                        {operation.modulo === 'COMPRA'
+                          ? 'Compra'
+                          : operation.modulo === 'GASTO'
+                            ? 'Gasto'
+                            : operation.modulo}
+                      </p>
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">
+                        {new Date(operation.creadoEn).toLocaleString('es-CO', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${operation.estado === 'SINCRONIZADO' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-1 dark:ring-emerald-400/40' : operation.estado === 'ERROR' ? 'bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-200 dark:ring-1 dark:ring-red-400/40' : operation.estado === 'SINCRONIZANDO' ? 'bg-sky-50 text-sky-700 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-1 dark:ring-blue-400/40' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-1 dark:ring-amber-400/40'}`}
+                    >
+                      {operation.estado === 'PENDIENTE'
+                        ? 'Pendiente'
+                        : operation.estado === 'SINCRONIZANDO'
+                          ? 'Sincronizando'
+                          : operation.estado === 'SINCRONIZADO'
+                            ? 'Sincronizado'
+                            : 'Error'}
+                    </span>
+                  </div>
+                  {operation.error ? (
+                    <p className="mt-2 rounded-[10px] border border-red-100 bg-red-50 px-2.5 py-2 text-[11px] font-semibold leading-4 text-red-800 dark:border-red-400/30 dark:bg-red-500/10 dark:text-red-100">
+                      {operation.error}
+                    </p>
+                  ) : null}
+                  {operation.estado === 'ERROR' ? (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void reintentarOperacionSync(operation)}
+                        disabled={isRetrying || syncAllRetrying || isOffline}
+                        className="inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-[10px] bg-[#102d92] px-3 py-1.5 text-[11px] font-black text-white transition hover:bg-[#1f3fa7] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
+                      >
+                        {isRetrying ? (
+                          <LoaderCircle
+                            size={13}
+                            className="animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {isRetrying ? 'Reintentando...' : 'Reintentar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSyncDeleteCandidate(operation)}
+                        disabled={isRetrying || syncAllRetrying}
+                        className="min-h-[32px] rounded-[10px] border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400/50 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-500/10"
+                      >
+                        Eliminar local
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <CafeSmartEmptyState
+            title="Todo está sincronizado"
+            description="No hay operaciones pendientes en este dispositivo."
+          />
+        )}
+      </CafeSmartModal>
+
+      <CafeSmartModal
+        open={Boolean(syncDeleteCandidate)}
+        onClose={() => setSyncDeleteCandidate(null)}
+        labelledById="eliminar-sync-local-title"
+        title="¿Eliminar registro local?"
+        description="Este registro se quitará de la cola de sincronización. No se enviará al servidor."
+        className="max-w-[390px]"
+      >
+        <div className="flex items-start gap-3 rounded-[14px] border border-red-100 bg-red-50 px-3 py-3 dark:border-red-400/30 dark:bg-red-500/10">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-200">
+            <Trash2 size={18} aria-hidden="true" />
+          </span>
+          <p className="text-sm font-semibold leading-5 text-red-900 dark:text-red-100">
+            Elimina solo si ya no quieres intentar sincronizar este registro.
+          </p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 max-[330px]:grid-cols-1">
+          <button
+            type="button"
+            autoFocus
+            onClick={() => setSyncDeleteCandidate(null)}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] border border-[#dbe5f7] bg-white px-4 text-sm font-black text-[#1f3fa7] shadow-sm transition hover:bg-[#f3f6ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#274ab8]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={confirmarEliminarOperacionSync}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-[12px] bg-rose-600 px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20 dark:bg-rose-500 dark:hover:bg-rose-400"
+          >
+            Eliminar local
+          </button>
+        </div>
+      </CafeSmartModal>
+    </>
+  ) : null;
+  if (
+    isDesktop &&
+    (!isDesktopSettingsOverlayOpen || isDesktopPortalModalOpen)
+  ) {
     return (
       <div className="min-h-full bg-[#f5f7fb] px-6 py-8 text-slate-950 dark:bg-slate-950 dark:text-slate-100 lg:px-8">
         <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
@@ -5316,6 +5943,7 @@ export default function Ajustes() {
             </main>
           </div>
         </div>
+        {desktopSettingsModalLayer}
       </div>
     );
   }
@@ -5418,14 +6046,125 @@ export default function Ajustes() {
           ) : (
             <button
               type="button"
-              onClick={() => setScreenReaderSetupPromptOpen(true)}
+              onClick={handleScreenReaderSetupAction}
               className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
             >
-              Configurar TalkBack
+              {isAndroidScreenReader
+                ? 'Configurar TalkBack'
+                : desktopScreenReaderConfig.actionLabel}
             </button>
           )}
         </CafeSmartModal>
 
+        <CafeSmartModal
+          open={accessibilityModal === 'notifications'}
+          onClose={() => setAccessibilityModal(null)}
+          labelledById="notifications-modal-title"
+          title="Notificaciones"
+          description="Recibe avisos sobre inventario, secados y tareas pendientes."
+        >
+          <div className="space-y-4">
+            <div className="rounded-[16px] border border-[#dbe5f7] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
+                  <BellRing size={18} aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-black text-slate-950 dark:text-slate-50">
+                    {notifications.status === 'granted'
+                      ? 'Notificaciones activadas'
+                      : notifications.status === 'denied'
+                        ? 'Notificaciones bloqueadas'
+                        : notifications.status === 'unsupported'
+                          ? 'Este navegador no admite notificaciones.'
+                          : 'Activa las notificaciones'}
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">
+                    {notificationDescription}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {notificationFeedback ? (
+              <AppFeedbackMessage
+                variant={notificationFeedback.variant}
+                description={notificationFeedback.message}
+                role={
+                  notificationFeedback.variant === 'error' ? 'alert' : 'status'
+                }
+                aria-live={
+                  notificationFeedback.variant === 'error'
+                    ? 'assertive'
+                    : 'polite'
+                }
+              />
+            ) : notifications.message ? (
+              <AppFeedbackMessage
+                variant={
+                  notifications.status === 'granted'
+                    ? 'success'
+                    : notifications.status === 'denied'
+                      ? 'warning'
+                      : 'info'
+                }
+                description={notifications.message}
+                role="status"
+                aria-live="polite"
+              />
+            ) : null}
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {notifications.status === 'granted' ? (
+                <button
+                  type="button"
+                  onClick={() => void probarNotificacion()}
+                  disabled={notifications.isLoading}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                >
+                  {notifications.isLoading
+                    ? 'Enviando...'
+                    : 'Probar notificación'}
+                </button>
+              ) : notifications.status === 'denied' ? (
+                <button
+                  type="button"
+                  onClick={() => void abrirAjustesAplicacion()}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white dark:bg-blue-600"
+                >
+                  Abrir ajustes
+                </button>
+              ) : notifications.status === 'unsupported' ? (
+                <button
+                  type="button"
+                  onClick={() => void notifications.refreshStatus()}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  Recargar estado
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void activarNotificaciones()}
+                  disabled={notifications.isLoading}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] bg-[#102d92] px-4 text-sm font-black text-white disabled:cursor-wait disabled:opacity-70 dark:bg-blue-600"
+                >
+                  {notifications.isLoading
+                    ? 'Solicitando...'
+                    : 'Activar notificaciones'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void notifications.refreshStatus()}
+                disabled={notifications.isLoading}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-[14px] border border-[#d5deee] bg-white px-4 text-sm font-black text-[#334b85] disabled:cursor-wait disabled:opacity-70 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              >
+                Actualizar estado
+              </button>
+            </div>
+          </div>
+        </CafeSmartModal>
         <CafeSmartModal
           open={accessibilityModal === 'permissions'}
           onClose={() => setAccessibilityModal(null)}
@@ -9828,4 +10567,3 @@ export default function Ajustes() {
     </div>
   );
 }
-

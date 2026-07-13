@@ -29,8 +29,10 @@ import {
   Coffee,
   Leaf,
   Package2,
+  Search,
   ShoppingCart,
   SunMedium,
+  Warehouse,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -38,9 +40,15 @@ import { AppBottomNav } from '../components/AppBottomNav';
 import { AppFeedbackMessage } from '../components/AppFeedbackMessage';
 import { RefreshButton } from '../components/RefreshButton';
 import { SmartSelect } from '../components/SmartSelect';
+import { useDeviceLayout } from '../hooks/useDeviceLayout';
 import { useCloudStatus } from '../context/CloudStatusContext';
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
-import { guardarConfiguracionBodega, obtenerConfiguracionBodega } from '../services/bodegaApi';
+import {
+  guardarConfiguracionBodega,
+  listarBodegas,
+  obtenerConfiguracionBodega,
+  type BodegaItem,
+} from '../services/bodegaApi';
 import { ApiRequestError } from '../services/apiService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import {
@@ -253,18 +261,56 @@ function secadoStatusLabel(estado: string) {
   return estado === 'READY' ? 'Listo para finalizar' : 'Secado en proceso';
 }
 
+function normalizeKgValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function selectInventoryBodega(items: BodegaItem[]) {
+  return (
+    items.find((item) => item.esPrincipal && item.activa) ??
+    items.find((item) => item.esPrincipal) ??
+    items.find((item) => item.activa) ??
+    items[0] ??
+    null
+  );
+}
+
+function bodegaItemToInventoryConfig(item: BodegaItem | null): InventoryBodegaConfig {
+  if (!item) {
+    return {
+      nombreBodega: 'Bodega principal',
+      capacidadKg: null,
+      inventarioKg: null,
+      hasBodega: false,
+    };
+  }
+
+  return {
+    nombreBodega: item.nombre || 'Bodega principal',
+    capacidadKg: normalizeKgValue(item.capacidadMaxKg),
+    inventarioKg: normalizeKgValue(item.cafeAlmacenadoKg),
+    hasBodega: true,
+  };
+}
+
 type InventarioError = {
   titulo: string;
   mensaje: string;
   detalle: string;
 };
 
+type InventoryBodegaConfig = {
+  nombreBodega: string;
+  capacidadKg: number | null;
+  inventarioKg: number | null;
+  hasBodega: boolean;
+};
+
 type CachedInventoryData = {
   lots: LoteResumen[];
-  bodegaConfig: {
-    nombreBodega: string;
-    capacidadKg: number | null;
-  };
+  bodegaConfig: InventoryBodegaConfig;
   savedAt: string;
 };
 
@@ -454,29 +500,70 @@ function OfflineInventoryEmptyState({ onRetry }: { onRetry: () => void }) {
 function CapacityRing({
   totalKg,
   capacityKg,
+  hasBodega,
+  bodegaName,
+  onConfigure,
 }: {
   totalKg: number;
   capacityKg: number | null;
+  hasBodega: boolean;
+  bodegaName: string;
+  onConfigure: () => void;
 }) {
+  if (!hasBodega) {
+    return (
+      <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
+        <p className="text-[0.95rem] font-black text-black dark:text-slate-50">
+          Resumen de Inventario
+        </p>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[2.1rem] font-black leading-none text-[#102d92] dark:text-blue-200">
+              {formatNumber(totalKg)} kg
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-200">
+              Aún no tienes una bodega configurada.
+            </p>
+            <button
+              type="button"
+              onClick={onConfigure}
+              className="mt-3 inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500"
+            >
+              Crear bodega
+            </button>
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#c7d8ff] bg-[#eef4ff] text-[#102d92] shadow-sm dark:border-blue-400/60 dark:bg-blue-500/15 dark:text-blue-100">
+            <Warehouse size={18} aria-hidden="true" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!capacityKg) {
     return (
       <section className="rounded-[20px] border border-[#e6e8f3] bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
         <p className="text-[0.95rem] font-black text-black dark:text-slate-50">
           Resumen de Inventario
         </p>
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-[2.1rem] font-black leading-none text-[#102d92] dark:text-blue-200">
               {formatNumber(totalKg)} kg
-
             </p>
             <p className="mt-1 text-sm font-bold text-slate-600 dark:text-slate-200">
               Capacidad de bodega sin configurar
             </p>
-
+            <button
+              type="button"
+              onClick={onConfigure}
+              className="mt-3 inline-flex min-h-[34px] items-center rounded-full bg-[#102d92] px-3 text-xs font-black text-white transition hover:bg-[#173ea6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:bg-blue-600 dark:hover:bg-blue-500"
+            >
+              Configurar capacidad
+            </button>
           </div>
           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#c7d8ff] bg-[#eef4ff] text-[#102d92] shadow-sm dark:border-blue-400/60 dark:bg-blue-500/15 dark:text-blue-100">
-            <Coffee size={18} />
+            <Warehouse size={18} aria-hidden="true" />
           </div>
         </div>
       </section>
@@ -589,8 +676,9 @@ function CapacityRing({
           </svg>
           <div
             className={`absolute flex h-12 w-12 items-center justify-center rounded-full border border-[#eef2ff] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${accentTextClass}`}
+            aria-label={`Capacidad usada: ${displayPercentage} por ciento`}
           >
-            <Coffee size={16} />
+            <Coffee size={18} aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -598,6 +686,194 @@ function CapacityRing({
   );
 }
 
+type DesktopInventoryTypeRow = {
+  key: string;
+  name: string;
+  totalKg: number;
+  lots: LoteResumen[];
+};
+
+type DesktopInventoryCapacity = {
+  hasBodega: boolean;
+  totalKg: number;
+  capacityKg: number | null;
+  availableKg: number | null;
+  occupancyPercent: number | null;
+  statusLabel: string;
+  statusTone: 'normal' | 'warning' | 'alert' | 'empty';
+};
+
+function getCapacityStatusLabel(occupancyPercent: number | null) {
+  if (occupancyPercent === null) return 'Capacidad sin configurar';
+  if (occupancyPercent > 100) return 'Capacidad superada';
+  if (occupancyPercent >= 95) return 'Bodega casi llena';
+  if (occupancyPercent >= 80) return 'Advertencia de capacidad';
+  return 'Estado normal';
+}
+
+function getCapacityStatusTone(occupancyPercent: number | null): DesktopInventoryCapacity['statusTone'] {
+  if (occupancyPercent === null) return 'empty';
+  if (occupancyPercent >= 95) return 'alert';
+  if (occupancyPercent >= 80) return 'warning';
+  return 'normal';
+}
+
+function getInventoryAvailabilityLabel(totalKg: number) {
+  return totalKg > 0 ? 'Disponible' : 'Sin existencias';
+}
+
+function matchesInventorySearch(value: string, searchTerm: string) {
+  if (!searchTerm) return true;
+  return value.toLocaleLowerCase('es-CO').includes(searchTerm);
+}
+
+function DesktopInventorySummaryCard({ capacity, onConfigure }: { capacity: DesktopInventoryCapacity; onConfigure: () => void; }) {
+  if (!capacity.hasBodega || !capacity.capacityKg || capacity.occupancyPercent === null) {
+    return (
+      <section className="rounded-[20px] border border-[#dbe5f7] bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/15 dark:text-blue-100"><Coffee size={22} aria-hidden="true" /></span>
+            <div><h2 className="text-xl font-black text-slate-950 dark:text-white">Capacidad sin configurar</h2><p className="mt-1 max-w-2xl text-sm font-semibold text-slate-600 dark:text-slate-300">Configura la capacidad máxima para calcular la ocupación de la bodega.</p><p className="mt-3 text-3xl font-black text-[#102d92] dark:text-blue-200">{formatNumber(capacity.totalKg)} kg usados</p></div>
+          </div>
+          <button type="button" onClick={onConfigure} className={`${primaryButtonClass} min-h-[44px] rounded-[14px] px-5 text-sm`}>Configurar capacidad</button>
+        </div>
+      </section>
+    );
+  }
+
+  const progressPercent = Math.min(100, Math.max(0, capacity.occupancyPercent));
+  const statusClass = capacity.statusTone === 'alert' ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100' : capacity.statusTone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100';
+  const progressClass = capacity.statusTone === 'alert' ? 'bg-red-500' : capacity.statusTone === 'warning' ? 'bg-amber-500' : 'bg-[#102d92] dark:bg-blue-400';
+
+  return (
+    <section className="rounded-[20px] border border-[#dbe5f7] bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0"><div className="flex items-center gap-3"><span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/15 dark:text-blue-100"><Coffee size={22} aria-hidden="true" /></span><div><h2 className="text-lg font-black text-slate-950 dark:text-white">Resumen de inventario</h2><p className="mt-1 text-3xl font-black text-[#102d92] dark:text-blue-200">{formatNumber(capacity.totalKg)} / {formatNumber(capacity.capacityKg)} kg</p></div></div></div>
+        <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 xl:max-w-3xl xl:grid-cols-4"><div className="rounded-[16px] border border-[#edf1f8] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950"><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Usados</p><p className="mt-2 text-xl font-black text-slate-950 dark:text-white">{formatNumber(capacity.totalKg)} kg</p></div><div className="rounded-[16px] border border-[#edf1f8] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950"><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Disponibles</p><p className="mt-2 text-xl font-black text-slate-950 dark:text-white">{formatNumber(capacity.availableKg ?? 0)} kg</p></div><div className="rounded-[16px] border border-[#edf1f8] bg-[#f8fbff] p-4 dark:border-slate-700 dark:bg-slate-950"><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Ocupación</p><p className="mt-2 text-xl font-black text-slate-950 dark:text-white">{formatPercentage(capacity.occupancyPercent)}%</p></div><div className={`rounded-[16px] border p-4 ${statusClass}`}><p className="text-xs font-black uppercase tracking-[0.1em]">Estado</p><p className="mt-2 text-base font-black">{capacity.statusLabel}</p></div></div>
+      </div>
+      <div className="mt-5"><div className="h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className={`h-full rounded-full ${progressClass}`} style={{ width: `${progressPercent}%` }} /></div><p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-300">Capacidad total: {formatNumber(capacity.capacityKg)} kg</p></div>
+    </section>
+  );
+}
+
+function DesktopInventoryFilters({ searchTerm, onSearchTermChange, sortKey, onSortKeyChange, coffeeFilterValue, onCoffeeFilterChange, availableTypes, qualityFilterValue, onQualityFilterChange, hasActiveFilters, onClear }: { searchTerm: string; onSearchTermChange: (value: string) => void; sortKey: 'OLDEST' | 'NEWEST'; onSortKeyChange: (value: 'OLDEST' | 'NEWEST') => void; coffeeFilterValue: string; onCoffeeFilterChange: (value: string) => void; availableTypes: { key: string; name: string }[]; qualityFilterValue: string; onQualityFilterChange: (value: string) => void; hasActiveFilters: boolean; onClear: () => void; }) {
+  return <section className="rounded-[18px] border border-[#dbe5f7] bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,220px)_minmax(180px,220px)_minmax(180px,220px)_auto] lg:items-end"><label className="min-w-0"><span className={`${fieldLabelClass} text-[0.68rem] uppercase tracking-[0.08em]`}>Buscar tipo o lote</span><div className="relative mt-2"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} aria-hidden="true" /><input type="search" value={searchTerm} onChange={(event) => onSearchTermChange(event.target.value)} placeholder="Buscar tipo o lote" className={`${fieldInputClass} h-11 rounded-[14px] pl-10 pr-4`} /></div></label><label className="min-w-0"><span className={`${fieldLabelClass} text-[0.68rem] uppercase tracking-[0.08em]`}>Ordenar por</span><SmartSelect aria-label="Ordenar por" value={sortKey} onChange={(event) => onSortKeyChange(event.target.value as 'OLDEST' | 'NEWEST')}><option value="NEWEST">Más reciente</option><option value="OLDEST">Más antiguo</option></SmartSelect></label><label className="min-w-0"><span className={`${fieldLabelClass} text-[0.68rem] uppercase tracking-[0.08em]`}>Tipo de café</span><SmartSelect aria-label="Tipo de café" value={coffeeFilterValue} onChange={(event) => onCoffeeFilterChange(event.target.value)}><option value="TODOS">Todos</option>{availableTypes.map((type) => <option key={type.key} value={type.key}>{type.name}</option>)}</SmartSelect></label><label className="min-w-0"><span className={`${fieldLabelClass} text-[0.68rem] uppercase tracking-[0.08em]`}>Calidad</span><SmartSelect aria-label="Calidad" value={qualityFilterValue} onChange={(event) => onQualityFilterChange(event.target.value)}><option value="TODOS">Todos</option><option value="BUENO">Bueno</option><option value="REGULAR">Regular</option><option value="MALO">Malo</option></SmartSelect></label><button type="button" onClick={onClear} disabled={!hasActiveFilters} className={`${secondaryButtonClass} min-h-[44px] rounded-[14px] px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50`}>Limpiar filtros</button></div></section>;
+}
+
+function DesktopInventoryTable({
+  typeRows,
+  lotRows,
+  showingLotRows,
+  onOpenType,
+  onOpenLot,
+}: {
+  typeRows: DesktopInventoryTypeRow[];
+  lotRows: LoteResumen[];
+  showingLotRows: boolean;
+  onOpenType: (key: string) => void;
+  onOpenLot: (lot: LoteResumen) => void;
+}) {
+  const rowsAvailable = showingLotRows ? lotRows.length > 0 : typeRows.length > 0;
+  const getTypeQualities = (lotsForType: LoteResumen[]) =>
+    Array.from(new Set(lotsForType.map((lot) => keyOf(lot.calidad))))
+      .map(getGeneralCoffeeTypeName)
+      .map((quality) => displayQualityName(quality))
+      .join(', ');
+
+  return (
+    <section className="overflow-hidden rounded-[20px] border border-[#dbe5f7] bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-2 border-b border-[#edf1f8] px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-black text-slate-950 dark:text-white">
+            Tipos de café almacenados
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
+            {showingLotRows
+              ? 'Detalle del tipo seleccionado.'
+              : 'Comparación general por tipo de café.'}
+          </p>
+        </div>
+      </div>
+      {rowsAvailable ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-[#edf1f8] text-left dark:divide-slate-800">
+            <thead className="bg-[#f8fbff] dark:bg-slate-950">
+              <tr>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Tipo de café</th>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Calidad</th>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Peso</th>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Bultos</th>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Sublotes</th>
+                <th scope="col" className="px-5 py-3 text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Estado</th>
+                <th scope="col" className="px-5 py-3 text-right text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#edf1f8] dark:divide-slate-800">
+              {showingLotRows
+                ? lotRows.map((lot) => {
+                    const visual = coffeeVisual(lot.tipoCafe);
+                    const qualityStyles = getQualityStyles(lot.calidad);
+                    const label = `${displayCoffeeName(lot.tipoCafe)} ${displayQualityName(lot.calidad)}`;
+                    return (
+                      <tr key={lot.id} className="transition hover:bg-[#f8fbff] dark:hover:bg-slate-800/70">
+                        <td className="px-5 py-4">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] ${qualityStyles.iconBg}`}>{visual.icon}</span>
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-950 dark:text-white">{displayCoffeeName(lot.tipoCafe)}</p>
+                              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">{lot.codigo || label}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${qualityStyles.chip}`}>
+                            {displayQualityName(lot.calidad)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm font-black text-slate-900 dark:text-slate-100">{formatNumber(lot.pesoActual)} kg</td>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{formatShortSacks(lot.pesoActual)}</td>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{lot.sublotes}</td>
+                        <td className="px-5 py-4"><span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">{getInventoryAvailabilityLabel(lot.pesoActual)}</span></td>
+                        <td className="px-5 py-4 text-right"><button type="button" onClick={() => onOpenLot(lot)} className={`${secondaryButtonClass} min-h-[36px] rounded-[12px] px-3 text-xs`} aria-label={`Ver sublotes de ${label}`}>Ver sublotes</button></td>
+                      </tr>
+                    );
+                  })
+                : typeRows.map((row) => {
+                    const visual = coffeeVisual(row.name);
+                    const subloteCount = row.lots.reduce((sum, lot) => sum + lot.sublotes, 0);
+                    return (
+                      <tr key={row.key} className="transition hover:bg-[#f8fbff] dark:hover:bg-slate-800/70">
+                        <td className="px-5 py-4">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] ${visual.bg} ${visual.text}`}>{visual.icon}</span>
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-950 dark:text-white">{row.name}</p>
+                              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">{row.lots.length} lote{row.lots.length === 1 ? '' : 's'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-sm font-semibold capitalize text-slate-600 dark:text-slate-300">{getTypeQualities(row.lots)}</td>
+                        <td className="px-5 py-4 text-sm font-black text-slate-900 dark:text-slate-100">{formatNumber(row.totalKg)} kg</td>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{formatShortSacks(row.totalKg)}</td>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">{subloteCount}</td>
+                        <td className="px-5 py-4"><span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">{getInventoryAvailabilityLabel(row.totalKg)}</span></td>
+                        <td className="px-5 py-4 text-right"><button type="button" onClick={() => onOpenType(row.key)} className={`${secondaryButtonClass} min-h-[36px] rounded-[12px] px-3 text-xs`} aria-label={`Ver sublotes de café ${row.name.toLowerCase()}`}>Ver sublotes</button></td>
+                      </tr>
+                    );
+                  })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-6 py-12 text-center">
+          <Package2 className="mx-auto text-slate-400" size={28} aria-hidden="true" />
+          <p className="mt-3 text-sm font-bold text-slate-600 dark:text-slate-300">No hay resultados para los filtros aplicados.</p>
+        </div>
+      )}
+    </section>
+  );
+}
 function TypeSummaryCard({
   lot,
   subloteCount,
@@ -775,6 +1051,7 @@ function SecadoProcessCard({
 
 export default function Inventario() {
   const navigate = useNavigate();
+  const { isDesktop } = useDeviceLayout();
   const location = useLocation();
   const { isOnline, backendReachable, refreshHealth } = useCloudStatus();
   const locationState = (location.state ?? null) as {
@@ -792,12 +1069,11 @@ export default function Inventario() {
   const [qualityFilterKey, setQualityFilterKey] = useState('');
   const [sortKey, setSortKey] = useState<'OLDEST' | 'NEWEST'>('OLDEST');
   const [preferredApplied, setPreferredApplied] = useState(false);
-  const [bodegaConfig, setBodegaConfig] = useState<{
-    nombreBodega: string;
-    capacidadKg: number | null;
-  }>({
+  const [bodegaConfig, setBodegaConfig] = useState<InventoryBodegaConfig>({
     nombreBodega: 'Bodega principal',
     capacidadKg: null,
+    inventarioKg: null,
+    hasBodega: false,
   });
   const [showBodegaEditor, setShowBodegaEditor] = useState(false);
   const [bodegaNameDraft, setBodegaNameDraft] = useState('Bodega principal');
@@ -805,6 +1081,7 @@ export default function Inventario() {
   const [bodegaEditorError, setBodegaEditorError] = useState<string | null>(null);
   const [bodegaLimitNotice, setBodegaLimitNotice] = useState<string | null>(null);
   const [storageAlertClosed, setStorageAlertClosed] = useState(false);
+  const [desktopSearchTerm, setDesktopSearchTerm] = useState('');
 
   const openBodegaEditor = () => {
     setBodegaNameDraft(bodegaConfig.nombreBodega || 'Bodega principal');
@@ -831,10 +1108,12 @@ export default function Inventario() {
       nombreBodega: bodegaNameDraft.trim(),
       capacidadKg: capacidad,
     });
-    setBodegaConfig({
+    setBodegaConfig((current) => ({
+      ...current,
       nombreBodega: saved.nombreBodega,
       capacidadKg: saved.capacidadKg,
-    });
+      hasBodega: true,
+    }));
     setShowBodegaEditor(false);
   };
 
@@ -898,16 +1177,31 @@ export default function Inventario() {
         return;
       }
 
-      const [data, config] = await Promise.all([
+      const [data, bodegasResult, legacyConfigResult] = await Promise.allSettled([
         obtenerLotes(),
+        listarBodegas(),
         obtenerConfiguracionBodega(),
       ]);
 
-      const nextLots = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data) : data;
-      const nextBodegaConfig = {
-        nombreBodega: config.nombreBodega,
-        capacidadKg: config.capacidadKg,
-      };
+      if (data.status !== 'fulfilled') {
+        throw data.reason;
+      }
+
+      const nextLots = ENABLE_SECADO_PROTOTYPE ? applySecadoToLots(data.value) : data.value;
+      const selectedBodega =
+        bodegasResult.status === 'fulfilled'
+          ? selectInventoryBodega(bodegasResult.value)
+          : null;
+      const nextBodegaConfig = selectedBodega
+        ? bodegaItemToInventoryConfig(selectedBodega)
+        : legacyConfigResult.status === 'fulfilled'
+          ? {
+              nombreBodega: legacyConfigResult.value.nombreBodega,
+              capacidadKg: legacyConfigResult.value.capacidadKg,
+              inventarioKg: null,
+              hasBodega: Boolean(legacyConfigResult.value.nombreBodega),
+            }
+          : bodegaItemToInventoryConfig(null);
 
       setLots(nextLots);
       setBodegaConfig(nextBodegaConfig);
@@ -993,29 +1287,18 @@ export default function Inventario() {
     typeKey,
   ]);
 
-  useEffect(() => {
-    if (!typeKey && qualityFilterKey) {
-      setQualityFilterKey('');
-    }
-  }, [qualityFilterKey, typeKey]);
-
-  const filteredLots = useMemo(() => {
-    if (!typeKey) return [];
-    return lots.filter(
-      (lot) =>
-        getGeneralCoffeeTypeKey(lot.tipoCafe) !== 'EN SECADO' &&
-        getGeneralCoffeeTypeKey(lot.tipoCafe) === typeKey &&
-        (!qualityFilterKey || keyOf(lot.calidad) === qualityFilterKey),
-    );
-  }, [lots, qualityFilterKey, typeKey]);
-
-  const visibleLots = useMemo(
+  const filteredLots = useMemo(
     () =>
-      (typeKey ? filteredLots : lots).filter(
-        (lot) => getGeneralCoffeeTypeKey(lot.tipoCafe) !== 'EN SECADO',
+      lots.filter(
+        (lot) =>
+          getGeneralCoffeeTypeKey(lot.tipoCafe) !== 'EN SECADO' &&
+          (!typeKey || getGeneralCoffeeTypeKey(lot.tipoCafe) === typeKey) &&
+          (!qualityFilterKey || keyOf(lot.calidad) === qualityFilterKey),
       ),
-    [filteredLots, lots, typeKey],
+    [lots, qualityFilterKey, typeKey],
   );
+
+  const visibleLots = filteredLots;
   const coffeeFilterValue = useMemo(() => {
     if (!typeKey) return 'TODOS';
     return typeKey;
@@ -1096,15 +1379,16 @@ export default function Inventario() {
     () => lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
     [lots],
   );
+  const inventoryTotalKg = bodegaConfig.inventarioKg ?? totalKg;
   const capacityAlert = useMemo(() => {
     const capacityKg = bodegaConfig.capacidadKg;
     if (!capacityKg || capacityKg <= 0) return null;
 
-    const percentage = (totalKg / capacityKg) * 100;
+    const percentage = (inventoryTotalKg / capacityKg) * 100;
     const data = {
       occupancyPercent: percentage,
       capacityKg,
-      usedKg: totalKg,
+      usedKg: inventoryTotalKg,
     };
     if (percentage > 100) {
       return {
@@ -1140,7 +1424,7 @@ export default function Inventario() {
       };
     }
     return null;
-  }, [bodegaConfig.capacidadKg, totalKg]);
+  }, [bodegaConfig.capacidadKg, inventoryTotalKg]);
 
   useEffect(() => {
     setStorageAlertClosed(false);
@@ -1172,6 +1456,101 @@ export default function Inventario() {
   const showGlobalEmptyState =
     !loading && showInventoryContent && lots.length === 0;
 
+  const hasConfiguredCapacity =
+    bodegaConfig.capacidadKg !== null && bodegaConfig.capacidadKg > 0;
+  const desktopOccupancyPercent = hasConfiguredCapacity
+    ? Math.max(0, (inventoryTotalKg / bodegaConfig.capacidadKg!) * 100)
+    : null;
+  const desktopCapacity: DesktopInventoryCapacity = {
+    hasBodega: bodegaConfig.hasBodega,
+    totalKg: inventoryTotalKg,
+    capacityKg: bodegaConfig.capacidadKg,
+    availableKg: hasConfiguredCapacity
+      ? bodegaConfig.capacidadKg! - inventoryTotalKg
+      : null,
+    occupancyPercent: desktopOccupancyPercent,
+    statusLabel: getCapacityStatusLabel(desktopOccupancyPercent),
+    statusTone: getCapacityStatusTone(desktopOccupancyPercent),
+  };
+  const normalizedDesktopSearch = desktopSearchTerm
+    .trim()
+    .toLocaleLowerCase('es-CO');
+  const desktopFilteredTypeSummaries = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { key: string; name: string; lots: LoteResumen[] }
+    >();
+
+    for (const lot of visibleLots) {
+      const key = getGeneralCoffeeTypeKey(lot.tipoCafe);
+      const current = grouped.get(key) ?? {
+        key,
+        name: getGeneralCoffeeTypeName(key),
+        lots: [],
+      };
+      current.lots.push(lot);
+      grouped.set(key, current);
+    }
+
+    return TYPE_ORDER.flatMap((type) => {
+      const current = grouped.get(type);
+      if (!current) return [];
+      return [
+        {
+          key: current.key,
+          name: current.name,
+          totalKg: current.lots.reduce((sum, lot) => sum + lot.pesoActual, 0),
+          lots: current.lots,
+        },
+      ];
+    });
+  }, [visibleLots]);
+  const desktopTypeRows = useMemo(
+    () =>
+      desktopFilteredTypeSummaries.filter((group) => {
+        const searchableText = [
+          group.name,
+          group.key,
+          ...group.lots.flatMap((lot) => [lot.codigo, lot.tipoCafe, lot.calidad]),
+        ].join(' ');
+        return matchesInventorySearch(searchableText, normalizedDesktopSearch);
+      }),
+    [desktopFilteredTypeSummaries, normalizedDesktopSearch],
+  );
+  const desktopLotRows = useMemo(
+    () =>
+      orderedLots.filter((lot) => {
+        const searchableText = [lot.codigo, lot.tipoCafe, lot.calidad].join(' ');
+        return matchesInventorySearch(searchableText, normalizedDesktopSearch);
+      }),
+    [normalizedDesktopSearch, orderedLots],
+  );
+  const hasDesktopActiveFilters = Boolean(
+    desktopSearchTerm.trim() || sortKey !== 'OLDEST' || typeKey || qualityFilterKey,
+  );
+  const showingDesktopLotRows = Boolean(typeKey && typeKey !== 'EN SECADO');
+
+  if (isDesktop) {
+    return (
+      <div className="min-h-full bg-[#f5f7fb] px-6 py-8 text-slate-950 dark:bg-slate-950 dark:text-slate-100 lg:px-8">
+        <main className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+          <header className="flex flex-col gap-4 rounded-[20px] border border-[#dbe5f7] bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:flex-row lg:items-center lg:justify-between"><div><h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Inventario</h1><p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Consulta la capacidad y los tipos de café almacenados.</p></div><button type="button" onClick={() => navigate('/compras')} className={`${primaryButtonClass} min-h-[44px] rounded-[14px] px-5 text-sm`}><ShoppingCart size={18} aria-hidden="true" />Registrar compra</button></header>
+          {showOfflineEmptyState ? <OfflineInventoryEmptyState onRetry={() => { void Promise.allSettled([loadLots(), refreshHealth()]); }} /> : null}
+          {showInventoryContent && usingCachedInventory ? <AppFeedbackMessage variant="info" title="Información guardada" description="Estos datos corresponden a la última información disponible en este dispositivo." autoClose={false} /> : null}
+          {showInventoryContent ? <DesktopInventorySummaryCard capacity={desktopCapacity} onConfigure={openBodegaEditor} /> : null}
+          {showInventoryContent && capacityAlert && showStorageAlert ? <AppFeedbackMessage variant={capacityAlert.variant} icon={BadgeAlert} title={capacityAlert.title} description={capacityAlert.text} autoClose={false} action={<button type="button" onClick={() => setStorageAlertClosed(true)} aria-label="Cerrar alerta de bodega" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent text-slate-700 transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"><X size={15} aria-hidden="true" /></button>}><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate('/ventas')} className={`${primaryButtonClass} min-h-[34px] rounded-full px-3 py-1 text-[0.72rem]`}>{capacityAlert.primary}</button><button type="button" onClick={() => capacityAlert.secondary === 'Editar bodega' ? openBodegaEditor() : navigate(capacityAlert.secondaryPath)} className={`${secondaryButtonClass} min-h-[34px] rounded-full px-3 py-1 text-[0.72rem]`}>{capacityAlert.secondary}</button></div></AppFeedbackMessage> : null}
+          {showInventoryContent && !showGlobalEmptyState ? <DesktopInventoryFilters searchTerm={desktopSearchTerm} onSearchTermChange={setDesktopSearchTerm} sortKey={sortKey} onSortKeyChange={setSortKey} coffeeFilterValue={coffeeFilterValue} onCoffeeFilterChange={(value) => { setTypeKey(value === 'TODOS' ? '' : value); }} availableTypes={availableTypes} qualityFilterValue={qualityFilterKey || 'TODOS'} onQualityFilterChange={(value) => setQualityFilterKey(value === 'TODOS' ? '' : value)} hasActiveFilters={hasDesktopActiveFilters} onClear={() => { setDesktopSearchTerm(''); limpiarFiltros(); }} /> : null}
+          {showInventoryContent && !showGlobalEmptyState && canOpenSecadoProcess ? <button type="button" onClick={() => navigate('/inventario/secado/inicio', { state: { from: '/inventario' } })} className="flex w-full items-center justify-between gap-4 rounded-[20px] border border-[#dbe5f7] bg-white p-5 text-left shadow-sm transition hover:border-[#c7d8ff] hover:bg-[#f8fbff] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-800"><div className="flex min-w-0 items-center gap-4"><span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#fff2cc] text-[#946200] dark:bg-amber-500/20 dark:text-amber-100"><SunMedium size={22} aria-hidden="true" /></span><div className="min-w-0"><h2 className="text-lg font-black text-[#102d92] dark:text-blue-200">Proceso de secado</h2><p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">Revisa secados activos o inicia un nuevo proceso.</p></div></div><span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#173ea6] dark:bg-blue-500/20 dark:text-blue-100"><ArrowRight size={18} aria-hidden="true" /></span></button> : null}
+          {showInventoryContent && showGlobalEmptyState ? <section className="rounded-[24px] border border-dashed border-[#c7d5f2] bg-white p-10 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900"><Package2 className="mx-auto text-slate-400 dark:text-slate-500" size={34} aria-hidden="true" /><h2 className="mt-4 text-2xl font-black text-slate-950 dark:text-white">Aún no hay café en inventario</h2><p className="mx-auto mt-3 max-w-lg text-sm font-semibold text-slate-500 dark:text-slate-300">Comienza registrando tu primera compra para organizar el inventario.</p><button type="button" onClick={() => navigate('/compras')} className={`${primaryButtonClass} mx-auto mt-6 min-h-[46px] rounded-[14px] px-5 text-sm`}><ShoppingCart size={18} aria-hidden="true" />Registrar compra</button></section> : null}
+          {showInventoryContent && !showGlobalEmptyState ? <DesktopInventoryTable typeRows={desktopTypeRows} lotRows={desktopLotRows} showingLotRows={showingDesktopLotRows} onOpenType={(key) => { setTypeKey(key); }} onOpenLot={(lot) => { if (isSecadoProcessLot(lot)) { navigate('/inventario/secados'); return; } navigate(`/inventario/${lot.tipoCafeId}/${lot.calidadId}/sublotes`); }} /> : null}
+          {ENABLE_SECADO_PROTOTYPE && locationState?.completedSecadoId ? <AppFeedbackMessage variant="success" description="El secado se envió al inventario y ya se refleja como sublote de café seco." /> : null}
+          {error ? <AppFeedbackMessage variant="error" icon={WifiOff} title={error.titulo} description={error.mensaje}><p className="text-[0.82rem] font-semibold leading-5 text-rose-800 dark:text-rose-100">{error.detalle}</p><RefreshButton onClick={() => { void Promise.allSettled([loadLots(), refreshHealth()]); }} aria-label="Reintentar" className="mt-4">Reintentar</RefreshButton></AppFeedbackMessage> : null}
+          {loading ? <section className="rounded-[20px] border border-[#dbe5f7] bg-white px-6 py-12 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900"><p className="text-lg font-semibold text-slate-500 dark:text-slate-300">Cargando inventario...</p></section> : null}
+        </main>
+        {showBodegaEditor ? <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0f172a]/45 px-5 py-6 backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="bodega-editor-title" aria-describedby="bodega-editor-description" className="w-full max-w-[390px] rounded-[22px] bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.24)] dark:border dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center justify-between gap-3"><h2 id="bodega-editor-title" className="text-lg font-black text-slate-950 dark:text-slate-100">Editar capacidad de bodega</h2><button type="button" onClick={() => setShowBodegaEditor(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#f4f7fb] text-slate-500 dark:bg-slate-800 dark:text-slate-200" aria-label="Cerrar">×</button></div><p id="bodega-editor-description" className="sr-only">Ajusta el nombre y la capacidad maxima de la bodega.</p>{bodegaLimitNotice ? <AppFeedbackMessage id="bodega-limit-notice" variant="warning" description={bodegaLimitNotice} className="mt-3" /> : null}<label htmlFor="bodega-nombre-desktop" className={`${fieldLabelClass} mt-4`}>Nombre de bodega</label><input id="bodega-nombre-desktop" type="text" value={bodegaNameDraft} maxLength={BODEGA_NAME_MAX_LENGTH} onChange={(event) => { if (event.target.value.length >= BODEGA_NAME_MAX_LENGTH) { setBodegaLimitNotice('Llegaste al máximo permitido.'); window.setTimeout(() => setBodegaLimitNotice(null), 1800); } setBodegaNameDraft(sanitizeLimitedText(event.target.value, BODEGA_NAME_MAX_LENGTH)); }} className={`${fieldInputClass} mt-2 h-11 rounded-[14px] px-4`} /><p className={`${fieldHelpTextClass} text-right`}>{bodegaNameDraft.length}/{BODEGA_NAME_MAX_LENGTH}</p><label htmlFor="bodega-capacidad-desktop" className={`${fieldLabelClass} mt-3`}>Capacidad máxima kg</label><input id="bodega-capacidad-desktop" type="text" inputMode="numeric" value={bodegaCapacityDraft} onChange={(event) => setBodegaCapacityDraft(sanitizePositiveIntegerInput(event.target.value, BODEGA_CAPACITY_MAX_KG))} className={`${fieldInputClass} mt-2 h-11 rounded-[14px] px-4`} placeholder="100000" aria-invalid={bodegaEditorError ? 'true' : 'false'} aria-describedby={bodegaEditorError ? 'bodega-editor-error' : undefined} />{bodegaEditorError ? <AppFeedbackMessage id="bodega-editor-error" variant="error" description={bodegaEditorError} className="mt-3" /> : null}<div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => void saveBodegaEditor()} className={`${primaryButtonClass} min-h-[42px] rounded-[14px] text-sm`}>Guardar</button><button type="button" onClick={() => setShowBodegaEditor(false)} className={`${secondaryButtonClass} min-h-[42px] rounded-[14px] text-sm`}>Cancelar</button></div></section></div> : null}
+      </div>
+    );
+  }
   return (
     <div
       className={`cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] text-slate-900 dark:bg-slate-950 ${
@@ -1204,8 +1583,11 @@ export default function Inventario() {
 
         {showInventoryContent && !showGlobalEmptyState ? (
           <CapacityRing
-            totalKg={totalKg}
+            totalKg={inventoryTotalKg}
             capacityKg={bodegaConfig.capacidadKg}
+            hasBodega={bodegaConfig.hasBodega}
+            bodegaName={bodegaConfig.nombreBodega}
+            onConfigure={openBodegaEditor}
           />
         ) : null}
 
@@ -1628,5 +2010,3 @@ export default function Inventario() {
   );
 }
 // Legacy helper utilities removed
-
-
