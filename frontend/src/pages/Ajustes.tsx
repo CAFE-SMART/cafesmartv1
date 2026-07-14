@@ -4882,6 +4882,51 @@ export default function Ajustes() {
         : desktopScreenReaderConfig.instructions,
     });
   };
+  const notificationStatusLabel = notifications.isLoading
+    ? 'Consultando'
+    : notifications.status === 'granted'
+      ? 'Notificaciones activadas'
+      : notifications.status === 'denied'
+        ? 'Notificaciones bloqueadas'
+        : notifications.status === 'unsupported'
+          ? 'No disponible'
+          : 'Activar';
+
+  const notificationDescription =
+    notifications.status === 'granted'
+      ? 'Notificaciones activadas'
+      : notifications.status === 'denied'
+        ? 'Puedes activarlas desde la configuración de permisos de tu dispositivo o navegador.'
+        : notifications.status === 'unsupported'
+          ? 'Este navegador no admite notificaciones.'
+          : 'Recibe avisos sobre inventario, secados y tareas pendientes.';
+
+  const activarNotificaciones = async () => {
+    const result = await notifications.requestPermission();
+    setNotificationFeedback({
+      variant:
+        result.status === 'granted'
+          ? 'success'
+          : result.status === 'denied'
+            ? 'warning'
+            : result.status === 'unsupported'
+              ? 'error'
+              : 'info',
+      message: result.message ?? notificationStatusLabel,
+    });
+  };
+
+  const probarNotificacion = async () => {
+    const result = await notifications.sendTestNotification();
+    setNotificationFeedback({
+      variant: result.ok
+        ? 'success'
+        : result.status === 'denied'
+          ? 'warning'
+          : 'error',
+      message: result.message ?? 'No pudimos enviar la notificación de prueba.',
+    });
+  };
 
   const accessibilityCards = [
     {
@@ -5001,51 +5046,6 @@ export default function Ajustes() {
     return isNativeAndroid() ? 'No disponible' : 'Solo Android';
   };
 
-  const notificationStatusLabel = notifications.isLoading
-    ? 'Consultando'
-    : notifications.status === 'granted'
-      ? 'Notificaciones activadas'
-      : notifications.status === 'denied'
-        ? 'Notificaciones bloqueadas'
-        : notifications.status === 'unsupported'
-          ? 'No disponible'
-          : 'Activar';
-
-  const notificationDescription =
-    notifications.status === 'granted'
-      ? 'Notificaciones activadas'
-      : notifications.status === 'denied'
-        ? 'Puedes activarlas desde la configuración de permisos de tu dispositivo o navegador.'
-        : notifications.status === 'unsupported'
-          ? 'Este navegador no admite notificaciones.'
-          : 'Recibe avisos sobre inventario, secados y tareas pendientes.';
-
-  const activarNotificaciones = async () => {
-    const result = await notifications.requestPermission();
-    setNotificationFeedback({
-      variant:
-        result.status === 'granted'
-          ? 'success'
-          : result.status === 'denied'
-            ? 'warning'
-            : result.status === 'unsupported'
-              ? 'error'
-              : 'info',
-      message: result.message ?? notificationStatusLabel,
-    });
-  };
-
-  const probarNotificacion = async () => {
-    const result = await notifications.sendTestNotification();
-    setNotificationFeedback({
-      variant: result.ok
-        ? 'success'
-        : result.status === 'denied'
-          ? 'warning'
-          : 'error',
-      message: result.message ?? 'No pudimos enviar la notificación de prueba.',
-    });
-  };
 
   const themeStatusLabel =
     theme === 'system' ? 'Sistema' : theme === 'dark' ? 'Oscuro' : 'Claro';

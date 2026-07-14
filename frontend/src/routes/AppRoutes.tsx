@@ -4,6 +4,7 @@ import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import { ResponsiveLayout } from '../layouts/ResponsiveLayout';
+import { PublicEntryRoute } from './PublicEntryRoute';
 
 const Landing = lazy(() => import('../pages/Landing'));
 const Login = lazy(() => import('../pages/Login'));
@@ -34,7 +35,7 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={<AppLoadingScreen />}>
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<PublicEntryRoute />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/recuperar" element={<RecuperarPassword />} />
@@ -46,49 +47,52 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route element={<ResponsiveLayout />}>
             <Route path="/inicio" element={<Inicio />} />
-          <Route path="/compras" element={<Compras />} />
-          <Route path="/ventas" element={<Ventas />} />
-          <Route path="/inventario" element={<Inventario />} />
-          <Route path="/ajustes" element={<Ajustes />} />
-          <Route path="/soporte" element={<ContactoSoporte />} />
-          <Route path="/soporte/ayuda" element={<AyudaBasica />} />
-          {ENABLE_SECADO_PROTOTYPE ? (
-            <>
-              <Route path="/inventario/secados" element={<SecadosActivos />} />
-              <Route
-                path="/inventario/secado/inicio"
-                element={<SecadoInicio />}
-              />
-              <Route
-                path="/inventario/:tipoCafeId/:calidadId/secado"
-                element={<SecadoSeleccion />}
-              />
-              <Route
-                path="/inventario/secado/:sessionId/finalizar"
-                element={<SecadoProceso />}
-              />
-              <Route
-                path="/inventario/secado/:sessionId/resumen"
-                element={<SecadoResumen />}
-              />
-            </>
-          ) : null}
-          <Route
-            path="/inventario/:tipoCafeId/:calidadId/sublotes"
-            element={<Sublotes />}
-          />
-          <Route path="/gastos" element={<GastosListado />} />
-          <Route path="/gastos/registro" element={<GastosOperativos />} />
-          <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
-          <Route
-            path="/resumen-financiero/acceso"
-            element={<ResumenFinanciero />}
-          />
-          <Route path="/asistente" element={<AsistenteIA />} />
-          <Route
-            path="/resumen-financiero/analisis-inteligente"
-            element={<AnalisisInteligente />}
-          />
+            <Route path="/compras" element={<Compras />} />
+            <Route path="/ventas" element={<Ventas />} />
+            <Route path="/inventario" element={<Inventario />} />
+            <Route path="/ajustes" element={<Ajustes />} />
+            <Route path="/soporte" element={<ContactoSoporte />} />
+            <Route path="/soporte/ayuda" element={<AyudaBasica />} />
+            {ENABLE_SECADO_PROTOTYPE ? (
+              <>
+                <Route
+                  path="/inventario/secados"
+                  element={<SecadosActivos />}
+                />
+                <Route
+                  path="/inventario/secado/inicio"
+                  element={<SecadoInicio />}
+                />
+                <Route
+                  path="/inventario/:tipoCafeId/:calidadId/secado"
+                  element={<SecadoSeleccion />}
+                />
+                <Route
+                  path="/inventario/secado/:sessionId/finalizar"
+                  element={<SecadoProceso />}
+                />
+                <Route
+                  path="/inventario/secado/:sessionId/resumen"
+                  element={<SecadoResumen />}
+                />
+              </>
+            ) : null}
+            <Route
+              path="/inventario/:tipoCafeId/:calidadId/sublotes"
+              element={<Sublotes />}
+            />
+            <Route path="/gastos" element={<GastosListado />} />
+            <Route path="/gastos/registro" element={<GastosOperativos />} />
+            <Route path="/resumen-financiero" element={<ResumenFinanciero />} />
+            <Route
+              path="/resumen-financiero/acceso"
+              element={<ResumenFinanciero />}
+            />
+            <Route path="/asistente" element={<AsistenteIA />} />
+            <Route
+              path="/resumen-financiero/analisis-inteligente"
+              element={<AnalisisInteligente />}
+            />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -96,4 +100,3 @@ export default function AppRoutes() {
     </Suspense>
   );
 }
-

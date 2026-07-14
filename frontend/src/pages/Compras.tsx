@@ -1004,326 +1004,6 @@ function CompactSelect<T extends string>({
   );
 }
 
-function PurchaseDatePicker({
-  value,
-  min,
-  max,
-  open,
-  onToggle,
-  onClose,
-  onChange,
-}: {
-  value: string;
-  min: string;
-  max: string;
-  open: boolean;
-  onToggle: () => void;
-  onClose: () => void;
-  onChange: (value: string) => void;
-}) {
-  const selectedDate = parseLocalDateValue(value);
-  const todayValue = getTodayLocalDateValue();
-  const todaySelectable = isDateValueInRange(todayValue, min, max)
-    ? todayValue
-    : max;
-  const maxDate = parseLocalDateValue(max) ?? new Date();
-  const minDate = parseLocalDateValue(min) ?? new Date(2026, 0, 1);
-  const visibleDate =
-    selectedDate ?? parseLocalDateValue(todaySelectable) ?? maxDate;
-  const [calendarView, setCalendarView] = useState<'days' | 'months' | 'years'>(
-    'days',
-  );
-  const [visibleMonth, setVisibleMonth] = useState(
-    () => new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1),
-  );
-
-  useEffect(() => {
-    if (open) {
-      const nextDate =
-        parseLocalDateValue(value) ??
-        parseLocalDateValue(todaySelectable) ??
-        maxDate;
-      setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
-      setCalendarView('days');
-    }
-  }, [max, open, todaySelectable, value]);
-
-  const calendarDays = useMemo(() => {
-    const firstDay = new Date(
-      visibleMonth.getFullYear(),
-      visibleMonth.getMonth(),
-      1,
-    );
-    const daysInMonth = new Date(
-      visibleMonth.getFullYear(),
-      visibleMonth.getMonth() + 1,
-      0,
-    ).getDate();
-    const leadingDays = firstDay.getDay();
-
-    return [
-      ...Array.from({ length: leadingDays }, () => null),
-      ...Array.from({ length: daysInMonth }, (_, index) => {
-        const day = index + 1;
-        const date = new Date(
-          visibleMonth.getFullYear(),
-          visibleMonth.getMonth(),
-          day,
-        );
-        return {
-          day,
-          value: formatLocalDateValue(date),
-        };
-      }),
-    ];
-  }, [visibleMonth]);
-
-  const visibleYear = visibleMonth.getFullYear();
-  const previousMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth() - 1,
-    1,
-  );
-  const nextMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth() + 1,
-    1,
-  );
-  const canGoPrevious =
-    previousMonth >= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-  const canGoNext =
-    nextMonth <= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
-  const yearOptions = Array.from(
-    { length: maxDate.getFullYear() - minDate.getFullYear() + 1 },
-    (_, index) => minDate.getFullYear() + index,
-  );
-
-  return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          onClose();
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        {...ariaExpanded(open)}
-        onClick={onToggle}
-        className={`mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-[13px] border bg-[#f8f9ff] px-3 py-2 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:border-[#9fb0d4] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/10 dark:bg-slate-950 dark:hover:bg-slate-900 ${
-          open
-            ? 'border-[#102d92] bg-white dark:border-blue-400 dark:bg-slate-900'
-            : 'border-[#d8e0ee] dark:border-slate-600'
-        }`}
-      >
-        <span className="min-w-0 flex-1 truncate text-sm font-black leading-none text-[#08256d] dark:text-slate-100">
-          {value ? formatLongDateLabel(value) : 'Selecciona una fecha'}
-        </span>
-        <CalendarDays
-          size={20}
-          className={`shrink-0 transition ${open ? 'text-[#102d92] dark:text-blue-200' : 'text-slate-500 dark:text-slate-300'}`}
-          aria-hidden="true"
-        />
-      </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Calendario de fecha de compra"
-          className="absolute left-1/2 right-auto z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-[18px] border border-[#d5deee] bg-white p-2 shadow-[0_18px_38px_rgba(15,23,42,0.16)] dark:border-slate-600 dark:bg-slate-900"
-        >
-          <div className="flex items-center justify-between gap-2 px-1 pb-2">
-            <button
-              type="button"
-              disabled={!canGoPrevious}
-              onClick={() => setVisibleMonth(previousMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
-              aria-label="Mes anterior"
-            >
-              <ArrowLeft size={17} />
-            </button>
-            <div className="flex min-w-0 items-center justify-center gap-1 rounded-full bg-[#f8faff] p-1 dark:bg-slate-800">
-              <button
-                type="button"
-                {...ariaPressed(calendarView === 'months')}
-                onClick={() =>
-                  setCalendarView((current) =>
-                    current === 'months' ? 'days' : 'months',
-                  )
-                }
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
-                  calendarView === 'months'
-                    ? 'bg-[#102d92] text-white'
-                    : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {MONTHS_ES[visibleMonth.getMonth()]}
-              </button>
-              <button
-                type="button"
-                {...ariaPressed(calendarView === 'years')}
-                onClick={() =>
-                  setCalendarView((current) =>
-                    current === 'years' ? 'days' : 'years',
-                  )
-                }
-                className={`rounded-full px-2.5 py-1 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
-                  calendarView === 'years'
-                    ? 'bg-[#102d92] text-white'
-                    : 'text-slate-900 hover:bg-[#eef4ff] dark:text-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {visibleYear}
-              </button>
-            </div>
-            <button
-              type="button"
-              disabled={!canGoNext}
-              onClick={() => setVisibleMonth(nextMonth)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#102d92] transition hover:bg-[#eef4ff] disabled:cursor-not-allowed disabled:text-slate-300 dark:text-blue-200 dark:hover:bg-slate-800 dark:disabled:text-slate-600"
-              aria-label="Mes siguiente"
-            >
-              <ArrowRight size={17} />
-            </button>
-          </div>
-
-          {calendarView === 'months' ? (
-            <div className="grid grid-cols-3 gap-1.5 px-1 py-1">
-              {MONTHS_ES.map((month, monthIndex) => {
-                const candidate = new Date(visibleYear, monthIndex, 1);
-                const disabled =
-                  candidate <
-                    new Date(minDate.getFullYear(), minDate.getMonth(), 1) ||
-                  candidate >
-                    new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
-                const active = monthIndex === visibleMonth.getMonth();
-                return (
-                  <button
-                    key={month}
-                    type="button"
-                    disabled={disabled}
-                    {...ariaPressed(active)}
-                    onClick={() => {
-                      if (!disabled) {
-                        setVisibleMonth(new Date(visibleYear, monthIndex, 1));
-                        setCalendarView('days');
-                      }
-                    }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-[0.7rem] font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
-                      active
-                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {month}
-                  </button>
-                );
-              })}
-            </div>
-          ) : calendarView === 'years' ? (
-            <div className="grid max-h-44 grid-cols-3 gap-1.5 overflow-y-auto px-1 py-1">
-              {yearOptions.map((year) => {
-                const active = year === visibleYear;
-                return (
-                  <button
-                    key={year}
-                    type="button"
-                    {...ariaPressed(active)}
-                    onClick={() => {
-                      const nextVisibleMonth = Math.min(
-                        visibleMonth.getMonth(),
-                        year === maxDate.getFullYear()
-                          ? maxDate.getMonth()
-                          : 11,
-                      );
-                      setVisibleMonth(new Date(year, nextVisibleMonth, 1));
-                      setCalendarView('months');
-                    }}
-                    className={`min-h-[36px] rounded-[12px] px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 ${
-                      active
-                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.18)]'
-                        : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-7 gap-1 px-1">
-              {WEEKDAYS_ES.map((day) => (
-                <span
-                  key={day}
-                  className="py-1 text-center text-[0.72rem] font-black text-slate-500 dark:text-slate-300"
-                >
-                  {day}
-                </span>
-              ))}
-              {calendarDays.map((day, index) =>
-                day ? (
-                  <button
-                    key={day.value}
-                    type="button"
-                    disabled={!isDateValueInRange(day.value, min, max)}
-                    {...ariaPressed(day.value === value)}
-                    onClick={() => {
-                      onChange(day.value);
-                      onClose();
-                    }}
-                    className={`h-8 rounded-full text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#102d92]/15 disabled:cursor-not-allowed disabled:text-slate-300 ${
-                      day.value === value
-                        ? 'bg-[#102d92] text-white shadow-[0_8px_18px_rgba(16,45,146,0.22)]'
-                        : day.value === todaySelectable
-                          ? 'bg-[#eef4ff] text-[#102d92] dark:bg-blue-500/20 dark:text-blue-100'
-                          : 'text-slate-800 hover:bg-[#f4f7ff] dark:text-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {day.day}
-                  </button>
-                ) : (
-                  <span key={`empty-${index}`} aria-hidden="true" />
-                ),
-              )}
-            </div>
-          )}
-
-          <div className="mt-2 flex items-center justify-between border-t border-[#edf1f7] px-1 pt-2 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => {
-                onChange('');
-                onClose();
-              }}
-              className="rounded-full px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Limpiar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onChange(todaySelectable);
-                onClose();
-              }}
-              className="rounded-full bg-[#eef4ff] px-3 py-2 text-xs font-black text-[#102d92] transition hover:bg-[#dfe8ff] dark:bg-blue-500/20 dark:text-blue-100 dark:hover:bg-blue-500/30"
-            >
-              Hoy
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function normalizeSearchText(value: string) {
   return value
     .normalize('NFD')
@@ -1335,62 +1015,7 @@ function soloDigitos(value: string) {
   return value.replace(/\D/g, '');
 }
 
-const MONTHS_ES = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre',
-];
-const WEEKDAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
 const getLimitesCompra = () => getLimitesEntradaSnapshot();
-
-function parseLocalDateValue(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
-}
-
-function formatLocalDateValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function isDateValueInRange(value: string, min: string, max: string) {
-  return value >= min && value <= max;
-}
-
-function formatLongDateLabel(value: string) {
-  const date = parseLocalDateValue(value);
-  if (!date) return '';
-  return date.toLocaleDateString('es-CO', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
 
 function crearSubloteVacio(): SubloteForm {
   return {
@@ -2336,9 +1961,7 @@ export default function Compras() {
   const [subloteInputWarningsExiting, setSubloteInputWarningsExiting] =
     useState(false);
   const [subloteActivoId, setSubloteActivoId] = useState<string | null>(null);
-  const [pesoFocusedSubloteId, setPesoFocusedSubloteId] = useState<
-    string | null
-  >(null);
+  const [, setPesoFocusedSubloteId] = useState<string | null>(null);
   const [productorSeleccionado, setProductorSeleccionado] =
     useState<ProductorOption | null>(null);
   const [productorSelectionMode, setProductorSelectionMode] =
@@ -3809,10 +3432,6 @@ export default function Compras() {
     }
   };
 
-  const irAEditarBodega = () => {
-    navigate('/ajustes', { state: { openBodega: true } });
-  };
-
   const abrirConfirmacionCompra = async () => {
     setRegistroErrorMensaje(null);
     setError(null);
@@ -4095,8 +3714,8 @@ export default function Compras() {
   }
 
   return (
-    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900">
-      <header className="mx-auto w-full max-w-[430px] px-4 py-4 pt-6">
+    <div className="cs-workflow-page min-h-screen bg-[linear-gradient(180deg,#f7f5ff_0%,#f3f3fb_100%)] px-4 py-6 pb-[180px] text-slate-900 lg:px-8 lg:pb-10">
+      <header className="mx-auto w-full max-w-[430px] px-4 py-4 pt-6 lg:max-w-[1200px] lg:px-0">
         <div className="relative flex items-center justify-center">
           <button
             type="button"
@@ -4139,7 +3758,104 @@ export default function Compras() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[430px] flex-col gap-5 py-2">
+      <main className="mx-auto grid w-full max-w-[430px] grid-cols-1 gap-5 py-2 lg:max-w-[1200px] lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(320px,360px)] lg:items-start lg:gap-6">
+        <aside className="hidden lg:sticky lg:top-6 lg:block">
+          <section className="rounded-[22px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)]">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52657d]">
+              Flujo de compra
+            </p>
+            <div className="mt-5 space-y-3">
+              {([1, 2, 3] as Step[]).map((itemStep) => {
+                const item = datosPaso(itemStep);
+                const active = step === itemStep;
+                const completed = step > itemStep;
+                const canGoBack = itemStep < step;
+                return (
+                  <button
+                    key={itemStep}
+                    type="button"
+                    onClick={() => {
+                      if (canGoBack) setStep(itemStep);
+                    }}
+                    disabled={!canGoBack && !active}
+                    className={`flex w-full items-start gap-3 rounded-[16px] border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15 ${
+                      active
+                        ? 'border-[#1f3fa7] bg-[#eef4ff] text-[#102d92] shadow-[0_10px_24px_rgba(16,45,146,0.12)]'
+                        : completed
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                          : 'border-slate-200 bg-slate-50 text-slate-500'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                        active
+                          ? 'bg-[#102d92] text-white'
+                          : completed
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white text-slate-500'
+                      }`}
+                    >
+                      {completed ? <Check size={15} /> : itemStep}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black leading-5">
+                        {item.titulo}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold leading-4 opacity-80">
+                        {item.descripcion}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-[22px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52657d]">
+              Productor
+            </p>
+            {productorSeleccionado ? (
+              <div className="mt-4 flex items-start gap-3">
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] bg-[#1f3fa7] text-xs font-black text-white">
+                  {getProductorInitials(productorSeleccionado.nombre)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-base font-black text-slate-950">
+                    {productorSeleccionado.nombre}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">
+                    {productorSeleccionado.rapido
+                      ? 'Compra rápida sin registro'
+                      : getProductorDocumentLabel(productorSeleccionado)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm font-semibold leading-5 text-slate-500">
+                Selecciona un productor registrado, genérico o crea uno nuevo.
+              </p>
+            )}
+            <div className="mt-4 grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={seleccionarBusqueda}
+                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#173ea6] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+              >
+                <Search size={16} />
+                Buscar productor
+              </button>
+              <button
+                type="button"
+                onClick={seleccionarRegistroProductor}
+                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-white px-3 text-sm font-black text-[#173ea6] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+              >
+                <UserPlus size={16} />
+                Registrar productor
+              </button>
+            </div>
+          </section>
+        </aside>
         {step === 1 ? (
           <section className="flex flex-col gap-4">
             <SelectableOptionCard
@@ -5183,6 +4899,207 @@ export default function Compras() {
             </div>
           </section>
         ) : null}
+
+        <aside className="hidden lg:sticky lg:top-6 lg:block">
+          <section className="rounded-[22px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52657d]">
+                  Resumen
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Compra en progreso
+                </p>
+              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#eef4ff] text-[#173ea6]">
+                <ShoppingBag size={18} />
+              </span>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="min-w-0 rounded-[18px] bg-[#f7f9ff] px-3 py-3">
+                <span
+                  className="block break-words text-xl font-black leading-tight text-[#173a8a]"
+                  title={formatTotalKg(resumen.totalKg)}
+                >
+                  {formatTotalKg(resumen.totalKg)}
+                </span>
+                <span className="mt-1 block text-[0.68rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  Total kg
+                </span>
+              </div>
+              <div className="min-w-0 rounded-[18px] bg-[#eef4ff] px-3 py-3">
+                <span
+                  className="block break-words text-xl font-black leading-tight text-[#08256d]"
+                  title={formatoMoneda(resumen.totalCompra)}
+                >
+                  {formatoMoneda(resumen.totalCompra)}
+                </span>
+                <span className="mt-1 block text-[0.68rem] font-black uppercase tracking-[0.08em] text-[#52657d]">
+                  Total pago
+                </span>
+              </div>
+            </div>
+
+            <dl className="mt-4 space-y-2 rounded-[18px] border border-[#edf1f8] bg-[#fbfcff] p-4 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-black text-slate-500">Fecha</dt>
+                <dd className="text-right font-bold text-slate-900">
+                  {formatoFecha(fecha)}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-black text-slate-500">Cafés</dt>
+                <dd className="font-bold text-slate-900">
+                  {sublotesParaHistorial.length}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-black text-slate-500">Estado</dt>
+                <dd className="text-right font-bold text-slate-900">
+                  {pasoActual.titulo}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="mt-4 rounded-[22px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#52657d]">
+                Cafés agregados
+              </p>
+              <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-[0.68rem] font-black text-[#173ea6]">
+                {sublotesParaHistorial.length}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {sublotesParaHistorial.length === 0 ? (
+                <p className="rounded-[16px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-4 py-5 text-sm font-semibold leading-5 text-slate-500">
+                  Agrega tipo de café, calidad, peso y precio para construir el
+                  historial.
+                </p>
+              ) : (
+                sublotesParaHistorial.slice(-3).map((sublote) => {
+                  const tipoCafe =
+                    nombreTipoCafePorId.get(sublote.tipoCafeId) ??
+                    'Tipo pendiente';
+                  const calidad =
+                    nombreCalidadPorId.get(sublote.calidadId) ??
+                    'Calidad pendiente';
+                  const peso = leerCantidadCompra(sublote.pesoInicial).valor;
+                  const precioKg = leerPrecioCompra(sublote.precioKg).valor;
+                  const totalItem = peso * precioKg;
+
+                  return (
+                    <article
+                      key={sublote.id}
+                      className="rounded-[16px] border border-[#e2e8f4] bg-[#fbfcff] px-3 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-slate-950">
+                            {tipoCafe} · {calidad}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            {formatTotalKg(peso)} · {formatoMoneda(precioKg)}/kg
+                          </p>
+                          <p className="mt-1 text-sm font-black text-[#173ea6]">
+                            {formatoMoneda(totalItem)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              editarSubloteDesdeRevision(sublote.id)
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#173ea6] transition hover:bg-[#dfe8ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+                            aria-label={`Editar ${tipoCafe}`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          {sublotes.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                eliminarSubloteDesdeRevision(sublote.id)
+                              }
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#fff1f3] text-[#d63b4a] transition hover:bg-[#ffe4e8] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200"
+                              aria-label={`Eliminar ${tipoCafe}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+
+            {sublotesParaHistorial.length > 3 ? (
+              <button
+                type="button"
+                onClick={() => setMostrarHistorialSublotes(true)}
+                className="mt-3 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#d5deee] bg-[#f8fbff] px-4 text-sm font-black text-[#173ea6]"
+              >
+                Ver historial completo
+                <ArrowRight size={15} />
+              </button>
+            ) : null}
+          </section>
+
+          <section className="mt-4 rounded-[22px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={irSiguientePaso}
+                disabled={loading || checkingCapacidadPreview}
+                className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#1f3fa7] px-4 text-sm font-black text-white shadow-[0_12px_28px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
+              >
+                {loading || checkingCapacidadPreview ? (
+                  <LoaderCircle size={18} className="animate-spin" />
+                ) : (
+                  <ArrowRight size={18} />
+                )}
+                {step === 1 ? 'Continuar a café' : 'Continuar a confirmación'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void abrirConfirmacionCompra()}
+                disabled={saving || checkingConfirmacion || loading}
+                className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#102d92] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(16,45,146,0.22)] transition hover:bg-[#18358f] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/20"
+              >
+                {checkingConfirmacion ? (
+                  <LoaderCircle size={18} className="animate-spin" />
+                ) : (
+                  <Save size={18} />
+                )}
+                {isOffline ? 'Guardar pendiente' : 'Registrar compra'}
+              </button>
+            )}
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={irPasoAnterior}
+                className="mt-2 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] border border-[#cbd6ea] bg-white px-4 text-sm font-black text-[#334b85] transition hover:bg-[#f4f7ff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+              >
+                <ArrowLeft size={17} />
+                Paso anterior
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setMostrarModalCancelar(true)}
+              className="mt-2 inline-flex min-h-[46px] w-full items-center justify-center rounded-[16px] border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1f3fa7]/15"
+            >
+              Cancelar compra
+            </button>
+          </section>
+        </aside>
       </main>
 
       {mostrarModalBorrador && borradorPendiente ? (
