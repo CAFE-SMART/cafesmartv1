@@ -33,7 +33,7 @@ import {
 import { obtenerLotes, type LoteResumen } from '../services/lotesService';
 import { getOfflineCache, saveOfflineCache } from '../services/offlineCacheService';
 import { prepareOfflineData } from '../services/offlinePreparationService';
-import { applySecadoToLots } from '../utils/secadoFlow';
+import { applySecadoToLots, getActiveSecadoSessions } from '../utils/secadoFlow';
 import { getDaysInBodega } from '../utils/date';
 import { ENABLE_SECADO_PROTOTYPE } from '../config/features';
 import {
@@ -843,6 +843,32 @@ export default function Inicio() {
     };
   }, [ocupacion.nivel]);
 
+  const secadoSessionsActivas = useMemo(
+    () => (ENABLE_SECADO_PROTOTYPE ? getActiveSecadoSessions() : []),
+    [lotesBodega],
+  );
+
+  const cafeEnSecadoKg = useMemo(
+    () =>
+      secadoSessionsActivas.reduce(
+        (sum, session) =>
+          sum +
+          session.sublotes.reduce(
+            (subtotal, sublote) =>
+              subtotal +
+              (Number.isFinite(sublote.pesoSeleccionadoKg)
+                ? Number(sublote.pesoSeleccionadoKg)
+                : sublote.pesoActual),
+            0,
+          ),
+        0,
+      ),
+    [secadoSessionsActivas],
+  );
+
+  const secadosActivosCount = secadoSessionsActivas.length;
+  const formatProcesos = (value: number) =>
+    `${formatInteger(value)} ${value === 1 ? 'proceso' : 'procesos'}`;
   const alertaBodega = useMemo(() => {
     const kgActual = ocupacion.usadosKg;
     const kgCapacidad = ocupacion.capacidadKg;
@@ -1087,10 +1113,10 @@ export default function Inicio() {
                   </div>
 
                   <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                    <MetricCard label="Compras" value={formatMetric(loading, summary?.comprasHoy ?? null, formatInteger)} icon={ShoppingCart} />
-                    <MetricCard label="Ventas" value={formatMetric(loading, summary?.ventasHoy ?? null, formatInteger)} icon={CalendarDays} />
-                    <MetricCard label="Kg comprados" value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)} icon={PackageCheck} />
-                    <MetricCard label="Productores" value={formatMetric(loading, summary?.totalProductores ?? null, formatInteger)} icon={ShieldCheck} />
+                    <MetricCard label="Café en secado" value={formatMetric(loading, cafeEnSecadoKg, formatKg)} icon={SunMedium} />
+                    <MetricCard label="Comprado hoy" value={formatMetric(loading, summary?.kgCompradosHoy ?? null, formatKg)} icon={ShoppingCart} />
+                    <MetricCard label="Café en bodega" value={formatMetric(loading, ocupacion.usadosKg, formatKg)} icon={Warehouse} />
+                    <MetricCard label="Secados activos" value={formatMetric(loading, secadosActivosCount, formatProcesos)} icon={Scale} />
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
@@ -1552,40 +1578,28 @@ export default function Inicio() {
 
                 <div className="mt-4 grid grid-cols-2 gap-2.5">
                   <MetricCard
-                    label="Compras"
-                    value={formatMetric(
-                      loading,
-                      summary?.comprasHoy ?? null,
-                      formatInteger,
-                    )}
-                    icon={ShoppingCart}
+                    label="Café en secado"
+                    value={formatMetric(loading, cafeEnSecadoKg, formatKg)}
+                    icon={SunMedium}
                   />
                   <MetricCard
-                    label="Ventas"
-                    value={formatMetric(
-                      loading,
-                      summary?.ventasHoy ?? null,
-                      formatInteger,
-                    )}
-                    icon={CalendarDays}
-                  />
-                  <MetricCard
-                    label="Kg comprados"
+                    label="Comprado hoy"
                     value={formatMetric(
                       loading,
                       summary?.kgCompradosHoy ?? null,
                       formatKg,
                     )}
-                    icon={PackageCheck}
+                    icon={ShoppingCart}
                   />
                   <MetricCard
-                    label="Productores"
-                    value={formatMetric(
-                      loading,
-                      summary?.totalProductores ?? null,
-                      formatInteger,
-                    )}
-                    icon={ShieldCheck}
+                    label="Café en bodega"
+                    value={formatMetric(loading, ocupacion.usadosKg, formatKg)}
+                    icon={Warehouse}
+                  />
+                  <MetricCard
+                    label="Secados activos"
+                    value={formatMetric(loading, secadosActivosCount, formatProcesos)}
+                    icon={Scale}
                   />
                 </div>
 

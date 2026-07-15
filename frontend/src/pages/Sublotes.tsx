@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { RefreshButton } from '../components/RefreshButton';
 import { useCloudStatus } from '../context/CloudStatusContext';
+import { useDeviceLayout } from '../hooks/useDeviceLayout';
 import { CafeSmartProcessingScreen } from '../components/CafeSmartProcessingScreen';
 import {
   InlineGuidedError,
@@ -512,6 +513,7 @@ export default function Sublotes() {
     calidadId: string;
   }>();
   const { isOnline, refreshHealth } = useCloudStatus();
+  const { isDesktop } = useDeviceLayout();
   const isSecadoProcessRoute =
     tipoCafeId === SECADO_PROCESS_TYPE_ID ||
     calidadId === SECADO_PROCESS_QUALITY_ID;
@@ -581,6 +583,10 @@ export default function Sublotes() {
       ) ?? 0,
     [detalle],
   );
+  const oldestSubloteDays = useMemo(() => {
+    if (!detalle?.sublotes.length) return null;
+    return Math.max(...detalle.sublotes.map((sublote) => getDaysForSublote(sublote)));
+  }, [detalle]);
 
   const cargar = useCallback(async () => {
     if (!tipoCafeId || !calidadId) {
@@ -1163,7 +1169,7 @@ export default function Sublotes() {
 
   return (
     <div className="cs-workflow-page min-h-screen bg-[#f4f4f4] pb-[calc(env(safe-area-inset-bottom)+96px)] text-[#1f1f1f] dark:bg-slate-950">
-      <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white">
+      <header className="sticky top-0 z-20 border-b border-[#e6e6e6] bg-white lg:hidden">
         <div className="mx-auto grid min-h-[56px] w-full max-w-[430px] grid-cols-[42px_1fr_auto] items-center gap-2 px-3 py-2">
           <button
             type="button"
@@ -1195,9 +1201,56 @@ export default function Sublotes() {
         </div>
       </header>
 
+      {isDesktop ? (
+        <header className="border-b border-[#dfe5f2] bg-white px-6 py-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] dark:border-slate-700 dark:bg-slate-900">
+          <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-6">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#52657d] dark:text-slate-300">
+                {subloteActivo && detalle
+                  ? `Inventario / ${titleCase(detalle.lote.tipoCafe)} / ${titleCase(detalle.lote.calidad)} / ${subloteActivoCode}`
+                  : detalle
+                    ? `Inventario / ${titleCase(detalle.lote.tipoCafe)} / ${titleCase(detalle.lote.calidad)}`
+                    : 'Inventario / Sublotes'}
+              </p>
+              <h1 className="mt-2 text-3xl font-black leading-tight text-slate-950 dark:text-slate-100">
+                {subloteActivo ? `Detalle del sublote ${subloteActivoCode}` : 'Sublotes disponibles'}
+              </h1>
+              <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">
+                {subloteActivo
+                  ? 'Consulta inventario, datos tecnicos, costos y acciones.'
+                  : 'Revisa inventario, antiguedad, costos y acciones.'}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedSubloteId) {
+                    setSelectedSubloteId(null);
+                    return;
+                  }
+                  navigate('/inventario');
+                }}
+                className={`${secondaryButtonClass} min-h-[42px] rounded-[12px] px-4 text-sm`}
+              >
+                <ArrowLeft size={17} />
+                Volver
+              </button>
+              <RefreshButton
+                onClick={() => void handleReload()}
+                loading={refreshing}
+                aria-label="Recargar sublotes"
+              >
+                Recargar
+              </RefreshButton>
+            </div>
+          </div>
+        </header>
+      ) : null}
+
       {(offlineNoticeVisible || !isOnline) && (
-        <div className="border-b border-[#ececec] bg-white px-4 py-3">
-          <div className="mx-auto max-w-[430px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line">
+        <div className="border-b border-[#ececec] bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="mx-auto max-w-[430px] rounded-[14px] border border-[#ececec] bg-[#fafafa] px-4 py-3 text-[12px] leading-5 text-[#707070] whitespace-pre-line dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 lg:max-w-[1280px]">
             Para refrescar los datos necesitas conexion a internet.
             {'\n'}
             Tus cambios estan guardados y se sincronizaran automáticamente.
@@ -1205,7 +1258,7 @@ export default function Sublotes() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[430px] px-3 pb-3 pt-2.5">
+      <main className="mx-auto w-full max-w-[430px] px-3 pb-3 pt-2.5 lg:max-w-[1280px] lg:px-6 lg:pb-8 lg:pt-6">
         {error ? (
           <InlineGuidedError
             message={getSublotesGuidance(error)}
@@ -1256,7 +1309,83 @@ export default function Sublotes() {
           </section>
         ) : null}
 
-        {!loading && detalle && !subloteActivo ? (
+        {!loading && detalle && !subloteActivo && isDesktop ? (
+          <section className="space-y-6">
+            <div className="grid grid-cols-4 gap-4">
+              <article className="rounded-[16px] border border-[#dfe7f4] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Peso total</p>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{formatKg(totalSublotesKg)}</p>
+              </article>
+              <article className="rounded-[16px] border border-[#dfe7f4] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Cantidad de sublotes</p>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{detalle.sublotes.length}</p>
+              </article>
+              <article className="rounded-[16px] border border-[#dfe7f4] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Sublotes disponibles</p>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{detalle.sublotes.length}</p>
+              </article>
+              <article className="rounded-[16px] border border-[#dfe7f4] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Mas antiguo</p>
+                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{oldestSubloteDays === null ? '—' : formatDays(oldestSubloteDays)}</p>
+              </article>
+            </div>
+
+            <section className="overflow-hidden rounded-[18px] border border-[#dfe7f4] bg-white shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-[#edf1f8] px-5 py-4 dark:border-slate-700">
+                <h2 className="text-base font-black text-slate-950 dark:text-slate-100">Tabla de sublotes</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">{titleCase(detalle.lote.tipoCafe)} / {titleCase(detalle.lote.calidad)}</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-[#edf1f8] dark:divide-slate-700">
+                  <thead className="bg-[#f8fafc] dark:bg-slate-800/70">
+                    <tr>
+                      {['Sublote', 'Tipo', 'Calidad', 'Peso', 'Dias en bodega', 'Fecha de compra', 'Estado', 'Accion'].map((header) => (
+                        <th key={header} scope="col" className="px-5 py-3 text-left text-xs font-black uppercase tracking-[0.1em] text-slate-500 dark:text-slate-300">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#edf1f8] dark:divide-slate-700">
+                    {detalle.sublotes.map((sublote, index) => {
+                      const visualCode = subloteCodeMap.get(sublote.id) ?? formatSubloteVisualCode(sublote, index);
+                      const days = getDaysForSublote(sublote);
+                      const humidity = classifyHumidity(sublote.humedad);
+                      const showHumidityWarning = humidity.quality === 'advertencia' || humidity.quality === 'descuento' || humidity.quality === 'rechazada';
+                      return (
+                        <tr key={sublote.id} className="bg-white hover:bg-[#f8fbff] dark:bg-slate-900 dark:hover:bg-slate-800/80">
+                          <td className="px-5 py-4 text-sm font-black text-slate-950 dark:text-slate-100">{visualCode}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{titleCase(sublote.tipoCafe)}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{titleCase(sublote.calidad)}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{formatKg(sublote.pesoActual)}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{formatDays(days)}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{formatDateShort(sublote.fechaIngreso)}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${showHumidityWarning ? humidity.toneClass : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-100'}`}>
+                              {showHumidityWarning ? humidity.label : 'Disponible'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSubloteId(sublote.id)}
+                              className={`${secondaryButtonClass} min-h-[38px] rounded-[12px] px-3 text-xs`}
+                              aria-label={`Ver detalle del sublote ${visualCode}`}
+                            >
+                              Ver detalle
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        ) : null}
+
+        {!loading && detalle && !subloteActivo && !isDesktop ? (
           <section className={`cs-card rounded-[16px] border px-3 py-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)] ${detalleQualityStyles.shell} ${detalleQualityStyles.accent}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1362,7 +1491,126 @@ export default function Sublotes() {
           </section>
         ) : null}
 
-        {!loading && subloteActivo ? (
+        {!loading && subloteActivo && isDesktop ? (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+            <div className="space-y-5">
+              <section className={`rounded-[18px] border bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:bg-slate-900 ${qualityStyles.accent} dark:border-slate-700`}>
+                <div className="flex items-center gap-2 text-slate-950 dark:text-slate-100">
+                  <Info size={18} />
+                  <h2 className="text-lg font-black">Informacion basica</h2>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3 border-t border-[#edf1f8] pt-4 dark:border-slate-700">
+                  <InfoField label="Sublote" value={subloteActivoCode} icon={<Package2 size={13} />} />
+                  <InfoField label="Tipo" value={titleCase(subloteActivo.tipoCafe)} icon={<Info size={13} />} />
+                  <InfoField label="Calidad" value={titleCase(subloteActivo.calidad)} icon={<Tag size={13} />} />
+                  <InfoField label="Peso" value={formatKg(subloteActivo.pesoActual)} icon={<Scale size={13} />} />
+                  <InfoField label="Precio/kg" value={formatPricePerKg(subloteActivo.precioKg)} accent="price" icon={<CircleDollarSign size={13} />} />
+                  <InfoField label="Fecha de compra" value={formatDateShort(subloteActivo.fechaIngreso)} icon={<CalendarDays size={13} />} />
+                  <InfoField label="Tiempo en bodega" value={formatDays(diasSubloteActivo)} icon={<Timer size={13} />} />
+                  {subloteActivo.codigoOrigen && subloteActivo.procesoOrigen === 'SECADO' ? (
+                    <>
+                      <InfoField label="Origen" value={subloteActivo.codigoOrigen} icon={<Package2 size={13} />} />
+                      <InfoField label="Proceso" value="Secado" icon={<FlaskConical size={13} />} />
+                    </>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="rounded-[18px] border border-[#dfe7f4] bg-white p-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${qualityStyles.icon}`}>
+                    <FlaskConical size={18} />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-950 dark:text-slate-100">Datos tecnicos</h2>
+                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-300">Humedad y mediciones de calidad del sublote.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[#edf1f8] pt-4 dark:border-slate-700">
+                  <div className="rounded-[14px] border border-[#ececec] bg-[#fafafa] p-4 dark:border-slate-600 dark:bg-slate-800">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Humedad</p>
+                    <p className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{formatHumedad(subloteActivo.humedad)}</p>
+                    <button type="button" onClick={handleEditHumedad} aria-label={`Editar humedad del sublote ${subloteActivoCode}`} className={`${secondaryButtonClass} mt-4 min-h-[38px] rounded-[12px] px-3 text-xs`}>
+                      <Pencil size={14} />
+                      {subloteActivo.humedad === null ? 'Registrar humedad' : 'Editar humedad'}
+                    </button>
+                  </div>
+                  {showFactor ? (
+                    <div className="rounded-[14px] border border-[#ececec] bg-[#fafafa] p-4 dark:border-slate-600 dark:bg-slate-800">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Factor</p>
+                      <p className="mt-2 text-xl font-black text-slate-950 dark:text-slate-100">{formatFactor(factorActivo)}</p>
+                      <button type="button" onClick={handleEditFactor} className={`${secondaryButtonClass} mt-4 min-h-[38px] rounded-[12px] px-3 text-xs`}>
+                        <Pencil size={14} />
+                        Editar factor
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+
+            <aside className="space-y-5">
+              {detalle && detalle.sublotes.length > 1 ? (
+                <section className="rounded-[18px] border border-[#dfe7f4] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-black text-slate-950 dark:text-slate-100">Cambiar sublote</h2>
+                    <span className={`rounded-full border px-2 py-1 text-[0.68rem] font-black ${qualityStyles.badge}`}>{detalle.sublotes.length} disponibles</span>
+                  </div>
+                  <div className="mt-3 max-h-[300px] space-y-2 overflow-y-auto pr-1">
+                    {detalle.sublotes.map((sublote, index) => {
+                      const active = sublote.id === subloteActivo.id;
+                      const visualCode = subloteCodeMap.get(sublote.id) ?? formatSubloteVisualCode(sublote, index);
+                      const itemStyles = getQualityStyles(sublote.calidad);
+                      return (
+                        <button key={sublote.id} type="button" onClick={() => setSelectedSubloteId(sublote.id)} aria-label={`Seleccionar ${visualCode}${active ? ', seleccionado' : ''}`} className={`w-full rounded-[12px] border px-3 py-2.5 text-left transition focus:outline-none focus:ring-4 focus:ring-blue-400/20 ${active ? `${itemStyles.ring} ${itemStyles.accent}` : 'border-[#ececec] bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:hover:bg-slate-800'}`}>
+                          <span className="block text-sm font-black text-slate-950 dark:text-slate-100">{visualCode}{active ? ' · seleccionado' : ''}</span>
+                          <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-300">{titleCase(sublote.tipoCafe)} {titleCase(sublote.calidad)} · {formatKg(sublote.pesoActual)} · {formatDays(getDaysForSublote(sublote))}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-[18px] border border-[#dfe7f4] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-sm font-black text-slate-950 dark:text-slate-100">Análisis financiero</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-300">Consulta costos, utilidad y margen del sublote.</p>
+                <button type="button" onClick={() => setShowAnalysis((current) => !current)} className={`${secondaryButtonClass} mt-4 min-h-[40px] w-full rounded-[12px] text-sm`}>
+                  <CircleDollarSign size={16} />
+                  {showAnalysis ? 'Ocultar análisis' : 'Ver análisis'}
+                </button>
+                {showAnalysis ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#edf1f8] pt-4 dark:border-slate-700">
+                    <InfoField label="Utilidad neta" value={formatCurrency(financieroActivo?.utilidadNeta ?? 0)} accent="price" icon={<CircleDollarSign size={13} />} />
+                    <InfoField label="Merma kg" value={formatKg(financieroActivo?.mermaKg ?? 0)} icon={<Scale size={13} />} />
+                    <InfoField label="Merma %" value={formatPercent(financieroActivo?.mermaPorcentaje ?? 0)} icon={<Gauge size={13} />} />
+                    <InfoField label="Valor merma" value={formatCurrency(financieroActivo?.mermaValor ?? 0)} accent="price" icon={<Tag size={13} />} />
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="rounded-[18px] border border-[#dfe7f4] bg-white p-4 shadow-[0_18px_44px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-sm font-black text-slate-950 dark:text-slate-100">Acciones del sublote</h2>
+                <div className="mt-4 grid gap-2">
+                  <button type="button" onClick={() => navigate('/ventas')} className={`${primaryButtonClass} min-h-[44px] w-full rounded-[12px] text-sm`}>
+                    <Tag size={16} />
+                    Vender sublote
+                  </button>
+                  <button type="button" onClick={handleOpenWeightModal} className={`${secondaryButtonClass} min-h-[42px] w-full rounded-[12px] text-sm`}>
+                    <Scale size={16} />
+                    Ajustar peso
+                  </button>
+                  <button type="button" onClick={() => navigate(`/gastos?subloteId=${encodeURIComponent(subloteActivo.id)}`)} className={`${secondaryButtonClass} min-h-[42px] w-full rounded-[12px] text-sm`}>
+                    <Tag size={16} />
+                    Ver gastos
+                  </button>
+                </div>
+              </section>
+            </aside>
+          </div>
+        ) : null}
+
+        {!loading && subloteActivo && !isDesktop ? (
           <div className="space-y-3">
             {detalle && detalle.sublotes.length > 1 ? (
               <section className={`cs-card rounded-[16px] border px-3 py-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)] ${qualityStyles.shell} ${qualityStyles.accent}`}>
@@ -1594,12 +1842,14 @@ export default function Sublotes() {
                   value={formatHumedad(subloteActivo.humedad)}
                   toneClass={classifyHumidity(subloteActivo.humedad).toneClass}
                   onEdit={handleEditHumedad}
+                  ariaLabel={`Editar humedad del sublote ${subloteActivoCode}`}
                 />
                 {showFactor ? (
                   <TechnicalField
                     label="Factor"
                     value={formatFactor(factorActivo)}
                     onEdit={handleEditFactor}
+                    ariaLabel={`Editar factor del sublote ${subloteActivoCode}`}
                   />
                 ) : null}
               </div>
@@ -1609,7 +1859,7 @@ export default function Sublotes() {
       </main>
 
       {subloteActivo && !isSecadoProcessRoute ? (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[#e5e7eb] bg-[#f4f4f4]/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 backdrop-blur dark:border-slate-700 dark:bg-slate-950/95">
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-[#e5e7eb] bg-[#f4f4f4]/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 backdrop-blur dark:border-slate-700 dark:bg-slate-950/95 lg:hidden">
           <div className="mx-auto grid w-full max-w-[430px] grid-cols-3 gap-1.5">
             <button
               type="button"
@@ -2001,11 +2251,13 @@ function TechnicalField({
   value,
   toneClass,
   onEdit,
+  ariaLabel,
 }: {
   label: string;
   value: string;
   toneClass?: string;
   onEdit: () => void;
+  ariaLabel?: string;
 }) {
   return (
     <div className="rounded-[12px] border border-[#ececec] bg-[#fafafa] p-2.5 dark:border-slate-600 dark:bg-slate-800">
@@ -2015,6 +2267,7 @@ function TechnicalField({
       <button
         type="button"
         onClick={onEdit}
+        aria-label={ariaLabel}
         className={`${fieldInputClass} mt-1 flex min-h-[38px] items-center justify-between rounded-[10px] px-2.5 py-1 text-left`}
       >
         <p className="min-w-0 text-[0.82rem] font-black leading-none tracking-normal text-[#222222] dark:text-slate-100">

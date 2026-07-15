@@ -783,6 +783,25 @@ select {
   animation: cafesmartSuccessHalo 2.8s ease-in-out infinite;
 }
 
+
+.cs-workflow-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.cs-workflow-page > header,
+.cs-workflow-page > main,
+.cs-workflow-page > footer {
+  position: relative;
+  z-index: 1;
+}
+
+.cs-workflow-page .cafesmart-float,
+.cs-workflow-page .cafesmart-pulse-ring {
+  pointer-events: none;
+  z-index: 0;
+}
+
 .dark .cs-workflow-page {
   background: #020617;
   color: #f8fafc;

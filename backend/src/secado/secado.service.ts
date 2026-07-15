@@ -325,8 +325,8 @@ export class SecadoService {
     }
 
     const [tipoSeco, calidades] = await Promise.all([
-      tx.tipoCafe.findUnique({
-        where: { nombre: 'SECO' },
+      tx.tipoCafe.findFirst({
+        where: { nombre: 'SECO', organizacionId: null },
         select: { id: true },
       }),
       tx.calidad.findMany({

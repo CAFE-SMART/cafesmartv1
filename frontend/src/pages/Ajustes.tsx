@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleDashed,
   CloudCog,
+  Coins,
   Droplets,
   Eye,
   FlaskConical,
@@ -20,6 +21,7 @@ import {
   LoaderCircle,
   Lock,
   LogOut,
+  MapPin,
   Monitor,
   Moon,
   Package2,
@@ -27,6 +29,7 @@ import {
   RefreshCcw,
   ScanSearch,
   Save,
+  Scale,
   Settings,
   Shield,
   SlidersHorizontal,
@@ -70,6 +73,16 @@ import {
   type LoteDetalle,
   type LoteResumen,
 } from '../services/lotesService';
+import {
+  obtenerCatalogosCompra,
+  crearTipoCafe,
+  editarTipoCafe,
+  eliminarTipoCafe,
+  crearCalidad,
+  editarCalidad,
+  eliminarCalidad,
+  type CatalogoItem,
+} from '../services/comprasService';
 import {
   obtenerConfiguracionBodega,
   guardarLimitesEntrada,
@@ -505,6 +518,41 @@ function formatKg(value: number) {
   );
 }
 
+const SYSTEM_COFFEE_TYPES = ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'] as const;
+const SYSTEM_COFFEE_QUALITIES = ['BUENO', 'REGULAR', 'MALO'] as const;
+
+function normalizeCatalogName(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function buildCatalogDisplayItems(
+  items: CatalogoItem[],
+  systemNames: readonly string[],
+) {
+  const byName = new Map<string, CatalogoItem>();
+
+  for (const item of items) {
+    const key = normalizeCatalogName(item.nombre);
+    if (!key || byName.has(key)) continue;
+    byName.set(key, { ...item, nombre: key });
+  }
+
+  for (const name of [...systemNames].reverse()) {
+    const key = normalizeCatalogName(name);
+    const existing = byName.get(key);
+    byName.delete(key);
+    byName.set(key, existing ?? { id: `system-${key}`, nombre: key });
+  }
+
+  const systemKeys = new Set(systemNames.map(normalizeCatalogName));
+  return [
+    ...systemNames.map((name) => byName.get(normalizeCatalogName(name))).filter(Boolean),
+    ...Array.from(byName.values()).filter(
+      (item) => !systemKeys.has(normalizeCatalogName(item.nombre)),
+    ),
+  ] as CatalogoItem[];
+}
+
 function formatKgInput(value: string | number) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return '';
@@ -933,6 +981,28 @@ export default function Ajustes() {
   const [settingsSearch, setSettingsSearch] = useState('');
   const [activeSettingsCategory, setActiveSettingsCategory] =
     useState('perfil');
+  const [catalogModal, setCatalogModal] = useState<'tipos' | 'calidades' | null>(
+    null,
+  );
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [tiposCafeList, setTiposCafeList] = useState<CatalogoItem[]>([]);
+  const [calidadesList, setCalidadesList] = useState<CatalogoItem[]>([]);
+  const [catalogFeedback, setCatalogFeedback] = useState<string | null>(null);
+  const [catalogDraftName, setCatalogDraftName] = useState('');
+  const [catalogEditingId, setCatalogEditingId] = useState<string | null>(null);
+  const [catalogFormOpen, setCatalogFormOpen] = useState(false);
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const catalogNameInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [activeBusinessConfigCategory, setActiveBusinessConfigCategory] =
+    useState<'negocio' | 'bodega' | 'calidades' | 'usuarios'>('negocio');
+
+  useEffect(() => {
+    if (!catalogFormOpen) return;
+    window.requestAnimationFrame(() => {
+      catalogNameInputRef.current?.focus();
+    });
+  }, [catalogFormOpen, catalogModal]);
 
   const initialConfig = useMemo(
     () => ({
@@ -4691,6 +4761,110 @@ export default function Ajustes() {
     });
   };
 
+  const esTipoBase = (nombre: string) =>
+    ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'].includes(
+      nombre.trim().toUpperCase(),
+    );
+
+  const esCalidadBase = (nombre: string) =>
+    ['BUENO', 'REGULAR', 'MALO'].includes(nombre.trim().toUpperCase());
+
+  const cargarCatalogos = async () => {
+    setCatalogLoading(true);
+    setCatalogFeedback(null);
+    try {
+      const data = await obtenerCatalogosCompra();
+      setTiposCafeList(data.tiposCafe);
+      setCalidadesList(data.calidades);
+    } catch {
+      setCatalogFeedback('No se pudieron cargar los catálogos. Intenta nuevamente.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const abrirCatalogo = async (tipo: 'tipos' | 'calidades') => {
+    setCatalogModal(tipo);
+    setCatalogDraftName('');
+    setCatalogEditingId(null);
+    setCatalogFormOpen(false);
+    await cargarCatalogos();
+  };
+
+  const cerrarCatalogo = () => {
+    setCatalogModal(null);
+    setCatalogDraftName('');
+    setCatalogEditingId(null);
+    setCatalogFormOpen(false);
+    setCatalogFeedback(null);
+  };
+
+  const guardarCatalogo = async () => {
+    const nombre = catalogDraftName.trim();
+    if (!catalogModal || !nombre) {
+      setCatalogFeedback('Escribe un nombre para continuar.');
+      return;
+    }
+    if (nombre.length > 50) {
+      setCatalogFeedback('El nombre no puede superar los 50 caracteres.');
+      return;
+    }
+
+    setCatalogSaving(true);
+    setCatalogFeedback(null);
+    try {
+      if (catalogModal === 'tipos') {
+        if (catalogEditingId) {
+          await editarTipoCafe(catalogEditingId, nombre);
+        } else {
+          await crearTipoCafe(nombre);
+        }
+      } else if (catalogEditingId) {
+        await editarCalidad(catalogEditingId, nombre);
+      } else {
+        await crearCalidad(nombre);
+      }
+      setCatalogDraftName('');
+      setCatalogEditingId(null);
+      setCatalogFormOpen(false);
+      await cargarCatalogos();
+      setCatalogFeedback(
+        catalogEditingId
+          ? 'Catálogo actualizado correctamente.'
+          : 'Catálogo agregado correctamente.',
+      );
+    } catch (err) {
+      setCatalogFeedback(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos guardar el catálogo. Intenta nuevamente.',
+      );
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
+  const eliminarCatalogo = async (item: CatalogoItem) => {
+    if (!catalogModal) return;
+    setCatalogSaving(true);
+    setCatalogFeedback(null);
+    try {
+      if (catalogModal === 'tipos') {
+        await eliminarTipoCafe(item.id);
+      } else {
+        await eliminarCalidad(item.id);
+      }
+      await cargarCatalogos();
+    } catch (err) {
+      setCatalogFeedback(
+        err instanceof Error
+          ? err.message
+          : 'No pudimos eliminar el elemento. Puede estar en uso.',
+      );
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
   const procesosOperativos = [
     {
       id: 'secado',
@@ -4724,73 +4898,140 @@ export default function Ajustes() {
     },
   ] as const;
 
-  const configuracionNegocio = [
-    {
-      id: 'info-empresa',
-      title: 'Negocio',
-      description: 'Nombre, tipo y descripción',
-      icon: Building2,
-      iconStyle:
-        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: false,
-      onClick: abrirEditorEmpresa,
-    },
-    {
-      id: 'tipos-cafe',
-      title: 'Tipos de café',
-      description: 'Variedades registradas',
-      icon: FlaskConical,
-      iconStyle:
-        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: true,
-      onClick: undefined,
-    },
-    {
-      id: 'calidades-cafe',
-      title: 'Calidades de café',
-      description: 'Estándares de calidad',
-      icon: ScanSearch,
-      iconStyle:
-        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: true,
-      onClick: undefined,
-    },
-    {
-      id: 'capacidad-bodega',
-      title: 'Bodega',
-      description: 'Espacio de bodega',
-      icon: Warehouse,
-      iconStyle:
-        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: false,
-      onClick: abrirEditorBodega,
-    },
-    {
-      id: 'gestion-usuarios',
-      title: 'Usuarios',
-      description: 'Roles y permisos',
-      icon: Users,
-      iconStyle:
-        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
-      staticOnly: true,
-      onClick: undefined,
-    },
-    {
-      id: 'contacto-soporte',
-      title: 'Soporte',
-      description: 'Ayuda y reportes',
-      icon: LifeBuoy,
-      iconStyle:
-        'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
-      staticOnly: false,
-      onClick: () => navigate('/soporte'),
-    },
+  const businessConfigTabs = [
+    { id: 'negocio', label: 'Negocio' },
+    { id: 'bodega', label: 'Bodega' },
+    { id: 'calidades', label: 'Calidades' },
+    { id: 'usuarios', label: 'Usuarios' },
   ] as const;
-  const configuracionNegocioInactiva = new Set([
-    'tipos-cafe',
-    'calidades-cafe',
-    'gestion-usuarios',
-  ]);
+
+  const businessConfigCards = {
+    negocio: [
+      {
+        id: 'info-empresa',
+        title: 'Datos de empresa',
+        description: 'Mi empresa cafetera',
+        icon: Building2,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: abrirEditorEmpresa,
+      },
+      {
+        id: 'limites-compra',
+        title: 'Límites de compra',
+        description: 'Precios y pesos permitidos',
+        icon: SlidersHorizontal,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => abrirEditorLimites(),
+      },
+      {
+        id: 'moneda-negocio',
+        title: 'Cambia tu moneda',
+        description: 'Pesos colombianos (COP)',
+        icon: Coins,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => setCurrencyModalOpen(true),
+      },
+      {
+        id: 'unidades-default',
+        title: 'Unidades por defecto',
+        description: 'Medición en kilogramos (kg)',
+        icon: Scale,
+        iconStyle:
+          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        staticOnly: true,
+        onClick: undefined,
+      },
+      {
+        id: 'preferencias-notificaciones',
+        title: 'Preferencias',
+        description: 'Alertas y notificaciones',
+        icon: BellRing,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => setAccessibilityModal('notifications' as const),
+      },
+    ],
+    bodega: [
+      {
+        id: 'capacidad-bodega',
+        title: 'Ajustar bodega',
+        description: 'Capacidad máxima en kilogramos',
+        icon: Warehouse,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: abrirEditorBodega,
+      },
+      {
+        id: 'zonas-bodega',
+        title: 'Zonas de bodega',
+        description: 'Distribución del espacio: sin persistencia disponible todavía',
+        icon: MapPin,
+        iconStyle:
+          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        staticOnly: true,
+        onClick: undefined,
+      },
+    ],
+    calidades: [
+      {
+        id: 'tipos-cafe',
+        title: 'Tipos de café',
+        description: 'Gestiona los tipos de café',
+        icon: FlaskConical,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => void abrirCatalogo('tipos'),
+      },
+      {
+        id: 'calidades-cafe',
+        title: 'Calidades del café',
+        description: 'Gestiona los niveles de calidad',
+        icon: ScanSearch,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => void abrirCatalogo('calidades'),
+      },
+    ],
+    usuarios: [
+      {
+        id: 'gestion-contactos',
+        title: 'Contactos',
+        description: 'Clientes y productores registrados',
+        icon: Users2,
+        iconStyle:
+          'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200',
+        staticOnly: false,
+        onClick: () => void cargarPersonasAdmin('todos'),
+      },
+      {
+        id: 'usuarios-sistema',
+        title: 'Usuarios del sistema',
+        description: 'Roles, permisos e invitaciones: backend no disponible',
+        icon: Shield,
+        iconStyle:
+          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        staticOnly: true,
+        onClick: undefined,
+      },
+    ],
+  } as const;
+
+  const configuracionNegocio = businessConfigCards[activeBusinessConfigCategory];
+  const configuracionNegocioInactiva = new Set<string>(
+    configuracionNegocio
+      .filter((item) => item.staticOnly)
+      .map((item) => item.id),
+  );
 
   const gestionPersonas = [
     {
@@ -5077,8 +5318,10 @@ export default function Ajustes() {
     { id: 'apariencia', label: 'Apariencia', icon: Monitor },
     { id: 'accesibilidad', label: 'Accesibilidad', icon: Eye },
     { id: 'asistente', label: 'Asistente inteligente', icon: ScanSearch },
-    { id: 'negocio', label: 'Configuración del negocio', icon: Building2 },
-    { id: 'personas', label: 'Gestión de personas', icon: Users2 },
+    { id: 'negocio', label: 'Negocio', icon: Building2 },
+    { id: 'bodega', label: 'Bodega', icon: Warehouse },
+    { id: 'calidades', label: 'Calidades', icon: FlaskConical },
+    { id: 'usuarios', label: 'Usuarios', icon: Users2 },
   ];
 
   const desktopCards: DesktopSettingsCardConfig[] = [
@@ -5183,63 +5426,108 @@ export default function Ajustes() {
       keywords: ['inteligente', 'consulta'],
     },
     {
-      id: 'negocio',
-      title: 'Negocio',
-      description: 'Edita los datos de tu negocio.',
+      id: 'datos-empresa',
+      title: 'Datos de empresa',
+      description: 'Mi empresa cafetera',
       category: 'negocio',
       icon: Building2,
       onClick: abrirEditorEmpresa,
+      keywords: ['empresa', 'organizacion', 'negocio'],
+    },
+    {
+      id: 'limites-compra',
+      title: 'Límites de compra',
+      description: 'Precios y pesos permitidos',
+      category: 'negocio',
+      icon: SlidersHorizontal,
+      onClick: () => abrirEditorLimites(),
+      keywords: ['precio', 'peso', 'limites'],
+    },
+    {
+      id: 'moneda-negocio',
+      title: 'Cambia tu moneda',
+      description: 'Pesos colombianos (COP)',
+      category: 'negocio',
+      icon: Coins,
+      status: 'Símbolo: $',
+      onClick: () => setCurrencyModalOpen(true),
+      keywords: ['moneda', 'cop', 'pesos'],
+    },
+    {
+      id: 'unidades-default',
+      title: 'Unidades por defecto',
+      description: 'Medición en kilogramos (kg)',
+      category: 'negocio',
+      icon: Scale,
+      status: 'Informativo',
+      disabled: true,
+      keywords: ['kilogramos', 'kg', 'unidad'],
+    },
+    {
+      id: 'preferencias-notificaciones',
+      title: 'Preferencias',
+      description: 'Alertas y notificaciones',
+      category: 'negocio',
+      icon: BellRing,
+      status: notificationStatusLabel,
+      onClick: () => setAccessibilityModal('notifications'),
+      keywords: ['alertas', 'avisos', 'notificaciones'],
+    },
+    {
+      id: 'ajustar-bodega',
+      title: 'Ajustar bodega',
+      description: 'Capacidad máxima en kilogramos',
+      category: 'bodega',
+      icon: Warehouse,
+      onClick: abrirEditorBodega,
+      keywords: ['bodega', 'capacidad', 'almacenamiento'],
+    },
+    {
+      id: 'zonas-bodega',
+      title: 'Zonas de bodega',
+      description: 'Distribución del espacio',
+      category: 'bodega',
+      icon: MapPin,
+      status: 'Sin backend disponible',
+      disabled: true,
+      keywords: ['zona', 'bodega', 'distribucion'],
     },
     {
       id: 'tipos-cafe',
       title: 'Tipos de café',
-      description: 'Administra los tipos de café.',
-      category: 'negocio',
+      description: 'Gestiona los tipos de café',
+      category: 'calidades',
       icon: FlaskConical,
-      disabled: true,
+      onClick: () => void abrirCatalogo('tipos'),
+      keywords: ['verde', 'seco', 'trillado', 'pasilla'],
     },
     {
       id: 'calidades-cafe',
-      title: 'Calidades de café',
-      description: 'Administra las calidades del café.',
-      category: 'negocio',
+      title: 'Calidades del café',
+      description: 'Gestiona los niveles de calidad',
+      category: 'calidades',
       icon: ScanSearch,
-      disabled: true,
-    },
-    {
-      id: 'bodegas',
-      title: 'Bodegas',
-      description: 'Administra tus bodegas y su capacidad.',
-      category: 'negocio',
-      icon: Warehouse,
-      onClick: abrirEditorBodega,
-      keywords: ['bodega', 'capacidad'],
-    },
-    {
-      id: 'equipo-permisos',
-      title: 'Equipo y permisos',
-      description: 'Administra las personas que pueden usar Café Smart.',
-      category: 'negocio',
-      icon: Users,
-      disabled: true,
-      keywords: ['usuarios', 'roles'],
-    },
-    {
-      id: 'soporte',
-      title: 'Soporte',
-      description: 'Obtén ayuda o reporta un problema.',
-      category: 'negocio',
-      icon: LifeBuoy,
-      onClick: () => navigate('/soporte'),
+      onClick: () => void abrirCatalogo('calidades'),
+      keywords: ['bueno', 'regular', 'malo'],
     },
     {
       id: 'contactos',
       title: 'Contactos',
-      description: 'Administra clientes, productores y otros contactos.',
-      category: 'personas',
+      description: 'Clientes y productores registrados',
+      category: 'usuarios',
       icon: Users2,
       onClick: () => void cargarPersonasAdmin('todos'),
       keywords: ['cliente', 'productor', 'contacto'],
+    },
+    {
+      id: 'usuarios-sistema',
+      title: 'Usuarios del sistema',
+      description: 'Roles, permisos e invitaciones',
+      category: 'usuarios',
+      icon: Shield,
+      status: 'Backend no disponible',
+      disabled: true,
+      keywords: ['usuarios', 'roles', 'permisos', 'invitaciones'],
     },
   ];
 
@@ -5304,6 +5592,195 @@ export default function Ajustes() {
     syncDeleteCandidate,
   );
 
+  const currencyModalLayer = (
+    <CafeSmartModal
+      open={currencyModalOpen}
+      onClose={() => setCurrencyModalOpen(false)}
+      labelledById="currency-settings-modal-title"
+      title="Moneda de tu negocio"
+      description="Esta es tu moneda oficial"
+      className="max-w-[440px]"
+    >
+      <div className="space-y-4">
+        <div className="rounded-[16px] border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:border-blue-400/20 dark:bg-blue-500/10 dark:text-slate-100">
+          <p className="font-semibold">
+            Ya has registrado compras, ventas o gastos.
+          </p>
+          <p className="mt-2">
+            Para que las cuentas de tu negocio den exactas y no se mezclen diferentes monedas, la moneda no se puede cambiar.
+          </p>
+          <p className="mt-2">
+            Si necesitas operar con otra moneda, puedes crear una nueva organización.
+          </p>
+        </div>
+        <div className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-sm font-black text-slate-900 dark:text-slate-50">
+            Pesos colombianos (COP)
+          </p>
+          <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">
+            Símbolo: $
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCurrencyModalOpen(false)}
+          className="inline-flex w-full items-center justify-center rounded-full bg-blue-700 px-4 py-3 text-sm font-black text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/50 dark:bg-blue-500 dark:hover:bg-blue-400 dark:focus-visible:ring-blue-300/40"
+        >
+          Entendido
+        </button>
+      </div>
+    </CafeSmartModal>
+  );
+  const catalogItems =
+    catalogModal === 'tipos'
+      ? buildCatalogDisplayItems(tiposCafeList, SYSTEM_COFFEE_TYPES)
+      : buildCatalogDisplayItems(calidadesList, SYSTEM_COFFEE_QUALITIES);
+  const isBaseCatalogItem = catalogModal === 'tipos' ? esTipoBase : esCalidadBase;
+  const catalogModalTitle =
+    catalogModal === 'tipos' ? 'Tipos de café' : 'Calidades del café';
+  const catalogModalDescription =
+    catalogModal === 'tipos'
+      ? 'Gestiona los tipos de café'
+      : 'Gestiona los niveles de calidad';
+  const catalogAddLabel =
+    catalogModal === 'tipos' ? '+ Agregar tipo de café' : '+ Agregar calidad';
+
+  const catalogModalLayer = (
+    <CafeSmartModal
+      open={Boolean(catalogModal)}
+      onClose={cerrarCatalogo}
+      labelledById="catalog-settings-modal-title"
+      title={catalogModalTitle}
+      description={catalogModalDescription}
+      className="max-w-[460px]"
+    >
+      <div className="space-y-3">
+        {catalogFeedback ? (
+          <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+            {catalogFeedback}
+          </div>
+        ) : null}
+
+        <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
+          {catalogLoading ? (
+            <p className="py-6 text-center text-sm font-bold text-slate-500 dark:text-slate-300">
+              Cargando catálogo...
+            </p>
+          ) : catalogItems.length === 0 ? (
+            <p className="py-6 text-center text-sm font-bold text-slate-500 dark:text-slate-300">
+              No hay elementos registrados.
+            </p>
+          ) : (
+            catalogItems.map((item) => {
+              const isBase = isBaseCatalogItem(item.nombre);
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-3 py-3 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black uppercase text-slate-950 dark:text-slate-100">
+                      {item.nombre}
+                    </p>
+                    {isBase ? (
+                      <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[0.62rem] font-black uppercase tracking-[0.08em] text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                        SISTEMA
+                      </span>
+                    ) : null}
+                  </div>
+                  {!isBase ? (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCatalogEditingId(item.id);
+                          setCatalogDraftName(item.nombre);
+                          setCatalogFeedback(null);
+                          setCatalogFormOpen(true);
+                        }}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-[#102d92] hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-blue-500/15 dark:text-blue-100"
+                        aria-label={`Editar ${item.nombre}`}
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void eliminarCatalogo(item)}
+                        disabled={catalogSaving}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-700 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-60 dark:bg-rose-500/15 dark:text-rose-100"
+                        aria-label={`Eliminar ${item.nombre}`}
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {catalogFormOpen ? (
+          <div className="rounded-[16px] border border-dashed border-blue-200 bg-blue-50/70 p-3 dark:border-blue-400/30 dark:bg-blue-500/10">
+            <label
+              htmlFor="catalog-settings-name"
+              className="block text-xs font-black uppercase tracking-[0.08em] text-[#102d92] dark:text-blue-100"
+            >
+              Nombre
+            </label>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="catalog-settings-name"
+                ref={catalogNameInputRef}
+                type="text"
+                maxLength={50}
+                value={catalogDraftName}
+                onChange={(event) => {
+                  setCatalogDraftName(event.target.value);
+                  setCatalogFeedback(null);
+                }}
+                className="min-h-[42px] flex-1 rounded-[12px] border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none focus:border-[#102d92] focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                placeholder="Nombre"
+              />
+              <button
+                type="button"
+                onClick={() => void guardarCatalogo()}
+                disabled={catalogSaving}
+                className="inline-flex min-h-[42px] items-center justify-center rounded-[12px] bg-[#102d92] px-4 text-sm font-black text-white disabled:opacity-60 dark:bg-blue-600"
+              >
+                {catalogSaving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCatalogEditingId(null);
+                setCatalogDraftName('');
+                setCatalogFeedback(null);
+                setCatalogFormOpen(false);
+              }}
+              className="mt-2 text-xs font-black text-slate-500 underline-offset-4 hover:underline dark:text-slate-300"
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setCatalogEditingId(null);
+              setCatalogDraftName('');
+              setCatalogFeedback(null);
+              setCatalogFormOpen(true);
+            }}
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-full border border-dashed border-[#102d92] bg-blue-50 px-4 text-sm font-black text-[#102d92] transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/40 dark:border-blue-300/50 dark:bg-blue-500/10 dark:text-blue-100 dark:hover:bg-blue-500/20"
+          >
+            {catalogAddLabel}
+          </button>
+        )}
+      </div>
+    </CafeSmartModal>
+  );
   const desktopSettingsModalLayer = isDesktop ? (
     <>
       <CafeSmartModal
@@ -5943,6 +6420,8 @@ export default function Ajustes() {
             </main>
           </div>
         </div>
+        {currencyModalLayer}
+        {catalogModalLayer}
         {desktopSettingsModalLayer}
       </div>
     );
@@ -5955,6 +6434,9 @@ export default function Ajustes() {
             Ajustes
           </h1>
         </header>
+
+        {currencyModalLayer}
+        {catalogModalLayer}
 
         <CafeSmartModal
           open={themeModalOpen}
@@ -7840,8 +8322,33 @@ export default function Ajustes() {
           </div>
 
           <p className="pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
-            Configuración del negocio
+            CONFIGURACIÓN
           </p>
+          <div
+            role="tablist"
+            aria-label="Categorías de configuración"
+            className="flex gap-2 overflow-x-auto pb-1"
+          >
+            {businessConfigTabs.map((tab) => {
+              const active = activeBusinessConfigCategory === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveBusinessConfigCategory(tab.id)}
+                  className={`shrink-0 rounded-full border px-3 py-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 ${
+                    active
+                      ? 'border-blue-700 bg-blue-700 text-white shadow-sm focus-visible:ring-blue-300/50 dark:border-blue-400 dark:bg-blue-500 dark:text-slate-950 dark:focus-visible:ring-blue-300/40'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700 focus-visible:ring-blue-200/60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-400/50 dark:hover:text-blue-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2">
             {configuracionNegocio.map((item) => {
               const Icon = item.icon;
@@ -10567,3 +11074,4 @@ export default function Ajustes() {
     </div>
   );
 }
+
