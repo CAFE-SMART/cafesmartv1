@@ -379,7 +379,7 @@ function EmptyDashboardState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
-  const { logout } = useUser();
+  const { logout, user } = useUser();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<DashboardInicio | null>(null);

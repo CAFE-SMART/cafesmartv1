@@ -181,7 +181,7 @@ export default function SystemStatus() {
             ? processState.otroTipoDetalle
             : undefined;
 
-        const fullName =
+const fullName =
           `${processState.nombre} ${processState.apellidos || ''}`.trim();
 
         if (processState.hasGoogleFlow && processState.googleToken) {
@@ -313,7 +313,7 @@ export default function SystemStatus() {
                   navigate('/crear-empresa', {
                     state: {
                       googleToken: processState.googleToken,
-                      googlePrefill: processState.hasGoogleFlow
+googlePrefill: processState.hasGoogleFlow
                         ? {
                             correo: processState.correo,
                             nombre: processState.nombre,
@@ -332,7 +332,7 @@ export default function SystemStatus() {
                         telefono: processState.telefono,
                         correo: processState.correo,
                         password: processState.password,
-                      },
+},
                     },
                   });
                 }}

@@ -49,6 +49,7 @@ import {
   getActiveCurrency,
   isCurrencyConfigured,
 } from '../utils/formatMoney';
+import { formatCoffeeLabel } from '../utils/uiMessages';
 import { ApiRequestError } from '../services/apiService';
 import {
   guardarConfiguracionBodega,
@@ -845,7 +846,7 @@ export default function Compras() {
     useState(false);
   const [mostrarModalConfigurarMoneda, setMostrarModalConfigurarMoneda] =
     useState(false);
-  const [selectedMoneda, setSelectedMoneda] = useState(() =>
+const [selectedMoneda, setSelectedMoneda] = useState(() =>
     getActiveCurrency(),
   );
   const [nombreBodegaNueva, setNombreBodegaNueva] = useState('');
@@ -908,7 +909,7 @@ export default function Compras() {
         setMaxPesoKg(maximoConfigurado);
         setMinPrecioKg(bodegaConfig.minPrecioKg ?? PRECIO_MINIMO_KG);
         setMaxPrecioKg(bodegaConfig.maxPrecioKg ?? PRECIO_MAXIMO_KG);
-        setBodegaConfigurada(
+setBodegaConfigurada(
           Boolean(bodegaConfig.capacidadKg && bodegaConfig.capacidadKg > 0),
         );
       } else {
@@ -3396,7 +3397,7 @@ export default function Compras() {
                         100% { width: 100%; }
                       }
                     `}</style>
-                    <div
+<div
                       className="absolute inset-y-0 left-0 bg-[#1e40af]"
                       style={{
                         animation: 'progressLoading 2s ease-in-out infinite',

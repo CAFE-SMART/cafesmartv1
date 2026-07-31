@@ -611,7 +611,7 @@ export default function Gastos() {
                           100% { width: 100%; }
                         }
                       `}</style>
-                      <div
+<div
                         className="absolute inset-y-0 left-0 bg-[#173ea6]"
                         style={{
                           animation: 'progressLoading 2s ease-in-out infinite',

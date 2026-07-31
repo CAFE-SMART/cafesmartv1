@@ -1048,7 +1048,7 @@ function EmailConflictView({
         <div className="rounded-[22px] border border-[#e2e8f0] bg-white p-5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
           <div className="space-y-4">
             <p className="text-sm font-semibold leading-6 text-slate-700">
-              La cuenta para el negocio{' '}
+La cuenta para el negocio{' '}
               <span className="font-extrabold text-slate-900">
                 "{data.nombreOrganizacion}" ({tipoOrganizacionTexto})
               </span>{' '}

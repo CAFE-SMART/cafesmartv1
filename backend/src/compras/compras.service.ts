@@ -172,7 +172,7 @@ export class ComprasService {
     calidades: CatalogoItem[];
   }> {
     await this.asegurarCatalogosBase(this.prisma);
-    const organizacionId = await this.obtenerOrganizacionId(
+const organizacionId = await this.obtenerOrganizacionId(
       this.prisma,
       _userId,
     );
@@ -213,7 +213,7 @@ export class ComprasService {
       );
     }
 
-    const organizacionId = await this.obtenerOrganizacionId(
+const organizacionId = await this.obtenerOrganizacionId(
       this.prisma,
       userId,
     );
@@ -317,7 +317,7 @@ export class ComprasService {
       );
     }
 
-    const organizacionId = await this.obtenerOrganizacionId(
+const organizacionId = await this.obtenerOrganizacionId(
       this.prisma,
       userId,
     );
@@ -365,7 +365,7 @@ export class ComprasService {
       );
     }
 
-    const organizacionId = await this.obtenerOrganizacionId(
+const organizacionId = await this.obtenerOrganizacionId(
       this.prisma,
       userId,
     );
@@ -465,7 +465,7 @@ export class ComprasService {
       );
     }
 
-    const organizacionId = await this.obtenerOrganizacionId(
+const organizacionId = await this.obtenerOrganizacionId(
       this.prisma,
       userId,
     );
