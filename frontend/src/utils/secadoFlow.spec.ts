@@ -6,6 +6,7 @@ describe('secadoFlow', () => {
   it('applySecadoToLots returns lots unmodified', () => {
     const mockLots = [{ id: '1', pesoActual: 10 }] as unknown as LoteResumen[];
     expect(applySecadoToLots(mockLots)).toEqual(mockLots);
+    expect(applySecadoToLots([])).toEqual([]);
   });
 
   it('applySecadoToDetalle returns detail unmodified', () => {
@@ -16,5 +17,6 @@ describe('secadoFlow', () => {
     expect(applySecadoToDetalle(mockDetail, 'tipo', 'calidad')).toEqual(
       mockDetail,
     );
+    expect(applySecadoToDetalle(null, 'tipo', 'calidad')).toBeNull();
   });
 });

@@ -53,7 +53,9 @@ export function AppBottomNav({ hidden = false }: { hidden?: boolean }) {
                     isActive ? 'scale-110' : 'group-hover:scale-105'
                   }`}
                 />
-                <span className="transition-transform duration-300 ease-out">{item.label}</span>
+                <span className="transition-transform duration-300 ease-out">
+                  {item.label}
+                </span>
               </button>
             );
           })}

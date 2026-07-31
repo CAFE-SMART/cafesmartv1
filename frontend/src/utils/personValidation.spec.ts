@@ -36,6 +36,12 @@ describe('personValidation', () => {
       'Revisa el nombre e inténtalo nuevamente.',
     );
     expect(validateProducerName('Juan Pérez', 'CC').isValid).toBe(true);
+    expect(validateProducerName('Ramón Núñez', 'CC').isValid).toBe(true);
+    expect(validateProducerName('María Gómez', 'CC').isValid).toBe(true);
+    expect(validateProducerName('J. Martínez', 'CC').isValid).toBe(false);
+    expect(validateProducerName('J. Martínez', 'CC').message).toBe(
+      'Completa el nombre y apellido para continuar.',
+    );
     expect(validateProducerName('Café Los Alpes 24', 'NIT').isValid).toBe(true);
     expect(validateProducerName('---', 'NIT').message).toBe(
       'Ingresa un nombre de empresa válido.',

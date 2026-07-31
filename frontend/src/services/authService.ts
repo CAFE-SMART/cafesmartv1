@@ -194,12 +194,9 @@ export const authService = {
         tipo: 'COOPERATIVA' | 'COMPRAVENTA' | 'OTRO';
         otroTipoDetalle?: string;
       } | null;
-    }>(
-      '/check-email',
-      { correo },
-      'No se pudo validar el correo',
-      { enabled: false },
-    );
+    }>('/check-email', { correo }, 'No se pudo validar el correo', {
+      enabled: false,
+    });
     return data;
   },
 

@@ -174,7 +174,7 @@ export class VentasService {
         throw new ConflictException({
           code: 'VENTA_SYNC_ELIMINADA',
           message:
-            'Esta venta ya habia sido registrada y luego anulada. Para evitar duplicados, enviela con un nuevo identificador.',
+            'Esta venta ya fue registrada y anulada anteriormente. Crea una nueva venta para continuar.',
         });
       }
 
@@ -199,7 +199,7 @@ export class VentasService {
           throw new ConflictException({
             code: 'VENTA_SYNC_ELIMINADA',
             message:
-              'Esta venta ya habia sido registrada y luego anulada. Para evitar duplicados, enviela con un nuevo identificador.',
+              'Esta venta ya fue registrada y anulada anteriormente. Crea una nueva venta para continuar.',
           });
         }
 

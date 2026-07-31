@@ -19,9 +19,7 @@ export function RegisterProgress({
   return (
     <>
       <div className="mb-2 flex items-center justify-between text-[0.95rem] font-medium text-slate-600">
-        <span>
-          {stepLabel}
-        </span>
+        <span>{stepLabel}</span>
         <span className="text-slate-400">
           {step} de {totalSteps}
         </span>

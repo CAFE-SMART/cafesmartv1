@@ -43,7 +43,7 @@ export class AuthService {
     const single = this.configService.get<string>('GOOGLE_CLIENT_ID')?.trim();
     if (!single) {
       throw new UnauthorizedException({
-        message: 'Configuracion de Google incompleta en el servidor',
+        message: 'El inicio de sesión con Google no está disponible temporalmente. Usa correo y contraseña o contacta al administrador.',
       });
     }
 
@@ -99,13 +99,13 @@ export class AuthService {
 
     const payload = ticket.getPayload();
     if (!payload?.email || payload.email_verified !== true) {
-      throw new UnauthorizedException({ message: 'Token de Google invalido' });
+      throw new UnauthorizedException({ message: 'No pudimos validar tu cuenta de Google. Intenta iniciar sesión de nuevo.' });
     }
 
     const googleEmail = payload.email.trim().toLowerCase();
     const googleSubject = payload.sub?.trim();
     if (!googleSubject) {
-      throw new UnauthorizedException({ message: 'Token de Google invalido' });
+      throw new UnauthorizedException({ message: 'No pudimos validar tu cuenta de Google. Intenta iniciar sesión de nuevo.' });
     }
 
     const existingUser = await this.usersService.findByEmail(googleEmail);
@@ -197,14 +197,14 @@ export class AuthService {
     const payload = ticket.getPayload();
     if (!payload?.email || payload.email_verified !== true) {
       throw new UnauthorizedException({
-        message: 'Token de Google invalido',
+        message: 'No pudimos validar tu cuenta de Google. Intenta iniciar sesión de nuevo.',
       });
     }
 
     const googleSubject = payload.sub?.trim();
     if (!googleSubject) {
       throw new UnauthorizedException({
-        message: 'Token de Google invalido',
+        message: 'No pudimos validar tu cuenta de Google. Intenta iniciar sesión de nuevo.',
       });
     }
 

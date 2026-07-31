@@ -26,7 +26,9 @@ export class GastosController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registrar un nuevo gasto (operativo o de sublote)' })
+  @ApiOperation({
+    summary: 'Registrar un nuevo gasto (operativo o de sublote)',
+  })
   async crear(
     @Body() dto: CrearGastoDto,
     @Req() req: { user: { sub: string } },

@@ -169,7 +169,7 @@ export class GastosService {
     });
 
     if (!gasto) {
-      throw new NotFoundException(`Gasto con id "${id}" no encontrado`);
+      throw new NotFoundException('El gasto solicitado no fue encontrado.');
     }
 
     return this.formatearGasto(gasto, gasto.sublotes.length === 0);
@@ -188,7 +188,7 @@ export class GastosService {
     });
 
     if (!existente) {
-      throw new NotFoundException(`Gasto con id "${id}" no encontrado`);
+      throw new NotFoundException('El gasto solicitado no fue encontrado.');
     }
 
     const gasto = await this.prisma.gastoOperativo.update({
@@ -250,7 +250,7 @@ export class GastosService {
     });
 
     if (!usuario) {
-      throw new UnauthorizedException('Usuario no encontrado');
+      throw new UnauthorizedException('No encontramos tu usuario. Inicia sesión nuevamente.');
     }
 
     if (!usuario.organizacionId) {

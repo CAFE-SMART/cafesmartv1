@@ -71,13 +71,13 @@ export class CrearGastoDto {
   descripcion?: string;
 
   @Type(() => Number)
-  @IsNumber({}, { message: 'montoGasto debe ser un número' })
+  @IsNumber({}, { message: 'Ingresa solo números para el monto del gasto.' })
   @Min(0.01, { message: 'El monto del gasto debe ser mayor a 0' })
   @Max(99999999, { message: 'El monto supera el máximo permitido' })
   montoGasto: number;
 
-  @IsDateString({}, { message: 'fechaGasto debe ser una fecha ISO 8601' })
-  @IsNotEmpty({ message: 'fechaGasto es obligatoria' })
+  @IsDateString({}, { message: 'Elige una fecha válida para el gasto.' })
+  @IsNotEmpty({ message: 'La fecha del gasto es obligatoria.' })
   fechaGasto: string;
 
   @IsEnum(TipoGasto, {
@@ -86,7 +86,7 @@ export class CrearGastoDto {
   tipoGasto: TipoGasto;
 
   @IsEnum(EstadoPago, {
-    message: `estadoPago debe ser PAGADO o PENDIENTE`,
+    message: 'Selecciona si el gasto está pagado o pendiente.',
   })
   estadoPago: EstadoPago;
 
@@ -117,10 +117,10 @@ export class CrearGastoDto {
    * Requerido si asociarASublotes = true.
    */
   @IsOptional()
-  @IsArray({ message: 'subloteIds debe ser un arreglo de UUIDs' })
+  @IsArray({ message: 'Selecciona sublotes válidos.' })
   @IsUUID('4', {
     each: true,
-    message: 'Cada subloteId debe ser un UUID v4 válido',
+    message: 'Uno o más sublotes no son válidos.',
   })
   subloteIds?: string[];
 }

@@ -16,7 +16,9 @@ export class DashboardController {
   }
 
   @Get('inicio')
-  @ApiOperation({ summary: 'Obtener métricas y listados de inicio del panel principal' })
+  @ApiOperation({
+    summary: 'Obtener métricas y listados de inicio del panel principal',
+  })
   obtenerInicio(@Req() req: { user: { sub: string } }) {
     return this.dashboardService.obtenerInicio(req.user.sub);
   }

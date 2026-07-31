@@ -65,7 +65,10 @@ export default function GastosListado() {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const [searchParams] = useSearchParams();

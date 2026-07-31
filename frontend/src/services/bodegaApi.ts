@@ -27,7 +27,9 @@ export type LimitesEntrada = {
  * Obtiene la configuración de bodega del servidor.
  */
 export async function obtenerConfiguracionBodega(): Promise<ConfiguracionBodega> {
-  const config = await apiFetch('/bodega/configuracion') as ConfiguracionBodega;
+  const config = (await apiFetch(
+    '/bodega/configuracion',
+  )) as ConfiguracionBodega;
   if (config) {
     updateMemoryCurrency(config.moneda, config.moneda !== null);
   }

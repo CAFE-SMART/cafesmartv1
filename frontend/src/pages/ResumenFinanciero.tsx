@@ -26,7 +26,10 @@ import {
 } from '../services/dashboardService';
 import { verificarPasswordFinanciero } from '../services/financialAccessService';
 import { ApiRequestError } from '../services/apiService';
-import { formatoMoneda, formatCurrencyShort as getFormatCurrencyShort } from '../utils/formatMoney';
+import {
+  formatoMoneda,
+  formatCurrencyShort as getFormatCurrencyShort,
+} from '../utils/formatMoney';
 
 type PeriodoFinanciero = 'DIARIO' | 'SEMANAL';
 
@@ -198,7 +201,10 @@ export default function ResumenFinanciero() {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);

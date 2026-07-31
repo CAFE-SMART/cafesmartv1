@@ -505,7 +505,10 @@ export default function Sublotes() {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const location = useLocation();
@@ -1269,8 +1272,11 @@ export default function Sublotes() {
                             </p>
                             {(sublote.pesoEnSecado ?? 0) > 0 ? (
                               <p className="mt-0.5 text-[0.75rem] font-semibold leading-4 text-amber-600">
-                                {formatKg(sublote.pesoDisponible ?? sublote.pesoActual)} disponible ·{' '}
-                                {formatKg(sublote.pesoEnSecado!)} en secado
+                                {formatKg(
+                                  sublote.pesoDisponible ?? sublote.pesoActual,
+                                )}{' '}
+                                disponible · {formatKg(sublote.pesoEnSecado!)}{' '}
+                                en secado
                               </p>
                             ) : null}
                             <p className="mt-0.5 text-[0.78rem] font-medium leading-5 text-[#98a2b3]">
@@ -1478,7 +1484,10 @@ export default function Sublotes() {
                     <>
                       <InfoField
                         label="En bodega"
-                        value={formatKg(subloteActivo.pesoDisponible ?? subloteActivo.pesoActual)}
+                        value={formatKg(
+                          subloteActivo.pesoDisponible ??
+                            subloteActivo.pesoActual,
+                        )}
                         icon={<Scale size={15} />}
                         surface="blue"
                       />

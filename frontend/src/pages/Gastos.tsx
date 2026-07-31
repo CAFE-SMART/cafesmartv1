@@ -113,12 +113,17 @@ function resumenLote(lote: LoteResumen) {
 export default function Gastos() {
   const navigate = useNavigate();
   const [, setCurrencyTick] = React.useState(0);
-  const [supportModal, setSupportModal] = React.useState<'help' | 'contact' | null>(null);
+  const [supportModal, setSupportModal] = React.useState<
+    'help' | 'contact' | null
+  >(null);
   React.useEffect(() => {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const [form, setForm] = React.useState<GastoForm>(FORM_INICIAL);
@@ -311,7 +316,9 @@ export default function Gastos() {
                   maxLength={15}
                   value={formatearMonedaInput(form.monto)}
                   onChange={(event) => {
-                    const raw = event.target.value.replace(/\D/g, '').slice(0, MONTO_MAX_LENGTH);
+                    const raw = event.target.value
+                      .replace(/\D/g, '')
+                      .slice(0, MONTO_MAX_LENGTH);
                     setForm((actual) => ({
                       ...actual,
                       monto: raw,
@@ -604,11 +611,11 @@ export default function Gastos() {
                           100% { width: 100%; }
                         }
                       `}</style>
-                      <div 
-                        className="absolute inset-y-0 left-0 bg-[#173ea6]" 
-                        style={{ 
-                          animation: 'progressLoading 2s ease-in-out infinite' 
-                        }} 
+                      <div
+                        className="absolute inset-y-0 left-0 bg-[#173ea6]"
+                        style={{
+                          animation: 'progressLoading 2s ease-in-out infinite',
+                        }}
                       />
                     </>
                   )}
@@ -689,9 +696,7 @@ function SupportLinks({
 }) {
   return (
     <div className="pt-6 pb-2 text-center">
-      <p className="text-xs font-semibold text-[#73829a]">
-        ¿Necesitas ayuda?
-      </p>
+      <p className="text-xs font-semibold text-[#73829a]">¿Necesitas ayuda?</p>
       <div className="mt-2.5 flex items-center justify-center gap-6">
         <button
           type="button"
@@ -754,19 +759,24 @@ function SupportModal({
         {type === 'help' ? (
           <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
             <p>
-              <strong>• Monto del gasto:</strong> Escribe el valor exacto del dinero gastado sin usar puntos ni comas para los miles.
+              <strong>• Monto del gasto:</strong> Escribe el valor exacto del
+              dinero gastado sin usar puntos ni comas para los miles.
             </p>
             <p>
-              <strong>• Concepto:</strong> Describe brevemente en qué se usó el dinero (ej. compra de abonos, pago de luz, jornales de cosecha).
+              <strong>• Concepto:</strong> Describe brevemente en qué se usó el
+              dinero (ej. compra de abonos, pago de luz, jornales de cosecha).
             </p>
             <p>
-              <strong>• Asociar a sublote:</strong> Si el gasto corresponde a un sublote específico, selecciónalo para que el sistema calcule sus costos reales de forma exacta.
+              <strong>• Asociar a sublote:</strong> Si el gasto corresponde a un
+              sublote específico, selecciónalo para que el sistema calcule sus
+              costos reales de forma exacta.
             </p>
           </div>
         ) : (
           <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
             <p className="text-slate-600">
-              ¿Tienes alguna duda con el registro de tus gastos operativos? Escríbenos directamente por WhatsApp.
+              ¿Tienes alguna duda con el registro de tus gastos operativos?
+              Escríbenos directamente por WhatsApp.
             </p>
             <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
               <Headset className="text-[#1D4ED8] mb-2" size={24} />

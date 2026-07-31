@@ -335,7 +335,6 @@ export default function GastosOperativos() {
     }, 80);
   };
 
-
   const validarFormulario = (): FormErrors => {
     const errors: FormErrors = {};
     const fechaValidacion = validateBusinessDateRange(fecha);
@@ -994,11 +993,11 @@ export default function GastosOperativos() {
                         100% { width: 100%; }
                       }
                     `}</style>
-                    <div 
-                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
-                      style={{ 
-                        animation: 'progressLoading 2s ease-in-out infinite' 
-                      }} 
+                    <div
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]"
+                      style={{
+                        animation: 'progressLoading 2s ease-in-out infinite',
+                      }}
                     />
                   </>
                 )}

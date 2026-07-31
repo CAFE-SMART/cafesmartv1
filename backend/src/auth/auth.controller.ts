@@ -41,14 +41,18 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registrar un nuevo administrador y su organización' })
+  @ApiOperation({
+    summary: 'Registrar un nuevo administrador y su organización',
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('register/google')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registrar administrador y organización usando Google OAuth' })
+  @ApiOperation({
+    summary: 'Registrar administrador y organización usando Google OAuth',
+  })
   registerGoogle(@Body() dto: RegisterGoogleDto) {
     return this.authService.registerGoogle(dto);
   }
@@ -69,7 +73,9 @@ export class AuthController {
 
   @Post('check-email')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verificar si un correo electrónico ya está registrado' })
+  @ApiOperation({
+    summary: 'Verificar si un correo electrónico ya está registrado',
+  })
   async checkEmail(@Body() dto: CheckEmailDto) {
     const user = await this.usersService.findByEmail(
       dto.correo.trim().toLowerCase(),
@@ -89,7 +95,9 @@ export class AuthController {
   @Post('verify-password')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validar la contraseña actual de un usuario autenticado' })
+  @ApiOperation({
+    summary: 'Validar la contraseña actual de un usuario autenticado',
+  })
   verifyPassword(
     @Body() dto: { password?: string },
     @Req() req: { user: { sub: string } },
@@ -109,7 +117,9 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Restablecer contraseña con el código de recuperación' })
+  @ApiOperation({
+    summary: 'Restablecer contraseña con el código de recuperación',
+  })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.code, dto.password);
   }

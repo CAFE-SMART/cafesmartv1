@@ -65,11 +65,21 @@ export class BodegaService {
 
     let moneda = paramMap.get('moneda') || null;
     if (!moneda) {
-      const count = await this.prisma.compra.count({ where: { organizacionId, deletedAt: null } });
-      const countVentas = await this.prisma.venta.count({ where: { organizacionId, deletedAt: null } });
-      const countGastos = await this.prisma.gastoOperativo.count({ where: { organizacionId, deletedAt: null } });
+      const count = await this.prisma.compra.count({
+        where: { organizacionId, deletedAt: null },
+      });
+      const countVentas = await this.prisma.venta.count({
+        where: { organizacionId, deletedAt: null },
+      });
+      const countGastos = await this.prisma.gastoOperativo.count({
+        where: { organizacionId, deletedAt: null },
+      });
       if (count > 0 || countVentas > 0 || countGastos > 0) {
-        await this.parametrosService.setParametro('moneda', 'COP', organizacionId);
+        await this.parametrosService.setParametro(
+          'moneda',
+          'COP',
+          organizacionId,
+        );
         moneda = 'COP';
       }
     }
@@ -316,10 +326,6 @@ export class BodegaService {
     organizacionId: string,
     moneda: string,
   ): Promise<void> {
-    await this.parametrosService.setParametro(
-      'moneda',
-      moneda,
-      organizacionId,
-    );
+    await this.parametrosService.setParametro('moneda', moneda, organizacionId);
   }
 }

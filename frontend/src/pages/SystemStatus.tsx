@@ -181,7 +181,8 @@ export default function SystemStatus() {
             ? processState.otroTipoDetalle
             : undefined;
 
-        const fullName = `${processState.nombre} ${processState.apellidos || ''}`.trim();
+        const fullName =
+          `${processState.nombre} ${processState.apellidos || ''}`.trim();
 
         if (processState.hasGoogleFlow && processState.googleToken) {
           response = await authService.registerWithGoogle({
@@ -312,22 +313,27 @@ export default function SystemStatus() {
                   navigate('/crear-empresa', {
                     state: {
                       googleToken: processState.googleToken,
-                      googlePrefill: processState.hasGoogleFlow ? {
-                        correo: processState.correo,
-                        nombre: processState.nombre,
-                        apellidos: processState.apellidos,
-                      } : undefined,
+                      googlePrefill: processState.hasGoogleFlow
+                        ? {
+                            correo: processState.correo,
+                            nombre: processState.nombre,
+                            apellidos: processState.apellidos,
+                          }
+                        : undefined,
                       registerDraft: {
                         nombreOrganizacion: processState.nombreOrganizacion,
-                        tipoOrganizacion: processState.tipoOrganizacion === 'OTRO' ? 'PERSONALIZADO' : processState.tipoOrganizacion,
+                        tipoOrganizacion:
+                          processState.tipoOrganizacion === 'OTRO'
+                            ? 'PERSONALIZADO'
+                            : processState.tipoOrganizacion,
                         otroTipoDetalle: processState.otroTipoDetalle,
                         nombre: processState.nombre,
                         apellidos: processState.apellidos,
                         telefono: processState.telefono,
                         correo: processState.correo,
                         password: processState.password,
-                      }
-                    }
+                      },
+                    },
                   });
                 }}
                 className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[8px] border border-slate-200 bg-[#f8fafc] px-4 py-2 text-[0.68rem] font-black text-[#475569] hover:bg-[#f1f5f9]"

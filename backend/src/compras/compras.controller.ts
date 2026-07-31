@@ -113,7 +113,9 @@ export class ComprasController {
   @Post('validar-capacidad')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validar si la compra supera el límite físico de almacenamiento' })
+  @ApiOperation({
+    summary: 'Validar si la compra supera el límite físico de almacenamiento',
+  })
   async validarCapacidad(
     @Body() dto: CreateCompraDto,
     @Req() req: { user: { sub: string } },

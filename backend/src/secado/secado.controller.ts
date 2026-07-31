@@ -67,7 +67,9 @@ export class SecadoController {
   }
 
   @Patch(':sessionId/results')
-  @ApiOperation({ summary: 'Registrar resultados de control de humedad en secado' })
+  @ApiOperation({
+    summary: 'Registrar resultados de control de humedad en secado',
+  })
   saveResults(
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Body() dto: SecadoResultsDto,
@@ -77,7 +79,9 @@ export class SecadoController {
   }
 
   @Patch(':sessionId/finalize')
-  @ApiOperation({ summary: 'Finalizar proceso de secado y actualizar inventario' })
+  @ApiOperation({
+    summary: 'Finalizar proceso de secado y actualizar inventario',
+  })
   finalize(
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Req() req: { user: { sub: string } },
@@ -92,7 +96,9 @@ export class SecadoController {
   }
 
   @Get('active/:loteId')
-  @ApiOperation({ summary: 'Obtener sesión de secado activa para un lote específico' })
+  @ApiOperation({
+    summary: 'Obtener sesión de secado activa para un lote específico',
+  })
   activeForLote(
     @Param('loteId') loteId: string,
     @Req() req: { user: { sub: string } },

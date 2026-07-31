@@ -23,7 +23,9 @@ export class ClientesController {
   constructor(private readonly clientesService: ClientesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Listar o buscar compradores/clientes de la organización' })
+  @ApiOperation({
+    summary: 'Listar o buscar compradores/clientes de la organización',
+  })
   listar(
     @Req() req: { user: { sub: string } },
     @Query('q') q?: string,

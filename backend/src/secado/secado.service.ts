@@ -133,10 +133,7 @@ export class SecadoService {
           tx.calidad.findFirst({
             where: {
               nombre: dto.calidadSalida,
-              OR: [
-                { organizacionId: null },
-                { organizacionId },
-              ],
+              OR: [{ organizacionId: null }, { organizacionId }],
             },
             select: { id: true, nombre: true },
           }),
@@ -381,10 +378,7 @@ export class SecadoService {
           tx.calidad.findMany({
             where: {
               nombre: { in: dto.salidas.map((salida) => salida.calidad) },
-              OR: [
-                { organizacionId: null },
-                { organizacionId },
-              ],
+              OR: [{ organizacionId: null }, { organizacionId }],
             },
             select: { id: true, nombre: true },
           }),

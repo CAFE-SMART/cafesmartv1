@@ -465,7 +465,7 @@ function getVentasGuidance(
       message,
       'Selecciona como vender',
       'No elegiste el tipo de venta.',
-      'Una parte o todo el inventario.',
+      'Elige si deseas realizar una venta total o parcial.',
     );
   }
 
@@ -668,12 +668,17 @@ function getPrecioTipoGuidance(
 export default function Ventas() {
   const navigate = useNavigate();
   const [, setCurrencyTick] = React.useState(0);
-  const [supportModal, setSupportModal] = React.useState<'help' | 'contact' | null>(null);
+  const [supportModal, setSupportModal] = React.useState<
+    'help' | 'contact' | null
+  >(null);
   React.useEffect(() => {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const [cargando, setCargando] = React.useState(true);
@@ -2402,11 +2407,12 @@ export default function Ventas() {
                           </p>
                         </div>
                       </div>
-                      {clienteSeleccionado.id !== 'general' && clienteSeleccionado.documento && (
-                        <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
-                          {clienteSeleccionado.documento}
-                        </span>
-                      )}
+                      {clienteSeleccionado.id !== 'general' &&
+                        clienteSeleccionado.documento && (
+                          <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
+                            {clienteSeleccionado.documento}
+                          </span>
+                        )}
                     </div>
                   ) : (
                     <div className="mb-4 rounded-[12px] border border-dashed border-[#d8dfee] px-4 py-3 text-center text-[0.88rem] text-slate-400">
@@ -2808,11 +2814,11 @@ export default function Ventas() {
                         100% { width: 100%; }
                       }
                     `}</style>
-                    <div 
-                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
-                      style={{ 
-                        animation: 'progressLoading 2s ease-in-out infinite' 
-                      }} 
+                    <div
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]"
+                      style={{
+                        animation: 'progressLoading 2s ease-in-out infinite',
+                      }}
                     />
                   </>
                 )}
@@ -3071,8 +3077,6 @@ export default function Ventas() {
         </div>
       ) : null}
 
-
-
       <AppBottomNav
         hidden={mostrarModal || mostrarModalSelectorCliente || paso >= 1}
       />
@@ -3089,9 +3093,7 @@ function SupportLinks({
 }) {
   return (
     <div className="pt-6 pb-2 text-center">
-      <p className="text-xs font-semibold text-[#73829a]">
-        ¿Necesitas ayuda?
-      </p>
+      <p className="text-xs font-semibold text-[#73829a]">¿Necesitas ayuda?</p>
       <div className="mt-2.5 flex items-center justify-center gap-6">
         <button
           type="button"
@@ -3154,19 +3156,26 @@ function SupportModal({
         {type === 'help' ? (
           <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
             <p>
-              <strong>• Cliente:</strong> Selecciona el comprador al que le vendes el café. Si no está en la lista, puedes presionar el botón "+" para registrarlo en el instante.
+              <strong>• Cliente:</strong> Selecciona el comprador al que le
+              vendes el café. Si no está en la lista, puedes presionar el botón
+              "+" para registrarlo en el instante.
             </p>
             <p>
-              <strong>• Tipo de venta:</strong> Puedes vender un sublote completo (Venta Total) o transferir solo una parte del peso disponible (Venta Parcial).
+              <strong>• Tipo de venta:</strong> Puedes vender un sublote
+              completo (Venta Total) o transferir solo una parte del peso
+              disponible (Venta Parcial).
             </p>
             <p>
-              <strong>• Control de stock:</strong> El sistema validará automáticamente que tengas suficiente cantidad de café registrado en tu inventario antes de permitirte completar la venta.
+              <strong>• Control de stock:</strong> El sistema validará
+              automáticamente que tengas suficiente cantidad de café registrado
+              en tu inventario antes de permitirte completar la venta.
             </p>
           </div>
         ) : (
           <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
             <p className="text-slate-600">
-              ¿Tienes alguna duda con el registro de tus ventas de café? Escríbenos directamente por WhatsApp.
+              ¿Tienes alguna duda con el registro de tus ventas de café?
+              Escríbenos directamente por WhatsApp.
             </p>
             <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
               <Headset className="text-[#1D4ED8] mb-2" size={24} />
@@ -3196,8 +3205,6 @@ function SupportModal({
     </div>
   );
 }
-
-
 
 function LoadingCard({ text }: { text: string }) {
   return (

@@ -23,7 +23,8 @@ export const UI_MESSAGES = {
     },
     registerFailed: {
       titulo: 'No pudimos completar el registro',
-      mensaje: 'No pudimos completar el registro.',
+      mensaje:
+        'No pudimos completar el registro. Verifica los datos ingresados e intenta nuevamente.',
       accion: 'Intenta nuevamente',
     },
     sessionExpired: {
@@ -35,8 +36,8 @@ export const UI_MESSAGES = {
   inventory: {
     notFound: {
       titulo: 'No encontramos la información',
-      mensaje: 'No encontramos la información.',
-      accion: 'Verifica los datos',
+      mensaje: 'No encontramos el inventario o lote solicitado.',
+      accion: 'Verifica los datos o recarga la página',
     },
     noStock: {
       titulo: 'Stock insuficiente',

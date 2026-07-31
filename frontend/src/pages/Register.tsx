@@ -489,7 +489,11 @@ export default function Register() {
                               : 'Mostrar contraseña'
                           }
                         >
-                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          {showPassword ? (
+                            <EyeOff size={17} />
+                          ) : (
+                            <Eye size={17} />
+                          )}
                         </button>
                       </div>
                       {stepTwoErrors.password ? (
@@ -802,9 +806,7 @@ function RegisterLinks({
 }) {
   return (
     <div className="pt-5 text-center">
-      <p className="text-xs font-semibold text-[#73829a]">
-        ¿Necesitas ayuda?
-      </p>
+      <p className="text-xs font-semibold text-[#73829a]">¿Necesitas ayuda?</p>
       <div className="mt-2.5 flex items-center justify-center gap-6">
         <button
           type="button"
@@ -899,19 +901,26 @@ function SupportModal({
         {type === 'help' ? (
           <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
             <p>
-              <strong>• Nombre de tu negocio:</strong> Escribe el nombre comercial con el que te conocen. Puedes usar letras, espacios y hasta 5 números.
+              <strong>• Nombre de tu negocio:</strong> Escribe el nombre
+              comercial con el que te conocen. Puedes usar letras, espacios y
+              hasta 5 números.
             </p>
             <p>
-              <strong>• Datos personales:</strong> Ingresa tu nombre y apellidos sin números. Tu teléfono debe ser de 10 dígitos y empezar por 3 (ej: 3150518018).
+              <strong>• Datos personales:</strong> Ingresa tu nombre y apellidos
+              sin números. Tu teléfono debe ser de 10 dígitos y empezar por 3
+              (ej: 3150518018).
             </p>
             <p>
-              <strong>• Tu clave:</strong> Elige una contraseña segura que combine letras mayúsculas, minúsculas y números para mantener tu cuenta protegida.
+              <strong>• Tu clave:</strong> Elige una contraseña segura que
+              combine letras mayúsculas, minúsculas y números para mantener tu
+              cuenta protegida.
             </p>
           </div>
         ) : (
           <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
             <p className="text-slate-600">
-              ¿Tienes algún problema o duda para registrarte? Escríbenos directamente por WhatsApp y te ayudaremos de inmediato.
+              ¿Tienes algún problema o duda para registrarte? Escríbenos
+              directamente por WhatsApp y te ayudaremos de inmediato.
             </p>
             <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
               <Headset className="text-[#1D4ED8] mb-2" size={24} />
@@ -1009,7 +1018,11 @@ interface EmailConflictViewProps {
   onGoToLogin: () => void;
 }
 
-function EmailConflictView({ data, onBackToRegister, onGoToLogin }: EmailConflictViewProps) {
+function EmailConflictView({
+  data,
+  onBackToRegister,
+  onGoToLogin,
+}: EmailConflictViewProps) {
   const tipoOrganizacionTexto = useMemo(() => {
     if (data.tipoOrganizacion === 'COMPRAVENTA') return 'Compraventa';
     if (data.tipoOrganizacion === 'COOPERATIVA') return 'Cooperativa';
@@ -1035,17 +1048,27 @@ function EmailConflictView({ data, onBackToRegister, onGoToLogin }: EmailConflic
         <div className="rounded-[22px] border border-[#e2e8f0] bg-white p-5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.04)]">
           <div className="space-y-4">
             <p className="text-sm font-semibold leading-6 text-slate-700">
-              La cuenta para el negocio <span className="font-extrabold text-slate-900">"{data.nombreOrganizacion}" ({tipoOrganizacionTexto})</span> ya ha sido creada anteriormente con el correo electrónico <span className="font-extrabold text-slate-900">{data.correo}</span>.
+              La cuenta para el negocio{' '}
+              <span className="font-extrabold text-slate-900">
+                "{data.nombreOrganizacion}" ({tipoOrganizacionTexto})
+              </span>{' '}
+              ya ha sido creada anteriormente con el correo electrónico{' '}
+              <span className="font-extrabold text-slate-900">
+                {data.correo}
+              </span>
+              .
             </p>
-            
+
             <div className="h-px bg-slate-100" />
-            
+
             <div className="space-y-2 text-xs font-semibold text-slate-500 leading-5">
               <p>
-                • Si eres el administrador o colaborador de este negocio, puedes iniciar sesión directamente con tus credenciales.
+                • Si eres el administrador o colaborador de este negocio, puedes
+                iniciar sesión directamente con tus credenciales.
               </p>
               <p>
-                • Si quieres registrar un negocio u organización diferente, debes usar un correo electrónico distinto.
+                • Si quieres registrar un negocio u organización diferente,
+                debes usar un correo electrónico distinto.
               </p>
             </div>
           </div>

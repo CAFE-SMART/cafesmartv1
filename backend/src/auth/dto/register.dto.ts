@@ -51,9 +51,9 @@ export class RegisterDto {
 
   @IsEnum(TipoOrganizacion, {
     message:
-      'El tipo de organizacion debe ser COOPERATIVA, COMPRAVENTA u OTRO.',
+      'Selecciona un tipo de negocio válido (Cooperativa, Compraventa u Otro).',
   })
-  @IsNotEmpty({ message: 'El tipo de organizacion es obligatorio.' })
+  @IsNotEmpty({ message: 'El tipo de organización es obligatorio.' })
   tipoOrganizacion: TipoOrganizacion;
 
   @ValidateIf((o) => o.tipoOrganizacion === TipoOrganizacion.OTRO)

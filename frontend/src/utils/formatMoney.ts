@@ -1,10 +1,25 @@
 import { apiFetch } from '../services/apiService';
 
 export const CURRENCIES = {
-  COP: { locale: 'es-CO', code: 'COP', label: 'Pesos colombianos (COP)', symbol: '$' },
-  USD: { locale: 'en-US', code: 'USD', label: 'Dólares estadounidenses (USD)', symbol: '$' },
+  COP: {
+    locale: 'es-CO',
+    code: 'COP',
+    label: 'Pesos colombianos (COP)',
+    symbol: '$',
+  },
+  USD: {
+    locale: 'en-US',
+    code: 'USD',
+    label: 'Dólares estadounidenses (USD)',
+    symbol: '$',
+  },
   EUR: { locale: 'de-DE', code: 'EUR', label: 'Euros (EUR)', symbol: '€' },
-  MXN: { locale: 'es-MX', code: 'MXN', label: 'Pesos mexicanos (MXN)', symbol: '$' },
+  MXN: {
+    locale: 'es-MX',
+    code: 'MXN',
+    label: 'Pesos mexicanos (MXN)',
+    symbol: '$',
+  },
 };
 
 let memoryCurrency = 'COP';
@@ -25,7 +40,10 @@ export const isCurrencyConfigured = (): boolean => {
   return isConfigured;
 };
 
-export const updateMemoryCurrency = (code: string | null, configured: boolean): void => {
+export const updateMemoryCurrency = (
+  code: string | null,
+  configured: boolean,
+): void => {
   if (code && CURRENCIES[code as keyof typeof CURRENCIES]) {
     memoryCurrency = code;
     isConfigured = configured;

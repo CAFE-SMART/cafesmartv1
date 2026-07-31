@@ -5,7 +5,6 @@ import {
   Building2,
   CalendarDays,
   ChevronRight,
-  CircleDashed,
   Droplets,
   FlaskConical,
   Lock,
@@ -55,7 +54,13 @@ import {
   isValidPhone,
   sanitizeRegisterPhoneInput,
 } from '../utils/registerValidators';
-import { formatearMonedaInput, getActiveCurrencyLabel, setActiveCurrency, CURRENCIES, getActiveCurrency } from '../utils/formatMoney';
+import {
+  formatearMonedaInput,
+  getActiveCurrencyLabel,
+  setActiveCurrency,
+  CURRENCIES,
+  getActiveCurrency,
+} from '../utils/formatMoney';
 import {
   PESO_MAXIMO_ENTRADA_KG,
   PESO_MAXIMO_OPERATIVO_DEFAULT_KG,
@@ -93,7 +98,7 @@ const TABS = [
   { key: 'USUARIOS', label: 'Usuarios' },
 ] as const;
 
-type TabKey = typeof TABS[number]['key'];
+type TabKey = (typeof TABS)[number]['key'];
 
 const CAPACIDAD_BODEGA_MAX_KG = 999999;
 const CAPACIDAD_BODEGA_MAX_LABEL = '999.999';
@@ -283,7 +288,7 @@ function getAjustesGuidance(message: string): GuidedErrorMessage {
 
   return createGuidedError(
     message,
-    'Ups, no se pudo guardar.',
+    'No se pudieron guardar los ajustes.',
     'Revisa los campos señalados.',
     'Vuelve a intentar.',
   );
@@ -338,7 +343,9 @@ export default function Ajustes() {
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [isEditingBodega, setIsEditingBodega] = useState(false);
   const [isEditingMoneda, setIsEditingMoneda] = useState(false);
-  const [selectedMoneda, setSelectedMoneda] = useState(() => getActiveCurrency() || 'COP');
+  const [selectedMoneda, setSelectedMoneda] = useState(
+    () => getActiveCurrency() || 'COP',
+  );
   const [, setCurrencyTick] = useState(0);
   const [hasTransactions, setHasTransactions] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
@@ -355,13 +362,17 @@ export default function Ajustes() {
   const [guardandoTipo, setGuardandoTipo] = useState(false);
 
   const [mostrarFormCalidad, setMostrarFormCalidad] = useState(false);
-  const [calidadEditandoId, setCalidadEditandoId] = useState<string | null>(null);
+  const [calidadEditandoId, setCalidadEditandoId] = useState<string | null>(
+    null,
+  );
   const [nombreCalidadForm, setNombreCalidadForm] = useState('');
   const [errorCalidadForm, setErrorCalidadForm] = useState<string | null>(null);
   const [guardandoCalidad, setGuardandoCalidad] = useState(false);
   const [showNoActiveSecadoModal, setShowNoActiveSecadoModal] = useState(false);
   const [showNoPurchasesModal, setShowNoPurchasesModal] = useState(false);
-  const [loadingProcess, setLoadingProcess] = useState<'secado' | 'gastos' | null>(null);
+  const [loadingProcess, setLoadingProcess] = useState<
+    'secado' | 'gastos' | null
+  >(null);
 
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -448,7 +459,7 @@ export default function Ajustes() {
       setCurrencyTick((t) => t + 1);
     };
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
-    
+
     const checkTransactions = async () => {
       setLoadingTransactions(true);
       try {
@@ -468,7 +479,10 @@ export default function Ajustes() {
     void checkTransactions();
 
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
 
@@ -679,14 +693,20 @@ export default function Ajustes() {
       setNombreTipoForm('');
       void cargarCatalogos();
     } catch (err) {
-      setErrorTipoForm(err instanceof Error ? err.message : 'Error al guardar el tipo de café.');
+      setErrorTipoForm(
+        err instanceof Error
+          ? err.message
+          : 'Error al guardar el tipo de café.',
+      );
     } finally {
       setGuardandoTipo(false);
     }
   };
 
   const eliminarTipoCafeLocal = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este tipo de café?')) {
+    if (
+      window.confirm('¿Estás seguro de que deseas eliminar este tipo de café?')
+    ) {
       try {
         await eliminarTipoCafe(id);
         setToastNotification({
@@ -695,7 +715,11 @@ export default function Ajustes() {
         });
         void cargarCatalogos();
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'No se pudo eliminar el tipo de café.');
+        alert(
+          err instanceof Error
+            ? err.message
+            : 'No se pudo eliminar el tipo de café.',
+        );
       }
     }
   };
@@ -732,14 +756,20 @@ export default function Ajustes() {
       setNombreCalidadForm('');
       void cargarCatalogos();
     } catch (err) {
-      setErrorCalidadForm(err instanceof Error ? err.message : 'Error al guardar la calidad.');
+      setErrorCalidadForm(
+        err instanceof Error ? err.message : 'Error al guardar la calidad.',
+      );
     } finally {
       setGuardandoCalidad(false);
     }
   };
 
   const eliminarCalidadLocal = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar esta calidad de café?')) {
+    if (
+      window.confirm(
+        '¿Estás seguro de que deseas eliminar esta calidad de café?',
+      )
+    ) {
       try {
         await eliminarCalidad(id);
         setToastNotification({
@@ -748,13 +778,19 @@ export default function Ajustes() {
         });
         void cargarCatalogos();
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'No se pudo eliminar la calidad.');
+        alert(
+          err instanceof Error
+            ? err.message
+            : 'No se pudo eliminar la calidad.',
+        );
       }
     }
   };
 
   const esTipoBase = (nombre: string) => {
-    return ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'].includes(nombre.toUpperCase().trim());
+    return ['VERDE', 'SECO', 'TRILLADO', 'PASILLA'].includes(
+      nombre.toUpperCase().trim(),
+    );
   };
 
   const esCalidadBase = (nombre: string) => {
@@ -1014,7 +1050,9 @@ export default function Ajustes() {
           const tieneCafeVerde = summary.inventarioPorTipo.some((inv) => {
             const key = inv.tipoCafe.trim().toUpperCase();
             return (
-              (key === 'VERDE' || key === 'CAFE VERDE' || key.endsWith(' VERDE')) &&
+              (key === 'VERDE' ||
+                key === 'CAFE VERDE' ||
+                key.endsWith(' VERDE')) &&
               inv.kgDisponible > 0
             );
           });
@@ -1275,7 +1313,9 @@ export default function Ajustes() {
                   onClick={item.onClick}
                   disabled={loadingProcess !== null}
                   className={`flex w-full items-start gap-2.5 rounded-[12px] border border-[#e5e9f5] bg-white px-3 py-3 text-left shadow-sm transition ${
-                    loadingProcess !== null ? 'opacity-60 cursor-not-allowed' : ''
+                    loadingProcess !== null
+                      ? 'opacity-60 cursor-not-allowed'
+                      : ''
                   }`}
                 >
                   <span
@@ -1762,7 +1802,10 @@ export default function Ajustes() {
 
             {loadingTransactions ? (
               <div className="flex flex-col items-center justify-center py-10 space-y-3">
-                <LoaderCircle className="animate-spin text-[#1D4ED8]" size={36} />
+                <LoaderCircle
+                  className="animate-spin text-[#1D4ED8]"
+                  size={36}
+                />
                 <p className="text-sm font-semibold text-slate-500">
                   Verificando registros de tu negocio...
                 </p>
@@ -1779,10 +1822,13 @@ export default function Ajustes() {
                         Esta es tu moneda oficial
                       </p>
                       <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                        Ya has registrado compras, ventas o gastos. Para que las cuentas de tu negocio den exactas y no se mezclen diferentes monedas, la moneda no se puede cambiar.
+                        Ya has registrado compras, ventas o gastos. Para que las
+                        cuentas de tu negocio den exactas y no se mezclen
+                        diferentes monedas, la moneda no se puede cambiar.
                       </p>
                       <p className="mt-2 text-[0.68rem] leading-4 text-slate-500 font-medium">
-                        Si necesitas operar con otra moneda, puedes crear una nueva organización.
+                        Si necesitas operar con otra moneda, puedes crear una
+                        nueva organización.
                       </p>
                     </div>
                   </div>
@@ -1798,8 +1844,12 @@ export default function Ajustes() {
                         className="flex w-full items-center justify-between rounded-[16px] border border-[#1D4ED8] bg-[#eef2ff] p-4 text-[#1D4ED8]"
                       >
                         <div className="text-left">
-                          <p className="text-[0.95rem] font-bold">{curr.label}</p>
-                          <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                          <p className="text-[0.95rem] font-bold">
+                            {curr.label}
+                          </p>
+                          <p className="text-[0.75rem] text-slate-500 mt-0.5">
+                            Símbolo: {curr.symbol}
+                          </p>
                         </div>
                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
                           <Check size={12} strokeWidth={3} />
@@ -1834,7 +1884,9 @@ export default function Ajustes() {
                         Selecciona la moneda principal de tu negocio.
                       </p>
                       <p className="mt-2 text-[0.68rem] leading-4 text-slate-500 font-bold">
-                        ⚠️ Atención: Una vez registres tu primera compra, venta o gasto, esta moneda quedará fija y no se podrá volver a cambiar para evitar errores en tus cuentas.
+                        ⚠️ Atención: Una vez registres tu primera compra, venta
+                        o gasto, esta moneda quedará fija y no se podrá volver a
+                        cambiar para evitar errores en tus cuentas.
                       </p>
                     </div>
                   </div>
@@ -1855,8 +1907,12 @@ export default function Ajustes() {
                         }`}
                       >
                         <div className="text-left">
-                          <p className="text-[0.95rem] font-bold">{curr.label}</p>
-                          <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                          <p className="text-[0.95rem] font-bold">
+                            {curr.label}
+                          </p>
+                          <p className="text-[0.75rem] text-slate-500 mt-0.5">
+                            Símbolo: {curr.symbol}
+                          </p>
                         </div>
                         {isSelected ? (
                           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
@@ -2202,7 +2258,9 @@ export default function Ajustes() {
                   Café verde requerido
                 </h3>
                 <p className="mt-2 text-sm leading-5 text-slate-500">
-                  Para iniciar un proceso de secado, debes registrar primero al menos una compra de **café verde** para tener inventario disponible que secar.
+                  Para iniciar un proceso de secado, debes registrar primero al
+                  menos una compra de **café verde** para tener inventario
+                  disponible que secar.
                 </p>
               </div>
             </div>
@@ -2250,7 +2308,9 @@ export default function Ajustes() {
                   Compra requerida
                 </h3>
                 <p className="mt-2 text-sm leading-5 text-slate-500">
-                  Para registrar un gasto de operación, debes registrar primero al menos una compra en la plataforma para asociar los movimientos de tu negocio.
+                  Para registrar un gasto de operación, debes registrar primero
+                  al menos una compra en la plataforma para asociar los
+                  movimientos de tu negocio.
                 </p>
               </div>
             </div>
@@ -2303,9 +2363,13 @@ export default function Ajustes() {
 
             <div className="mt-4 flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin] max-h-[300px]">
               {cargandoCatalogos ? (
-                <p className="text-center text-xs font-semibold text-slate-500 py-8">Cargando tipos de café...</p>
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">
+                  Cargando tipos de café...
+                </p>
               ) : tiposCafeList.length === 0 ? (
-                <p className="text-center text-xs font-semibold text-slate-500 py-8">No hay tipos de café registrados.</p>
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">
+                  No hay tipos de café registrados.
+                </p>
               ) : (
                 tiposCafeList.map((tipo) => {
                   const isBase = esTipoBase(tipo.nombre);
@@ -2359,7 +2423,9 @@ export default function Ajustes() {
             {mostrarFormTipo ? (
               <div className="mt-4 rounded-[18px] border border-slate-100 bg-[#fbfbfe] p-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
                 <h4 className="text-[0.8rem] font-black text-slate-700">
-                  {tipoEditandoId ? 'Editar tipo de café' : 'Nuevo tipo de café'}
+                  {tipoEditandoId
+                    ? 'Editar tipo de café'
+                    : 'Nuevo tipo de café'}
                 </h4>
                 <div className="mt-2.5 flex items-center gap-2">
                   <input
@@ -2438,9 +2504,13 @@ export default function Ajustes() {
 
             <div className="mt-4 flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin] max-h-[300px]">
               {cargandoCatalogos ? (
-                <p className="text-center text-xs font-semibold text-slate-500 py-8">Cargando calidades...</p>
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">
+                  Cargando calidades...
+                </p>
               ) : calidadesList.length === 0 ? (
-                <p className="text-center text-xs font-semibold text-slate-500 py-8">No hay calidades registradas.</p>
+                <p className="text-center text-xs font-semibold text-slate-500 py-8">
+                  No hay calidades registradas.
+                </p>
               ) : (
                 calidadesList.map((calidad) => {
                   const isBase = esCalidadBase(calidad.nombre);
@@ -2477,7 +2547,9 @@ export default function Ajustes() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void eliminarCalidadLocal(calidad.id)}
+                            onClick={() =>
+                              void eliminarCalidadLocal(calidad.id)
+                            }
                             className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f2] text-[#e24c5a] hover:bg-[#ffe0e4] transition"
                             title="Eliminar"
                           >

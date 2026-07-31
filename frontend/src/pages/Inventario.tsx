@@ -257,7 +257,9 @@ function CapacityRing({
   onAdjust: () => void;
 }) {
   const safeCapacity = capacityKg && capacityKg > 0 ? capacityKg : null;
-  const rawPercentage = safeCapacity ? Math.max(0, (totalKg / safeCapacity) * 100) : 0;
+  const rawPercentage = safeCapacity
+    ? Math.max(0, (totalKg / safeCapacity) * 100)
+    : 0;
   const displayPercentage =
     rawPercentage === 0
       ? '0'
@@ -265,9 +267,11 @@ function CapacityRing({
         ? rawPercentage.toFixed(1)
         : rawPercentage.toFixed(0);
   const ringPercentage =
-    safeCapacity && totalKg > 0 ? Math.max(1.5, Math.min(100, rawPercentage)) : 0;
+    safeCapacity && totalKg > 0
+      ? Math.max(1.5, Math.min(100, rawPercentage))
+      : 0;
   const tone = getCapacityTone(rawPercentage);
-  
+
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (ringPercentage / 100) * circumference;
@@ -348,7 +352,9 @@ function CapacityRing({
               Bultos
             </p>
             <p className="mt-1 text-[1.3rem] font-black text-slate-900 leading-none">
-              {new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Math.round(totalKg / BULTO_KG))}
+              {new Intl.NumberFormat('es-CO', {
+                maximumFractionDigits: 0,
+              }).format(Math.round(totalKg / BULTO_KG))}
             </p>
           </div>
         </div>
@@ -455,7 +461,8 @@ function QualityLotCard({
             </p>
             {(lot.pesoEnSecado ?? 0) > 0 ? (
               <p className="mt-0.5 text-[0.72rem] font-semibold text-amber-600">
-                {formatNumber(lot.pesoDisponible ?? lot.pesoActual)} kg disponible · {formatNumber(lot.pesoEnSecado!)} kg en secado
+                {formatNumber(lot.pesoDisponible ?? lot.pesoActual)} kg
+                disponible · {formatNumber(lot.pesoEnSecado!)} kg en secado
               </p>
             ) : null}
             <p className="mt-1 inline-flex items-center gap-1 text-[0.72rem] font-semibold text-slate-500">

@@ -21,13 +21,18 @@ export class LotesController {
   constructor(private readonly lotesService: LotesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Obtener un listado resumido de lotes de la organización' })
+  @ApiOperation({
+    summary: 'Obtener un listado resumido de lotes de la organización',
+  })
   findAll(@Req() req: { user: { sub: string } }) {
     return this.lotesService.findAll(req.user.sub);
   }
 
   @Get(':tipoCafeId/:calidadId/sublotes')
-  @ApiOperation({ summary: 'Obtener sublotes pertenecientes a una combinación de tipo y calidad' })
+  @ApiOperation({
+    summary:
+      'Obtener sublotes pertenecientes a una combinación de tipo y calidad',
+  })
   findSublotes(
     @Param('tipoCafeId') tipoCafeId: string,
     @Param('calidadId') calidadId: string,
@@ -41,7 +46,9 @@ export class LotesController {
   }
 
   @Get('sublotes/:subloteId/resultados-financieros')
-  @ApiOperation({ summary: 'Obtener resultados financieros y rentabilidad de un sublote' })
+  @ApiOperation({
+    summary: 'Obtener resultados financieros y rentabilidad de un sublote',
+  })
   getResultadosFinancierosSublote(
     @Param('subloteId') subloteId: string,
     @Req() req: { user: { sub: string } },
@@ -53,7 +60,9 @@ export class LotesController {
   }
 
   @Patch('sublotes/humedad')
-  @ApiOperation({ summary: 'Actualizar porcentajes de humedad para múltiples sublotes' })
+  @ApiOperation({
+    summary: 'Actualizar porcentajes de humedad para múltiples sublotes',
+  })
   updateHumedades(
     @Body() dto: ActualizarHumedadesDto,
     @Req() req: { user: { sub: string } },
@@ -62,7 +71,9 @@ export class LotesController {
   }
 
   @Patch('sublotes/factor')
-  @ApiOperation({ summary: 'Actualizar factores de rendimiento para múltiples sublotes' })
+  @ApiOperation({
+    summary: 'Actualizar factores de rendimiento para múltiples sublotes',
+  })
   updateFactores(
     @Body() dto: ActualizarFactoresDto,
     @Req() req: { user: { sub: string } },

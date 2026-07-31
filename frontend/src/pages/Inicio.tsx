@@ -1,20 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BadgeDollarSign,
   Coffee,
   CalendarDays,
   CircleDashed,
   Leaf,
   LoaderCircle,
   LogOut,
-  PackageCheck,
   RefreshCcw,
   ReceiptText,
   Save,
   ShoppingCart,
   SunMedium,
-  UserRound,
   X,
 } from 'lucide-react';
 import { AppBottomNav } from '../components/AppBottomNav';
@@ -382,11 +379,13 @@ function EmptyDashboardState({
 export default function Inicio() {
   const navigate = useNavigate();
   const { tone, refreshHealth } = useCloudStatus();
-  const { logout, user } = useUser();
+  const { logout } = useUser();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [summary, setSummary] = useState<DashboardInicio | null>(null);
-  const [activeSecadoSessions, setActiveSecadoSessions] = useState<SecadoSession[]>([]);
+  const [activeSecadoSessions, setActiveSecadoSessions] = useState<
+    SecadoSession[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -427,7 +426,10 @@ export default function Inicio() {
 
   const kgEnSecado = useMemo(() => {
     return activeSecadoSessions.reduce((sum, session) => {
-      const entrada = session.sublotes.reduce((s, sub) => s + sub.pesoActual, 0);
+      const entrada = session.sublotes.reduce(
+        (s, sub) => s + sub.pesoActual,
+        0,
+      );
       return sum + entrada;
     }, 0);
   }, [activeSecadoSessions]);
@@ -632,11 +634,7 @@ export default function Inicio() {
                     label="Café en secado"
                     icon={<SunMedium size={16} />}
                     tone="amber"
-                    value={formatMetric(
-                      loading,
-                      kgEnSecado,
-                      formatKg,
-                    )}
+                    value={formatMetric(loading, kgEnSecado, formatKg)}
                   />
                   <SummaryMetricCard
                     label="Comprado hoy"

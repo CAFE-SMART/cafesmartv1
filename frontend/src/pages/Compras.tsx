@@ -15,7 +15,6 @@ import {
   Pencil,
   Plus,
   Search,
-  ShoppingBag,
   Smile,
   Star,
   SunMedium,
@@ -42,8 +41,14 @@ import {
   validateBusinessDateRange,
 } from '../utils/date';
 import { obtenerDeviceId } from '../utils/deviceId';
-import { formatearMonedaInput, formatoMoneda, setActiveCurrency, CURRENCIES, getActiveCurrency, isCurrencyConfigured } from '../utils/formatMoney';
-import { formatCoffeeLabel } from '../utils/uiMessages';
+import {
+  formatearMonedaInput,
+  formatoMoneda,
+  setActiveCurrency,
+  CURRENCIES,
+  getActiveCurrency,
+  isCurrencyConfigured,
+} from '../utils/formatMoney';
 import { ApiRequestError } from '../services/apiService';
 import {
   guardarConfiguracionBodega,
@@ -220,18 +225,11 @@ function formatoFecha(fechaIso: string) {
   return formatDateLabel(fechaIso);
 }
 
-
 function formatoKg(valor: number) {
   return `${new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(valor)} kg`;
-}
-
-function claseValorResumen(valor: string) {
-  if (valor.length >= 17) return 'text-[0.78rem] sm:text-[1.25rem]';
-  if (valor.length >= 14) return 'text-[0.9rem] sm:text-[1.4rem]';
-  return 'text-[1.12rem] sm:text-[1.65rem]';
 }
 
 function estiloCapacidad(capacidad?: EstadoCapacidadCompra) {
@@ -773,12 +771,17 @@ function getComprasGuidance(message: string): GuidedErrorMessage {
 export default function Compras() {
   const navigate = useNavigate();
   const [, setCurrencyTick] = useState(0);
-  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(null);
+  const [supportModal, setSupportModal] = useState<'help' | 'contact' | null>(
+    null,
+  );
   useEffect(() => {
     const handleCurrencyChange = () => setCurrencyTick((t) => t + 1);
     window.addEventListener('cafesmart_currency_changed', handleCurrencyChange);
     return () => {
-      window.removeEventListener('cafesmart_currency_changed', handleCurrencyChange);
+      window.removeEventListener(
+        'cafesmart_currency_changed',
+        handleCurrencyChange,
+      );
     };
   }, []);
   const savingRef = useRef(false);
@@ -842,9 +845,10 @@ export default function Compras() {
     useState(false);
   const [mostrarModalConfigurarMoneda, setMostrarModalConfigurarMoneda] =
     useState(false);
-  const [selectedMoneda, setSelectedMoneda] = useState(() => getActiveCurrency());
-  const [nombreBodegaNueva, setNombreBodegaNueva] =
-    useState('');
+  const [selectedMoneda, setSelectedMoneda] = useState(() =>
+    getActiveCurrency(),
+  );
+  const [nombreBodegaNueva, setNombreBodegaNueva] = useState('');
   const [capacidadNuevaKg, setCapacidadNuevaKg] = useState('');
   const [capacidadNuevaError, setCapacidadNuevaError] = useState<string | null>(
     null,
@@ -904,7 +908,9 @@ export default function Compras() {
         setMaxPesoKg(maximoConfigurado);
         setMinPrecioKg(bodegaConfig.minPrecioKg ?? PRECIO_MINIMO_KG);
         setMaxPrecioKg(bodegaConfig.maxPrecioKg ?? PRECIO_MAXIMO_KG);
-        setBodegaConfigurada(Boolean(bodegaConfig.capacidadKg && bodegaConfig.capacidadKg > 0));
+        setBodegaConfigurada(
+          Boolean(bodegaConfig.capacidadKg && bodegaConfig.capacidadKg > 0),
+        );
       } else {
         setBodegaConfigurada(false);
       }
@@ -1253,20 +1259,6 @@ export default function Compras() {
     setMostrarErrorFormulario(false);
   };
 
-  const refrescarProductores = async () => {
-    try {
-      const productoresData = await listarProductores({
-        limit: LIMITE_PRODUCTORES_RECIENTES,
-        orden: 'recientes',
-      });
-      setProductores(
-        dedupeProductorOptions(productoresData.map(mapProductorToOption)),
-      );
-    } catch {
-      // No interrumpe el flujo si falla la recarga del autocomplete.
-    }
-  };
-
   const cargarProductoresSelector = async (reset = false) => {
     const offset = reset ? 0 : productoresSelector.length;
     setCargandoProductoresSelector(true);
@@ -1337,14 +1329,6 @@ export default function Compras() {
 
     return () => window.clearTimeout(timeoutId);
   }, [busquedaProductor]);
-
-  const seleccionarBusqueda = () => {
-    setProductorSelectionMode('buscar');
-    setProductorSeleccionado(null);
-    void refrescarProductores();
-    setError(null);
-    setMostrarErrorFormulario(false);
-  };
 
   const seleccionarGenerico = () => {
     setProductorSelectionMode('generico');
@@ -2134,11 +2118,13 @@ export default function Compras() {
                     : 'border-[#dde4f1] bg-white hover:border-[#ccd6ea]'
                 }`}
               >
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
-                  productorSelectionMode === 'generico'
-                    ? 'bg-[#1D4ED8] text-white'
-                    : 'bg-[#eef2f7] text-[#1D4ED8]'
-                }`}>
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                    productorSelectionMode === 'generico'
+                      ? 'bg-[#1D4ED8] text-white'
+                      : 'bg-[#eef2f7] text-[#1D4ED8]'
+                  }`}
+                >
                   <User size={18} />
                 </div>
                 <div className="mt-auto">
@@ -2158,7 +2144,8 @@ export default function Compras() {
                 Recientes
               </p>
 
-              {productoresFiltrados.length === 0 && sinProductoresRegistrados ? (
+              {productoresFiltrados.length === 0 &&
+              sinProductoresRegistrados ? (
                 <div className="rounded-[14px] border border-dashed border-[#d7dcec] bg-[#fafbff] px-3 py-5 text-center text-sm text-slate-500">
                   <p className="font-medium text-slate-600">
                     Aún no tienes productores registrados.
@@ -2184,9 +2171,13 @@ export default function Compras() {
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                            activo ? 'bg-[#1D4ED8] text-white' : 'bg-[#eef2f7] text-[#1D4ED8]'
-                          }`}>
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                              activo
+                                ? 'bg-[#1D4ED8] text-white'
+                                : 'bg-[#eef2f7] text-[#1D4ED8]'
+                            }`}
+                          >
                             {iniciales}
                           </div>
                           <div className="min-w-0">
@@ -2239,11 +2230,12 @@ export default function Compras() {
                       </p>
                     </div>
                   </div>
-                  {productorSeleccionado.id !== 'general' && productorSeleccionado.documento && (
-                    <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
-                      {productorSeleccionado.documento}
-                    </span>
-                  )}
+                  {productorSeleccionado.id !== 'general' &&
+                    productorSeleccionado.documento && (
+                      <span className="shrink-0 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[0.7rem] font-semibold text-[#1D4ED8]">
+                        {productorSeleccionado.documento}
+                      </span>
+                    )}
                 </div>
               ) : (
                 <div className="mb-4 rounded-[12px] border border-dashed border-[#d8dfee] px-4 py-3 text-center text-[0.88rem] text-slate-400">
@@ -2812,7 +2804,7 @@ export default function Compras() {
               <p className="text-sm font-bold text-slate-800">
                 Resumen de sublotes
               </p>
-              
+
               <div className="mt-3 grid grid-cols-2 gap-3 border-b border-slate-100 pb-4">
                 <div className="rounded-[16px] bg-[#f7f9fd] px-3.5 py-3 border border-[#e8edf7]">
                   <p className="text-[0.76rem] font-bold text-slate-500 uppercase tracking-wider">
@@ -2892,7 +2884,7 @@ export default function Compras() {
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">
                   Detalle de cafés
                 </p>
-                
+
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {sublotes.map((sublote) => {
                     const tipoCafe =
@@ -2911,7 +2903,9 @@ export default function Compras() {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {/* Icono de Café */}
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${visual.fondo}`}>
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${visual.fondo}`}
+                          >
                             {visual.icono}
                           </div>
                           {/* Información */}
@@ -3065,10 +3059,13 @@ export default function Compras() {
                 Elige la moneda de tu negocio
               </h2>
               <p className="mt-3 text-[0.88rem] leading-6 text-slate-500">
-                Todos los precios, ventas y reportes de tu negocio se calcularán con esta moneda.
+                Todos los precios, ventas y reportes de tu negocio se calcularán
+                con esta moneda.
               </p>
               <p className="mt-2 text-[0.78rem] leading-5 text-amber-600 font-semibold bg-[#fffbeb] p-3 rounded-[12px] border border-amber-100 text-center">
-                ⚠️ Solo se elige una vez. Cuando registres tu primera compra, venta o gasto, esta moneda quedará fija para evitar errores en tus cuentas.
+                ⚠️ Solo se elige una vez. Cuando registres tu primera compra,
+                venta o gasto, esta moneda quedará fija para evitar errores en
+                tus cuentas.
               </p>
             </div>
 
@@ -3088,7 +3085,9 @@ export default function Compras() {
                   >
                     <div className="text-left">
                       <p className="text-[0.95rem] font-bold">{curr.label}</p>
-                      <p className="text-[0.75rem] text-slate-500 mt-0.5">Símbolo: {curr.symbol}</p>
+                      <p className="text-[0.75rem] text-slate-500 mt-0.5">
+                        Símbolo: {curr.symbol}
+                      </p>
                     </div>
                     {isSelected ? (
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1D4ED8] text-white">
@@ -3397,11 +3396,11 @@ export default function Compras() {
                         100% { width: 100%; }
                       }
                     `}</style>
-                    <div 
-                      className="absolute inset-y-0 left-0 bg-[#1e40af]" 
-                      style={{ 
-                        animation: 'progressLoading 2s ease-in-out infinite' 
-                      }} 
+                    <div
+                      className="absolute inset-y-0 left-0 bg-[#1e40af]"
+                      style={{
+                        animation: 'progressLoading 2s ease-in-out infinite',
+                      }}
                     />
                   </>
                 )}
@@ -3940,9 +3939,7 @@ function SupportLinks({
 }) {
   return (
     <div className="pt-6 pb-2 text-center">
-      <p className="text-xs font-semibold text-[#73829a]">
-        ¿Necesitas ayuda?
-      </p>
+      <p className="text-xs font-semibold text-[#73829a]">¿Necesitas ayuda?</p>
       <div className="mt-2.5 flex items-center justify-center gap-6">
         <button
           type="button"
@@ -4005,19 +4002,26 @@ function SupportModal({
         {type === 'help' ? (
           <div className="space-y-3.5 text-xs leading-5 text-[#536178]">
             <p>
-              <strong>• Productor:</strong> Selecciona el caficultor que te vende el café. Si no está en la lista, puedes presionar el botón "+" para registrarlo en segundos.
+              <strong>• Productor:</strong> Selecciona el caficultor que te
+              vende el café. Si no está en la lista, puedes presionar el botón
+              "+" para registrarlo en segundos.
             </p>
             <p>
-              <strong>• Registro de café:</strong> Ingresa el peso en kilos (debe ser mayor a 10 kg), el precio pactado por kilo, el tipo de café (verde, seco o pasilla) y la calidad.
+              <strong>• Registro de café:</strong> Ingresa el peso en kilos
+              (debe ser mayor a 10 kg), el precio pactado por kilo, el tipo de
+              café (verde, seco o pasilla) y la calidad.
             </p>
             <p>
-              <strong>• Capacidad de bodega:</strong> El sistema calculará el peso de tus sublotes y validará de forma automática que no superes el límite configurado para tu bodega.
+              <strong>• Capacidad de bodega:</strong> El sistema calculará el
+              peso de tus sublotes y validará de forma automática que no superes
+              el límite configurado para tu bodega.
             </p>
           </div>
         ) : (
           <div className="space-y-4 text-xs leading-5 text-[#536178] text-center">
             <p className="text-slate-600">
-              ¿Tienes alguna duda con el registro de tus compras de café? Escríbenos directamente por WhatsApp.
+              ¿Tienes alguna duda con el registro de tus compras de café?
+              Escríbenos directamente por WhatsApp.
             </p>
             <div className="flex flex-col items-center justify-center p-4 bg-[#f8fafc] rounded-[16px] border border-slate-100">
               <Headset className="text-[#1D4ED8] mb-2" size={24} />
