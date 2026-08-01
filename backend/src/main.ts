@@ -43,16 +43,19 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 3000;
 
-  const config = new DocumentBuilder()
-    .setTitle('Café Smart API')
-    .setDescription('Documentación interactiva de la API de Café Smart')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
   app.use(helmet());
+
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!isProd) {
+    const config = new DocumentBuilder()
+      .setTitle('Café Smart API')
+      .setDescription('Documentación interactiva de la API de Café Smart')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const isProd = process.env.NODE_ENV === 'production';
   const frontendUrl = process.env.FRONTEND_URL;

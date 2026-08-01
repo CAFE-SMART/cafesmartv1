@@ -2259,7 +2259,7 @@ export default function Ajustes() {
                 </h3>
                 <p className="mt-2 text-sm leading-5 text-slate-500">
                   Para iniciar un proceso de secado, debes registrar primero al
-                  menos una compra de **café verde** para tener inventario
+                  menos una compra de <strong>café verde</strong> para tener inventario
                   disponible que secar.
                 </p>
               </div>
